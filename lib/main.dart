@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -15,10 +16,17 @@ import 'l10n/generated/app_localizations.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await SystemUiHelper.init();
+  if (!kIsWeb) {
+    try {
+      await SystemUiHelper.init();
+    } catch (e) {
+      debugPrint('SystemUiHelper initialization skipped: $e');
+    }
+  }
 
   // Initialize Language
   await LanguageService.instance.init();

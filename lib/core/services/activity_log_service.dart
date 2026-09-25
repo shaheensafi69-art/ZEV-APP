@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
@@ -81,21 +80,21 @@ class ActivityLogService {
         final webInfo = await _deviceInfo.webBrowserInfo;
         deviceModel = webInfo.browserName.name.toUpperCase();
         osName = webInfo.platform ?? "Web";
-      } else if (Platform.isAndroid) {
+      } else if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
         final androidInfo = await _deviceInfo.androidInfo;
         final brand = androidInfo.brand.toUpperCase();
         final model = androidInfo.model;
         deviceModel = "$brand $model";
         osName = "Android ${androidInfo.version.release}";
-      } else if (Platform.isIOS) {
+      } else if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
         final iosInfo = await _deviceInfo.iosInfo;
         deviceModel = iosInfo.name;
         osName = "iOS ${iosInfo.systemVersion}";
-      } else if (Platform.isMacOS) {
+      } else if (!kIsWeb && defaultTargetPlatform == TargetPlatform.macOS) {
         final macInfo = await _deviceInfo.macOsInfo;
         deviceModel = macInfo.model;
         osName = "macOS ${macInfo.osRelease}";
-      } else if (Platform.isWindows) {
+      } else if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
         deviceModel = "Windows PC";
         osName = "Windows";
       }
