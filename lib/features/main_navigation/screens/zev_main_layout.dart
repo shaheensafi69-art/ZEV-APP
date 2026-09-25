@@ -10,6 +10,9 @@ import '../../feed/screens/create_post_screen.dart';
 import '../../feed/screens/upload_reel_screen.dart';
 import '../../feed/screens/create_story_screen.dart';
 import '../../explore/screens/explore_search_screen.dart';
+import '../../profile/screens/zev_settings_screen.dart';
+import '../../profile/screens/zev_terms_of_service_screen.dart';
+import '../../profile/screens/zev_privacy_policy_screen.dart';
 import '../../../core/widgets/auth_required_modal.dart';
 import '../../../core/widgets/responsive_layout.dart';
 import '../../../core/localization/zev_localizations.dart';
@@ -31,10 +34,58 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   static const Color primaryPink = Color(0xFFFC466B);
   static const Color lightPinkAccent = Color(0xFFFF5E8A);
 
+  String _currentUserName = "ZEV User";
+  String _currentUserAvatar = "";
+  String _currentUserHandle = "";
+  List<Map<String, dynamic>> _suggestedUsers = [];
+  final Set<String> _rightRailFollowingIds = {};
+
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    _loadUserProfile();
+    _loadRightRailSuggestedUsers();
+  }
+
+  Future<void> _loadUserProfile() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    try {
+      final res = await supabase
+          .from('profiles')
+          .select('first_name, last_name, avatar_url')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (res != null && mounted) {
+        final fn = res['first_name'] ?? '';
+        final ln = res['last_name'] ?? '';
+        final full = "$fn $ln".trim();
+        setState(() {
+          if (full.isNotEmpty) _currentUserName = full;
+          _currentUserAvatar = res['avatar_url'] ?? '';
+          _currentUserHandle = user.email?.split('@').first ?? 'user';
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadRightRailSuggestedUsers() async {
+    final currentUserId = supabase.auth.currentUser?.id;
+    try {
+      final res = await supabase
+          .from('profiles')
+          .select('id, first_name, last_name, avatar_url, role')
+          .neq('id', currentUserId ?? '')
+          .limit(4);
+
+      if (mounted) {
+        setState(() {
+          _suggestedUsers = List<Map<String, dynamic>>.from(res);
+        });
+      }
+    } catch (_) {}
   }
 
   void _onTabTapped(int index) {
@@ -55,7 +106,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
       AuthRequiredModal.show(
         context,
         actionName: "create posts or reels",
-        customMessage: "Log in or sign up to share posts, reels, and stories with friends on ZEV.",
+        customMessage:
+            "Log in or sign up to share posts, reels, and stories with friends on ZEV.",
       );
       return;
     }
@@ -95,11 +147,16 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: primaryPink.withValues(alpha: 0.2)),
+                      border: Border.all(
+                        color: primaryPink.withValues(alpha: 0.2),
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: primaryPink.withValues(alpha: 0.1),
@@ -209,10 +266,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
           const SizedBox(height: 8),
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
           ),
         ],
       ),
@@ -238,28 +292,35 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
 
         final isPhone = ResponsiveLayout.isPhone(context);
         final isDesktop = ResponsiveLayout.isDesktop(context);
+        final screenWidth = MediaQuery.of(context).size.width;
 
         return Directionality(
           textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
           child: isPhone
               ? Scaffold(
                   extendBody: true,
-                  body: IndexedStack(
-                    index: _currentIndex,
-                    children: pages,
-                  ),
+                  body: IndexedStack(index: _currentIndex, children: pages),
                   bottomNavigationBar: _buildBottomBar(context, isDark),
                 )
               : Scaffold(
                   body: Row(
                     children: [
+                      // Desktop / Tablet Left Navigation Sidebar
                       _buildSideNav(isDark: isDark, isDesktop: isDesktop),
+
+                      // Center Content Area
                       Expanded(
                         child: IndexedStack(
                           index: _currentIndex,
                           children: pages,
                         ),
                       ),
+
+                      // Desktop Right Rail for Feed & Explore on wide screens
+                      if (isDesktop &&
+                          screenWidth >= 1220 &&
+                          (_currentIndex == 0 || _currentIndex == 1))
+                        _buildDesktopRightRail(isDark: isDark),
                     ],
                   ),
                 ),
@@ -373,15 +434,12 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   }
 
   /// Sleek sidebar for iPad, Android tablets, macOS, Windows, and Web browsers
-  Widget _buildSideNav({
-    required bool isDark,
-    required bool isDesktop,
-  }) {
-    final double width = isDesktop ? 220 : 80;
+  Widget _buildSideNav({required bool isDark, required bool isDesktop}) {
+    final double width = isDesktop ? 240 : 80;
     return Container(
       width: width,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF111827) : Colors.white,
+        color: isDark ? const Color(0xFF0F172A) : Colors.white,
         border: Border(
           right: BorderSide(
             color: isDark
@@ -393,7 +451,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.03),
-            blurRadius: 12,
+            blurRadius: 14,
             offset: const Offset(2, 0),
           ),
         ],
@@ -401,55 +459,73 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
       child: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 20),
+            const SizedBox(height: 22),
             // ZEV Logo Header
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: isDesktop ? 18 : 12),
+              padding: EdgeInsets.symmetric(horizontal: isDesktop ? 20 : 12),
               child: Row(
-                mainAxisAlignment:
-                    isDesktop ? MainAxisAlignment.start : MainAxisAlignment.center,
+                mainAxisAlignment: isDesktop
+                    ? MainAxisAlignment.start
+                    : MainAxisAlignment.center,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(7),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [primaryPink, lightPinkAccent],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
                           color: primaryPink.withValues(alpha: 0.35),
-                          blurRadius: 10,
+                          blurRadius: 12,
                           offset: const Offset(0, 3),
                         ),
                       ],
                     ),
                     child: Image.asset(
                       'assets/logo-without-b.png',
-                      height: 22,
-                      width: 22,
+                      height: 24,
+                      width: 24,
                       fit: BoxFit.contain,
                     ),
                   ),
                   if (isDesktop) ...[
-                    const SizedBox(width: 12),
-                    const Text(
-                      'ZEV',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.2,
-                        color: primaryPink,
-                      ),
+                    const SizedBox(width: 14),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'ZEV',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.5,
+                            color: primaryPink,
+                          ),
+                        ),
+                        Text(
+                          'SOCIAL APP',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.2,
+                            color: isDark
+                                ? Colors.white38
+                                : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ],
               ),
             ),
-            const SizedBox(height: 28),
-            // Nav Items
+            const SizedBox(height: 32),
+
+            // Navigation Items
             _buildSideNavItem(
               icon: Icons.home_rounded,
               label: context.zevTr('feed'),
@@ -478,30 +554,42 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
               isDark: isDark,
               isDesktop: isDesktop,
             ),
-            const Spacer(),
+            _buildSideNavItem(
+              icon: Icons.settings_rounded,
+              label: context.zevTr('settings'),
+              index: 99, // Custom handler
+              isDark: isDark,
+              isDesktop: isDesktop,
+              customTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ZevSettingsScreen()),
+                );
+              },
+            ),
+
+            const SizedBox(height: 20),
+
             // Create (+) Button
             Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: isDesktop ? 16 : 12,
-                vertical: 16,
-              ),
+              padding: EdgeInsets.symmetric(horizontal: isDesktop ? 16 : 12),
               child: InkWell(
                 onTap: () => _onTabTapped(2),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(18),
                 child: Container(
                   width: double.infinity,
-                  height: isDesktop ? 48 : 52,
+                  height: isDesktop ? 50 : 52,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [primaryPink, lightPinkAccent],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(18),
                     boxShadow: [
                       BoxShadow(
                         color: primaryPink.withValues(alpha: 0.4),
-                        blurRadius: 14,
+                        blurRadius: 16,
                         offset: const Offset(0, 4),
                       ),
                     ],
@@ -509,15 +597,20 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.add_rounded, color: Colors.white, size: 24),
+                      const Icon(
+                        Icons.add_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
                       if (isDesktop) ...[
                         const SizedBox(width: 8),
                         Text(
                           context.zevTr('create'),
                           style: const TextStyle(
                             color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 15,
+                            letterSpacing: 0.2,
                           ),
                         ),
                       ],
@@ -526,7 +619,97 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+
+            const Spacer(),
+
+            // Desktop User Profile Pill at bottom of sidebar
+            if (isDesktop) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                child: InkWell(
+                  onTap: () => _onTabTapped(4),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF1E293B)
+                          : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white10
+                            : const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 18,
+                          backgroundColor: primaryPink.withValues(alpha: 0.15),
+                          backgroundImage: _currentUserAvatar.isNotEmpty
+                              ? NetworkImage(_currentUserAvatar)
+                              : null,
+                          child: _currentUserAvatar.isEmpty
+                              ? const Icon(
+                                  Icons.person,
+                                  color: primaryPink,
+                                  size: 18,
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _currentUserName,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: isDark
+                                      ? Colors.white
+                                      : const Color(0xFF0F172A),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                "@$_currentUserHandle",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: isDark
+                                      ? Colors.white38
+                                      : const Color(0xFF94A3B8),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.more_horiz_rounded,
+                          size: 18,
+                          color: isDark
+                              ? Colors.white38
+                              : const Color(0xFF94A3B8),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -539,52 +722,62 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     required int index,
     required bool isDark,
     required bool isDesktop,
+    VoidCallback? customTap,
   }) {
-    final isSelected = _currentIndex == index;
+    final isSelected = index != 99 && _currentIndex == index;
     return Padding(
       padding: EdgeInsets.symmetric(
-        horizontal: isDesktop ? 12 : 8,
+        horizontal: isDesktop ? 14 : 8,
         vertical: 4,
       ),
       child: InkWell(
-        onTap: () => _onTabTapped(index),
-        borderRadius: BorderRadius.circular(14),
+        onTap: customTap ?? () => _onTabTapped(index),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: EdgeInsets.symmetric(
-            horizontal: isDesktop ? 14 : 8,
-            vertical: isDesktop ? 12 : 10,
+            horizontal: isDesktop ? 16 : 8,
+            vertical: isDesktop ? 13 : 11,
           ),
           decoration: BoxDecoration(
             color: isSelected
                 ? (isDark
-                    ? primaryPink.withValues(alpha: 0.2)
-                    : primaryPink.withValues(alpha: 0.12))
+                      ? primaryPink.withValues(alpha: 0.18)
+                      : primaryPink.withValues(alpha: 0.1))
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
+            border: isSelected
+                ? Border.all(
+                    color: primaryPink.withValues(alpha: 0.25),
+                    width: 1,
+                  )
+                : null,
           ),
           child: isDesktop
               ? Row(
                   children: [
                     Icon(
                       icon,
-                      size: 24,
+                      size: 22,
                       color: isSelected
                           ? primaryPink
-                          : (isDark ? Colors.grey[400] : const Color(0xFF64748B)),
+                          : (isDark
+                                ? Colors.grey[400]
+                                : const Color(0xFF64748B)),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 14),
                     Expanded(
                       child: Text(
                         label,
                         style: TextStyle(
-                          fontSize: 14,
-                          fontWeight:
-                              isSelected ? FontWeight.w800 : FontWeight.w600,
+                          fontSize: 14.5,
+                          fontWeight: isSelected
+                              ? FontWeight.w800
+                              : FontWeight.w600,
                           color: isSelected
                               ? primaryPink
                               : (isDark
-                                  ? Colors.grey[200]
-                                  : const Color(0xFF1E293B)),
+                                    ? Colors.grey[200]
+                                    : const Color(0xFF1E293B)),
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -599,20 +792,23 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                       size: 24,
                       color: isSelected
                           ? primaryPink
-                          : (isDark ? Colors.grey[400] : const Color(0xFF64748B)),
+                          : (isDark
+                                ? Colors.grey[400]
+                                : const Color(0xFF64748B)),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       label,
                       style: TextStyle(
                         fontSize: 10,
-                        fontWeight:
-                            isSelected ? FontWeight.w800 : FontWeight.w600,
+                        fontWeight: isSelected
+                            ? FontWeight.w800
+                            : FontWeight.w600,
                         color: isSelected
                             ? primaryPink
                             : (isDark
-                                ? Colors.grey[400]
-                                : const Color(0xFF64748B)),
+                                  ? Colors.grey[400]
+                                  : const Color(0xFF64748B)),
                       ),
                       textAlign: TextAlign.center,
                       maxLines: 1,
@@ -670,6 +866,311 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// High-end Right Rail for Desktop Screens
+  Widget _buildDesktopRightRail({required bool isDark}) {
+    return Container(
+      width: 320,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFFAFAFA),
+        border: Border(
+          left: BorderSide(
+            color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
+            width: 1,
+          ),
+        ),
+      ),
+      child: ListView(
+        padding: const EdgeInsets.all(18),
+        physics: const BouncingScrollPhysics(),
+        children: [
+          // Trending on ZEV card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.local_fire_department_rounded,
+                      color: primaryPink,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      "Trending on ZEV",
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _buildTrendingItem("#Technology", "14.2K posts", isDark),
+                _buildTrendingItem("#Photography", "8.5K posts", isDark),
+                _buildTrendingItem("#ArtAndDesign", "6.1K posts", isDark),
+                _buildTrendingItem("#Education", "12.8K posts", isDark),
+                _buildTrendingItem("#Music", "5.3K posts", isDark),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // Suggested Users / Who to Follow
+          if (_suggestedUsers.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.person_add_alt_1_rounded,
+                        color: primaryPink,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        "Who to follow",
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF0F172A),
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ..._suggestedUsers.map((user) {
+                    final uid = user['id']?.toString() ?? '';
+                    final fn = user['first_name'] ?? '';
+                    final ln = user['last_name'] ?? '';
+                    final name = "$fn $ln".trim().isNotEmpty
+                        ? "$fn $ln".trim()
+                        : "ZEV User";
+                    final avatar = user['avatar_url']?.toString() ?? '';
+                    final isFollowing = _rightRailFollowingIds.contains(uid);
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 17,
+                            backgroundColor: primaryPink.withValues(
+                              alpha: 0.15,
+                            ),
+                            backgroundImage: avatar.isNotEmpty
+                                ? NetworkImage(avatar)
+                                : null,
+                            child: avatar.isEmpty
+                                ? const Icon(
+                                    Icons.person,
+                                    color: primaryPink,
+                                    size: 16,
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: isDark
+                                    ? Colors.white
+                                    : const Color(0xFF0F172A),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          InkWell(
+                            onTap: () {
+                              setState(() {
+                                if (isFollowing) {
+                                  _rightRailFollowingIds.remove(uid);
+                                } else {
+                                  _rightRailFollowingIds.add(uid);
+                                }
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isFollowing
+                                    ? (isDark
+                                          ? Colors.white10
+                                          : const Color(0xFFF1F5F9))
+                                    : primaryPink,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                isFollowing ? "Following" : "Follow",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: isFollowing
+                                      ? (isDark
+                                            ? Colors.white70
+                                            : const Color(0xFF64748B))
+                                      : Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+          ],
+
+          // Footer links
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                _buildFooterLink("Terms of Service", () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ZevTermsOfServiceScreen(),
+                    ),
+                  );
+                }, isDark),
+                Text(
+                  "•",
+                  style: TextStyle(
+                    color: isDark ? Colors.white24 : const Color(0xFFCBD5E1),
+                    fontSize: 11,
+                  ),
+                ),
+                _buildFooterLink("Privacy Policy", () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ZevPrivacyPolicyScreen(),
+                    ),
+                  );
+                }, isDark),
+                Text(
+                  "•",
+                  style: TextStyle(
+                    color: isDark ? Colors.white24 : const Color(0xFFCBD5E1),
+                    fontSize: 11,
+                  ),
+                ),
+                _buildFooterLink("Settings", () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ZevSettingsScreen(),
+                    ),
+                  );
+                }, isDark),
+                const SizedBox(width: double.infinity, height: 6),
+                Text(
+                  "© 2026 ZEV Social Inc. All rights reserved.",
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? Colors.white30 : const Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTrendingItem(String tag, String count, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            tag,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: isDark ? Colors.white : const Color(0xFF1E293B),
+            ),
+          ),
+          Text(
+            count,
+            style: TextStyle(
+              fontSize: 11,
+              color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFooterLink(String label, VoidCallback onTap, bool isDark) {
+    return InkWell(
+      onTap: onTap,
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          color: isDark ? Colors.white54 : const Color(0xFF64748B),
+          fontWeight: FontWeight.w500,
         ),
       ),
     );

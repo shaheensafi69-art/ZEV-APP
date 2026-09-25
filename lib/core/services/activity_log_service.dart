@@ -132,7 +132,12 @@ class ActivityLogService {
             location = "$emoji $country".trim();
           }
           if (country.isNotEmpty) {
-            return {"location": location, "country": country, "city": city, "ip": ip};
+            return {
+              "location": location,
+              "country": country,
+              "city": city,
+              "ip": ip,
+            };
           }
         }
       }
@@ -159,7 +164,12 @@ class ActivityLogService {
             location = country;
           }
           if (country.isNotEmpty) {
-            return {"location": location, "country": country, "city": city, "ip": ip};
+            return {
+              "location": location,
+              "country": country,
+              "city": city,
+              "ip": ip,
+            };
           }
         }
       }
@@ -222,7 +232,9 @@ class ActivityLogService {
             }
           })
           .whereType<Map<String, dynamic>>()
-          .where((m) => m['device_model'] != newEntry.deviceModel) // Remove prior record for this device
+          .where(
+            (m) => m['device_model'] != newEntry.deviceModel,
+          ) // Remove prior record for this device
           .toList();
 
       list.insert(0, newEntry.toJson());
@@ -244,13 +256,18 @@ class ActivityLogService {
 
         if (existing != null && existing['id'] != null) {
           final existingId = existing['id'].toString();
-          await supabase.from('device_activities').update({
-            'country': loc['country'] ?? 'Unknown',
-            'city': loc['city'] ?? 'Unknown',
-            'ip_address': loc['ip'] ?? '—',
-            'logged_in_at': DateTime.now().toUtc().toIso8601String(),
-          }).eq('id', existingId);
-          debugPrint("Updated login timestamp for existing device: ${newEntry.deviceModel}");
+          await supabase
+              .from('device_activities')
+              .update({
+                'country': loc['country'] ?? 'Unknown',
+                'city': loc['city'] ?? 'Unknown',
+                'ip_address': loc['ip'] ?? '—',
+                'logged_in_at': DateTime.now().toUtc().toIso8601String(),
+              })
+              .eq('id', existingId);
+          debugPrint(
+            "Updated login timestamp for existing device: ${newEntry.deviceModel}",
+          );
         } else {
           final insertData = {
             'id': _generateUuidV4(),
@@ -370,18 +387,28 @@ class ActivityLogService {
               final row = retryRows[i] as Map<String, dynamic>;
               final country = row['country']?.toString() ?? '';
               final city = row['city']?.toString() ?? '';
-              String loc = "$city, $country".replaceAll(RegExp(r'^,\s*|,\s*$'), '');
+              String loc = "$city, $country".replaceAll(
+                RegExp(r'^,\s*|,\s*$'),
+                '',
+              );
               if (loc.isEmpty) loc = "Online Session";
 
-              logs.add(ActivityLogEntry(
-                id: row['id']?.toString() ?? i.toString(),
-                deviceModel: row['device_name']?.toString() ?? 'Mobile Device',
-                osName: 'Mobile',
-                location: loc,
-                ipAddress: row['ip_address']?.toString() ?? '—',
-                timestamp: DateTime.tryParse(row['logged_in_at']?.toString() ?? '') ?? DateTime.now(),
-                isCurrent: (i == 0),
-              ));
+              logs.add(
+                ActivityLogEntry(
+                  id: row['id']?.toString() ?? i.toString(),
+                  deviceModel:
+                      row['device_name']?.toString() ?? 'Mobile Device',
+                  osName: 'Mobile',
+                  location: loc,
+                  ipAddress: row['ip_address']?.toString() ?? '—',
+                  timestamp:
+                      DateTime.tryParse(
+                        row['logged_in_at']?.toString() ?? '',
+                      ) ??
+                      DateTime.now(),
+                  isCurrent: (i == 0),
+                ),
+              );
             }
             await prefs.setStringList(
               key,
@@ -459,8 +486,9 @@ class ActivityLogService {
     // Set variant to RFC 4122
     values[8] = (values[8] & 0x3f) | 0x80;
 
-    final hexDigits = values.map((b) => b.toRadixString(16).padLeft(2, '0')).toList();
+    final hexDigits = values
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .toList();
     return '${hexDigits.sublist(0, 4).join()}-${hexDigits.sublist(4, 6).join()}-${hexDigits.sublist(6, 8).join()}-${hexDigits.sublist(8, 10).join()}-${hexDigits.sublist(10, 16).join()}';
   }
 }
-

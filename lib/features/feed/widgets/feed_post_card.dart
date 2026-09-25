@@ -33,7 +33,7 @@ class FeedPostItem {
     required this.content,
     this.imageUrl,
     required this.createdAt,
-    this.authorName = "ZEV Member",
+    this.authorName = "ZEV User",
     this.authorAvatar = "",
     this.likesCount = 0,
     this.isLikedByMe = false,
@@ -60,7 +60,7 @@ class FeedPostItem {
 
   factory FeedPostItem.fromJson(
     Map<String, dynamic> json, {
-    String name = "ZEV Member",
+    String name = "ZEV User",
     String avatar = "",
     int likes = 0,
     bool liked = false,
@@ -417,30 +417,92 @@ class _FeedPostCardState extends State<FeedPostCard> {
     final currentUserId = supabase.auth.currentUser?.id;
 
     // Responsive dimensions
-    final double cardPadding = context.respSpacing(phone: 16.0, tablet: 22.0, desktop: 24.0);
-    final double avatarRadius = context.responsive(phone: 20.0, tablet: 26.0, desktop: 28.0);
-    final double authorNameSize = context.respFont(phone: 15.0, tablet: 17.5, desktop: 18.5);
-    final double metaFontSize = context.respFont(phone: 11.0, tablet: 13.0, desktop: 13.5);
-    final double moodTagFontSize = context.respFont(phone: 11.0, tablet: 13.0, desktop: 13.5);
-    final double titleFontSize = context.respFont(phone: 16.0, tablet: 19.5, desktop: 20.5);
-    final double contentFontSize = context.respFont(phone: 14.0, tablet: 16.5, desktop: 16.5);
+    final double cardPadding = context.respSpacing(
+      phone: 16.0,
+      tablet: 22.0,
+      desktop: 24.0,
+    );
+    final double avatarRadius = context.responsive(
+      phone: 20.0,
+      tablet: 26.0,
+      desktop: 28.0,
+    );
+    final double authorNameSize = context.respFont(
+      phone: 15.0,
+      tablet: 17.5,
+      desktop: 18.5,
+    );
+    final double metaFontSize = context.respFont(
+      phone: 11.0,
+      tablet: 13.0,
+      desktop: 13.5,
+    );
+    final double moodTagFontSize = context.respFont(
+      phone: 11.0,
+      tablet: 13.0,
+      desktop: 13.5,
+    );
+    final double titleFontSize = context.respFont(
+      phone: 16.0,
+      tablet: 19.5,
+      desktop: 20.5,
+    );
+    final double contentFontSize = context.respFont(
+      phone: 14.0,
+      tablet: 16.5,
+      desktop: 16.5,
+    );
 
     // Responsive action icon sizes
-    final double heartIconSize = context.respIcon(phone: 26.0, tablet: 31.0, desktop: 27.0);
-    final double commentIconSize = context.respIcon(phone: 24.0, tablet: 29.0, desktop: 25.0);
-    final double repostIconSize = context.respIcon(phone: 25.0, tablet: 30.0, desktop: 26.0);
-    final double sendIconSize = context.respIcon(phone: 23.0, tablet: 28.0, desktop: 24.0);
-    final double bookmarkIconSize = context.respIcon(phone: 26.0, tablet: 31.0, desktop: 27.0);
-    final double actionTextSize = context.respFont(phone: 13.0, tablet: 15.0, desktop: 14.0);
-    final double actionSpacing = context.respSpacing(phone: 18.0, tablet: 26.0, desktop: 28.0);
+    final double heartIconSize = context.respIcon(
+      phone: 26.0,
+      tablet: 31.0,
+      desktop: 27.0,
+    );
+    final double commentIconSize = context.respIcon(
+      phone: 24.0,
+      tablet: 29.0,
+      desktop: 25.0,
+    );
+    final double repostIconSize = context.respIcon(
+      phone: 25.0,
+      tablet: 30.0,
+      desktop: 26.0,
+    );
+    final double sendIconSize = context.respIcon(
+      phone: 23.0,
+      tablet: 28.0,
+      desktop: 24.0,
+    );
+    final double bookmarkIconSize = context.respIcon(
+      phone: 26.0,
+      tablet: 31.0,
+      desktop: 27.0,
+    );
+    final double actionTextSize = context.respFont(
+      phone: 13.0,
+      tablet: 15.0,
+      desktop: 14.0,
+    );
+    final double actionSpacing = context.respSpacing(
+      phone: 18.0,
+      tablet: 26.0,
+      desktop: 28.0,
+    );
 
     return Container(
       margin: EdgeInsets.symmetric(
-        horizontal: context.respSpacing(phone: 16.0, tablet: 20.0, desktop: 24.0),
+        horizontal: context.respSpacing(
+          phone: 16.0,
+          tablet: 20.0,
+          desktop: 24.0,
+        ),
       ),
       decoration: BoxDecoration(
         color: surfaceWhite,
-        borderRadius: BorderRadius.circular(context.responsive(phone: 24.0, tablet: 28.0, desktop: 30.0)),
+        borderRadius: BorderRadius.circular(
+          context.responsive(phone: 24.0, tablet: 28.0, desktop: 30.0),
+        ),
         border: Border.all(color: cardBorder, width: 1.5),
         boxShadow: [
           BoxShadow(
@@ -499,7 +561,11 @@ class _FeedPostCardState extends State<FeedPostCard> {
                         const SizedBox(height: 2),
                         Row(
                           children: [
-                            Icon(Icons.public, color: textGrey, size: metaFontSize + 1),
+                            Icon(
+                              Icons.public,
+                              color: textGrey,
+                              size: metaFontSize + 1,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               post.createdAt.isNotEmpty
@@ -522,8 +588,16 @@ class _FeedPostCardState extends State<FeedPostCard> {
                   Container(
                     margin: const EdgeInsets.only(right: 6),
                     padding: EdgeInsets.symmetric(
-                      horizontal: context.respSpacing(phone: 14.0, tablet: 18.0, desktop: 20.0),
-                      vertical: context.respSpacing(phone: 5.0, tablet: 7.0, desktop: 8.0),
+                      horizontal: context.respSpacing(
+                        phone: 14.0,
+                        tablet: 18.0,
+                        desktop: 20.0,
+                      ),
+                      vertical: context.respSpacing(
+                        phone: 5.0,
+                        tablet: 7.0,
+                        desktop: 8.0,
+                      ),
                     ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF1F5F9),
@@ -543,7 +617,11 @@ class _FeedPostCardState extends State<FeedPostCard> {
                   icon: Icon(
                     Icons.more_horiz_rounded,
                     color: textDark,
-                    size: context.respIcon(phone: 22.0, tablet: 26.0, desktop: 24.0),
+                    size: context.respIcon(
+                      phone: 22.0,
+                      tablet: 26.0,
+                      desktop: 24.0,
+                    ),
                   ),
                   onPressed: _showPostActionMenu,
                 ),
@@ -556,8 +634,16 @@ class _FeedPostCardState extends State<FeedPostCard> {
             padding: EdgeInsets.symmetric(horizontal: cardPadding),
             child: Container(
               padding: EdgeInsets.symmetric(
-                horizontal: context.respSpacing(phone: 10.0, tablet: 14.0, desktop: 16.0),
-                vertical: context.respSpacing(phone: 4.0, tablet: 6.0, desktop: 6.0),
+                horizontal: context.respSpacing(
+                  phone: 10.0,
+                  tablet: 14.0,
+                  desktop: 16.0,
+                ),
+                vertical: context.respSpacing(
+                  phone: 4.0,
+                  tablet: 6.0,
+                  desktop: 6.0,
+                ),
               ),
               decoration: BoxDecoration(
                 color: lightPinkBg,
@@ -610,7 +696,9 @@ class _FeedPostCardState extends State<FeedPostCard> {
             Padding(
               padding: EdgeInsets.symmetric(horizontal: cardPadding),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(context.responsive(phone: 20.0, tablet: 24.0, desktop: 26.0)),
+                borderRadius: BorderRadius.circular(
+                  context.responsive(phone: 20.0, tablet: 24.0, desktop: 26.0),
+                ),
                 child: Container(
                   constraints: BoxConstraints(
                     maxHeight: context.responsive(
@@ -633,7 +721,10 @@ class _FeedPostCardState extends State<FeedPostCard> {
 
           // Action buttons (Heart, Comment, Repost, Send, Bookmark)
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: cardPadding - 2, vertical: 10),
+            padding: EdgeInsets.symmetric(
+              horizontal: cardPadding - 2,
+              vertical: 10,
+            ),
             child: Row(
               children: [
                 // 1. Like Heart
@@ -915,9 +1006,9 @@ class _PostShareSheetState extends State<_PostShareSheet> {
             .eq('id', user.id)
             .maybeSingle();
         final myName = myProfile != null
-            ? '${myProfile['first_name'] ?? 'A member'} ${myProfile['last_name'] ?? ''}'
+            ? '${myProfile['first_name'] ?? 'A friend'} ${myProfile['last_name'] ?? ''}'
                   .trim()
-            : 'A member';
+            : 'A friend';
 
         await supabase.from('user_notifications').insert({
           'user_id': friendId,
@@ -1120,7 +1211,7 @@ class _PostShareSheetState extends State<_PostShareSheet> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              name.isNotEmpty ? name : 'ZEV Member',
+                              name.isNotEmpty ? name : 'ZEV User',
                               style: const TextStyle(
                                 color: textDark,
                                 fontWeight: FontWeight.w700,

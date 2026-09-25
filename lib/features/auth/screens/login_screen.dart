@@ -468,45 +468,34 @@ class _LoginScreenState extends State<LoginScreen>
                                                   color: textDark,
                                                 ),
                                               ),
-                                              const SizedBox(width: 6),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 2,
+                                              if ((userData!['role'] ?? 'student').toString() == 'admin' ||
+                                                  (userData!['role'] ?? 'student').toString() == 'super_admin') ...[
+                                                const SizedBox(width: 6),
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 2,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: lightPinkBg,
+                                                    borderRadius:
+                                                        BorderRadius.circular(6),
+                                                    border: Border.all(
+                                                      color: primaryPink
+                                                          .withOpacity(0.3),
                                                     ),
-                                                decoration: BoxDecoration(
-                                                  color: lightPinkBg,
-                                                  borderRadius:
-                                                      BorderRadius.circular(6),
-                                                  border: Border.all(
-                                                    color: primaryPink
-                                                        .withOpacity(0.3),
+                                                  ),
+                                                  child: Text(
+                                                    "OFFICIAL 🛡️",
+                                                    style: TextStyle(
+                                                      color: primaryPink,
+                                                      fontSize: 8,
+                                                      fontWeight: FontWeight.w900,
+                                                    ),
                                                   ),
                                                 ),
-                                                child: Text(
-                                                  ((userData!['role'] ??
-                                                                      'student')
-                                                                  .toString() ==
-                                                              'admin' ||
-                                                          (userData!['role'] ??
-                                                                      'student')
-                                                                  .toString() ==
-                                                              'super_admin')
-                                                      ? "OFFICIAL 🛡️"
-                                                      : ((userData!['role'] ??
-                                                                        'student')
-                                                                    .toString() ==
-                                                                'teacher'
-                                                            ? "CREATOR ⭐"
-                                                            : "MEMBER 🌟"),
-                                                  style: TextStyle(
-                                                    color: primaryPink,
-                                                    fontSize: 8,
-                                                    fontWeight: FontWeight.w900,
-                                                  ),
-                                                ),
-                                              ),
+                                              ],
                                             ],
                                           ),
                                           const SizedBox(height: 16),

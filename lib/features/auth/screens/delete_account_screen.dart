@@ -89,7 +89,10 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
     }
   }
 
-  Future<void> _sendTelegramAlert(Map<String, dynamic> profile, String reason) async {
+  Future<void> _sendTelegramAlert(
+    Map<String, dynamic> profile,
+    String reason,
+  ) async {
     try {
       final user = supabase.auth.currentUser;
       final device = await ActivityLogService.instance.getDeviceDetails();
@@ -111,7 +114,8 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
       final String userLoc = loc['location'] ?? "—";
       final String timeStr = DateTime.now().toUtc().toString();
 
-      final String messageText = """
+      final String messageText =
+          """
 🚨 <b>ACCOUNT DELETION REQUEST</b> 🚨
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 👤 <b>Name:</b> $firstName $lastName
@@ -132,7 +136,9 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
 ⚠️ <b>Required Action:</b> Please verify and delete this user account in Supabase console.
 """;
 
-      final url = Uri.parse("https://api.telegram.org/bot$telegramBotToken/sendMessage");
+      final url = Uri.parse(
+        "https://api.telegram.org/bot$telegramBotToken/sendMessage",
+      );
       await http.post(
         url,
         headers: {"Content-Type": "application/json"},
@@ -183,7 +189,9 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
           backgroundColor: surfaceWhite,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
           title: Row(
             children: [
               Container(
@@ -192,13 +200,21 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                   color: Colors.green.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.check_circle_rounded, color: Colors.green, size: 28),
+                child: const Icon(
+                  Icons.check_circle_rounded,
+                  color: Colors.green,
+                  size: 28,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   context.l10n.deleteAccount,
-                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: textDark),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    color: textDark,
+                  ),
                 ),
               ),
             ],
@@ -212,8 +228,13 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryPink,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
               ),
               onPressed: () async {
                 Navigator.pop(ctx);
@@ -221,7 +242,10 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                   await AuthHelper.logout(context);
                 }
               },
-              child: Text(context.l10n.logout, style: const TextStyle(fontWeight: FontWeight.bold)),
+              child: Text(
+                context.l10n.logout,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         ),
@@ -240,7 +264,9 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
   Widget build(BuildContext context) {
     final user = supabase.auth.currentUser;
     final email = user?.email ?? _userProfile?['email'] ?? "—";
-    final fullName = "${_userProfile?['first_name'] ?? ''} ${_userProfile?['last_name'] ?? ''}".trim();
+    final fullName =
+        "${_userProfile?['first_name'] ?? ''} ${_userProfile?['last_name'] ?? ''}"
+            .trim();
     final role = (_userProfile?['role'] ?? 'student').toString().toUpperCase();
 
     return Scaffold(
@@ -251,7 +277,11 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
         centerTitle: true,
         title: Text(
           context.l10n.deleteAccount,
-          style: const TextStyle(color: textDark, fontWeight: FontWeight.w900, fontSize: 16),
+          style: const TextStyle(
+            color: textDark,
+            fontWeight: FontWeight.w900,
+            fontSize: 16,
+          ),
         ),
         iconTheme: const IconThemeData(color: textDark),
       ),
@@ -260,7 +290,10 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
           : SafeArea(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 600),
@@ -280,7 +313,10 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                               end: Alignment.bottomRight,
                             ),
                             borderRadius: BorderRadius.circular(24),
-                            border: Border.all(color: dangerRed.withValues(alpha: 0.3), width: 1.5),
+                            border: Border.all(
+                              color: dangerRed.withValues(alpha: 0.3),
+                              width: 1.5,
+                            ),
                           ),
                           child: Row(
                             children: [
@@ -290,7 +326,11 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                                   color: dangerRed.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(16),
                                 ),
-                                child: const Icon(Icons.warning_amber_rounded, color: dangerRed, size: 30),
+                                child: const Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: dangerRed,
+                                  size: 30,
+                                ),
                               ),
                               const SizedBox(width: 16),
                               Expanded(
@@ -336,13 +376,22 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                               CircleAvatar(
                                 radius: 24,
                                 backgroundColor: lightPinkBg,
-                                backgroundImage: (_userProfile?['avatar_url'] != null &&
-                                        _userProfile!['avatar_url'].toString().isNotEmpty)
+                                backgroundImage:
+                                    (_userProfile?['avatar_url'] != null &&
+                                        _userProfile!['avatar_url']
+                                            .toString()
+                                            .isNotEmpty)
                                     ? NetworkImage(_userProfile!['avatar_url'])
                                     : null,
-                                child: (_userProfile?['avatar_url'] == null ||
-                                        _userProfile!['avatar_url'].toString().isEmpty)
-                                    ? const Icon(Icons.person_outline_rounded, color: primaryPink)
+                                child:
+                                    (_userProfile?['avatar_url'] == null ||
+                                        _userProfile!['avatar_url']
+                                            .toString()
+                                            .isEmpty)
+                                    ? const Icon(
+                                        Icons.person_outline_rounded,
+                                        color: primaryPink,
+                                      )
                                     : null,
                               ),
                               const SizedBox(width: 14),
@@ -351,7 +400,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      fullName.isEmpty ? "ZEV Member" : fullName,
+                                      fullName.isEmpty ? "ZEV User" : fullName,
                                       style: const TextStyle(
                                         color: textDark,
                                         fontWeight: FontWeight.w900,
@@ -361,17 +410,25 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                                     const SizedBox(height: 2),
                                     Text(
                                       email,
-                                      style: const TextStyle(color: textGrey, fontSize: 11),
+                                      style: const TextStyle(
+                                        color: textGrey,
+                                        fontSize: 11,
+                                      ),
                                     ),
                                   ],
                                 ),
                               ),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
                                   color: lightPinkBg,
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: primaryPink.withValues(alpha: 0.3)),
+                                  border: Border.all(
+                                    color: primaryPink.withValues(alpha: 0.3),
+                                  ),
                                 ),
                                 child: Text(
                                   role,
@@ -404,7 +461,10 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                           style: const TextStyle(fontSize: 13, color: textDark),
                           decoration: InputDecoration(
                             hintText: context.l10n.deleteAccountReasonHint,
-                            hintStyle: const TextStyle(color: textGrey, fontSize: 12),
+                            hintStyle: const TextStyle(
+                              color: textGrey,
+                              fontSize: 12,
+                            ),
                             filled: true,
                             fillColor: lightPinkBg.withValues(alpha: 0.4),
                             contentPadding: const EdgeInsets.all(16),
@@ -414,7 +474,10 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
-                              borderSide: const BorderSide(color: primaryPink, width: 1.5),
+                              borderSide: const BorderSide(
+                                color: primaryPink,
+                                width: 1.5,
+                              ),
                             ),
                           ),
                         ),
@@ -422,7 +485,8 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
 
                         // Confirmation checkbox
                         InkWell(
-                          onTap: () => setState(() => _isConfirmed = !_isConfirmed),
+                          onTap: () =>
+                              setState(() => _isConfirmed = !_isConfirmed),
                           borderRadius: BorderRadius.circular(12),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 6),
@@ -432,8 +496,12 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                                 Checkbox(
                                   value: _isConfirmed,
                                   activeColor: dangerRed,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
-                                  onChanged: (val) => setState(() => _isConfirmed = val ?? false),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(5),
+                                  ),
+                                  onChanged: (val) => setState(
+                                    () => _isConfirmed = val ?? false,
+                                  ),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
@@ -442,7 +510,9 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                                     child: Text(
                                       context.l10n.deleteAccountConfirmCheck,
                                       style: TextStyle(
-                                        color: _isConfirmed ? dangerRed : textDark,
+                                        color: _isConfirmed
+                                            ? dangerRed
+                                            : textDark,
                                         fontWeight: FontWeight.w700,
                                         fontSize: 12,
                                         height: 1.4,
@@ -464,24 +534,39 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: dangerRed,
                               foregroundColor: Colors.white,
-                              disabledBackgroundColor: dangerRed.withValues(alpha: 0.3),
+                              disabledBackgroundColor: dangerRed.withValues(
+                                alpha: 0.3,
+                              ),
                               elevation: 0,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
                             ),
                             icon: _isLoading
                                 ? const SizedBox.shrink()
-                                : const Icon(Icons.delete_forever_rounded, size: 20),
+                                : const Icon(
+                                    Icons.delete_forever_rounded,
+                                    size: 20,
+                                  ),
                             label: _isLoading
                                 ? const SizedBox(
                                     width: 20,
                                     height: 20,
-                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
                                   )
                                 : Text(
                                     context.l10n.requestAccountDeletion,
-                                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 13,
+                                    ),
                                   ),
-                            onPressed: (_isConfirmed && !_isLoading) ? _submitDeletionRequest : null,
+                            onPressed: (_isConfirmed && !_isLoading)
+                                ? _submitDeletionRequest
+                                : null,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -492,14 +577,25 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                           child: OutlinedButton.icon(
                             style: OutlinedButton.styleFrom(
                               foregroundColor: textGrey,
-                              side: const BorderSide(color: cardBorder, width: 1.5),
+                              side: const BorderSide(
+                                color: cardBorder,
+                                width: 1.5,
+                              ),
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
                             ),
-                            icon: const Icon(Icons.open_in_browser_rounded, size: 18),
+                            icon: const Icon(
+                              Icons.open_in_browser_rounded,
+                              size: 18,
+                            ),
                             label: Text(
                               context.l10n.deleteAccountWebPolicy,
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             onPressed: _openWebPolicy,
                           ),

@@ -41,11 +41,7 @@ class _ActivityNotificationsScreenState
   List<ActivityNotificationItem> filteredNotifications = [];
 
   String selectedFilterKey = 'all';
-  final List<String> filterKeys = [
-    'all',
-    'likes_comments',
-    'friend_requests',
-  ];
+  final List<String> filterKeys = ['all', 'likes_comments', 'friend_requests'];
 
   static const Color primaryPink = Color(0xFFFC466B);
   static const Color lightPinkBg = Color(0xFFFAF4F6);
@@ -302,8 +298,8 @@ class _ActivityNotificationsScreenState
                 final label = fKey == 'likes_comments'
                     ? context.l10n.likesAndComments
                     : fKey == 'friend_requests'
-                        ? context.l10n.friendRequests
-                        : context.l10n.allActivities;
+                    ? context.l10n.friendRequests
+                    : context.l10n.allActivities;
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: ChoiceChip(
@@ -371,7 +367,10 @@ class _ActivityNotificationsScreenState
                               const SizedBox(height: 6),
                               Text(
                                 context.l10n.activitiesEmptyDesc,
-                                style: const TextStyle(color: textGrey, fontSize: 11),
+                                style: const TextStyle(
+                                  color: textGrey,
+                                  fontSize: 11,
+                                ),
                                 textAlign: TextAlign.center,
                               ),
                             ],
@@ -718,7 +717,7 @@ class _PostDetailBottomSheetState extends State<_PostDetailBottomSheet> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                "${postData!['profiles']?['first_name'] ?? 'Academy'} ${postData!['profiles']?['last_name'] ?? 'Member'}",
+                                "${postData!['profiles']?['first_name'] ?? 'ZEV'} ${postData!['profiles']?['last_name'] ?? 'User'}",
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 14,
@@ -810,7 +809,7 @@ class _PostDetailBottomSheetState extends State<_PostDetailBottomSheet> {
                                 final String name = commenterProfile != null
                                     ? "${commenterProfile['first_name'] ?? ''} ${commenterProfile['last_name'] ?? ''}"
                                           .trim()
-                                    : 'ZEV Member';
+                                    : 'ZEV User';
                                 final String avatar = commenterProfile != null
                                     ? (commenterProfile['avatar_url'] ?? '')
                                     : '';

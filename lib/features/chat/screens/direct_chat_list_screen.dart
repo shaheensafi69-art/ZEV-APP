@@ -189,7 +189,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
         final peerId = entry.key;
         final data = entry.value;
 
-        String fullName = "ZEV Member";
+        String fullName = "ZEV User";
         String avatar = "";
         String role = "STUDENT";
 
@@ -204,7 +204,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
             final fName = profileRes['first_name'] ?? '';
             final lName = profileRes['last_name'] ?? '';
             fullName = "$fName $lName".trim();
-            if (fullName.isEmpty) fullName = "ZEV Member";
+            if (fullName.isEmpty) fullName = "ZEV User";
             avatar = profileRes['avatar_url'] ?? '';
             role = (profileRes['role'] ?? 'STUDENT').toString().toUpperCase();
           }
@@ -298,7 +298,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
         final fName = p['first_name'] ?? '';
         final lName = p['last_name'] ?? '';
         String fullName = "$fName $lName".trim();
-        if (fullName.isEmpty) fullName = "ZEV Member";
+        if (fullName.isEmpty) fullName = "ZEV User";
 
         found.add(
           ChatThreadItem(
@@ -609,7 +609,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
         backgroundColor: surfaceWhite,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text("Log Out?"),
-        content: const Text("Are you sure you want to sign out of this account?"),
+        content: const Text(
+          "Are you sure you want to sign out of this account?",
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -734,10 +736,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                             setModalState(() => isLoggingIn = true);
                             try {
                               final authRes = await supabase.auth
-                                  .signInWithPassword(
-                                email: em,
-                                password: pw,
-                              );
+                                  .signInWithPassword(email: em, password: pw);
                               final newUser = authRes.user;
                               if (newUser != null) {
                                 String newName = em.split('@').first;
@@ -761,9 +760,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
 
                                 await MultiAccountService.instance
                                     .saveCurrentAccount(
-                                  name: newName,
-                                  avatarUrl: newAvatar,
-                                );
+                                      name: newName,
+                                      avatarUrl: newAvatar,
+                                    );
 
                                 if (mounted) {
                                   Navigator.pop(ctx);
@@ -772,8 +771,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text("Switched to $newName!"),
-                                      backgroundColor:
-                                          const Color(0xFF10B981),
+                                      backgroundColor: const Color(0xFF10B981),
                                     ),
                                   );
                                 }
@@ -940,90 +938,90 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                           ),
                         )
                       : searchList.isEmpty
-                          ? Center(
-                              child: Text(
-                                searchCtrl.text.isEmpty
-                                    ? "Type a name to find people"
-                                    : "No users found",
+                      ? Center(
+                          child: Text(
+                            searchCtrl.text.isEmpty
+                                ? "Type a name to find people"
+                                : "No users found",
+                            style: const TextStyle(
+                              color: textGrey,
+                              fontSize: 13,
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          itemCount: searchList.length,
+                          separatorBuilder: (_, _) =>
+                              const Divider(color: cardBorder, height: 1),
+                          itemBuilder: (context, index) {
+                            final p = searchList[index];
+                            final fn = p['first_name'] ?? '';
+                            final ln = p['last_name'] ?? '';
+                            String name = "$fn $ln".trim();
+                            if (name.isEmpty) name = "ZEV User";
+                            final av = p['avatar_url'] ?? '';
+
+                            return ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 4,
+                              ),
+                              leading: CircleAvatar(
+                                radius: 22,
+                                backgroundColor: lightPinkBg,
+                                backgroundImage: av.isNotEmpty
+                                    ? NetworkImage(av)
+                                    : null,
+                                child: av.isEmpty
+                                    ? Text(
+                                        name[0],
+                                        style: const TextStyle(
+                                          color: primaryPink,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                              title: Text(
+                                name,
                                 style: const TextStyle(
-                                  color: textGrey,
-                                  fontSize: 13,
+                                  color: textDark,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
                                 ),
                               ),
-                            )
-                          : ListView.separated(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 10,
+                              subtitle: Text(
+                                p['role']?.toString().toUpperCase() ?? 'MEMBER',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: primaryPink,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                              itemCount: searchList.length,
-                              separatorBuilder: (_, _) =>
-                                  const Divider(color: cardBorder, height: 1),
-                              itemBuilder: (context, index) {
-                                final p = searchList[index];
-                                final fn = p['first_name'] ?? '';
-                                final ln = p['last_name'] ?? '';
-                                String name = "$fn $ln".trim();
-                                if (name.isEmpty) name = "ZEV Member";
-                                final av = p['avatar_url'] ?? '';
-
-                                return ListTile(
-                                  contentPadding:
-                                      const EdgeInsets.symmetric(vertical: 4),
-                                  leading: CircleAvatar(
-                                    radius: 22,
-                                    backgroundColor: lightPinkBg,
-                                    backgroundImage: av.isNotEmpty
-                                        ? NetworkImage(av)
-                                        : null,
-                                    child: av.isEmpty
-                                        ? Text(
-                                            name[0],
-                                            style: const TextStyle(
-                                              color: primaryPink,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          )
-                                        : null,
-                                  ),
-                                  title: Text(
-                                    name,
-                                    style: const TextStyle(
-                                      color: textDark,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14,
+                              trailing: const Icon(
+                                Icons.chat_bubble_outline_rounded,
+                                color: primaryPink,
+                                size: 20,
+                              ),
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => DirectChatScreen(
+                                      peerId: p['id'].toString(),
+                                      peerName: name,
+                                      peerAvatar: av,
                                     ),
                                   ),
-                                  subtitle: Text(
-                                    p['role']?.toString().toUpperCase() ??
-                                        'MEMBER',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: primaryPink,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  trailing: const Icon(
-                                    Icons.chat_bubble_outline_rounded,
-                                    color: primaryPink,
-                                    size: 20,
-                                  ),
-                                  onTap: () {
-                                    Navigator.pop(ctx);
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => DirectChatScreen(
-                                          peerId: p['id'].toString(),
-                                          peerName: name,
-                                          peerAvatar: av,
-                                        ),
-                                      ),
-                                    );
-                                  },
                                 );
                               },
-                            ),
+                            );
+                          },
+                        ),
                 ),
               ],
             ),
@@ -1081,8 +1079,10 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                   ? const Icon(Icons.check_rounded, color: primaryPink)
                   : null,
               onTap: () {
-                setState(() => _activeSecondaryFilter =
-                    _activeSecondaryFilter == "unread" ? "all" : "unread");
+                setState(
+                  () => _activeSecondaryFilter =
+                      _activeSecondaryFilter == "unread" ? "all" : "unread",
+                );
                 Navigator.pop(ctx);
               },
             ),
@@ -1128,9 +1128,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
       _fetchExistingChatThreads();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
     }
   }
 
@@ -1150,9 +1150,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
       _fetchExistingChatThreads();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
     }
   }
 

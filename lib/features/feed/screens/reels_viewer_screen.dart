@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -210,7 +211,7 @@ class ReelItemData {
     this.commentsCount = 0,
     this.isLikedByMe = false,
     this.isSavedByMe = false,
-    this.authorName = 'ZEV Member',
+    this.authorName = 'ZEV User',
     this.authorAvatar = '',
     this.createdAt,
   });
@@ -441,14 +442,14 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
         final id = r['id'].toString();
         final uId = r['user_id'].toString();
 
-        String authorName = 'ZEV Member';
+        String authorName = 'ZEV User';
         String authorAvatar = '';
 
         if (profilesMap.containsKey(uId)) {
           final prof = profilesMap[uId]!;
           authorName = '${prof['first_name'] ?? ''} ${prof['last_name'] ?? ''}'
               .trim();
-          if (authorName.isEmpty) authorName = 'ZEV Member';
+          if (authorName.isEmpty) authorName = 'ZEV User';
           authorAvatar = prof['avatar_url'] ?? '';
         }
 
@@ -1120,71 +1121,172 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.of(context).size.width >= 768;
     return Scaffold(
       backgroundColor: Colors.black,
       body: isLoading
           ? const Center(child: CircularProgressIndicator(color: primaryPink))
-          : Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
-                child: Stack(
+          : Focus(
+              autofocus: true,
+              onKeyEvent: (node, event) {
+                if (event is KeyDownEvent) {
+                  if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+                    _pageController.nextPage(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    );
+                    return KeyEventResult.handled;
+                  } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                    _pageController.previousPage(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    );
+                    return KeyEventResult.handled;
+                  }
+                }
+                return KeyEventResult.ignored;
+              },
+              child: Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Display empty state if Friends tab has no content
-                    if (selectedTab == 'friends' && reels.isEmpty)
-                      _buildEmptyFriendsState()
-                    else
-                      RefreshIndicator(
-                        color: primaryPink,
-                        backgroundColor: Colors.black,
-                        onRefresh: () async {
-                          await _fetchReels();
-                        },
-                        child: PageView.builder(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          controller: _pageController,
-                          scrollDirection: Axis.vertical,
-                          itemCount: AdService.instance.calculateTotalCount(
-                            reels.length,
-                            AdService.reelsAdInterval,
+                    // Desktop Left/Previous Button
+                    if (isDesktop)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 24),
+                        child: IconButton(
+                          iconSize: 28,
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.1,
+                            ),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.all(12),
                           ),
-                          onPageChanged: (index) {
-                            setState(() => activeIndex = index);
-                            if (!AdService.instance.isAdPosition(
-                              index,
-                              AdService.reelsAdInterval,
-                            )) {
-                              final rawIndex = AdService.instance
-                                  .getRawItemIndex(
-                                    index,
-                                    AdService.reelsAdInterval,
-                                  );
-                              if (rawIndex >= 0 && rawIndex < reels.length) {
-                                _recordView(reels[rawIndex]);
-                              }
-                            }
-                          },
-                          itemBuilder: (context, index) {
-                            if (AdService.instance.isAdPosition(
-                              index,
-                              AdService.reelsAdInterval,
-                            )) {
-                              return const ReelsAdCard();
-                            }
-                            final rawIndex = AdService.instance.getRawItemIndex(
-                              index,
-                              AdService.reelsAdInterval,
+                          icon: const Icon(Icons.arrow_upward_rounded),
+                          tooltip: "Previous Reel (Up Arrow)",
+                          onPressed: () {
+                            _pageController.previousPage(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
                             );
-                            if (rawIndex >= reels.length) {
-                              return const SizedBox.shrink();
-                            }
-                            final reel = reels[rawIndex];
-                            return _buildReelPage(reel, index);
                           },
                         ),
                       ),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 480),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          borderRadius: isDesktop
+                              ? BorderRadius.circular(24)
+                              : BorderRadius.zero,
+                          border: isDesktop
+                              ? Border.all(
+                                  color: Colors.white.withValues(alpha: 0.12),
+                                  width: 1.5,
+                                )
+                              : null,
+                          boxShadow: isDesktop
+                              ? [
+                                  BoxShadow(
+                                    color: primaryPink.withValues(alpha: 0.2),
+                                    blurRadius: 35,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: Stack(
+                          children: [
+                            // Display empty state if Friends tab has no content
+                            if (selectedTab == 'friends' && reels.isEmpty)
+                              _buildEmptyFriendsState()
+                            else
+                              RefreshIndicator(
+                                color: primaryPink,
+                                backgroundColor: Colors.black,
+                                onRefresh: () async {
+                                  await _fetchReels();
+                                },
+                                child: PageView.builder(
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
+                                  controller: _pageController,
+                                  scrollDirection: Axis.vertical,
+                                  itemCount: AdService.instance
+                                      .calculateTotalCount(
+                                        reels.length,
+                                        AdService.reelsAdInterval,
+                                      ),
+                                  onPageChanged: (index) {
+                                    setState(() => activeIndex = index);
+                                    if (!AdService.instance.isAdPosition(
+                                      index,
+                                      AdService.reelsAdInterval,
+                                    )) {
+                                      final rawIndex = AdService.instance
+                                          .getRawItemIndex(
+                                            index,
+                                            AdService.reelsAdInterval,
+                                          );
+                                      if (rawIndex >= 0 &&
+                                          rawIndex < reels.length) {
+                                        _recordView(reels[rawIndex]);
+                                      }
+                                    }
+                                  },
+                                  itemBuilder: (context, index) {
+                                    if (AdService.instance.isAdPosition(
+                                      index,
+                                      AdService.reelsAdInterval,
+                                    )) {
+                                      return const ReelsAdCard();
+                                    }
+                                    final rawIndex = AdService.instance
+                                        .getRawItemIndex(
+                                          index,
+                                          AdService.reelsAdInterval,
+                                        );
+                                    if (rawIndex >= reels.length) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    final reel = reels[rawIndex];
+                                    return _buildReelPage(reel, index);
+                                  },
+                                ),
+                              ),
 
-                    // Top buttons: Friends | For You
-                    _buildTopTabBar(),
+                            // Top buttons: Friends | For You
+                            _buildTopTabBar(),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // Desktop Right/Next Button
+                    if (isDesktop)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 24),
+                        child: IconButton(
+                          iconSize: 28,
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.1,
+                            ),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.all(12),
+                          ),
+                          icon: const Icon(Icons.arrow_downward_rounded),
+                          tooltip: "Next Reel (Down Arrow)",
+                          onPressed: () {
+                            _pageController.nextPage(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                          },
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -1975,7 +2077,7 @@ class _ReelShareBottomSheetState extends State<_ReelShareBottomSheet> {
                           fallbackText: name.isNotEmpty ? name[0] : 'F',
                         ),
                         title: Text(
-                          name.isNotEmpty ? name : 'ZEV Member',
+                          name.isNotEmpty ? name : 'ZEV User',
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
@@ -2215,7 +2317,7 @@ class _ReelCommentsBottomSheetState extends State<_ReelCommentsBottomSheet> {
                         final String authorName = (profile != null)
                             ? '${profile['first_name'] ?? ''} ${profile['last_name'] ?? ''}'
                                   .trim()
-                            : 'ZEV Member';
+                            : 'ZEV User';
                         final String avatarUrl = (profile != null)
                             ? (profile['avatar_url'] ?? '')
                             : '';
@@ -2364,6 +2466,7 @@ class ReelCacheManager {
   }
 
   Future<File?> getCachedFile(String url) async {
+    if (kIsWeb) return null;
     try {
       final dir = await _getCacheDirectory();
       final filename = _getCacheFilename(url);
@@ -2376,6 +2479,7 @@ class ReelCacheManager {
   }
 
   void cacheVideoInBackground(String url) {
+    if (kIsWeb) return;
     if (_inProgressDownloads.contains(url)) return;
     _inProgressDownloads.add(url);
 

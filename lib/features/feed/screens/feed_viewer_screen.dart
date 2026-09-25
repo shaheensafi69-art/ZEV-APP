@@ -349,12 +349,12 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
         final sId = item['student_id'].toString();
         final prof = profilesMap[sId];
 
-        String authorName = "ZEV Member";
+        String authorName = "ZEV User";
         String authorAvatar = "";
         if (prof != null) {
           authorName = "${prof['first_name'] ?? ''} ${prof['last_name'] ?? ''}"
               .trim();
-          if (authorName.isEmpty) authorName = "ZEV Member";
+          if (authorName.isEmpty) authorName = "ZEV User";
           authorAvatar = prof['avatar_url'] ?? '';
         }
 
@@ -429,9 +429,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
         filteredPosts.removeWhere((p) => p.id == postId);
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.zevTr('postDeleted'))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(context.zevTr('postDeleted'))));
       }
     } catch (e) {
       if (mounted) {
@@ -653,7 +653,11 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                 ),
               ),
               child: ResponsiveLayout.feedConstraint(
-                maxWidth: context.responsive(phone: 620.0, tablet: 720.0, desktop: 800.0),
+                maxWidth: context.responsive(
+                  phone: 620.0,
+                  tablet: 720.0,
+                  desktop: 800.0,
+                ),
                 child: Stack(
                   children: [
                     RefreshIndicator(
@@ -787,7 +791,11 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                             "ZEV ",
                                             style: TextStyle(
                                               color: primaryPink,
-                                              fontSize: context.respFont(phone: 26.0, tablet: 32.0, desktop: 34.0),
+                                              fontSize: context.respFont(
+                                                phone: 26.0,
+                                                tablet: 32.0,
+                                                desktop: 34.0,
+                                              ),
                                               fontWeight: FontWeight.w900,
                                               fontStyle: FontStyle.italic,
                                               letterSpacing: -0.8,
@@ -797,7 +805,11 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                             "Feed",
                                             style: TextStyle(
                                               color: textDark,
-                                              fontSize: context.respFont(phone: 24.0, tablet: 30.0, desktop: 32.0),
+                                              fontSize: context.respFont(
+                                                phone: 24.0,
+                                                tablet: 30.0,
+                                                desktop: 32.0,
+                                              ),
                                               fontWeight: FontWeight.w800,
                                               fontStyle: FontStyle.italic,
                                               letterSpacing: -0.5,
@@ -825,8 +837,16 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                                 right: 6,
                                               ),
                                               padding: EdgeInsets.symmetric(
-                                                horizontal: context.respSpacing(phone: 10.0, tablet: 14.0, desktop: 16.0),
-                                                vertical: context.respSpacing(phone: 5.0, tablet: 7.0, desktop: 8.0),
+                                                horizontal: context.respSpacing(
+                                                  phone: 10.0,
+                                                  tablet: 14.0,
+                                                  desktop: 16.0,
+                                                ),
+                                                vertical: context.respSpacing(
+                                                  phone: 5.0,
+                                                  tablet: 7.0,
+                                                  desktop: 8.0,
+                                                ),
                                               ),
                                               decoration: BoxDecoration(
                                                 gradient: const LinearGradient(
@@ -855,7 +875,11 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                                   Icon(
                                                     Icons.shopping_bag_rounded,
                                                     color: Colors.white,
-                                                    size: context.respIcon(phone: 14.0, tablet: 17.0, desktop: 17.0),
+                                                    size: context.respIcon(
+                                                      phone: 14.0,
+                                                      tablet: 17.0,
+                                                      desktop: 17.0,
+                                                    ),
                                                   ),
                                                   const SizedBox(width: 4),
                                                   Text(
@@ -864,7 +888,12 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                                       color: Colors.white,
                                                       fontWeight:
                                                           FontWeight.w800,
-                                                      fontSize: context.respFont(phone: 11.5, tablet: 13.5, desktop: 14.0),
+                                                      fontSize: context
+                                                          .respFont(
+                                                            phone: 11.5,
+                                                            tablet: 13.5,
+                                                            desktop: 14.0,
+                                                          ),
                                                       letterSpacing: 0.2,
                                                     ),
                                                   ),
@@ -895,13 +924,18 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                               );
                                             },
                                             child: Padding(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 6,
-                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                  ),
                                               child: Icon(
                                                 Icons.favorite_border_rounded,
                                                 color: textDark,
-                                                size: context.respIcon(phone: 26.0, tablet: 30.0, desktop: 28.0),
+                                                size: context.respIcon(
+                                                  phone: 26.0,
+                                                  tablet: 30.0,
+                                                  desktop: 28.0,
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -929,13 +963,18 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                               );
                                             },
                                             child: Padding(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 6,
-                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                  ),
                                               child: Icon(
                                                 Icons.send_outlined,
                                                 color: textDark,
-                                                size: context.respIcon(phone: 23.0, tablet: 28.0, desktop: 26.0),
+                                                size: context.respIcon(
+                                                  phone: 23.0,
+                                                  tablet: 28.0,
+                                                  desktop: 26.0,
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -955,13 +994,21 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                     ),
                                     const SizedBox(height: 8),
                                     SizedBox(
-                                      height: context.responsive(phone: 42.0, tablet: 48.0, desktop: 52.0),
+                                      height: context.responsive(
+                                        phone: 42.0,
+                                        tablet: 48.0,
+                                        desktop: 52.0,
+                                      ),
                                       child: TextField(
                                         controller: _searchController,
                                         onChanged: _onSearchChanged,
                                         cursorColor: primaryPink,
                                         style: TextStyle(
-                                          fontSize: context.respFont(phone: 13.0, tablet: 15.0, desktop: 15.0),
+                                          fontSize: context.respFont(
+                                            phone: 13.0,
+                                            tablet: 15.0,
+                                            desktop: 15.0,
+                                          ),
                                           fontWeight: FontWeight.w600,
                                           color: textDark,
                                         ),
@@ -971,13 +1018,21 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                           ),
                                           hintStyle: TextStyle(
                                             color: textGrey,
-                                            fontSize: context.respFont(phone: 12.0, tablet: 14.0, desktop: 14.0),
+                                            fontSize: context.respFont(
+                                              phone: 12.0,
+                                              tablet: 14.0,
+                                              desktop: 14.0,
+                                            ),
                                             fontWeight: FontWeight.w500,
                                           ),
                                           prefixIcon: Icon(
                                             Icons.search_rounded,
                                             color: textGrey,
-                                            size: context.respIcon(phone: 18.0, tablet: 22.0, desktop: 22.0),
+                                            size: context.respIcon(
+                                              phone: 18.0,
+                                              tablet: 22.0,
+                                              desktop: 22.0,
+                                            ),
                                           ),
                                           suffixIcon:
                                               _searchController.text.isNotEmpty

@@ -24,7 +24,8 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
   List<Map<String, dynamic>> pendingRequests = [];
   Set<String> myFollowingIds = {};
 
-  String activeTab = "explore"; // "explore", "followers", "following", "requests"
+  String activeTab =
+      "explore"; // "explore", "followers", "following", "requests"
   String searchQuery = "";
   final TextEditingController _searchController = TextEditingController();
 
@@ -110,7 +111,9 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
           }
         }
       } catch (err) {
-        debugPrint("user_follows table query note: $err. Falling back to student_friends.");
+        debugPrint(
+          "user_follows table query note: $err. Falling back to student_friends.",
+        );
         // Fallback to student_friends if user_follows not populated
         final friendsRel = await supabase
             .from('student_friends')
@@ -119,7 +122,9 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
 
         for (var r in (friendsRel as List)) {
           if (r['status'] == 'accepted') {
-            final otherId = (r['sender_id'] == myId) ? r['receiver_id'] : r['sender_id'];
+            final otherId = (r['sender_id'] == myId)
+                ? r['receiver_id']
+                : r['sender_id'];
             if (otherId != null) {
               final otherIdStr = otherId.toString();
               followingIds.add(otherIdStr);
@@ -222,15 +227,17 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
       if (isFollowing) {
         // Unfollow
         try {
-          await supabase
-              .from('user_follows')
-              .delete()
-              .match({'follower_id': myId, 'following_id': targetUserId});
+          await supabase.from('user_follows').delete().match({
+            'follower_id': myId,
+            'following_id': targetUserId,
+          });
         } catch (_) {
           await supabase
               .from('student_friends')
               .delete()
-              .or('and(sender_id.eq.$myId,receiver_id.eq.$targetUserId),and(sender_id.eq.$targetUserId,receiver_id.eq.$myId)');
+              .or(
+                'and(sender_id.eq.$myId,receiver_id.eq.$targetUserId),and(sender_id.eq.$targetUserId,receiver_id.eq.$myId)',
+              );
         }
 
         if (mounted) {
@@ -240,7 +247,9 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
               duration: const Duration(seconds: 2),
               backgroundColor: Colors.grey[800],
               behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           );
         }
@@ -266,7 +275,8 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
             .eq('id', myId)
             .maybeSingle();
         final myName = myProfile != null
-            ? "${myProfile['first_name'] ?? 'Someone'} ${myProfile['last_name'] ?? ''}".trim()
+            ? "${myProfile['first_name'] ?? 'Someone'} ${myProfile['last_name'] ?? ''}"
+                  .trim()
             : 'Someone';
 
         await supabase.from('user_notifications').insert({
@@ -287,7 +297,9 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
               duration: const Duration(seconds: 2),
               backgroundColor: primaryPink,
               behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           );
         }
@@ -321,7 +333,9 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
             content: const Text("Request accepted! 🤝"),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
@@ -342,7 +356,9 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
             content: const Text("Request declined."),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
@@ -398,7 +414,10 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
                   children: [
                     // --- Instagram-style modern header ---
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 18,
+                      ),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [surfaceWhite, lightPinkBg.withOpacity(0.6)],
@@ -472,7 +491,10 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
                           // Refresh button
                           IconButton(
                             onPressed: _fetchSocialData,
-                            icon: const Icon(Icons.refresh_rounded, color: primaryPink),
+                            icon: const Icon(
+                              Icons.refresh_rounded,
+                              color: primaryPink,
+                            ),
                             tooltip: "Refresh",
                           ),
                         ],
@@ -545,7 +567,11 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
                         ),
                         suffixIcon: searchQuery.isNotEmpty
                             ? IconButton(
-                                icon: const Icon(Icons.close_rounded, size: 18, color: textGrey),
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  size: 18,
+                                  color: textGrey,
+                                ),
                                 onPressed: () {
                                   _searchController.clear();
                                   setState(() => searchQuery = "");
@@ -579,14 +605,21 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: filteredList.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: 12),
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 12),
                             itemBuilder: (context, index) {
                               final userItem = filteredList[index];
                               final uId = userItem['id'].toString();
-                              final name = "${userItem['first_name'] ?? ''} ${userItem['last_name'] ?? ''}".trim();
-                              final avatar = userItem['avatar_url']?.toString() ?? '';
-                              final country = userItem['country']?.toString() ?? 'Global Member';
-                              final role = userItem['role']?.toString().toLowerCase() ?? 'student';
+                              final name =
+                                  "${userItem['first_name'] ?? ''} ${userItem['last_name'] ?? ''}"
+                                      .trim();
+                              final avatar =
+                                  userItem['avatar_url']?.toString() ?? '';
+                              final country =
+                                  userItem['country']?.toString() ?? 'Global';
+                              final role =
+                                  userItem['role']?.toString().toLowerCase() ??
+                                  'student';
                               final score = userItem['total_score'] ?? 0;
                               final isFollowing = myFollowingIds.contains(uId);
 
@@ -614,7 +647,8 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
                                       onTap: () => Navigator.push(
                                         context,
                                         MaterialPageRoute(
-                                          builder: (_) => UserProfileScreen(userId: uId),
+                                          builder: (_) =>
+                                              UserProfileScreen(userId: uId),
                                         ),
                                       ),
                                       child: Container(
@@ -642,10 +676,13 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
                                                 : null,
                                             child: avatar.isEmpty
                                                 ? Text(
-                                                    name.isNotEmpty ? name[0].toUpperCase() : 'S',
+                                                    name.isNotEmpty
+                                                        ? name[0].toUpperCase()
+                                                        : 'S',
                                                     style: const TextStyle(
                                                       color: primaryPink,
-                                                      fontWeight: FontWeight.bold,
+                                                      fontWeight:
+                                                          FontWeight.bold,
                                                       fontSize: 18,
                                                     ),
                                                   )
@@ -662,24 +699,30 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
                                         onTap: () => Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (_) => UserProfileScreen(userId: uId),
+                                            builder: (_) =>
+                                                UserProfileScreen(userId: uId),
                                           ),
                                         ),
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Row(
                                               children: [
                                                 Flexible(
                                                   child: Text(
-                                                    name.isNotEmpty ? name : 'ZEV Member',
+                                                    name.isNotEmpty
+                                                        ? name
+                                                        : 'ZEV User',
                                                     style: const TextStyle(
                                                       color: textDark,
-                                                      fontWeight: FontWeight.w900,
+                                                      fontWeight:
+                                                          FontWeight.w900,
                                                       fontSize: 14.5,
                                                     ),
                                                     maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                   ),
                                                 ),
                                                 const SizedBox(width: 6),
@@ -690,7 +733,9 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
                                             Text(
                                               "$country • ⚡ $score pts",
                                               style: TextStyle(
-                                                color: textGrey.withOpacity(0.85),
+                                                color: textGrey.withOpacity(
+                                                  0.85,
+                                                ),
                                                 fontSize: 11.5,
                                                 fontWeight: FontWeight.w600,
                                               ),
@@ -716,14 +761,24 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
                                                 foregroundColor: Colors.white,
                                                 elevation: 0,
                                                 shape: RoundedRectangleBorder(
-                                                  borderRadius: BorderRadius.circular(10),
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
                                                 ),
-                                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                    ),
                                               ),
-                                              onPressed: () => _acceptRequest(userItem['rel_id'], uId),
+                                              onPressed: () => _acceptRequest(
+                                                userItem['rel_id'],
+                                                uId,
+                                              ),
                                               child: const Text(
                                                 "Accept",
-                                                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                                                style: TextStyle(
+                                                  fontSize: 11.5,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -736,11 +791,18 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
                                                 backgroundColor: cardBorder,
                                                 padding: EdgeInsets.zero,
                                                 shape: RoundedRectangleBorder(
-                                                  borderRadius: BorderRadius.circular(10),
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
                                                 ),
                                               ),
-                                              icon: const Icon(Icons.close_rounded, size: 16, color: textGrey),
-                                              onPressed: () => _declineRequest(userItem['rel_id']),
+                                              icon: const Icon(
+                                                Icons.close_rounded,
+                                                size: 16,
+                                                color: textGrey,
+                                              ),
+                                              onPressed: () => _declineRequest(
+                                                userItem['rel_id'],
+                                              ),
                                             ),
                                           ),
                                         ],
@@ -754,31 +816,54 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
                                             height: 34,
                                             child: ElevatedButton(
                                               style: ElevatedButton.styleFrom(
-                                                backgroundColor: isFollowing ? cardBorder : primaryPink,
-                                                foregroundColor: isFollowing ? textDark : Colors.white,
+                                                backgroundColor: isFollowing
+                                                    ? cardBorder
+                                                    : primaryPink,
+                                                foregroundColor: isFollowing
+                                                    ? textDark
+                                                    : Colors.white,
                                                 elevation: 0,
                                                 shape: RoundedRectangleBorder(
-                                                  borderRadius: BorderRadius.circular(12),
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
                                                   side: isFollowing
-                                                      ? BorderSide(color: textGrey.withOpacity(0.2))
+                                                      ? BorderSide(
+                                                          color: textGrey
+                                                              .withOpacity(0.2),
+                                                        )
                                                       : BorderSide.none,
                                                 ),
-                                                padding: const EdgeInsets.symmetric(horizontal: 14),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 14,
+                                                    ),
                                               ),
-                                              onPressed: () => _toggleFollow(uId, name.isNotEmpty ? name : 'User'),
+                                              onPressed: () => _toggleFollow(
+                                                uId,
+                                                name.isNotEmpty ? name : 'User',
+                                              ),
                                               child: Row(
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
                                                   if (isFollowing) ...[
-                                                    const Icon(Icons.check_rounded, size: 14, color: textDark),
+                                                    const Icon(
+                                                      Icons.check_rounded,
+                                                      size: 14,
+                                                      color: textDark,
+                                                    ),
                                                     const SizedBox(width: 4),
                                                   ],
                                                   Text(
-                                                    isFollowing ? "Following" : "Follow",
+                                                    isFollowing
+                                                        ? "Following"
+                                                        : "Follow",
                                                     style: TextStyle(
                                                       fontSize: 12,
-                                                      fontWeight: FontWeight.bold,
-                                                      color: isFollowing ? textDark : Colors.white,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: isFollowing
+                                                          ? textDark
+                                                          : Colors.white,
                                                     ),
                                                   ),
                                                 ],
@@ -793,23 +878,29 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
                                             width: 34,
                                             decoration: BoxDecoration(
                                               color: lightPinkBg,
-                                              borderRadius: BorderRadius.circular(12),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
                                             ),
                                             child: IconButton(
                                               padding: EdgeInsets.zero,
                                               icon: const Icon(
-                                                Icons.chat_bubble_outline_rounded,
+                                                Icons
+                                                    .chat_bubble_outline_rounded,
                                                 size: 16,
                                                 color: primaryPink,
                                               ),
                                               onPressed: () => Navigator.push(
                                                 context,
                                                 MaterialPageRoute(
-                                                  builder: (_) => DirectChatScreen(
-                                                    peerId: uId,
-                                                    peerName: name.isNotEmpty ? name : 'Student',
-                                                    peerAvatar: avatar,
-                                                  ),
+                                                  builder: (_) =>
+                                                      DirectChatScreen(
+                                                        peerId: uId,
+                                                        peerName:
+                                                            name.isNotEmpty
+                                                            ? name
+                                                            : 'Student',
+                                                        peerAvatar: avatar,
+                                                      ),
                                                 ),
                                               ),
                                               tooltip: "Message",
@@ -838,8 +929,8 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
                                     activeTab == "followers"
                                         ? "No followers yet. Share reels to gain followers!"
                                         : activeTab == "following"
-                                            ? "You haven't followed anyone yet."
-                                            : "No members found.",
+                                        ? "You haven't followed anyone yet."
+                                        : "No users found.",
                                     style: const TextStyle(
                                       color: textGrey,
                                       fontSize: 13,
@@ -869,39 +960,26 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
 
     switch (role) {
       case 'admin':
-        bg = Colors.red.withOpacity(0.12);
-        fg = Colors.redAccent;
-        label = "ADMIN";
-        break;
-      case 'teacher':
-      case 'instructor':
-        bg = Colors.purple.withOpacity(0.12);
-        fg = Colors.purpleAccent;
-        label = "TEACHER";
-        break;
+      case 'super_admin':
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.red.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: const Text(
+            "ADMIN",
+            style: TextStyle(
+              color: Colors.redAccent,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
+          ),
+        );
       default:
-        bg = primaryPink.withOpacity(0.12);
-        fg = primaryPink;
-        label = "STUDENT";
-        break;
+        return const SizedBox.shrink();
     }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: fg,
-          fontSize: 9,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
   }
 
   Widget _buildTabChip({
@@ -933,11 +1011,7 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? Colors.white : textGrey,
-            ),
+            Icon(icon, size: 16, color: isSelected ? Colors.white : textGrey),
             const SizedBox(width: 6),
             Text(
               "$label ($count)",

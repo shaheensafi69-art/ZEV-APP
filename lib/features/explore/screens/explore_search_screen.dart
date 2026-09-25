@@ -193,68 +193,93 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
               backgroundColor: isDark ? const Color(0xFF090D16) : Colors.white,
               elevation: 0,
               titleSpacing: 16,
-              title: Container(
-                height: 44,
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
-                  ),
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: _performSearch,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                  ),
-                  decoration: InputDecoration(
-                    hintText: context.zevTr('searchZevHint'),
-                    hintStyle: TextStyle(
-                      color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
-                      fontSize: 13,
+              title: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 720),
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF1E293B)
+                          : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white10
+                            : const Color(0xFFE2E8F0),
+                      ),
                     ),
-                    prefixIcon: Icon(
-                      Icons.search_rounded,
-                      color: isDark ? Colors.white54 : const Color(0xFF64748B),
-                      size: 20,
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: _performSearch,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                      decoration: InputDecoration(
+                        hintText: context.zevTr('searchZevHint'),
+                        hintStyle: TextStyle(
+                          color: isDark
+                              ? Colors.white38
+                              : const Color(0xFF94A3B8),
+                          fontSize: 13,
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search_rounded,
+                          color: isDark
+                              ? Colors.white54
+                              : const Color(0xFF64748B),
+                          size: 20,
+                        ),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.close_rounded, size: 18),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  _performSearch('');
+                                },
+                              )
+                            : null,
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                        ),
+                      ),
                     ),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.close_rounded, size: 18),
-                            onPressed: () {
-                              _searchController.clear();
-                              _performSearch('');
-                            },
-                          )
-                        : null,
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
                   ),
                 ),
               ),
-              bottom: TabBar(
-                controller: _tabController,
-                indicatorColor: primaryPink,
-                indicatorWeight: 3,
-                labelColor: primaryPink,
-                unselectedLabelColor: isDark
-                    ? Colors.white54
-                    : const Color(0xFF64748B),
-                labelStyle: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(48),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 720),
+                    child: TabBar(
+                      controller: _tabController,
+                      indicatorColor: primaryPink,
+                      indicatorWeight: 3,
+                      labelColor: primaryPink,
+                      unselectedLabelColor: isDark
+                          ? Colors.white54
+                          : const Color(0xFF64748B),
+                      labelStyle: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                      tabs: [
+                        Tab(text: "🔥 ${context.zevTr('trending')}"),
+                        Tab(text: "🎬 ${context.zevTr('reels')}"),
+                        Tab(text: "👥 ${context.zevTr('people')}"),
+                      ],
+                    ),
+                  ),
                 ),
-                tabs: [
-                  Tab(text: "🔥 ${context.zevTr('trending')}"),
-                  Tab(text: "🎬 ${context.zevTr('reels')}"),
-                  Tab(text: "👥 ${context.zevTr('people')}"),
-                ],
               ),
             ),
             body: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: primaryPink))
+                ? const Center(
+                    child: CircularProgressIndicator(color: primaryPink),
+                  )
                 : ResponsiveLayout.pageConstraint(
                     maxWidth: ResponsiveLayout.isPhone(context) ? 720 : 1200,
                     child: TabBarView(
@@ -534,7 +559,7 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
                 const Icon(Icons.stars_rounded, color: primaryPink, size: 20),
                 const SizedBox(width: 8),
                 Text(
-                  "Active Members on ZEV",
+                  "Active Community on ZEV",
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
@@ -578,9 +603,7 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
               final roleColor = isAdmin
                   ? Colors.deepPurple
                   : (isTeacher ? Colors.blueAccent : primaryPink);
-              final roleBadge = isAdmin
-                  ? "OFFICIAL 🛡️"
-                  : (isTeacher ? "CREATOR ⭐" : "MEMBER 🌟");
+              final String? roleBadge = isAdmin ? "OFFICIAL 🛡️" : null;
 
               return ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -612,7 +635,7 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
                   children: [
                     Flexible(
                       child: Text(
-                        name.isNotEmpty ? name : 'ZEV Member',
+                        name.isNotEmpty ? name : 'ZEV User',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: isDark
@@ -622,28 +645,30 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: roleColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: roleColor.withValues(alpha: 0.2),
+                    if (roleBadge != null) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: roleColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: roleColor.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: Text(
+                          roleBadge!,
+                          style: TextStyle(
+                            fontSize: 8,
+                            fontWeight: FontWeight.w900,
+                            color: roleColor,
+                          ),
                         ),
                       ),
-                      child: Text(
-                        roleBadge,
-                        style: TextStyle(
-                          fontSize: 8,
-                          fontWeight: FontWeight.w900,
-                          color: roleColor,
-                        ),
-                      ),
-                    ),
+                    ],
                   ],
                 ),
                 subtitle: bio.isNotEmpty

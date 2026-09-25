@@ -42,19 +42,28 @@ class SystemUiHelper {
       // On Android 15+ (API 35+), setting statusBarColor, systemNavigationBarColor,
       // and systemNavigationBarDividerColor is deprecated by Android and flagged by Play Console.
       // Edge-to-edge handles transparency automatically.
-      final isAndroid = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+      final isAndroid =
+          !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
       if (isAndroid && _androidSdkVersion >= 35) {
         SystemChrome.setSystemUIOverlayStyle(
           SystemUiOverlayStyle(
-            systemNavigationBarIconBrightness: isReels ? Brightness.light : Brightness.dark,
-            statusBarIconBrightness: isReels ? Brightness.light : Brightness.dark,
+            systemNavigationBarIconBrightness: isReels
+                ? Brightness.light
+                : Brightness.dark,
+            statusBarIconBrightness: isReels
+                ? Brightness.light
+                : Brightness.dark,
           ),
         );
       } else {
         SystemChrome.setSystemUIOverlayStyle(
           SystemUiOverlayStyle(
-            statusBarIconBrightness: isReels ? Brightness.light : Brightness.dark,
-            systemNavigationBarIconBrightness: isReels ? Brightness.light : Brightness.dark,
+            statusBarIconBrightness: isReels
+                ? Brightness.light
+                : Brightness.dark,
+            systemNavigationBarIconBrightness: isReels
+                ? Brightness.light
+                : Brightness.dark,
             statusBarColor: isAndroid ? Colors.transparent : null,
             systemNavigationBarColor: isAndroid ? Colors.transparent : null,
           ),
@@ -63,4 +72,3 @@ class SystemUiHelper {
     } catch (_) {}
   }
 }
-

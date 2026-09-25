@@ -175,7 +175,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
   @override
   Widget build(BuildContext context) {
-    String authorName = "ZEV Member";
+    String authorName = "ZEV User";
     String roleLabel = "Public Post 🌍";
     Color roleColor = primaryPink;
 
@@ -183,15 +183,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       authorName =
           "${userProfile!['first_name'] ?? ''} ${userProfile!['last_name'] ?? ''}"
               .trim();
-      if (userProfile!['role'] == 'teacher') {
-        roleLabel = "Creator Post ⭐";
-        roleColor = Colors.blueAccent;
-      } else if (userProfile!['role'] == 'admin' ||
+      if (userProfile!['role'] == 'admin' ||
           userProfile!['role'] == 'super_admin') {
         roleLabel = "Official Announcement 🛡️";
         roleColor = Colors.deepPurple;
       } else {
-        roleLabel = "Member Post 🌟";
+        roleLabel = "Public Post 🌍";
+        roleColor = primaryPink;
       }
     }
     String avatarUrl = userProfile?['avatar_url'] ?? '';

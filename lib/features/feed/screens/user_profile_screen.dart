@@ -1047,16 +1047,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    bool isTeacher = profileData?['role'] == 'teacher';
     bool isAdmin =
         profileData?['role'] == 'admin' ||
         profileData?['role'] == 'super_admin';
-    Color roleColor = isAdmin
-        ? Colors.deepPurple
-        : (isTeacher ? Colors.blueAccent : primaryPink);
-    String roleLabel = isAdmin
-        ? "OFFICIAL 🛡️"
-        : (isTeacher ? "CREATOR ⭐" : "MEMBER 🌟");
+    bool isTeacher =
+        profileData?['role'] == 'teacher' ||
+        profileData?['role'] == 'instructor';
+    Color roleColor = isAdmin ? Colors.deepPurple : primaryPink;
+    String? roleLabel = isAdmin ? "OFFICIAL 🛡️" : null;
 
     return Scaffold(
       backgroundColor: surfaceWhite,
@@ -1065,7 +1063,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: textDark),
         title: Text(
-          isMyProfile ? context.zevTr('myProfile') : context.zevTr('zevProfile'),
+          isMyProfile
+              ? context.zevTr('myProfile')
+              : context.zevTr('zevProfile'),
           style: const TextStyle(
             color: textDark,
             fontWeight: FontWeight.w900,
@@ -1131,7 +1131,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   child: Center(
                     child: ConstrainedBox(
                       constraints: BoxConstraints(
-                        maxWidth: context.responsive(phone: 700.0, tablet: 850.0, desktop: 960.0),
+                        maxWidth: context.responsive(
+                          phone: 700.0,
+                          tablet: 850.0,
+                          desktop: 960.0,
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1160,7 +1164,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 Stack(
                                   children: [
                                     Container(
-                                      height: context.responsive(phone: 180.0, tablet: 240.0, desktop: 270.0),
+                                      height: context.responsive(
+                                        phone: 180.0,
+                                        tablet: 240.0,
+                                        desktop: 270.0,
+                                      ),
                                       width: double.infinity,
                                       decoration: BoxDecoration(
                                         gradient: LinearGradient(
@@ -1186,7 +1194,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                                       profileData!['cover_url'])
                                                   .toString(),
                                               width: double.infinity,
-                                              height: context.responsive(phone: 180.0, tablet: 240.0, desktop: 270.0),
+                                              height: context.responsive(
+                                                phone: 180.0,
+                                                tablet: 240.0,
+                                                desktop: 270.0,
+                                              ),
                                               fit: BoxFit.cover,
                                               errorBuilder:
                                                   (
@@ -1354,7 +1366,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                                   ],
                                                 ),
                                                 child: CircleAvatar(
-                                                  radius: context.responsive(phone: 46.0, tablet: 62.0, desktop: 68.0),
+                                                  radius: context.responsive(
+                                                    phone: 46.0,
+                                                    tablet: 62.0,
+                                                    desktop: 68.0,
+                                                  ),
                                                   backgroundColor: roleColor
                                                       .withValues(alpha: 0.12),
                                                   backgroundImage:
@@ -1468,35 +1484,37 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                                 letterSpacing: -0.3,
                                               ),
                                             ),
-                                            const SizedBox(height: 6),
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 10,
-                                                    vertical: 4,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: roleColor.withValues(
-                                                  alpha: 0.1,
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                                border: Border.all(
+                                            if (roleLabel != null) ...[
+                                              const SizedBox(height: 6),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 10,
+                                                      vertical: 4,
+                                                    ),
+                                                decoration: BoxDecoration(
                                                   color: roleColor.withValues(
-                                                    alpha: 0.2,
+                                                    alpha: 0.1,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                  border: Border.all(
+                                                    color: roleColor.withValues(
+                                                      alpha: 0.2,
+                                                    ),
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  roleLabel!,
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w900,
+                                                    color: roleColor,
+                                                    letterSpacing: 0.4,
                                                   ),
                                                 ),
                                               ),
-                                              child: Text(
-                                                roleLabel,
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.w900,
-                                                  color: roleColor,
-                                                  letterSpacing: 0.4,
-                                                ),
-                                              ),
-                                            ),
+                                            ],
                                             if (profileData!['bio'] != null &&
                                                 profileData!['bio']
                                                     .toString()
@@ -1880,7 +1898,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                   const SizedBox(height: 10),
                                   _buildInfoRow(
                                     Icons.calendar_today_rounded,
-                                    "Member Since",
+                                    "Joined",
                                     profileData!['created_at'] != null
                                         ? profileData!['created_at']
                                               .toString()
@@ -1902,20 +1920,23 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               children: [
                                 _buildTabPill(
                                   index: 0,
-                                  label: "${context.zevTr('posts')} (${userPosts.length})",
+                                  label:
+                                      "${context.zevTr('posts')} (${userPosts.length})",
                                   icon: Icons.grid_on_rounded,
                                 ),
                                 const SizedBox(width: 8),
                                 _buildTabPill(
                                   index: 1,
-                                  label: "${context.zevTr('reels')} (${userReels.length})",
+                                  label:
+                                      "${context.zevTr('reels')} (${userReels.length})",
                                   icon: Icons.play_circle_outline_rounded,
                                 ),
                                 if (isMyProfile) ...[
                                   const SizedBox(width: 8),
                                   _buildTabPill(
                                     index: 2,
-                                    label: "${context.zevTr('liked')} (${userLikedReels.length})",
+                                    label:
+                                        "${context.zevTr('liked')} (${userLikedReels.length})",
                                     icon: Icons.favorite_rounded,
                                   ),
                                   const SizedBox(width: 8),
@@ -3388,7 +3409,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        mName.isNotEmpty ? mName : 'ZEV Member',
+                                        mName.isNotEmpty ? mName : 'ZEV User',
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w900,
                                           fontSize: 13,
@@ -3447,7 +3468,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           style: TextStyle(
             color: color,
             fontWeight: FontWeight.w900,
-            fontSize: context.respFont(phone: 16.0, tablet: 21.0, desktop: 23.0),
+            fontSize: context.respFont(
+              phone: 16.0,
+              tablet: 21.0,
+              desktop: 23.0,
+            ),
           ),
         ),
         const SizedBox(height: 2),
