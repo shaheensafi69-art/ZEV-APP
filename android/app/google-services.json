@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "591020899859",
+    "project_id": "safi-academy-3c402",
+    "storage_bucket": "safi-academy-3c402.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:591020899859:android:b5616d897feec90b6949e6",
+        "android_client_info": {
+          "package_name": "com.zevapp.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUTGSRBaTx7G9-ev5LVFv11pGnsLTqKYc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:591020899859:android:8eee6f5115184d4c6949e6",
+        "android_client_info": {
+          "package_name": "org.safiacademy.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUTGSRBaTx7G9-ev5LVFv11pGnsLTqKYc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
