@@ -56,5 +56,8 @@ key.properties
 .env.*
 local.properties
 **/android/local.properties
+flutter-sdk/
+.vercel
+
 
 
