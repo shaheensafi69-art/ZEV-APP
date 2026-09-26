@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/localization/zev_localizations.dart';
 import '../../../core/services/language_service.dart';
 import '../../../core/widgets/responsive_layout.dart';
+import '../../../core/widgets/circular_country_flag.dart';
 import '../../auth/screens/welcome_screen.dart';
 import 'zev_about_screen.dart';
 import 'zev_system_security_screen.dart';
@@ -231,7 +232,14 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
                       ),
                       child: Row(
                         children: [
-                          Text(lang.flag, style: const TextStyle(fontSize: 24)),
+                          CircularCountryFlag(
+                            countryCode: lang.countryCode,
+                            size: 32,
+                            showBorder: true,
+                            borderColor: isDark
+                                ? Colors.white.withValues(alpha: 0.2)
+                                : Colors.black.withValues(alpha: 0.12),
+                          ),
                           const SizedBox(width: 16),
                           Expanded(
                             child: Column(
@@ -391,7 +399,15 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
                         iconColor: primaryPink,
                         title: context.zevTr('language'),
                         subtitle:
-                            "${currentLang.flag} ${currentLang.name} (${currentLang.englishName})",
+                            "${currentLang.name} (${currentLang.englishName})",
+                        customLeading: CircularCountryFlag(
+                          countryCode: currentLang.countryCode,
+                          size: 40,
+                          showBorder: true,
+                          borderColor: isDark
+                              ? Colors.white.withValues(alpha: 0.2)
+                              : Colors.black.withValues(alpha: 0.12),
+                        ),
                         trailingBadge: currentLang.code.toUpperCase(),
                         onTap: _showLanguageSelector,
                       ),
@@ -696,16 +712,19 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
                   ),
                   child: Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: item.iconColor.withValues(
-                            alpha: isDark ? 0.18 : 0.1,
+                      if (item.customLeading != null)
+                        item.customLeading!
+                      else
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: item.iconColor.withValues(
+                              alpha: isDark ? 0.18 : 0.1,
+                            ),
+                            borderRadius: BorderRadius.circular(14),
                           ),
-                          borderRadius: BorderRadius.circular(14),
+                          child: Icon(item.icon, color: item.iconColor, size: 20),
                         ),
-                        child: Icon(item.icon, color: item.iconColor, size: 20),
-                      ),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Column(
@@ -784,6 +803,7 @@ class _SettingsItem {
   final String title;
   final String subtitle;
   final String? trailingBadge;
+  final Widget? customLeading;
   final VoidCallback onTap;
 
   const _SettingsItem({
@@ -792,6 +812,7 @@ class _SettingsItem {
     required this.title,
     required this.subtitle,
     this.trailingBadge,
+    this.customLeading,
     required this.onTap,
   });
 }

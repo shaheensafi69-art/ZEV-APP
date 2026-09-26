@@ -63,10 +63,12 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
     _fetchActiveFriendStories();
 
     _scrollController.addListener(() {
-      if (_scrollController.offset > 60 && !_isScrolled) {
-        setState(() => _isScrolled = true);
-      } else if (_scrollController.offset <= 60 && _isScrolled) {
-        setState(() => _isScrolled = false);
+      if (_scrollController.hasClients) {
+        if (_scrollController.offset > 50 && !_isScrolled) {
+          setState(() => _isScrolled = true);
+        } else if (_scrollController.offset <= 15 && _isScrolled) {
+          setState(() => _isScrolled = false);
+        }
       }
     });
   }
@@ -623,16 +625,24 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
       valueListenable: LanguageService.instance.localeNotifier,
       builder: (context, locale, _) {
         final double topPadding = MediaQuery.of(context).padding.top;
-        final double headerHeight = context.responsive(
-          phone: topPadding + (_isScrolled ? 65.0 : 232.0),
-          tablet: topPadding + (_isScrolled ? 75.0 : 268.0),
-          desktop: topPadding + (_isScrolled ? 80.0 : 280.0),
+        final double storiesHeight = context.responsive(
+          phone: 105.0,
+          tablet: 128.0,
+          desktop: 138.0,
         );
-        final double listTopPadding = context.responsive(
-          phone: topPadding + (_isScrolled ? 75.0 : 236.0),
-          tablet: topPadding + (_isScrolled ? 85.0 : 272.0),
-          desktop: topPadding + (_isScrolled ? 90.0 : 284.0),
+        final double searchHeight = context.responsive(
+          phone: 42.0,
+          tablet: 48.0,
+          desktop: 52.0,
         );
+        final double storiesAndSearchHeight = storiesHeight + searchHeight + 20.0;
+        final double topRowHeight = context.responsive(
+          phone: 54.0,
+          tablet: 62.0,
+          desktop: 66.0,
+        );
+        final double headerHeight = topPadding + topRowHeight + (_isScrolled ? 0.0 : storiesAndSearchHeight);
+        final double listTopPadding = topPadding + topRowHeight + storiesAndSearchHeight + 6.0;
 
         return Directionality(
           textDirection: LanguageService.instance.isCurrentRtl
@@ -747,8 +757,8 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
 
                     // Top Bar with Stories Tray and Search
                     AnimatedPositioned(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeInOut,
+                      duration: const Duration(milliseconds: 350),
+                      curve: Curves.easeInOutCubic,
                       top: 0,
                       left: 0,
                       right: 0,
@@ -984,100 +994,119 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                     ],
                                   ),
 
-                                  if (!_isScrolled) ...[
-                                    const SizedBox(height: 8),
-                                    FeedStoriesTray(
-                                      activeFriendStories: activeFriendStories,
-                                      onStoryCreated: () {
-                                        _fetchFeedPosts();
-                                        _fetchActiveFriendStories();
-                                      },
-                                    ),
-                                    const SizedBox(height: 8),
-                                    SizedBox(
-                                      height: context.responsive(
-                                        phone: 42.0,
-                                        tablet: 48.0,
-                                        desktop: 52.0,
-                                      ),
-                                      child: TextField(
-                                        controller: _searchController,
-                                        onChanged: _onSearchChanged,
-                                        cursorColor: primaryPink,
-                                        style: TextStyle(
-                                          fontSize: context.respFont(
-                                            phone: 13.0,
-                                            tablet: 15.0,
-                                            desktop: 15.0,
-                                          ),
-                                          fontWeight: FontWeight.w600,
-                                          color: textDark,
-                                        ),
-                                        decoration: InputDecoration(
-                                          hintText: context.zevTr(
-                                            'searchZevHint',
-                                          ),
-                                          hintStyle: TextStyle(
-                                            color: textGrey,
-                                            fontSize: context.respFont(
-                                              phone: 12.0,
-                                              tablet: 14.0,
-                                              desktop: 14.0,
+                                  // Smooth animated sliding stories and search tray
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 350),
+                                    curve: Curves.easeInOutCubic,
+                                    height: _isScrolled ? 0.0 : storiesAndSearchHeight,
+                                    clipBehavior: Clip.hardEdge,
+                                    decoration: const BoxDecoration(),
+                                    child: AnimatedSlide(
+                                      duration: const Duration(milliseconds: 350),
+                                      curve: Curves.easeInOutCubic,
+                                      offset: _isScrolled
+                                          ? const Offset(0, -0.6)
+                                          : Offset.zero,
+                                      child: AnimatedOpacity(
+                                        duration: const Duration(milliseconds: 260),
+                                        curve: Curves.easeInOut,
+                                        opacity: _isScrolled ? 0.0 : 1.0,
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const SizedBox(height: 8),
+                                            FeedStoriesTray(
+                                              activeFriendStories: activeFriendStories,
+                                              onStoryCreated: () {
+                                                _fetchFeedPosts();
+                                                _fetchActiveFriendStories();
+                                              },
                                             ),
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                          prefixIcon: Icon(
-                                            Icons.search_rounded,
-                                            color: textGrey,
-                                            size: context.respIcon(
-                                              phone: 18.0,
-                                              tablet: 22.0,
-                                              desktop: 22.0,
-                                            ),
-                                          ),
-                                          suffixIcon:
-                                              _searchController.text.isNotEmpty
-                                              ? IconButton(
-                                                  icon: const Icon(
-                                                    Icons.close_rounded,
-                                                    color: textGrey,
-                                                    size: 16,
+                                            const SizedBox(height: 8),
+                                            SizedBox(
+                                              height: searchHeight,
+                                              child: TextField(
+                                                controller: _searchController,
+                                                onChanged: _onSearchChanged,
+                                                cursorColor: primaryPink,
+                                                style: TextStyle(
+                                                  fontSize: context.respFont(
+                                                    phone: 13.0,
+                                                    tablet: 15.0,
+                                                    desktop: 15.0,
                                                   ),
-                                                  onPressed: () {
-                                                    _searchController.clear();
-                                                    _onSearchChanged("");
-                                                    FocusScope.of(
-                                                      context,
-                                                    ).unfocus();
-                                                  },
-                                                )
-                                              : null,
-                                          filled: true,
-                                          fillColor: const Color(0xFFF3F4F6),
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                                vertical: 0,
-                                                horizontal: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: textDark,
+                                                ),
+                                                decoration: InputDecoration(
+                                                  hintText: context.zevTr(
+                                                    'searchZevHint',
+                                                  ),
+                                                  hintStyle: TextStyle(
+                                                    color: textGrey,
+                                                    fontSize: context.respFont(
+                                                      phone: 12.0,
+                                                      tablet: 14.0,
+                                                      desktop: 14.0,
+                                                    ),
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                  prefixIcon: Icon(
+                                                    Icons.search_rounded,
+                                                    color: textGrey,
+                                                    size: context.respIcon(
+                                                      phone: 18.0,
+                                                      tablet: 22.0,
+                                                      desktop: 22.0,
+                                                    ),
+                                                  ),
+                                                  suffixIcon:
+                                                      _searchController.text.isNotEmpty
+                                                      ? IconButton(
+                                                          icon: const Icon(
+                                                            Icons.close_rounded,
+                                                            color: textGrey,
+                                                            size: 16,
+                                                          ),
+                                                          onPressed: () {
+                                                            _searchController.clear();
+                                                            _onSearchChanged("");
+                                                            FocusScope.of(
+                                                              context,
+                                                            ).unfocus();
+                                                          },
+                                                        )
+                                                      : null,
+                                                  filled: true,
+                                                  fillColor: const Color(0xFFF3F4F6),
+                                                  contentPadding:
+                                                      const EdgeInsets.symmetric(
+                                                        vertical: 0,
+                                                        horizontal: 14,
+                                                      ),
+                                                  border: OutlineInputBorder(
+                                                    borderRadius: BorderRadius.circular(
+                                                      16,
+                                                    ),
+                                                    borderSide: BorderSide.none,
+                                                  ),
+                                                  focusedBorder: OutlineInputBorder(
+                                                    borderRadius: BorderRadius.circular(
+                                                      16,
+                                                    ),
+                                                    borderSide: const BorderSide(
+                                                      color: primaryPink,
+                                                      width: 1.5,
+                                                    ),
+                                                  ),
+                                                ),
                                               ),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              16,
                                             ),
-                                            borderSide: BorderSide.none,
-                                          ),
-                                          focusedBorder: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              16,
-                                            ),
-                                            borderSide: const BorderSide(
-                                              color: primaryPink,
-                                              width: 1.5,
-                                            ),
-                                          ),
+                                          ],
                                         ),
                                       ),
                                     ),
-                                  ],
+                                  ),
                                 ],
                               ),
                             ),

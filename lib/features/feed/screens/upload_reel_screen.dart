@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/services/language_service.dart';
 import '../../../core/services/media_processing_service.dart';
+import '../../../core/services/hashtag_service.dart';
 import '../../../core/utils/app_media_picker.dart';
 import 'reels_viewer_screen.dart';
 
@@ -114,10 +115,11 @@ class _UploadReelScreenState extends State<UploadReelScreen> {
     setState(() => isPublishing = true);
 
     try {
-      await supabase.from("reels").insert({
+      final desc = _descriptionController.text.trim();
+      final reelRes = await supabase.from("reels").insert({
         'user_id': user.id,
         'title': title,
-        'description': _descriptionController.text.trim(),
+        'description': desc,
         'video_url': videoUrl,
         'category': selectedCategory,
         'is_published': true,
@@ -125,7 +127,14 @@ class _UploadReelScreenState extends State<UploadReelScreen> {
         'likes_count': 0,
         'comments_count': 0,
         'created_at': DateTime.now().toIso8601String(),
-      });
+      }).select('id').maybeSingle();
+
+      if (reelRes != null) {
+        final newReelId = reelRes['id']?.toString();
+        if (newReelId != null) {
+          HashtagService.instance.syncReelHashtags(newReelId, "$title $desc");
+        }
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

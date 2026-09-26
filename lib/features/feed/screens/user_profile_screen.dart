@@ -31,7 +31,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   List<Map<String, dynamic>> userLikedReels = [];
   List<Map<String, dynamic>> userSavedReels = [];
   List<Map<String, dynamic>> userSavedPosts = [];
-  int activeTab = 0; // 0: Posts, 1: Reels, 2: Liked, 3: Saved
+  List<Map<String, dynamic>> userReposts = [];
+  int activeTab = 0; // 0: Posts, 1: Reels, 2: Liked, 3: Reposts, 4: Saved
   int activeSavedSubTab = 0; // 0: Saved Reels, 1: Saved Posts
 
   int followersCount = 0;
@@ -272,6 +273,24 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         }
       }
 
+      // Fetch user reposts
+      List<Map<String, dynamic>> repostsList = [];
+      try {
+        final repRes = await supabase
+            .from("post_reposts")
+            .select("post_id, discussion_posts(*)")
+            .eq("user_id", targetUserId)
+            .order("created_at", ascending: false);
+        for (var item in (repRes as List)) {
+          final pData = item['discussion_posts'];
+          if (pData != null && pData is Map<String, dynamic>) {
+            repostsList.add(Map<String, dynamic>.from(pData));
+          }
+        }
+      } catch (e) {
+        debugPrint("Notice: post_reposts fetch: $e");
+      }
+
       if (mounted) {
         setState(() {
           profileData = res;
@@ -285,6 +304,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           userLikedReels = likedReels;
           userSavedReels = savedReels;
           userSavedPosts = savedPosts;
+          userReposts = repostsList;
           isLoading = false;
         });
       }
@@ -3754,10 +3774,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Widget _buildDesktopWebProfile(BuildContext context) {
-    final role = (profileData?['role'] ?? 'INSTRUCTOR').toString().toUpperCase();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fullName =
+        "${profileData?['first_name'] ?? ''} ${profileData?['last_name'] ?? ''}"
+            .trim();
+    final displayName = fullName.isEmpty ? "Shaheen Safi" : fullName;
+    final email = (profileData?['email'] ?? '').toString();
+    final handle = email.isNotEmpty ? email.split('@')[0] : 'shaheensafi';
 
     return Scaffold(
-      backgroundColor: const Color(0xFF090A0E),
+      backgroundColor: isDark ? const Color(0xFF090A0E) : const Color(0xFFF8FAFC),
       body: isLoading
           ? const Center(
               child: CircularProgressIndicator(color: Color(0xFFFC466B)),
@@ -3770,7 +3796,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Top header: Back button + Academy Profile + Role
+                      // Top header: Back button + Profile user name + @handle
                       Row(
                         children: [
                           InkWell(
@@ -3786,15 +3812,30 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               width: 38,
                               height: 38,
                               decoration: BoxDecoration(
-                                color: const Color(0xFF14161F),
+                                color: isDark
+                                    ? const Color(0xFF14161F)
+                                    : Colors.white,
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: Colors.white.withOpacity(0.08),
+                                  color: isDark
+                                      ? Colors.white.withOpacity(0.08)
+                                      : Colors.black.withOpacity(0.08),
                                 ),
+                                boxShadow: isDark
+                                    ? null
+                                    : [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.04),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.arrow_back_rounded,
-                                color: Colors.white,
+                                color: isDark
+                                    ? Colors.white
+                                    : const Color(0xFF1E293B),
                                 size: 18,
                               ),
                             ),
@@ -3803,22 +3844,24 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Academy Profile',
+                              Text(
+                                displayName,
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: isDark
+                                      ? Colors.white
+                                      : const Color(0xFF0F172A),
                                   fontSize: 18,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                role.isNotEmpty ? role : 'INSTRUCTOR',
+                                '@$handle',
                                 style: const TextStyle(
                                   color: Color(0xFFFC466B),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.2,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.5,
                                 ),
                               ),
                             ],
@@ -3861,21 +3904,24 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Widget _buildWebBanner() {
-    final coverUrl = (profileData?['cover_image_url'] ?? profileData?['cover_url'])?.toString();
-    final fullName = "${profileData?['first_name'] ?? ''} ${profileData?['last_name'] ?? ''}".trim();
+    final coverUrl =
+        (profileData?['cover_image_url'] ?? profileData?['cover_url'])
+            ?.toString();
+    final fullName =
+        "${profileData?['first_name'] ?? ''} ${profileData?['last_name'] ?? ''}"
+            .trim();
     final displayName = fullName.isEmpty ? "Shaheen Safi" : fullName;
 
     return Container(
-      height: 300,
+      height: 280,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0xFF0F1015),
+        color: const Color(0xFFFC466B),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.4),
-            blurRadius: 20,
+            color: const Color(0xFFFC466B).withOpacity(0.18),
+            blurRadius: 24,
             offset: const Offset(0, 10),
           ),
         ],
@@ -3885,7 +3931,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Cover Image or Default Luxury Brand Banner
+            // Cover Image or Signature ZEV Brand Gradient Banner
             if (coverUrl != null && coverUrl.isNotEmpty)
               Image.network(
                 coverUrl,
@@ -3895,15 +3941,15 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             else
               _buildDefaultBrandBanner(),
 
-            // Dark gradient vignette
+            // Gradient vignette for text contrast
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withOpacity(0.1),
-                    Colors.black.withOpacity(0.85),
+                    Colors.black.withOpacity(0.08),
+                    Colors.black.withOpacity(0.72),
                   ],
                 ),
               ),
@@ -3920,11 +3966,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     onTap: isCoverUploading ? null : _handleCoverUpload,
                     borderRadius: BorderRadius.circular(20),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 7,
+                      ),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.65),
+                        color: Colors.black.withOpacity(0.5),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.white.withOpacity(0.2)),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.25),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -3978,23 +4029,26 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(24),
                           gradient: const LinearGradient(
-                            colors: [Color(0xFFFC466B), Color(0xFF3F5EFB)],
+                            colors: [Color(0xFFFC466B), Color(0xFFFF758C)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFFC466B).withOpacity(0.3),
+                              color: const Color(0xFFFC466B).withOpacity(0.4),
                               blurRadius: 16,
                               offset: const Offset(0, 4),
                             ),
                           ],
                         ),
-                        padding: const EdgeInsets.all(2.5),
+                        padding: const EdgeInsets.all(3),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(22),
-                          child: (profileData?['avatar_url'] != null &&
-                                  profileData!['avatar_url'].toString().isNotEmpty)
+                          borderRadius: BorderRadius.circular(21),
+                          child:
+                              (profileData?['avatar_url'] != null &&
+                                  profileData!['avatar_url']
+                                      .toString()
+                                      .isNotEmpty)
                               ? Image.network(
                                   profileData!['avatar_url'].toString(),
                                   fit: BoxFit.cover,
@@ -4014,7 +4068,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             color: const Color(0xFF007AFF),
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: const Color(0xFF0F1015),
+                              color: Colors.white,
                               width: 2,
                             ),
                           ),
@@ -4041,27 +4095,34 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             fontSize: 24,
                             fontWeight: FontWeight.w800,
                             letterSpacing: -0.3,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black38,
+                                blurRadius: 8,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 8),
-                        // Stats Row: 0 FOLLOWERS   1 FOLLOWING   0 POSTS
+                        // Stats Row: FOLLOWERS | FOLLOWING | POSTS
                         Row(
                           children: [
                             _buildWebStatItem(
                               followersCount.toString(),
-                              'FOLLOWERS',
+                              context.zevTr('followers').toUpperCase(),
                               onTap: () => _navigateToFollows(0),
                             ),
                             const SizedBox(width: 18),
                             _buildWebStatItem(
                               followingCount.toString(),
-                              'FOLLOWING',
+                              context.zevTr('following').toUpperCase(),
                               onTap: () => _navigateToFollows(1),
                             ),
                             const SizedBox(width: 18),
                             _buildWebStatItem(
                               (userPosts.length + userReels.length).toString(),
-                              'POSTS',
+                              context.zevTr('posts').toUpperCase(),
                               onTap: () => setState(() => activeTab = 0),
                             ),
                           ],
@@ -4085,79 +4146,77 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF0A0B0E),
-            Color(0xFF141722),
-            Color(0xFF0D0E13),
+            Color(0xFFFC466B),
+            Color(0xFFFF5E7E),
+            Color(0xFFFF7E95),
+            Color(0xFFFF8E53),
           ],
         ),
       ),
       child: Stack(
         children: [
+          // Ambient soft glowing orbs
           Positioned(
             top: -40,
-            right: 120,
+            right: 40,
             child: Container(
-              width: 250,
-              height: 250,
+              width: 260,
+              height: 260,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFFFBBF24).withOpacity(0.04),
+                color: Colors.white.withOpacity(0.12),
               ),
             ),
           ),
-          Align(
-            alignment: Alignment.topCenter,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 22),
-              child: RichText(
-                text: const TextSpan(
-                  style: TextStyle(fontSize: 13, letterSpacing: 0.2),
-                  children: [
-                    TextSpan(
-                      text: 'with ',
-                      style: TextStyle(color: Colors.white60),
-                    ),
-                    TextSpan(
-                      text: 'accessible financial and digital solutions.',
+          Positioned(
+            bottom: -60,
+            left: 200,
+            child: Container(
+              width: 200,
+              height: 200,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.08),
+              ),
+            ),
+          ),
+          // ZEV Brand Monogram / Watermark
+          Positioned(
+            right: 36,
+            top: 24,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.2),
+                    border: Border.all(color: Colors.white.withOpacity(0.35)),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      'Z',
                       style: TextStyle(
-                        color: Color(0xFFF59E0B),
-                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          ),
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 10, left: 160, right: 30),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildBrandItem(
-                    icon: Icons.monetization_on_outlined,
-                    iconColor: const Color(0xFFF59E0B),
-                    name: 'SAFIPAY',
-                    nameColor: const Color(0xFFF59E0B),
-                    subtitle: 'A next-generation international\nbanking solution',
+                const SizedBox(width: 10),
+                const Text(
+                  'ZEV SOCIAL',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2,
                   ),
-                  _buildBrandItem(
-                    icon: Icons.phone_android_rounded,
-                    iconColor: const Color(0xFF38BDF8),
-                    name: 'Safi TopUp',
-                    nameColor: const Color(0xFF38BDF8),
-                    subtitle: 'A global top-up platform\nenabling mobile recharge',
-                  ),
-                  _buildBrandItem(
-                    icon: Icons.local_fire_department_rounded,
-                    iconColor: const Color(0xFFFBBF24),
-                    name: 'SAFIPRO',
-                    nameColor: const Color(0xFFFBBF24),
-                    subtitle: 'A modern lifestyle and\nfashion brand focused on',
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
@@ -4165,53 +4224,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-  Widget _buildBrandItem({
-    required IconData icon,
-    required Color iconColor,
-    required String name,
-    required Color nameColor,
-    required String subtitle,
-  }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: iconColor.withOpacity(0.12),
-            shape: BoxShape.circle,
-            border: Border.all(color: iconColor.withOpacity(0.3)),
-          ),
-          child: Icon(icon, color: iconColor, size: 28),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          name,
-          style: TextStyle(
-            color: nameColor,
-            fontSize: 15,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.8,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.35),
-            fontSize: 10,
-            height: 1.2,
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildAvatarInitial(String displayName) {
     final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'Z';
     return Container(
-      color: const Color(0xFF1E212B),
+      color: const Color(0xFFFC466B),
       alignment: Alignment.center,
       child: Text(
         initial,
@@ -4245,7 +4261,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             Text(
               label,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.55),
+                color: Colors.white.withOpacity(0.75),
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.6,
@@ -4258,6 +4274,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Widget _buildWebLeftColumn() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final bio = profileData?['bio']?.toString() ?? '';
     return SizedBox(
       width: 320,
@@ -4265,13 +4282,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: const [
-              Icon(Icons.person_outline_rounded, color: Color(0xFFFC466B), size: 16),
-              SizedBox(width: 6),
+            children: [
+              const Icon(
+                Icons.person_outline_rounded,
+                color: Color(0xFFFC466B),
+                size: 16,
+              ),
+              const SizedBox(width: 6),
               Text(
-                'BIOGRAPHY',
+                context.zevTr('biography').toUpperCase(),
                 style: TextStyle(
-                  color: Colors.white,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
                   fontSize: 12,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 1.2,
@@ -4284,14 +4305,29 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF14161F),
+              color: isDark ? const Color(0xFF14161F) : Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.06)),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withOpacity(0.06)
+                    : Colors.black.withOpacity(0.06),
+              ),
+              boxShadow: isDark
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.03),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
             ),
             child: Text(
               bio.isNotEmpty ? bio : 'No biography provided yet.',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.6),
+                color: isDark
+                    ? Colors.white.withOpacity(0.7)
+                    : const Color(0xFF475569),
                 fontSize: 13,
                 height: 1.4,
               ),
@@ -4299,41 +4335,41 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           ),
           const SizedBox(height: 16),
           _buildWebMetaCard(
-            icon: Icons.language_rounded,
-            title: 'Location',
+            icon: Icons.location_on_outlined,
+            title: context.zevTr('location'),
             value: _locationStr,
           ),
           const SizedBox(height: 10),
           _buildWebMetaCard(
             icon: Icons.calendar_today_rounded,
-            title: 'Joined',
+            title: context.zevTr('joined'),
             value: _joinedDateStr,
           ),
           const SizedBox(height: 10),
           _buildWebMetaCard(
             icon: Icons.email_outlined,
-            title: 'Email',
+            title: context.zevTr('email'),
             value: _emailStr,
             showRedDot: true,
           ),
           const SizedBox(height: 10),
           _buildWebMetaCard(
             icon: Icons.cake_outlined,
-            title: 'Birth Date',
+            title: context.zevTr('birthDate'),
             value: _birthDateStr,
             showRedDot: true,
           ),
           const SizedBox(height: 10),
           _buildWebMetaCard(
             icon: Icons.account_balance_wallet_outlined,
-            title: 'Wallet',
+            title: context.zevTr('wallet'),
             value: _walletStr,
             showRedDot: true,
           ),
           const SizedBox(height: 10),
           _buildWebMetaCard(
             icon: Icons.share_rounded,
-            title: 'Ref Code',
+            title: context.zevTr('refCode'),
             value: _refCodeStr,
             showRedDot: true,
           ),
@@ -4348,17 +4384,35 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     required String value,
     bool showRedDot = false,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       height: 52,
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF14161F),
+        color: isDark ? const Color(0xFF14161F) : Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.06)
+              : Colors.black.withOpacity(0.06),
+        ),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       child: Row(
         children: [
-          Icon(icon, color: Colors.white.withOpacity(0.4), size: 18),
+          Icon(
+            icon,
+            color: const Color(0xFFFC466B),
+            size: 18,
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -4368,7 +4422,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 Text(
                   title.toUpperCase(),
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.35),
+                    color: isDark
+                        ? Colors.white.withOpacity(0.35)
+                        : const Color(0xFF94A3B8),
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.5,
@@ -4377,8 +4433,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 const SizedBox(height: 2),
                 Text(
                   value,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -4403,13 +4459,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Widget _buildWebTabPills() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final tabs = [
-      {'title': 'POSTS', 'icon': Icons.chat_bubble_outline_rounded},
-      {'title': 'REELS', 'icon': Icons.smart_display_outlined},
-      {'title': 'LIKED', 'icon': Icons.favorite_border_rounded},
-      {'title': 'SAVED', 'icon': Icons.bookmark_border_rounded},
-      {'title': 'LEARNING', 'icon': Icons.school_outlined},
-      {'title': 'AWARDS', 'icon': Icons.emoji_events_outlined},
+      {'title': context.zevTr('posts').toUpperCase(), 'icon': Icons.chat_bubble_outline_rounded},
+      {'title': context.zevTr('reels').toUpperCase(), 'icon': Icons.smart_display_outlined},
+      {'title': context.zevTr('liked').toUpperCase(), 'icon': Icons.favorite_border_rounded},
+      {'title': context.zevTr('reposts').toUpperCase(), 'icon': Icons.repeat_rounded},
+      {'title': context.zevTr('saved').toUpperCase(), 'icon': Icons.bookmark_border_rounded},
     ];
 
     return SingleChildScrollView(
@@ -4424,20 +4480,44 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               onTap: () => setState(() => activeTab = i),
               borderRadius: BorderRadius.circular(10),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   gradient: isSelected
                       ? const LinearGradient(
-                          colors: [Color(0xFFFC466B), Color(0xFFE01E5A)],
+                          colors: [Color(0xFFFC466B), Color(0xFFFF5E7E)],
                         )
                       : null,
-                  color: isSelected ? null : const Color(0xFF14161F),
+                  color: isSelected
+                      ? null
+                      : (isDark ? const Color(0xFF14161F) : Colors.white),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: isSelected
                         ? Colors.transparent
-                        : Colors.white.withOpacity(0.06),
+                        : (isDark
+                            ? Colors.white.withOpacity(0.06)
+                            : Colors.black.withOpacity(0.08)),
                   ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFFFC466B).withOpacity(0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : (isDark
+                          ? null
+                          : [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.03),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -4447,7 +4527,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       size: 14,
                       color: isSelected
                           ? Colors.white
-                          : Colors.white.withOpacity(0.5),
+                          : (isDark
+                              ? Colors.white.withOpacity(0.6)
+                              : const Color(0xFF64748B)),
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -4455,10 +4537,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       style: TextStyle(
                         color: isSelected
                             ? Colors.white
-                            : Colors.white.withOpacity(0.6),
-                        fontSize: 11,
+                            : (isDark
+                                ? Colors.white.withOpacity(0.7)
+                                : const Color(0xFF334155)),
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 0.8,
+                        letterSpacing: 0.6,
                       ),
                     ),
                   ],
@@ -4472,13 +4556,27 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Widget _buildWebContentCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: double.infinity,
       constraints: const BoxConstraints(minHeight: 450),
       decoration: BoxDecoration(
-        color: const Color(0xFF10121A),
+        color: isDark ? const Color(0xFF10121A) : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.06)
+              : Colors.black.withOpacity(0.06),
+        ),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       padding: const EdgeInsets.all(24),
       child: _buildWebContentForTab(),
@@ -4489,8 +4587,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     if (activeTab == 0) {
       if (userPosts.isEmpty) {
         return _buildWebEmptyState(
-          icon: Icons.description_outlined,
-          title: 'No Discussions',
+          icon: Icons.chat_bubble_outline_rounded,
+          title: 'No Posts Yet',
           subtitle: "This user hasn't published any posts yet.",
         );
       }
@@ -4530,9 +4628,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => StudentReelsScreen(
-                    targetReelId: reel['id']?.toString(),
-                  ),
+                  builder: (_) =>
+                      StudentReelsScreen(targetReelId: reel['id']?.toString()),
                 ),
               );
             },
@@ -4548,12 +4645,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           errorBuilder: (context, error, stackTrace) =>
                               _buildProfileReelFallback(
                             reel['title']?.toString() ?? '',
-                            const [Color(0xFF6A11CB), Color(0xFF2575FC)],
+                            const [Color(0xFFFC466B), Color(0xFFFF758C)],
                           ),
                         )
                       : _buildProfileReelFallback(
                           reel['title']?.toString() ?? '',
-                          const [Color(0xFF6A11CB), Color(0xFF2575FC)],
+                          const [Color(0xFFFC466B), Color(0xFFFF758C)],
                         ),
                   Positioned(
                     bottom: 8,
@@ -4609,9 +4706,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => StudentReelsScreen(
-                    targetReelId: reel['id']?.toString(),
-                  ),
+                  builder: (_) =>
+                      StudentReelsScreen(targetReelId: reel['id']?.toString()),
                 ),
               );
             },
@@ -4628,6 +4724,24 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         },
       );
     } else if (activeTab == 3) {
+      if (userReposts.isEmpty) {
+        return _buildWebEmptyState(
+          icon: Icons.repeat_rounded,
+          title: 'No Reposts',
+          subtitle: 'Posts you repost will appear here.',
+        );
+      }
+      return ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: userReposts.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 16),
+        itemBuilder: (context, index) {
+          final post = userReposts[index];
+          return _buildWebPostCard(post, index, isRepost: true);
+        },
+      );
+    } else {
       final totalSaved = userSavedReels.length + userSavedPosts.length;
       if (totalSaved == 0) {
         return _buildWebEmptyState(
@@ -4654,9 +4768,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => StudentReelsScreen(
-                    targetReelId: reel['id']?.toString(),
-                  ),
+                  builder: (_) =>
+                      StudentReelsScreen(targetReelId: reel['id']?.toString()),
                 ),
               );
             },
@@ -4666,28 +4779,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   ? Image.network(thumbnailUrl, fit: BoxFit.cover)
                   : _buildProfileReelFallback(
                       reel['title']?.toString() ?? '',
-                      const [Color(0xFF4A00E0), Color(0xFF8E2DE2)],
+                      const [Color(0xFFFC466B), Color(0xFFFF758C)],
                     ),
             ),
           );
         },
       );
-    } else if (activeTab == 4) {
-      return _buildWebEmptyState(
-        icon: Icons.school_outlined,
-        title: 'Learning Hub',
-        subtitle: 'Enrolled courses and certifications will appear here.',
-      );
-    } else {
-      return _buildWebEmptyState(
-        icon: Icons.emoji_events_outlined,
-        title: 'Achievements & Badges',
-        subtitle: 'Badges and honors earned on ZEV will appear here.',
-      );
     }
   }
 
-  Widget _buildWebPostCard(Map<String, dynamic> post, int index) {
+  Widget _buildWebPostCard(Map<String, dynamic> post, int index,
+      {bool isRepost = false}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final rawTitle = post['title'] ?? '';
     final moodTag = _extractMood(rawTitle);
     final cleanTitle = _extractCleanTitle(rawTitle);
@@ -4699,18 +4802,55 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFF14161F),
+        color: isDark ? const Color(0xFF14161F) : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.06)
+              : Colors.black.withOpacity(0.06),
+        ),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (isRepost) ...[
+            Row(
+              children: const [
+                Icon(
+                  Icons.repeat_rounded,
+                  color: Color(0xFFFC466B),
+                  size: 14,
+                ),
+                SizedBox(width: 6),
+                Text(
+                  'Reposted',
+                  style: TextStyle(
+                    color: Color(0xFFFC466B),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFC466B).withOpacity(0.12),
                   borderRadius: BorderRadius.circular(8),
@@ -4727,7 +4867,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               Text(
                 post['created_at']?.toString().split('T')[0] ?? '',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.4),
+                  color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
                   fontSize: 11,
                 ),
               ),
@@ -4736,18 +4876,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           const SizedBox(height: 12),
           Text(
             cleanTitle,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
               fontSize: 15,
               fontWeight: FontWeight.w700,
             ),
           ),
-          if (post['content'] != null && post['content'].toString().isNotEmpty) ...[
+          if (post['content'] != null &&
+              post['content'].toString().isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
               post['content'].toString(),
               style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
+                color: isDark
+                    ? Colors.white.withOpacity(0.7)
+                    : const Color(0xFF475569),
                 fontSize: 13,
                 height: 1.4,
               ),
@@ -4772,19 +4915,32 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 onTap: () => _toggleLike(post, index),
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   child: Row(
                     children: [
                       Icon(
-                        isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                        color: isLiked ? const Color(0xFFFC466B) : Colors.white54,
+                        isLiked
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                        color: isLiked
+                            ? const Color(0xFFFC466B)
+                            : (isDark
+                                ? Colors.white54
+                                : const Color(0xFF94A3B8)),
                         size: 16,
                       ),
                       const SizedBox(width: 5),
                       Text(
                         '$likesCount',
                         style: TextStyle(
-                          color: isLiked ? const Color(0xFFFC466B) : Colors.white70,
+                          color: isLiked
+                              ? const Color(0xFFFC466B)
+                              : (isDark
+                                  ? Colors.white70
+                                  : const Color(0xFF64748B)),
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -4798,14 +4954,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 children: [
                   Icon(
                     Icons.chat_bubble_outline_rounded,
-                    color: Colors.white.withOpacity(0.54),
+                    color: isDark ? Colors.white54 : const Color(0xFF94A3B8),
                     size: 15,
                   ),
                   const SizedBox(width: 5),
                   Text(
                     '$commentsCount',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
+                      color: isDark ? Colors.white70 : const Color(0xFF64748B),
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
@@ -4824,6 +4980,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     required String title,
     required String subtitle,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 60),
@@ -4833,13 +4990,15 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             Icon(
               icon,
               size: 48,
-              color: Colors.white.withOpacity(0.22),
+              color: isDark
+                  ? Colors.white.withOpacity(0.22)
+                  : const Color(0xFFCBD5E1),
             ),
             const SizedBox(height: 16),
             Text(
               title,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: isDark ? Colors.white : const Color(0xFF1E293B),
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
               ),
@@ -4848,7 +5007,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             Text(
               subtitle,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.4),
+                color: isDark
+                    ? Colors.white.withOpacity(0.4)
+                    : const Color(0xFF64748B),
                 fontSize: 13,
               ),
             ),

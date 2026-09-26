@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/services/media_processing_service.dart';
+import '../../../core/services/hashtag_service.dart';
 import '../../../core/utils/app_media_picker.dart';
 
 class CreatePostScreen extends StatefulWidget {
@@ -139,7 +140,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       };
       if (uploadedImageUrl != null) insertData['image_url'] = uploadedImageUrl;
 
-      await supabase.from("discussion_posts").insert(insertData);
+      final res = await supabase
+          .from("discussion_posts")
+          .insert(insertData)
+          .select('id')
+          .maybeSingle();
+
+      if (res != null) {
+        final newPostId = res['id']?.toString();
+        if (newPostId != null) {
+          HashtagService.instance.syncPostHashtags(newPostId, "$title $content");
+        }
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

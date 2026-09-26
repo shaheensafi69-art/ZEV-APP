@@ -1132,8 +1132,9 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
     final currentReel = (rawReelIndex >= 0 && rawReelIndex < reels.length)
         ? reels[rawReelIndex]
         : null;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: isDark ? const Color(0xFF090A0E) : const Color(0xFFF8FAFC),
       body: isLoading
           ? const Center(child: CircularProgressIndicator(color: primaryPink))
           : Focus(
@@ -1167,11 +1168,15 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
                         child: IconButton(
                           iconSize: 28,
                           style: IconButton.styleFrom(
-                            backgroundColor: Colors.white.withValues(
-                              alpha: 0.1,
-                            ),
-                            foregroundColor: Colors.white,
+                            backgroundColor: isDark
+                                ? Colors.white.withValues(alpha: 0.1)
+                                : Colors.white,
+                            foregroundColor: isDark
+                                ? Colors.white
+                                : const Color(0xFF0F172A),
                             padding: const EdgeInsets.all(12),
+                            elevation: isDark ? 0 : 2,
+                            shadowColor: Colors.black26,
                           ),
                           icon: const Icon(Icons.arrow_upward_rounded),
                           tooltip: "Previous Reel (Up Arrow)",
@@ -1193,14 +1198,18 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
                               : BorderRadius.zero,
                           border: isDesktop
                               ? Border.all(
-                                  color: Colors.white.withValues(alpha: 0.12),
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.12)
+                                      : Colors.black.withValues(alpha: 0.08),
                                   width: 1.5,
                                 )
                               : null,
                           boxShadow: isDesktop
                               ? [
                                   BoxShadow(
-                                    color: primaryPink.withValues(alpha: 0.2),
+                                    color: primaryPink.withValues(
+                                      alpha: isDark ? 0.2 : 0.12,
+                                    ),
                                     blurRadius: 35,
                                     offset: const Offset(0, 8),
                                   ),
@@ -1293,11 +1302,15 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
                         child: IconButton(
                           iconSize: 28,
                           style: IconButton.styleFrom(
-                            backgroundColor: Colors.white.withValues(
-                              alpha: 0.1,
-                            ),
-                            foregroundColor: Colors.white,
+                            backgroundColor: isDark
+                                ? Colors.white.withValues(alpha: 0.1)
+                                : Colors.white,
+                            foregroundColor: isDark
+                                ? Colors.white
+                                : const Color(0xFF0F172A),
                             padding: const EdgeInsets.all(12),
+                            elevation: isDark ? 0 : 2,
+                            shadowColor: Colors.black26,
                           ),
                           icon: const Icon(Icons.arrow_downward_rounded),
                           tooltip: "Next Reel (Down Arrow)",
@@ -2501,7 +2514,9 @@ class _DesktopReelCommentsSidePanelState
     try {
       final res = await supabase
           .from('reel_comments')
-          .select('*, profiles:user_id(first_name, last_name, avatar_url, username)')
+          .select(
+            '*, profiles:user_id(first_name, last_name, avatar_url, username)',
+          )
           .eq('reel_id', widget.reel.id)
           .order('created_at', ascending: true);
 
@@ -2567,7 +2582,7 @@ class _DesktopReelCommentsSidePanelState
                 .maybeSingle();
             final String senderName = (senderProfile != null)
                 ? '${senderProfile['first_name'] ?? 'Someone'} ${senderProfile['last_name'] ?? ''}'
-                    .trim()
+                      .trim()
                 : 'Someone';
 
             await supabase.from('user_notifications').insert({
@@ -2603,17 +2618,22 @@ class _DesktopReelCommentsSidePanelState
   @override
   Widget build(BuildContext context) {
     final currentUserId = supabase.auth.currentUser?.id;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       width: 380,
       height: 680,
       decoration: BoxDecoration(
-        color: const Color(0xFF10121A),
+        color: isDark ? const Color(0xFF10121A) : Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.09)),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.09)
+              : Colors.black.withOpacity(0.07),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.5),
+            color: Colors.black.withOpacity(isDark ? 0.5 : 0.06),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),
@@ -2625,10 +2645,18 @@ class _DesktopReelCommentsSidePanelState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.02),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              color: isDark
+                  ? Colors.white.withOpacity(0.02)
+                  : const Color(0xFFFFF1F4),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
               border: Border(
-                bottom: BorderSide(color: Colors.white.withOpacity(0.06)),
+                bottom: BorderSide(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.06)
+                      : Colors.black.withOpacity(0.06),
+                ),
               ),
             ),
             child: Row(
@@ -2660,8 +2688,8 @@ class _DesktopReelCommentsSidePanelState
                     children: [
                       Text(
                         widget.reel.authorName,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                         ),
@@ -2673,7 +2701,9 @@ class _DesktopReelCommentsSidePanelState
                         Text(
                           widget.reel.title,
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.6),
+                            color: isDark
+                                ? Colors.white.withOpacity(0.6)
+                                : const Color(0xFF64748B),
                             fontSize: 12,
                           ),
                           maxLines: 1,
@@ -2684,7 +2714,10 @@ class _DesktopReelCommentsSidePanelState
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFC466B).withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
@@ -2703,8 +2736,8 @@ class _DesktopReelCommentsSidePanelState
                       const SizedBox(width: 5),
                       Text(
                         '${comments.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : const Color(0xFFFC466B),
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -2726,132 +2759,154 @@ class _DesktopReelCommentsSidePanelState
                     ),
                   )
                 : comments.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.chat_bubble_outline_rounded,
-                              size: 44,
-                              color: Colors.white.withOpacity(0.2),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'No comments yet',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.7),
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Be the first to share your thoughts!',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.4),
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.chat_bubble_outline_rounded,
+                          size: 44,
+                          color: isDark
+                              ? Colors.white.withOpacity(0.2)
+                              : const Color(0xFFCBD5E1),
                         ),
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: comments.length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(height: 14),
-                        itemBuilder: (context, index) {
-                          final c = comments[index];
-                          final profile = c['profiles'];
-                          final String authorName = (profile != null)
-                              ? '${profile['first_name'] ?? ''} ${profile['last_name'] ?? ''}'
-                                  .trim()
-                              : 'ZEV User';
-                          final String avatarUrl = (profile != null)
-                              ? (profile['avatar_url'] ?? '')
-                              : '';
-                          final String username = (profile != null)
-                              ? (profile['username'] ?? authorName)
-                              : authorName;
-                          final String text = c['comment_text'] ?? '';
+                        const SizedBox(height: 12),
+                        Text(
+                          'No comments yet',
+                          style: TextStyle(
+                            color: isDark
+                                ? Colors.white.withOpacity(0.7)
+                                : const Color(0xFF1E293B),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Be the first to share your thoughts!',
+                          style: TextStyle(
+                            color: isDark
+                                ? Colors.white.withOpacity(0.4)
+                                : const Color(0xFF64748B),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: comments.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 14),
+                    itemBuilder: (context, index) {
+                      final c = comments[index];
+                      final profile = c['profiles'];
+                      final String authorName = (profile != null)
+                          ? '${profile['first_name'] ?? ''} ${profile['last_name'] ?? ''}'
+                                .trim()
+                          : 'ZEV User';
+                      final String avatarUrl = (profile != null)
+                          ? (profile['avatar_url'] ?? '')
+                          : '';
+                      final String username = (profile != null)
+                          ? (profile['username'] ?? authorName)
+                          : authorName;
+                      final String text = c['comment_text'] ?? '';
 
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              CircleAvatar(
-                                radius: 15,
-                                backgroundColor: const Color(0xFF282B38),
-                                backgroundImage: avatarUrl.isNotEmpty
-                                    ? NetworkImage(avatarUrl)
-                                    : null,
-                                child: avatarUrl.isEmpty
-                                    ? Text(
-                                        authorName.isNotEmpty
-                                            ? authorName[0].toUpperCase()
-                                            : 'U',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      )
-                                    : null,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Text(
-                                          authorName,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                        const Spacer(),
-                                        GestureDetector(
-                                          onTap: () => _replyToUser(username),
-                                          child: Text(
-                                            'Reply',
-                                            style: TextStyle(
-                                              color: Colors.white.withOpacity(0.4),
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CircleAvatar(
+                            radius: 15,
+                            backgroundColor: isDark
+                                ? const Color(0xFF282B38)
+                                : const Color(0xFFE2E8F0),
+                            backgroundImage: avatarUrl.isNotEmpty
+                                ? NetworkImage(avatarUrl)
+                                : null,
+                            child: avatarUrl.isEmpty
+                                ? Text(
+                                    authorName.isNotEmpty
+                                        ? authorName[0].toUpperCase()
+                                        : 'U',
+                                    style: TextStyle(
+                                      color: isDark
+                                          ? Colors.white
+                                          : const Color(0xFF0F172A),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                    const SizedBox(height: 3),
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
                                     Text(
-                                      text,
+                                      authorName,
                                       style: TextStyle(
-                                        color: Colors.white.withOpacity(0.88),
-                                        fontSize: 13,
-                                        height: 1.35,
+                                        color: isDark
+                                            ? Colors.white
+                                            : const Color(0xFF0F172A),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    GestureDetector(
+                                      onTap: () => _replyToUser(username),
+                                      child: Text(
+                                        'Reply',
+                                        style: TextStyle(
+                                          color: isDark
+                                              ? Colors.white.withOpacity(0.4)
+                                              : const Color(0xFF94A3B8),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  text,
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? Colors.white.withOpacity(0.88)
+                                        : const Color(0xFF334155),
+                                    fontSize: 13,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
           ),
 
           // Input Box at Bottom
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: const Color(0xFF0B0D13),
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+              color: isDark ? const Color(0xFF0B0D13) : Colors.white,
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(24),
+              ),
               border: Border(
-                top: BorderSide(color: Colors.white.withOpacity(0.06)),
+                top: BorderSide(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.06)
+                      : Colors.black.withOpacity(0.06),
+                ),
               ),
             ),
             child: Row(
@@ -2859,29 +2914,37 @@ class _DesktopReelCommentsSidePanelState
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1B1E29),
+                      color: isDark
+                          ? const Color(0xFF1B1E29)
+                          : const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.08),
+                        color: isDark
+                            ? Colors.white.withOpacity(0.08)
+                            : Colors.black.withOpacity(0.04),
                       ),
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     child: TextField(
                       controller: _controller,
                       focusNode: _focusNode,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
                         fontSize: 13,
                       ),
                       onSubmitted: (_) => _addComment(),
                       decoration: InputDecoration(
                         hintText: 'Add a comment...',
                         hintStyle: TextStyle(
-                          color: Colors.white.withOpacity(0.4),
+                          color: isDark
+                              ? Colors.white.withOpacity(0.4)
+                              : const Color(0xFF94A3B8),
                           fontSize: 13,
                         ),
                         border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 11),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 11,
+                        ),
                       ),
                     ),
                   ),
@@ -2895,7 +2958,7 @@ class _DesktopReelCommentsSidePanelState
                     decoration: const BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: LinearGradient(
-                        colors: [Color(0xFFFC466B), Color(0xFF3F5EFB)],
+                        colors: [Color(0xFFFC466B), Color(0xFFFF758C)],
                       ),
                     ),
                     child: const Icon(

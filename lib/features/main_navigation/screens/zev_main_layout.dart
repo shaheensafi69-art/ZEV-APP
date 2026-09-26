@@ -20,6 +20,7 @@ import '../../../core/widgets/auth_required_modal.dart';
 import '../../../core/widgets/responsive_layout.dart';
 import '../../../core/localization/zev_localizations.dart';
 import '../../../core/services/language_service.dart';
+import '../../../core/services/hashtag_service.dart';
 
 class ZevMainLayout extends StatefulWidget {
   final int initialIndex;
@@ -42,6 +43,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   String _currentUserHandle = "";
   List<Map<String, dynamic>> _suggestedUsers = [];
   final Set<String> _rightRailFollowingIds = {};
+  List<HashtagItem> _trendingHashtags = [];
 
   @override
   void initState() {
@@ -83,9 +85,12 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
           .neq('id', currentUserId ?? '')
           .limit(4);
 
+      final tags = await HashtagService.instance.getTrendingHashtags();
+
       if (mounted) {
         setState(() {
           _suggestedUsers = List<Map<String, dynamic>>.from(res);
+          _trendingHashtags = tags;
         });
       }
     } catch (_) {}
@@ -442,13 +447,26 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     return Container(
       width: width,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A) : Colors.white,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: isDark
+              ? const [
+                  Color(0xFF0F172A),
+                  Color(0xFF090D16),
+                ]
+              : const [
+                  Color(0xFFFFFFFF),
+                  Color(0xFFFFF1F4),
+                  Color(0xFFF8FAFC),
+                ],
+        ),
         border: Border(
           right: BorderSide(
             color: isDark
                 ? Colors.white.withValues(alpha: 0.08)
-                : const Color(0xFFE2E8F0),
-            width: 1,
+                : const Color(0xFFF1F5F9),
+            width: 1.2,
           ),
         ),
         boxShadow: [
@@ -544,7 +562,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'SOCIAL FEED HUB',
+                      context.zevTr('socialFeedHub'),
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
@@ -566,21 +584,21 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                   children: [
                     _buildSideNavItem(
                       icon: Icons.dynamic_feed_rounded,
-                      label: "Feed Stream",
+                      label: context.zevTr('feedStream'),
                       index: 0,
                       isDark: isDark,
                       isDesktop: isDesktop,
                     ),
                     _buildSideNavItem(
                       icon: Icons.play_circle_fill_rounded,
-                      label: "Explore Reels",
+                      label: context.zevTr('exploreReels'),
                       index: 3,
                       isDark: isDark,
                       isDesktop: isDesktop,
                     ),
                     _buildSideNavItem(
                       icon: Icons.storefront_rounded,
-                      label: "Global Network / Shop",
+                      label: context.zevTr('shop'),
                       index: 88,
                       isDark: isDark,
                       isDesktop: isDesktop,
@@ -594,16 +612,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                       },
                     ),
                     _buildSideNavItem(
-                      icon: Icons.add_box_outlined,
-                      label: "Create Post",
-                      index: 87,
-                      isDark: isDark,
-                      isDesktop: isDesktop,
-                      customTap: () => _onTabTapped(2),
-                    ),
-                    _buildSideNavItem(
                       icon: Icons.chat_bubble_outline_rounded,
-                      label: "Messages",
+                      label: context.zevTr('messages'),
                       index: 86,
                       isDark: isDark,
                       isDesktop: isDesktop,
@@ -618,7 +628,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     ),
                     _buildSideNavItem(
                       icon: Icons.favorite_border_rounded,
-                      label: "Likes & Comments",
+                      label: context.zevTr('likesAndComments'),
                       index: 85,
                       isDark: isDark,
                       isDesktop: isDesktop,
@@ -634,7 +644,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     ),
                     _buildSideNavItem(
                       icon: Icons.person_outline_rounded,
-                      label: "My Profile",
+                      label: context.zevTr('myProfile'),
                       index: 4,
                       isDark: isDark,
                       isDesktop: isDesktop,
@@ -695,9 +705,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                       ),
                       if (isDesktop) ...[
                         const SizedBox(width: 8),
-                        const Text(
-                          'CREATE NEW POST',
-                          style: TextStyle(
+                        Text(
+                          context.zevTr('createNewPost').toUpperCase(),
+                          style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w900,
                             fontSize: 13,
@@ -1006,7 +1016,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      "Trending on ZEV",
+                      context.zevTr('trendingOnZev'),
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w900,
@@ -1017,11 +1027,19 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                   ],
                 ),
                 const SizedBox(height: 14),
-                _buildTrendingItem("#Technology", "14.2K posts", isDark),
-                _buildTrendingItem("#Photography", "8.5K posts", isDark),
-                _buildTrendingItem("#ArtAndDesign", "6.1K posts", isDark),
-                _buildTrendingItem("#Education", "12.8K posts", isDark),
-                _buildTrendingItem("#Music", "5.3K posts", isDark),
+                if (_trendingHashtags.isNotEmpty)
+                  ..._trendingHashtags.take(6).map((h) => _buildTrendingItem(
+                        "#${h.tag}",
+                        "${h.postsCount + h.reelsCount > 999 ? '${((h.postsCount + h.reelsCount) / 1000).toStringAsFixed(1)}K' : '${h.postsCount + h.reelsCount}'} posts",
+                        isDark,
+                      ))
+                else ...[
+                  _buildTrendingItem("#Technology", "14.2K posts", isDark),
+                  _buildTrendingItem("#Photography", "8.5K posts", isDark),
+                  _buildTrendingItem("#ArtAndDesign", "6.1K posts", isDark),
+                  _buildTrendingItem("#Education", "12.8K posts", isDark),
+                  _buildTrendingItem("#Music", "5.3K posts", isDark),
+                ],
               ],
             ),
           ),
@@ -1057,7 +1075,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        "Who to follow",
+                        context.zevTr('whoToFollow'),
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w900,
@@ -1140,7 +1158,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
-                                isFollowing ? "Following" : "Follow",
+                                isFollowing
+                                    ? context.zevTr('following')
+                                    : context.zevTr('follow'),
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
@@ -1170,7 +1190,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
               spacing: 8,
               runSpacing: 4,
               children: [
-                _buildFooterLink("Terms of Service", () {
+                _buildFooterLink(context.zevTr('termsOfService'), () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -1185,7 +1205,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     fontSize: 11,
                   ),
                 ),
-                _buildFooterLink("Privacy Policy", () {
+                _buildFooterLink(context.zevTr('privacyPolicy'), () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -1200,7 +1220,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     fontSize: 11,
                   ),
                 ),
-                _buildFooterLink("Settings", () {
+                _buildFooterLink(context.zevTr('settings'), () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
