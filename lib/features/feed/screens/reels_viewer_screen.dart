@@ -16,6 +16,7 @@ import '../../../core/utils/app_media_picker.dart';
 import '../../../core/widgets/auth_required_modal.dart';
 import '../widgets/reels_ad_card.dart';
 import '../../../core/widgets/fast_cached_image.dart';
+import '../../../core/localization/zev_localizations.dart';
 
 /// Modern 2-second floating toast in English with no system paths
 void _showReelsToast(
@@ -2741,7 +2742,9 @@ class _DesktopReelAdSidePanel extends StatelessWidget {
                 foregroundColor: Colors.white,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: BorderRadius.circular(16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
