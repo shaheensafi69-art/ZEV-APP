@@ -32,12 +32,16 @@ class DirectChatScreen extends StatefulWidget {
   final String peerId;
   final String peerName;
   final String peerAvatar;
+  final bool isEmbedded;
+  final VoidCallback? onEmbeddedClose;
 
   const DirectChatScreen({
     super.key,
     required this.peerId,
     required this.peerName,
     required this.peerAvatar,
+    this.isEmbedded = false,
+    this.onEmbeddedClose,
   });
 
   @override
@@ -404,10 +408,13 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
         backgroundColor: surfaceWhite,
         elevation: 0,
         scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: textDark, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: !widget.isEmbedded,
+        leading: widget.isEmbedded
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: textDark, size: 20),
+                onPressed: () => Navigator.pop(context),
+              ),
         title: Row(
           children: [
             Stack(
@@ -445,8 +452,14 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
             ),
           ],
         ),
-        actions: const [
-          SizedBox(width: 8),
+        actions: [
+          if (widget.isEmbedded && widget.onEmbeddedClose != null)
+            IconButton(
+              icon: const Icon(Icons.close_rounded, color: textDark, size: 22),
+              tooltip: "Close",
+              onPressed: widget.onEmbeddedClose,
+            ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Column(

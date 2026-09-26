@@ -520,13 +520,7 @@ class _FeedPostCardState extends State<FeedPostCard> {
     );
 
     return Container(
-      margin: EdgeInsets.symmetric(
-        horizontal: context.respSpacing(
-          phone: 16.0,
-          tablet: 20.0,
-          desktop: 24.0,
-        ),
-      ),
+      margin: EdgeInsets.zero,
       decoration: BoxDecoration(
         color: surfaceWhite,
         borderRadius: BorderRadius.circular(

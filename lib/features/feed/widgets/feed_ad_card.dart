@@ -120,7 +120,7 @@ class _FeedAdCardState extends State<FeedAdCard> {
     }
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
       decoration: BoxDecoration(
         color: surfaceWhite,
         borderRadius: BorderRadius.circular(24),
@@ -206,7 +206,7 @@ class _FeedAdCardState extends State<FeedAdCard> {
   /// Test preview card for desktop
   Widget _buildDesktopPreviewCard() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: surfaceWhite,

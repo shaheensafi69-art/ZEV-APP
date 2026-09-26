@@ -71,6 +71,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
   String _myNote = "";
   String _selectedFilter = "Primary"; // "Primary", "General", "Requests"
   String _activeSecondaryFilter = "all"; // "all", "unread"
+  String? _activeDesktopPeerId;
+  String? _activeDesktopPeerName;
+  String? _activeDesktopPeerAvatar;
 
   static const Color primaryPink = Color(0xFFFC466B);
   static const Color lightPinkBg = Color(0xFFFFF0F5);
@@ -1243,133 +1246,278 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: ResponsiveLayout.feedConstraint(
-        maxWidth: 640,
-        child: Column(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = constraints.maxWidth >= 850;
+          if (isDesktop) {
+            return _buildDesktopMessengerLayout(
+              displayList,
+              isLoading,
+              isSearchingLive,
+            );
+          }
+          return ResponsiveLayout.feedConstraint(
+            maxWidth: 640,
+            child: _buildChatListBody(
+              displayList,
+              isLoading,
+              isSearchingLive,
+              isDesktop: false,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDesktopMessengerLayout(
+    List<ChatThreadItem> displayList,
+    bool isLoading,
+    bool isSearchingLive,
+  ) {
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 1200),
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cardBorder),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Row(
           children: [
-            // Search Bar (Instagram style rounded capsule)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            // Left Pane: Thread list & Search & Notes (380px fixed width)
+            SizedBox(
+              width: 380,
               child: Container(
-                height: 40,
-                decoration: BoxDecoration(
-                  color: cardBorder,
-                  borderRadius: BorderRadius.circular(12),
+                decoration: const BoxDecoration(
+                  border: Border(
+                    right: BorderSide(color: cardBorder, width: 1),
+                  ),
                 ),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: _onSearchChanged,
-                  cursorColor: primaryPink,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: textDark,
-                  ),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: "${context.l10n.search}...",
-                    hintStyle: const TextStyle(color: textGrey, fontSize: 13),
-                    prefixIcon: const Icon(
-                      Icons.search_rounded,
-                      color: textGrey,
-                      size: 20,
-                    ),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(
-                              Icons.close_rounded,
-                              color: textGrey,
-                              size: 16,
-                            ),
-                            onPressed: () {
-                              _searchController.clear();
-                              _onSearchChanged("");
-                            },
-                          )
-                        : null,
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
+                child: _buildChatListBody(
+                  displayList,
+                  isLoading,
+                  isSearchingLive,
+                  isDesktop: true,
                 ),
               ),
             ),
 
-            // Instagram Notes Tray (Screenshot 4)
-            if (!isSearchingLive) _buildNotesTray(),
-
-            // Filter Pills Row (Screenshot 4)
-            if (!isSearchingLive) _buildFilterPills(),
-
-            // Chat Conversations List
+            // Right Pane: Active Chat Screen or Empty State
             Expanded(
-              child: isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: primaryPink,
-                        strokeWidth: 2.5,
-                      ),
+              child: _activeDesktopPeerId != null
+                  ? DirectChatScreen(
+                      key: ValueKey(_activeDesktopPeerId),
+                      peerId: _activeDesktopPeerId!,
+                      peerName: _activeDesktopPeerName ?? "",
+                      peerAvatar: _activeDesktopPeerAvatar ?? "",
+                      isEmbedded: true,
+                      onEmbeddedClose: () {
+                        setState(() {
+                          _activeDesktopPeerId = null;
+                          _activeDesktopPeerName = null;
+                          _activeDesktopPeerAvatar = null;
+                        });
+                      },
                     )
-                  : displayList.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(24),
-                            decoration: const BoxDecoration(
-                              color: lightPinkBg,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.chat_bubble_outline_rounded,
-                              color: primaryPink,
-                              size: 44,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Text(
-                            _searchController.text.trim().isNotEmpty
-                                ? "${context.l10n.search}: '${_searchController.text}'"
-                                : context.l10n.noConversationsYet,
-                            style: const TextStyle(
-                              color: textDark,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            context.l10n.startLiveChatHint,
-                            style: const TextStyle(
-                              color: textGrey,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : RefreshIndicator(
-                      color: primaryPink,
-                      onRefresh: _fetchExistingChatThreads,
-                      child: ListView.separated(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 6,
-                        ),
-                        itemCount: displayList.length,
-                        separatorBuilder: (_, _) =>
-                            const Divider(color: cardBorder, height: 14),
-                        itemBuilder: (context, index) {
-                          final item = displayList[index];
-                          return _buildThreadItem(item);
-                        },
-                      ),
-                    ),
+                  : _buildDesktopEmptyChatPlaceholder(),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildDesktopEmptyChatPlaceholder() {
+    return Container(
+      color: lightPinkBg.withOpacity(0.15),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: cardBorder),
+                boxShadow: [
+                  BoxShadow(
+                    color: primaryPink.withOpacity(0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.send_rounded,
+                color: primaryPink,
+                size: 54,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              context.l10n.directMessages,
+              style: const TextStyle(
+                color: textDark,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              context.zevTr('selectChatToMessage'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: textGrey,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChatListBody(
+    List<ChatThreadItem> displayList,
+    bool isLoading,
+    bool isSearchingLive, {
+    bool isDesktop = false,
+  }) {
+    return Column(
+      children: [
+        // Search Bar (Instagram style rounded capsule)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: Container(
+            height: 40,
+            decoration: BoxDecoration(
+              color: cardBorder,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              cursorColor: primaryPink,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: textDark,
+              ),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: "${context.l10n.search}...",
+                hintStyle: const TextStyle(color: textGrey, fontSize: 13),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  color: textGrey,
+                  size: 20,
+                ),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: textGrey,
+                          size: 16,
+                        ),
+                        onPressed: () {
+                          _searchController.clear();
+                          _onSearchChanged("");
+                        },
+                      )
+                    : null,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
+        ),
+
+        // Instagram Notes Tray (Screenshot 4)
+        if (!isSearchingLive) _buildNotesTray(),
+
+        // Filter Pills Row (Screenshot 4)
+        if (!isSearchingLive) _buildFilterPills(),
+
+        // Chat Conversations List
+        Expanded(
+          child: isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    color: primaryPink,
+                    strokeWidth: 2.5,
+                  ),
+                )
+              : displayList.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: const BoxDecoration(
+                          color: lightPinkBg,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.chat_bubble_outline_rounded,
+                          color: primaryPink,
+                          size: 44,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        _searchController.text.trim().isNotEmpty
+                            ? "${context.l10n.search}: '${_searchController.text}'"
+                            : context.l10n.noConversationsYet,
+                        style: const TextStyle(
+                          color: textDark,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        context.l10n.startLiveChatHint,
+                        style: const TextStyle(
+                          color: textGrey,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  color: primaryPink,
+                  onRefresh: _fetchExistingChatThreads,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 6,
+                    ),
+                    itemCount: displayList.length,
+                    separatorBuilder: (_, _) =>
+                        const Divider(color: cardBorder, height: 14),
+                    itemBuilder: (context, index) {
+                      final item = displayList[index];
+                      return _buildThreadItem(item, isDesktop: isDesktop);
+                    },
+                  ),
+                ),
+        ),
+      ],
     );
   }
 
@@ -1410,7 +1558,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                     child: Text(
                       _myNote.isNotEmpty
                           ? _myNote
-                          : "Start your\nfirst note...",
+                          : context.zevTr('startFirstNote'),
                       textAlign: TextAlign.center,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -1456,9 +1604,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    "Your note",
-                    style: TextStyle(
+                  Text(
+                    context.zevTr('yourNote'),
+                    style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
                       color: textGrey,
@@ -1545,7 +1693,11 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
 
   /// Filter Pills Row matching Screenshot 4
   Widget _buildFilterPills() {
-    final filters = ["Primary", "Requests", "General"];
+    final filterKeys = [
+      {'key': 'primary', 'val': 'Primary'},
+      {'key': 'requests', 'val': 'Requests'},
+      {'key': 'general', 'val': 'General'},
+    ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Row(
@@ -1576,7 +1728,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    _activeSecondaryFilter == 'unread' ? "Unread" : "Filters",
+                    _activeSecondaryFilter == 'unread'
+                        ? context.zevTr('unread')
+                        : context.zevTr('filters'),
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -1591,26 +1745,26 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
           ),
           const SizedBox(width: 8),
           // Category pills
-          for (var f in filters)
+          for (var f in filterKeys)
             Padding(
               padding: const EdgeInsets.only(right: 6),
               child: GestureDetector(
-                onTap: () => setState(() => _selectedFilter = f),
+                onTap: () => setState(() => _selectedFilter = f['val']!),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: _selectedFilter == f ? primaryPink : cardBorder,
+                    color: _selectedFilter == f['val'] ? primaryPink : cardBorder,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
-                    f,
+                    context.zevTr(f['key']!),
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: _selectedFilter == f ? Colors.white : textDark,
+                      color: _selectedFilter == f['val'] ? Colors.white : textDark,
                     ),
                   ),
                 ),
@@ -1621,175 +1775,198 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
     );
   }
 
-  Widget _buildThreadItem(ChatThreadItem item) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      onTap: () async {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => DirectChatScreen(
-              peerId: item.peerId,
-              peerName: item.peerName,
-              peerAvatar: item.peerAvatar,
-            ),
-          ),
-        );
-        _fetchExistingChatThreads();
-      },
-      leading: Stack(
-        children: [
-          CircleAvatar(
-            radius: 26,
-            backgroundColor: lightPinkBg,
-            backgroundImage: item.peerAvatar.isNotEmpty
-                ? NetworkImage(item.peerAvatar)
-                : null,
-            child: item.peerAvatar.isEmpty
-                ? Text(
-                    item.peerName.isNotEmpty ? item.peerName[0] : 'U',
-                    style: const TextStyle(
-                      color: primaryPink,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  )
-                : null,
-          ),
-          if (item.isOnline)
-            Positioned(
-              right: 0,
-              bottom: 0,
-              child: Container(
-                width: 14,
-                height: 14,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF10B981),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2.5),
-                ),
+  Widget _buildThreadItem(ChatThreadItem item, {bool isDesktop = false}) {
+    final isSelected = isDesktop && item.peerId == _activeDesktopPeerId;
+    return Container(
+      decoration: BoxDecoration(
+        color: isSelected ? lightPinkBg.withOpacity(0.7) : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+        onTap: () async {
+          if (isDesktop) {
+            setState(() {
+              _activeDesktopPeerId = item.peerId;
+              _activeDesktopPeerName = item.peerName;
+              _activeDesktopPeerAvatar = item.peerAvatar;
+            });
+            return;
+          }
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => DirectChatScreen(
+                peerId: item.peerId,
+                peerName: item.peerName,
+                peerAvatar: item.peerAvatar,
               ),
             ),
-        ],
-      ),
-      title: Text(
-        item.peerName,
-        style: const TextStyle(
-          color: textDark,
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-      subtitle: Row(
-        children: [
-          Expanded(
-            child: Text(
-              (item.lastMessage == 'start_conversation_placeholder' ||
-                      item.lastMessage == 'Start a conversation 💬')
-                  ? context.l10n.startConversation
-                  : item.lastMessage,
-              style: TextStyle(
-                color: item.unreadCount > 0 ? textDark : textGrey,
-                fontSize: 13,
-                fontWeight: item.unreadCount > 0
-                    ? FontWeight.w700
-                    : FontWeight.normal,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (item.time.isNotEmpty) ...[
-            const Text(" · ", style: TextStyle(color: textGrey, fontSize: 13)),
-            Text(
-              item.time,
-              style: const TextStyle(color: textGrey, fontSize: 12),
-            ),
-          ],
-        ],
-      ),
-      trailing: item.isRequest
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ElevatedButton(
-                  onPressed: () => _acceptRequest(item),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryPink,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: const Text(
-                    "Accept",
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                OutlinedButton(
-                  onPressed: () => _declineRequest(item),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: textGrey,
-                    side: const BorderSide(color: cardBorder),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: const Text(
-                    "Decline",
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            )
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (item.unreadCount > 0)
-                  Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: primaryPink,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.camera_alt_outlined,
-                    color: textGrey,
-                    size: 22,
-                  ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => DirectChatScreen(
-                          peerId: item.peerId,
-                          peerName: item.peerName,
-                          peerAvatar: item.peerAvatar,
-                        ),
+          );
+          _fetchExistingChatThreads();
+        },
+        leading: Stack(
+          children: [
+            CircleAvatar(
+              radius: 26,
+              backgroundColor: lightPinkBg,
+              backgroundImage: item.peerAvatar.isNotEmpty
+                  ? NetworkImage(item.peerAvatar)
+                  : null,
+              child: item.peerAvatar.isEmpty
+                  ? Text(
+                      item.peerName.isNotEmpty ? item.peerName[0] : 'U',
+                      style: const TextStyle(
+                        color: primaryPink,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
                       ),
-                    );
-                  },
-                ),
-              ],
+                    )
+                  : null,
             ),
+            if (item.isOnline)
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2.5),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        title: Text(
+          item.peerName,
+          style: const TextStyle(
+            color: textDark,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        subtitle: Row(
+          children: [
+            Expanded(
+              child: Text(
+                (item.lastMessage == 'start_conversation_placeholder' ||
+                        item.lastMessage == 'Start a conversation 💬')
+                    ? context.l10n.startConversation
+                    : item.lastMessage,
+                style: TextStyle(
+                  color: item.unreadCount > 0 ? textDark : textGrey,
+                  fontSize: 13,
+                  fontWeight: item.unreadCount > 0
+                      ? FontWeight.w700
+                      : FontWeight.normal,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (item.time.isNotEmpty) ...[
+              const Text(" · ", style: TextStyle(color: textGrey, fontSize: 13)),
+              Text(
+                item.time,
+                style: const TextStyle(color: textGrey, fontSize: 12),
+              ),
+            ],
+          ],
+        ),
+        trailing: item.isRequest
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ElevatedButton(
+                    onPressed: () => _acceptRequest(item),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryPink,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      context.l10n.accept,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  OutlinedButton(
+                    onPressed: () => _declineRequest(item),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: textGrey,
+                      side: const BorderSide(color: cardBorder),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: Text(
+                      context.l10n.reject,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              )
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (item.unreadCount > 0)
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: primaryPink,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.camera_alt_outlined,
+                      color: textGrey,
+                      size: 22,
+                    ),
+                    onPressed: () {
+                      if (isDesktop) {
+                        setState(() {
+                          _activeDesktopPeerId = item.peerId;
+                          _activeDesktopPeerName = item.peerName;
+                          _activeDesktopPeerAvatar = item.peerAvatar;
+                        });
+                        return;
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => DirectChatScreen(
+                            peerId: item.peerId,
+                            peerName: item.peerName,
+                            peerAvatar: item.peerAvatar,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+      ),
     );
   }
 }

@@ -353,7 +353,7 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
 
                   // Section 1: Security & Devices
                   _buildSectionHeader(
-                    "SECURITY & ACCESS",
+                    context.zevTr('securityAndAccess'),
                     Icons.security_rounded,
                   ),
                   _buildGroupCard(
@@ -374,9 +374,8 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
                       _SettingsItem(
                         icon: Icons.devices_rounded,
                         iconColor: const Color(0xFF06B6D4),
-                        title: "Active Devices & Sessions",
-                        subtitle:
-                            "Manage logged-in devices and active browsers",
+                        title: context.zevTr('activeDevices'),
+                        subtitle: context.zevTr('activeDevicesSub'),
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -390,7 +389,7 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
 
                   // Section 2: Preferences
                   _buildSectionHeader(
-                    "PREFERENCES & DISPLAY",
+                    context.zevTr('preferencesAndDisplay'),
                     Icons.tune_rounded,
                   ),
                   _buildGroupCard(
@@ -418,15 +417,18 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
                   const SizedBox(height: 22),
 
                   // Section 3: Legal & Privacy Policies
-                  _buildSectionHeader("LEGAL & POLICIES", Icons.policy_rounded),
+                  _buildSectionHeader(
+                    context.zevTr('legalAndPolicies'),
+                    Icons.policy_rounded,
+                  ),
                   _buildGroupCard(
                     isDark: isDark,
                     items: [
                       _SettingsItem(
                         icon: Icons.lock_outline_rounded,
                         iconColor: const Color(0xFF10B981),
-                        title: "Privacy Policy",
-                        subtitle: "How ZEV protects and encrypts your data",
+                        title: context.zevTr('privacyPolicy'),
+                        subtitle: context.zevTr('privacyPolicySub'),
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -437,8 +439,8 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
                       _SettingsItem(
                         icon: Icons.description_outlined,
                         iconColor: const Color(0xFFF59E0B),
-                        title: "Terms of Service",
-                        subtitle: "Platform rules, guidelines, and terms",
+                        title: context.zevTr('termsOfService'),
+                        subtitle: context.zevTr('termsOfServiceSub'),
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -449,8 +451,8 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
                       _SettingsItem(
                         icon: Icons.code_rounded,
                         iconColor: const Color(0xFF8B5CF6),
-                        title: "Open Source Licenses",
-                        subtitle: "Libraries and software powering ZEV",
+                        title: context.zevTr('openSourceLicenses'),
+                        subtitle: context.zevTr('openSourceLicensesSub'),
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -464,7 +466,7 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
 
                   // Section 4: Support & About
                   _buildSectionHeader(
-                    "ABOUT & SUPPORT",
+                    context.zevTr('aboutAndSupport'),
                     Icons.info_outline_rounded,
                   ),
                   _buildGroupCard(
@@ -473,9 +475,8 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
                       _SettingsItem(
                         icon: Icons.help_outline_rounded,
                         iconColor: const Color(0xFF3B82F6),
-                        title: "Help & Support Center",
-                        subtitle:
-                            "FAQs, community contact, and customer support",
+                        title: context.zevTr('supportAndHelp'),
+                        subtitle: context.zevTr('supportAndHelpSub'),
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -487,7 +488,7 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
                         icon: Icons.auto_awesome_rounded,
                         iconColor: primaryPink,
                         title: context.zevTr('aboutZev'),
-                        subtitle: "ZEV Version 2.4.0 • Built with Passion",
+                        subtitle: context.zevTr('aboutZevSub'),
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(

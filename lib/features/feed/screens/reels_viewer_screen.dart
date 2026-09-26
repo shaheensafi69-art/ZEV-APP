@@ -1124,6 +1124,7 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth >= 768;
     final showDesktopComments = isDesktop && screenWidth >= 880;
+    final showDesktopAds = isDesktop && screenWidth >= 1200;
 
     final rawReelIndex = AdService.instance.getRawItemIndex(
       activeIndex,
@@ -1133,6 +1134,95 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
         ? reels[rawReelIndex]
         : null;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final Widget reelPlayerContainer = Container(
+      decoration: BoxDecoration(
+        color: Colors.black,
+        borderRadius: isDesktop
+            ? BorderRadius.circular(24)
+            : BorderRadius.zero,
+        border: isDesktop
+            ? Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.12)
+                    : Colors.black.withValues(alpha: 0.08),
+                width: 1.5,
+              )
+            : null,
+        boxShadow: isDesktop
+            ? [
+                BoxShadow(
+                  color: primaryPink.withValues(
+                    alpha: isDark ? 0.2 : 0.12,
+                  ),
+                  blurRadius: 35,
+                  offset: const Offset(0, 8),
+                ),
+              ]
+            : null,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          // Display empty state if Friends tab has no content
+          if (selectedTab == 'friends' && reels.isEmpty)
+            _buildEmptyFriendsState()
+          else
+            RefreshIndicator(
+              color: primaryPink,
+              backgroundColor: Colors.black,
+              onRefresh: () async {
+                await _fetchReels();
+              },
+              child: PageView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                controller: _pageController,
+                scrollDirection: Axis.vertical,
+                itemCount: AdService.instance.calculateTotalCount(
+                  reels.length,
+                  AdService.reelsAdInterval,
+                ),
+                onPageChanged: (index) {
+                  setState(() => activeIndex = index);
+                  if (!AdService.instance.isAdPosition(
+                    index,
+                    AdService.reelsAdInterval,
+                  )) {
+                    final rawIndex = AdService.instance.getRawItemIndex(
+                      index,
+                      AdService.reelsAdInterval,
+                    );
+                    if (rawIndex >= 0 && rawIndex < reels.length) {
+                      _recordView(reels[rawIndex]);
+                    }
+                  }
+                },
+                itemBuilder: (context, index) {
+                  if (AdService.instance.isAdPosition(
+                    index,
+                    AdService.reelsAdInterval,
+                  )) {
+                    return const ReelsAdCard();
+                  }
+                  final rawIndex = AdService.instance.getRawItemIndex(
+                    index,
+                    AdService.reelsAdInterval,
+                  );
+                  if (rawIndex >= reels.length) {
+                    return const SizedBox.shrink();
+                  }
+                  final reel = reels[rawIndex];
+                  return _buildReelPage(reel, index);
+                },
+              ),
+            ),
+
+          // Top buttons: Friends | For You
+          _buildTopTabBar(),
+        ],
+      ),
+    );
+
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF090A0E) : const Color(0xFFF8FAFC),
       body: isLoading
@@ -1157,174 +1247,90 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
                 }
                 return KeyEventResult.ignored;
               },
-              child: Center(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Desktop Left/Previous Button
-                    if (isDesktop)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 24),
-                        child: IconButton(
-                          iconSize: 28,
-                          style: IconButton.styleFrom(
-                            backgroundColor: isDark
-                                ? Colors.white.withValues(alpha: 0.1)
-                                : Colors.white,
-                            foregroundColor: isDark
-                                ? Colors.white
-                                : const Color(0xFF0F172A),
-                            padding: const EdgeInsets.all(12),
-                            elevation: isDark ? 0 : 2,
-                            shadowColor: Colors.black26,
-                          ),
-                          icon: const Icon(Icons.arrow_upward_rounded),
-                          tooltip: "Previous Reel (Up Arrow)",
-                          onPressed: () {
-                            _pageController.previousPage(
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
-                            );
-                          },
-                        ),
-                      ),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 480),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black,
-                          borderRadius: isDesktop
-                              ? BorderRadius.circular(24)
-                              : BorderRadius.zero,
-                          border: isDesktop
-                              ? Border.all(
-                                  color: isDark
-                                      ? Colors.white.withValues(alpha: 0.12)
-                                      : Colors.black.withValues(alpha: 0.08),
-                                  width: 1.5,
-                                )
-                              : null,
-                          boxShadow: isDesktop
-                              ? [
-                                  BoxShadow(
-                                    color: primaryPink.withValues(
-                                      alpha: isDark ? 0.2 : 0.12,
-                                    ),
-                                    blurRadius: 35,
-                                    offset: const Offset(0, 8),
-                                  ),
-                                ]
-                              : null,
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: Stack(
-                          children: [
-                            // Display empty state if Friends tab has no content
-                            if (selectedTab == 'friends' && reels.isEmpty)
-                              _buildEmptyFriendsState()
-                            else
-                              RefreshIndicator(
-                                color: primaryPink,
-                                backgroundColor: Colors.black,
-                                onRefresh: () async {
-                                  await _fetchReels();
-                                },
-                                child: PageView.builder(
-                                  physics:
-                                      const AlwaysScrollableScrollPhysics(),
-                                  controller: _pageController,
-                                  scrollDirection: Axis.vertical,
-                                  itemCount: AdService.instance
-                                      .calculateTotalCount(
-                                        reels.length,
-                                        AdService.reelsAdInterval,
-                                      ),
-                                  onPageChanged: (index) {
-                                    setState(() => activeIndex = index);
-                                    if (!AdService.instance.isAdPosition(
-                                      index,
-                                      AdService.reelsAdInterval,
-                                    )) {
-                                      final rawIndex = AdService.instance
-                                          .getRawItemIndex(
-                                            index,
-                                            AdService.reelsAdInterval,
-                                          );
-                                      if (rawIndex >= 0 &&
-                                          rawIndex < reels.length) {
-                                        _recordView(reels[rawIndex]);
-                                      }
-                                    }
-                                  },
-                                  itemBuilder: (context, index) {
-                                    if (AdService.instance.isAdPosition(
-                                      index,
-                                      AdService.reelsAdInterval,
-                                    )) {
-                                      return const ReelsAdCard();
-                                    }
-                                    final rawIndex = AdService.instance
-                                        .getRawItemIndex(
-                                          index,
-                                          AdService.reelsAdInterval,
-                                        );
-                                    if (rawIndex >= reels.length) {
-                                      return const SizedBox.shrink();
-                                    }
-                                    final reel = reels[rawIndex];
-                                    return _buildReelPage(reel, index);
-                                  },
-                                ),
+              child: isDesktop
+                  ? Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Desktop Left/Previous Button
+                          Padding(
+                            padding: const EdgeInsets.only(right: 20),
+                            child: IconButton(
+                              iconSize: 28,
+                              style: IconButton.styleFrom(
+                                backgroundColor: isDark
+                                    ? Colors.white.withValues(alpha: 0.1)
+                                    : Colors.white,
+                                foregroundColor: isDark
+                                    ? Colors.white
+                                    : const Color(0xFF0F172A),
+                                padding: const EdgeInsets.all(12),
+                                elevation: isDark ? 0 : 2,
+                                shadowColor: Colors.black26,
                               ),
-
-                            // Top buttons: Friends | For You
-                            _buildTopTabBar(),
-                          ],
-                        ),
-                      ),
-                    ),
-                    // Desktop Comments Side Panel (Web/Desktop side-by-side)
-                    if (showDesktopComments && currentReel != null) ...[
-                      const SizedBox(width: 20),
-                      _DesktopReelCommentsSidePanel(
-                        reel: currentReel,
-                        onCommentAdded: (newCount) {
-                          setState(() {
-                            currentReel.commentsCount = newCount;
-                          });
-                        },
-                      ),
-                    ],
-                    // Desktop Right/Next Button
-                    if (isDesktop)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 24),
-                        child: IconButton(
-                          iconSize: 28,
-                          style: IconButton.styleFrom(
-                            backgroundColor: isDark
-                                ? Colors.white.withValues(alpha: 0.1)
-                                : Colors.white,
-                            foregroundColor: isDark
-                                ? Colors.white
-                                : const Color(0xFF0F172A),
-                            padding: const EdgeInsets.all(12),
-                            elevation: isDark ? 0 : 2,
-                            shadowColor: Colors.black26,
+                              icon: const Icon(Icons.arrow_upward_rounded),
+                              tooltip: "Previous Reel (Up Arrow)",
+                              onPressed: () {
+                                _pageController.previousPage(
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeInOut,
+                                );
+                              },
+                            ),
                           ),
-                          icon: const Icon(Icons.arrow_downward_rounded),
-                          tooltip: "Next Reel (Down Arrow)",
-                          onPressed: () {
-                            _pageController.nextPage(
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
-                            );
-                          },
-                        ),
+                          // Desktop Ad Side Panel (Fills empty space on widescreen desktop!)
+                          if (showDesktopAds) ...[
+                            const _DesktopReelAdSidePanel(),
+                            const SizedBox(width: 20),
+                          ],
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 480),
+                            child: reelPlayerContainer,
+                          ),
+                          // Desktop Comments Side Panel (Web/Desktop side-by-side)
+                          if (showDesktopComments && currentReel != null) ...[
+                            const SizedBox(width: 20),
+                            _DesktopReelCommentsSidePanel(
+                              reel: currentReel,
+                              onCommentAdded: (newCount) {
+                                setState(() {
+                                  currentReel.commentsCount = newCount;
+                                });
+                              },
+                            ),
+                          ],
+                          // Desktop Right/Next Button
+                          Padding(
+                            padding: const EdgeInsets.only(left: 20),
+                            child: IconButton(
+                              iconSize: 28,
+                              style: IconButton.styleFrom(
+                                backgroundColor: isDark
+                                    ? Colors.white.withValues(alpha: 0.1)
+                                    : Colors.white,
+                                foregroundColor: isDark
+                                    ? Colors.white
+                                    : const Color(0xFF0F172A),
+                                padding: const EdgeInsets.all(12),
+                                elevation: isDark ? 0 : 2,
+                                shadowColor: Colors.black26,
+                              ),
+                              icon: const Icon(Icons.arrow_downward_rounded),
+                              tooltip: "Next Reel (Down Arrow)",
+                              onPressed: () {
+                                _pageController.nextPage(
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeInOut,
+                                );
+                              },
+                            ),
+                          ),
+                        ],
                       ),
-                  ],
-                ),
-              ),
+                    )
+                  : SizedBox.expand(
+                      child: reelPlayerContainer,
+                    ),
             ),
     );
   }
@@ -1368,7 +1374,7 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Friends',
+                      context.zevTr('friends'),
                       style: TextStyle(
                         color: selectedTab == 'friends'
                             ? Colors.white
@@ -1422,7 +1428,7 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'For You',
+                      context.zevTr('forYou'),
                       style: TextStyle(
                         color: selectedTab == 'for_you'
                             ? Colors.white
@@ -1722,13 +1728,13 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
                 onTap: () {
                   _showReelsToast(context, "Reposted to your profile!");
                 },
-                child: const Column(
+                child: Column(
                   children: [
-                    Icon(Icons.repeat_rounded, color: Colors.white, size: 28),
-                    SizedBox(height: 3),
+                    const Icon(Icons.repeat_rounded, color: Colors.white, size: 28),
+                    const SizedBox(height: 3),
                     Text(
-                      'Repost',
-                      style: TextStyle(
+                      context.zevTr('repost'),
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -1743,13 +1749,13 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
               // 4. Send to DM
               GestureDetector(
                 onTap: () => _openShareModal(reel),
-                child: const Column(
+                child: Column(
                   children: [
-                    Icon(Icons.send_outlined, color: Colors.white, size: 25),
-                    SizedBox(height: 3),
+                    const Icon(Icons.send_outlined, color: Colors.white, size: 25),
+                    const SizedBox(height: 3),
                     Text(
-                      'Send',
-                      style: TextStyle(
+                      context.zevTr('send'),
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -1775,7 +1781,7 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      'Save',
+                      context.zevTr('save'),
                       style: TextStyle(
                         color: reel.isSavedByMe ? primaryPink : Colors.white,
                         fontSize: 11,
@@ -2466,6 +2472,324 @@ class _ReelCommentsBottomSheetState extends State<_ReelCommentsBottomSheet> {
   }
 }
 
+/// Desktop Sponsored/Ad Side Panel to fill widescreen empty space elegantly
+class _DesktopReelAdSidePanel extends StatelessWidget {
+  const _DesktopReelAdSidePanel();
+
+  static const Color primaryPink = Color(0xFFFC466B);
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      width: 340,
+      height: 680,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF10121A) : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.09)
+              : Colors.black.withValues(alpha: 0.07),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.06),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header: Sponsor Badge + Tag
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.02)
+                  : const Color(0xFFFFF1F4),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border(
+                bottom: BorderSide(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.06)
+                      : Colors.black.withValues(alpha: 0.05),
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: primaryPink.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.campaign_rounded, size: 14, color: primaryPink),
+                      const SizedBox(width: 4),
+                      Text(
+                        context.zevTr('sponsored'),
+                        style: const TextStyle(
+                          color: primaryPink,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  "Google Ads / Partner",
+                  style: TextStyle(
+                    color: isDark ? Colors.white38 : Colors.black38,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Main Ad Content Banner
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Featured Graphic Banner
+                  Container(
+                    height: 190,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFC466B), Color(0xFF3F5EFB)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: primaryPink.withValues(alpha: 0.25),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          right: -20,
+                          bottom: -20,
+                          child: Icon(
+                            Icons.auto_awesome,
+                            size: 130,
+                            color: Colors.white.withValues(alpha: 0.18),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(18),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.25),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text(
+                                  "ZEV VERIFIED",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                "Empowering Youth with Digital Knowledge",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  height: 1.25,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                "Join Safi Academy & ZEV ecosystem",
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.85),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Brand info
+                  Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Color(0xFFFC466B), Color(0xFFFF8E53)],
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Center(
+                          child: Text(
+                            "Z",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Safi TopUp & SafiPay",
+                              style: TextStyle(
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              "International digital services & shop",
+                              style: TextStyle(
+                                color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Description
+                  Text(
+                    "Discover the latest digital tools, verified shop vouchers, and high-performance financial solutions with instant automated processing.",
+                    style: TextStyle(
+                      color: isDark ? Colors.white70 : const Color(0xFF334155),
+                      fontSize: 12.5,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Interactive Feature tags
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildAdTag("⚡ Instant Activation", isDark),
+                      _buildAdTag("🛡️ 100% Secure", isDark),
+                      _buildAdTag("🌍 Global Reach", isDark),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Bottom Action Button
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0B0D13) : Colors.white,
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+              border: Border(
+                top: BorderSide(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.06)
+                      : Colors.black.withValues(alpha: 0.06),
+                ),
+              ),
+            ),
+            child: ElevatedButton(
+              onPressed: () {
+                // Navigate to Shop
+                Navigator.of(context).pushNamed('/shop');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryPink,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: BorderRadius.circular(16),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "Explore Partner Offers",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(width: 6),
+                  Icon(Icons.arrow_forward_rounded, size: 16),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdTag(String text, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.05)
+            : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.05),
+        ),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: isDark ? Colors.white70 : const Color(0xFF475569),
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+}
+
 class _DesktopReelCommentsSidePanel extends StatefulWidget {
   final ReelItemData reel;
   final Function(int newCount)? onCommentAdded;
@@ -2772,7 +3096,7 @@ class _DesktopReelCommentsSidePanelState
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          'No comments yet',
+                          context.zevTr('noCommentsYet'),
                           style: TextStyle(
                             color: isDark
                                 ? Colors.white.withOpacity(0.7)
@@ -2783,7 +3107,7 @@ class _DesktopReelCommentsSidePanelState
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Be the first to share your thoughts!',
+                          context.zevTr('firstToComment'),
                           style: TextStyle(
                             color: isDark
                                 ? Colors.white.withOpacity(0.4)
@@ -2861,7 +3185,7 @@ class _DesktopReelCommentsSidePanelState
                                     GestureDetector(
                                       onTap: () => _replyToUser(username),
                                       child: Text(
-                                        'Reply',
+                                        context.zevTr('reply'),
                                         style: TextStyle(
                                           color: isDark
                                               ? Colors.white.withOpacity(0.4)
@@ -2934,7 +3258,7 @@ class _DesktopReelCommentsSidePanelState
                       ),
                       onSubmitted: (_) => _addComment(),
                       decoration: InputDecoration(
-                        hintText: 'Add a comment...',
+                        hintText: context.zevTr('addCommentHint'),
                         hintStyle: TextStyle(
                           color: isDark
                               ? Colors.white.withOpacity(0.4)

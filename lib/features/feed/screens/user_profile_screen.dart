@@ -3783,7 +3783,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final handle = email.isNotEmpty ? email.split('@')[0] : 'shaheensafi';
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF090A0E) : const Color(0xFFF8FAFC),
+      backgroundColor: isDark
+          ? const Color(0xFF090A0E)
+          : const Color(0xFFF8FAFC),
       body: isLoading
           ? const Center(
               child: CircularProgressIndicator(color: Color(0xFFFC466B)),
@@ -3936,7 +3938,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               Image.network(
                 coverUrl,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _buildDefaultBrandBanner(),
+                errorBuilder: (_, _, _) => _buildDefaultBrandBanner(),
               )
             else
               _buildDefaultBrandBanner(),
@@ -3997,7 +3999,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             ),
                           const SizedBox(width: 6),
                           Text(
-                            isCoverUploading ? "Uploading..." : "Change Cover",
+                            isCoverUploading ? context.zevTr('uploading') : context.zevTr('changeCover'),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,
@@ -4052,7 +4054,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               ? Image.network(
                                   profileData!['avatar_url'].toString(),
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) =>
+                                  errorBuilder: (_, _, _) =>
                                       _buildAvatarInitial(displayName),
                                 )
                               : _buildAvatarInitial(displayName),
@@ -4067,10 +4069,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           decoration: BoxDecoration(
                             color: const Color(0xFF007AFF),
                             shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white,
-                              width: 2,
-                            ),
+                            border: Border.all(color: Colors.white, width: 2),
                           ),
                           child: const Icon(
                             Icons.verified_rounded,
@@ -4323,7 +4322,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     ],
             ),
             child: Text(
-              bio.isNotEmpty ? bio : 'No biography provided yet.',
+              bio.isNotEmpty ? bio : context.zevTr('noBioProvided'),
               style: TextStyle(
                 color: isDark
                     ? Colors.white.withOpacity(0.7)
@@ -4408,11 +4407,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       ),
       child: Row(
         children: [
-          Icon(
-            icon,
-            color: const Color(0xFFFC466B),
-            size: 18,
-          ),
+          Icon(icon, color: const Color(0xFFFC466B), size: 18),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -4461,11 +4456,26 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Widget _buildWebTabPills() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final tabs = [
-      {'title': context.zevTr('posts').toUpperCase(), 'icon': Icons.chat_bubble_outline_rounded},
-      {'title': context.zevTr('reels').toUpperCase(), 'icon': Icons.smart_display_outlined},
-      {'title': context.zevTr('liked').toUpperCase(), 'icon': Icons.favorite_border_rounded},
-      {'title': context.zevTr('reposts').toUpperCase(), 'icon': Icons.repeat_rounded},
-      {'title': context.zevTr('saved').toUpperCase(), 'icon': Icons.bookmark_border_rounded},
+      {
+        'title': context.zevTr('posts').toUpperCase(),
+        'icon': Icons.chat_bubble_outline_rounded,
+      },
+      {
+        'title': context.zevTr('reels').toUpperCase(),
+        'icon': Icons.smart_display_outlined,
+      },
+      {
+        'title': context.zevTr('liked').toUpperCase(),
+        'icon': Icons.favorite_border_rounded,
+      },
+      {
+        'title': context.zevTr('reposts').toUpperCase(),
+        'icon': Icons.repeat_rounded,
+      },
+      {
+        'title': context.zevTr('saved').toUpperCase(),
+        'icon': Icons.bookmark_border_rounded,
+      },
     ];
 
     return SingleChildScrollView(
@@ -4498,8 +4508,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     color: isSelected
                         ? Colors.transparent
                         : (isDark
-                            ? Colors.white.withOpacity(0.06)
-                            : Colors.black.withOpacity(0.08)),
+                              ? Colors.white.withOpacity(0.06)
+                              : Colors.black.withOpacity(0.08)),
                   ),
                   boxShadow: isSelected
                       ? [
@@ -4510,14 +4520,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           ),
                         ]
                       : (isDark
-                          ? null
-                          : [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.03),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ]),
+                            ? null
+                            : [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.03),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -4528,8 +4538,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       color: isSelected
                           ? Colors.white
                           : (isDark
-                              ? Colors.white.withOpacity(0.6)
-                              : const Color(0xFF64748B)),
+                                ? Colors.white.withOpacity(0.6)
+                                : const Color(0xFF64748B)),
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -4538,8 +4548,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         color: isSelected
                             ? Colors.white
                             : (isDark
-                                ? Colors.white.withOpacity(0.7)
-                                : const Color(0xFF334155)),
+                                  ? Colors.white.withOpacity(0.7)
+                                  : const Color(0xFF334155)),
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.6,
@@ -4588,8 +4598,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       if (userPosts.isEmpty) {
         return _buildWebEmptyState(
           icon: Icons.chat_bubble_outline_rounded,
-          title: 'No Posts Yet',
-          subtitle: "This user hasn't published any posts yet.",
+          title: context.zevTr('noPostsYet'),
+          subtitle: context.zevTr('noPostsYetSub'),
         );
       }
       return ListView.separated(
@@ -4606,8 +4616,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       if (userReels.isEmpty) {
         return _buildWebEmptyState(
           icon: Icons.smart_display_outlined,
-          title: 'No Reels',
-          subtitle: 'No video reels published yet.',
+          title: context.zevTr('noReels'),
+          subtitle: context.zevTr('noReelsSub'),
         );
       }
       return GridView.builder(
@@ -4644,9 +4654,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) =>
                               _buildProfileReelFallback(
-                            reel['title']?.toString() ?? '',
-                            const [Color(0xFFFC466B), Color(0xFFFF758C)],
-                          ),
+                                reel['title']?.toString() ?? '',
+                                const [Color(0xFFFC466B), Color(0xFFFF758C)],
+                              ),
                         )
                       : _buildProfileReelFallback(
                           reel['title']?.toString() ?? '',
@@ -4684,8 +4694,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       if (userLikedReels.isEmpty) {
         return _buildWebEmptyState(
           icon: Icons.favorite_border_rounded,
-          title: 'No Liked Content',
-          subtitle: 'Content you like will be saved here.',
+          title: context.zevTr('noLikedContent'),
+          subtitle: context.zevTr('noLikedContentSub'),
         );
       }
       return GridView.builder(
@@ -4727,8 +4737,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       if (userReposts.isEmpty) {
         return _buildWebEmptyState(
           icon: Icons.repeat_rounded,
-          title: 'No Reposts',
-          subtitle: 'Posts you repost will appear here.',
+          title: context.zevTr('noReposts'),
+          subtitle: context.zevTr('noRepostsSub'),
         );
       }
       return ListView.separated(
@@ -4746,8 +4756,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       if (totalSaved == 0) {
         return _buildWebEmptyState(
           icon: Icons.bookmark_border_rounded,
-          title: 'No Saved Items',
-          subtitle: 'Items you bookmark will appear here.',
+          title: context.zevTr('noSavedItems'),
+          subtitle: context.zevTr('noSavedItemsSub'),
         );
       }
       return GridView.builder(
@@ -4788,8 +4798,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
-  Widget _buildWebPostCard(Map<String, dynamic> post, int index,
-      {bool isRepost = false}) {
+  Widget _buildWebPostCard(
+    Map<String, dynamic> post,
+    int index, {
+    bool isRepost = false,
+  }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final rawTitle = post['title'] ?? '';
     final moodTag = _extractMood(rawTitle);
@@ -4825,11 +4838,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           if (isRepost) ...[
             Row(
               children: const [
-                Icon(
-                  Icons.repeat_rounded,
-                  color: Color(0xFFFC466B),
-                  size: 14,
-                ),
+                Icon(Icons.repeat_rounded, color: Color(0xFFFC466B), size: 14),
                 SizedBox(width: 6),
                 Text(
                   'Reposted',
@@ -4928,8 +4937,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         color: isLiked
                             ? const Color(0xFFFC466B)
                             : (isDark
-                                ? Colors.white54
-                                : const Color(0xFF94A3B8)),
+                                  ? Colors.white54
+                                  : const Color(0xFF94A3B8)),
                         size: 16,
                       ),
                       const SizedBox(width: 5),
@@ -4939,8 +4948,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           color: isLiked
                               ? const Color(0xFFFC466B)
                               : (isDark
-                                  ? Colors.white70
-                                  : const Color(0xFF64748B)),
+                                    ? Colors.white70
+                                    : const Color(0xFF64748B)),
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
