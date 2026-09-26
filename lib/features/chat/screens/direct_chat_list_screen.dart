@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/localization/zev_localizations.dart';
 import '../../../core/services/language_service.dart';
 import '../../../core/services/multi_account_service.dart';
 import '../../../core/widgets/responsive_layout.dart';
@@ -352,9 +353,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                "Share a thought...",
-                style: TextStyle(
+              Text(
+                context.zevTr('shareThought'),
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: textDark,
@@ -367,7 +368,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                 autofocus: true,
                 style: const TextStyle(fontSize: 15, color: textDark),
                 decoration: InputDecoration(
-                  hintText: "What's on your mind? (Visible for 24h)",
+                  hintText: context.zevTr('shareThought'),
                   hintStyle: const TextStyle(color: textGrey, fontSize: 13),
                   filled: true,
                   fillColor: cardBorder,
@@ -383,9 +384,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                 children: [
                   TextButton(
                     onPressed: () => Navigator.pop(ctx),
-                    child: const Text(
-                      "Cancel",
-                      style: TextStyle(color: textGrey),
+                    child: Text(
+                      context.zevTr('cancel'),
+                      style: const TextStyle(color: textGrey),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -403,7 +404,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text("Share Note"),
+                    child: Text(context.zevTr('shareNote')),
                   ),
                 ],
               ),
@@ -452,9 +453,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    "Switch Accounts",
-                    style: TextStyle(
+                  Text(
+                    context.zevTr('switchAccounts'),
+                    style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
                       color: textDark,
@@ -516,9 +517,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                               _fetchExistingChatThreads();
                             }
                           },
-                          child: const Text(
-                            "Switch",
-                            style: TextStyle(
+                          child: Text(
+                            context.zevTr('switchAccounts'),
+                            style: const TextStyle(
                               color: primaryPink,
                               fontWeight: FontWeight.bold,
                             ),
@@ -538,7 +539,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                     color: lightPinkBg,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: primaryPink.withOpacity(0.3),
+                      color: primaryPink.withValues(alpha: 0.3),
                       width: 1.5,
                     ),
                   ),
@@ -548,16 +549,16 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                     size: 24,
                   ),
                 ),
-                title: const Text(
-                  "Add ZEV Account",
-                  style: TextStyle(
+                title: Text(
+                  context.zevTr('addExistingAccount'),
+                  style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     color: primaryPink,
                   ),
                 ),
-                subtitle: const Text(
-                  "Sign into another account",
-                  style: TextStyle(fontSize: 12, color: textGrey),
+                subtitle: Text(
+                  context.zevTr('addExistingAccount'),
+                  style: const TextStyle(fontSize: 12, color: textGrey),
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -582,9 +583,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                     size: 22,
                   ),
                 ),
-                title: const Text(
-                  "Log Out of Active Account",
-                  style: TextStyle(
+                title: Text(
+                  context.zevTr('logoutActiveAccount'),
+                  style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     color: Colors.redAccent,
                   ),
@@ -608,14 +609,14 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: surfaceWhite,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Log Out?"),
-        content: const Text(
-          "Are you sure you want to sign out of this account?",
+        title: Text("${context.zevTr('logout')}?"),
+        content: Text(
+          context.zevTr('logout'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text("Cancel", style: TextStyle(color: textGrey)),
+            child: Text(context.zevTr('cancel'), style: const TextStyle(color: textGrey)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -626,7 +627,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text("Log Out"),
+            child: Text(context.zevTr('logout')),
           ),
         ],
       ),
@@ -679,18 +680,18 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                   ),
                 ),
                 const SizedBox(height: 18),
-                const Text(
-                  "Add Existing Account",
-                  style: TextStyle(
+                Text(
+                  context.zevTr('addExistingAccount'),
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
                     color: textDark,
                   ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
-                  "Sign in to switch between multiple accounts seamlessly.",
-                  style: TextStyle(fontSize: 12, color: textGrey),
+                Text(
+                  context.zevTr('addExistingAccount'),
+                  style: const TextStyle(fontSize: 12, color: textGrey),
                 ),
                 const SizedBox(height: 18),
                 TextField(
@@ -698,7 +699,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                   keyboardType: TextInputType.emailAddress,
                   style: const TextStyle(fontSize: 14, color: textDark),
                   decoration: InputDecoration(
-                    labelText: "Email address",
+                    labelText: context.zevTr('email'),
                     filled: true,
                     fillColor: cardBorder,
                     border: OutlineInputBorder(
@@ -713,7 +714,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                   obscureText: true,
                   style: const TextStyle(fontSize: 14, color: textDark),
                   decoration: InputDecoration(
-                    labelText: "Password",
+                    labelText: context.zevTr('password'),
                     filled: true,
                     fillColor: cardBorder,
                     border: OutlineInputBorder(
@@ -802,9 +803,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                               strokeWidth: 2,
                             ),
                           )
-                        : const Text(
-                            "Sign In & Add Account",
-                            style: TextStyle(fontWeight: FontWeight.w700),
+                        : Text(
+                            context.zevTr('addExistingAccount'),
+                            style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                   ),
                 ),
@@ -850,9 +851,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        "New Message ✍️",
-                        style: TextStyle(
+                      Text(
+                        "${context.zevTr('newMessage')} ✍️",
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
                           color: textDark,
@@ -881,16 +882,16 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                       autofocus: true,
                       cursorColor: primaryPink,
                       style: const TextStyle(fontSize: 14, color: textDark),
-                      decoration: const InputDecoration(
-                        hintText: "Search user by name...",
-                        hintStyle: TextStyle(fontSize: 13, color: textGrey),
-                        prefixIcon: Icon(
+                      decoration: InputDecoration(
+                        hintText: context.zevTr('searchByName'),
+                        hintStyle: const TextStyle(fontSize: 13, color: textGrey),
+                        prefixIcon: const Icon(
                           Icons.search_rounded,
                           color: textGrey,
                           size: 20,
                         ),
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 10),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 10),
                       ),
                       onChanged: (q) async {
                         final trimmed = q.trim();
@@ -941,8 +942,8 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                       ? Center(
                           child: Text(
                             searchCtrl.text.isEmpty
-                                ? "Type a name to find people"
-                                : "No users found",
+                                ? context.zevTr('typeToFindPeople')
+                                : context.zevTr('noUsersFound'),
                             style: const TextStyle(
                               color: textGrey,
                               fontSize: 13,
@@ -1187,14 +1188,16 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: textDark,
-            size: 20,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: textDark,
+                  size: 20,
+                ),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
         title: GestureDetector(
           onTap: _showAccountSwitcherDrawer,
           behavior: HitTestBehavior.opaque,

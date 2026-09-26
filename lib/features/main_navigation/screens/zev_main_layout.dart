@@ -296,6 +296,10 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
           const SizedBox(), // Placeholder for Create button
           StudentReelsScreen(isActive: _currentIndex == 3),
           const UserProfileScreen(),
+          const ShopScreen(),
+          const DirectChatListScreen(),
+          const ActivityNotificationsScreen(),
+          const ZevSettingsScreen(),
         ];
 
         final isPhone = ResponsiveLayout.isPhone(context);
@@ -339,38 +343,55 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
 
   /// Floating glassmorphic bottom bar for iPhone and Android phones
   Widget _buildBottomBar(BuildContext context, bool isDark) {
+    final bool isReels = _currentIndex == 3;
+    final double barHeight = isReels ? 50.0 : 64.0;
+    final EdgeInsets marginPadding = isReels
+        ? const EdgeInsets.fromLTRB(28, 0, 28, 8)
+        : const EdgeInsets.fromLTRB(18, 0, 18, 14);
+
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        padding: marginPadding,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(32),
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              height: 64,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+              height: barHeight,
               padding: const EdgeInsets.symmetric(horizontal: 10),
               decoration: BoxDecoration(
-                color: isDark
-                    ? const Color(0xFF111827).withValues(alpha: 0.88)
-                    : Colors.white.withValues(alpha: 0.94),
+                color: isReels
+                    ? const Color(0xFF0A0A0A).withValues(alpha: 0.95)
+                    : (isDark
+                        ? const Color(0xFF111827).withValues(alpha: 0.88)
+                        : Colors.white.withValues(alpha: 0.94)),
                 borderRadius: BorderRadius.circular(32),
                 border: Border.all(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.12)
-                      : primaryPink.withValues(alpha: 0.2),
+                  color: isReels
+                      ? Colors.white.withValues(alpha: 0.16)
+                      : (isDark
+                          ? Colors.white.withValues(alpha: 0.12)
+                          : primaryPink.withValues(alpha: 0.2)),
                   width: 1.2,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: primaryPink.withValues(alpha: 0.18),
-                    blurRadius: 26,
-                    offset: const Offset(0, 8),
+                    color: isReels
+                        ? Colors.black.withValues(alpha: 0.6)
+                        : primaryPink.withValues(alpha: 0.18),
+                    blurRadius: isReels ? 18 : 26,
+                    offset: const Offset(0, 6),
                   ),
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.08),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
+                  if (!isReels)
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
                 ],
               ),
               child: Row(
@@ -382,6 +403,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     index: 0,
                     isSelected: _currentIndex == 0,
                     isDark: isDark,
+                    isReels: isReels,
                   ),
                   _buildNavItem(
                     icon: Icons.explore_rounded,
@@ -389,13 +411,16 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     index: 1,
                     isSelected: _currentIndex == 1,
                     isDark: isDark,
+                    isReels: isReels,
                   ),
                   // Center Floating Create (+) Button
                   GestureDetector(
                     onTap: () => _onTabTapped(2),
-                    child: Container(
-                      width: 46,
-                      height: 46,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOutCubic,
+                      width: isReels ? 38 : 46,
+                      height: isReels ? 38 : 46,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           colors: [primaryPink, lightPinkAccent],
@@ -406,15 +431,15 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                         boxShadow: [
                           BoxShadow(
                             color: primaryPink.withValues(alpha: 0.45),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
+                            blurRadius: isReels ? 8 : 12,
+                            offset: const Offset(0, 3),
                           ),
                         ],
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.add_rounded,
                         color: Colors.white,
-                        size: 30,
+                        size: isReels ? 22 : 30,
                       ),
                     ),
                   ),
@@ -424,6 +449,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     index: 3,
                     isSelected: _currentIndex == 3,
                     isDark: isDark,
+                    isReels: isReels,
                   ),
                   _buildNavItem(
                     icon: Icons.person_rounded,
@@ -431,6 +457,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     index: 4,
                     isSelected: _currentIndex == 4,
                     isDark: isDark,
+                    isReels: isReels,
                   ),
                 ],
               ),
@@ -599,48 +626,23 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     _buildSideNavItem(
                       icon: Icons.storefront_rounded,
                       label: context.zevTr('shop'),
-                      index: 88,
+                      index: 5,
                       isDark: isDark,
                       isDesktop: isDesktop,
-                      customTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ShopScreen(),
-                          ),
-                        );
-                      },
                     ),
                     _buildSideNavItem(
                       icon: Icons.chat_bubble_outline_rounded,
                       label: context.zevTr('messages'),
-                      index: 86,
+                      index: 6,
                       isDark: isDark,
                       isDesktop: isDesktop,
-                      customTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const DirectChatListScreen(),
-                          ),
-                        );
-                      },
                     ),
                     _buildSideNavItem(
                       icon: Icons.favorite_border_rounded,
                       label: context.zevTr('likesAndComments'),
-                      index: 85,
+                      index: 7,
                       isDark: isDark,
                       isDesktop: isDesktop,
-                      customTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const ActivityNotificationsScreen(),
-                          ),
-                        );
-                      },
                     ),
                     _buildSideNavItem(
                       icon: Icons.person_outline_rounded,
@@ -652,17 +654,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     _buildSideNavItem(
                       icon: Icons.settings_outlined,
                       label: context.zevTr('settings'),
-                      index: 99,
+                      index: 8,
                       isDark: isDark,
                       isDesktop: isDesktop,
-                      customTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ZevSettingsScreen(),
-                          ),
-                        );
-                      },
                     ),
                   ],
                 ),
@@ -926,6 +920,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     required int index,
     required bool isSelected,
     required bool isDark,
+    bool isReels = false,
   }) {
     return GestureDetector(
       onTap: () => _onTabTapped(index),
@@ -938,30 +933,39 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
             AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: EdgeInsets.symmetric(
+                horizontal: isReels ? 8 : 10,
+                vertical: isReels ? 2 : 4,
+              ),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? primaryPink.withValues(alpha: isDark ? 0.22 : 0.12)
+                    ? (isReels
+                        ? primaryPink.withValues(alpha: 0.28)
+                        : primaryPink.withValues(alpha: isDark ? 0.22 : 0.12))
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(
                 icon,
-                size: 24,
+                size: isReels ? 21 : 24,
                 color: isSelected
-                    ? primaryPink
-                    : (isDark ? Colors.white54 : const Color(0xFF64748B)),
+                    ? (isReels ? Colors.white : primaryPink)
+                    : (isReels
+                        ? Colors.white70
+                        : (isDark ? Colors.white54 : const Color(0xFF64748B))),
               ),
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 1),
             Text(
               label,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: isReels ? 9 : 10,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                 color: isSelected
-                    ? primaryPink
-                    : (isDark ? Colors.white38 : const Color(0xFF94A3B8)),
+                    ? (isReels ? Colors.white : primaryPink)
+                    : (isReels
+                        ? Colors.white54
+                        : (isDark ? Colors.white38 : const Color(0xFF94A3B8))),
               ),
             ),
           ],
@@ -1220,14 +1224,11 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     fontSize: 11,
                   ),
                 ),
-                _buildFooterLink(context.zevTr('settings'), () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ZevSettingsScreen(),
-                    ),
-                  );
-                }, isDark),
+                _buildFooterLink(
+                  context.zevTr('settings'),
+                  () => _onTabTapped(8),
+                  isDark,
+                ),
                 const SizedBox(width: double.infinity, height: 6),
                 Text(
                   "© 2026 ZEV Social Inc. All rights reserved.",

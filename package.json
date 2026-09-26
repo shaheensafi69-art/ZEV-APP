@@ -1,0 +1,80 @@
+{
+  "name": "zev-app-desktop",
+  "version": "1.0.0",
+  "description": "ZEV Desktop Application for Windows, macOS, and Linux",
+  "main": "electron/main.js",
+  "author": "ZEV App Team",
+  "license": "MIT",
+  "scripts": {
+    "build:flutter": "flutter build web --release",
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:all": "electron-builder -mwl",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux",
+    "build:desktop": "npm run build:flutter && npm run dist"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.zevapp.desktop",
+    "productName": "ZEV App",
+    "copyright": "Copyright © 2026 ZEV App",
+    "directories": {
+      "output": "dist",
+      "app": "."
+    },
+    "files": [
+      "electron/**/*",
+      "build/web/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.social-networking",
+      "icon": "web/icons/Icon-512.png"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "web/icons/Icon-512.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ZEV App"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Network",
+      "icon": "web/icons/Icon-512.png"
+    }
+  }
+}

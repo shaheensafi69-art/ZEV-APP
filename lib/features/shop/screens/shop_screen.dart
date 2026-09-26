@@ -175,20 +175,24 @@ class _ShopScreenState extends State<ShopScreen> {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         centerTitle: true,
-        leading: IconButton(
-          icon: Icon(
-            isRtl ? Icons.arrow_forward_ios_rounded : Icons.arrow_back_ios_rounded,
-            color: textPrimary,
-            size: 20,
-          ),
-          onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            } else if (widget.onBack != null) {
-              widget.onBack!();
-            }
-          },
-        ),
+        leading: (Navigator.of(context).canPop() || widget.onBack != null)
+            ? IconButton(
+                icon: Icon(
+                  isRtl
+                      ? Icons.arrow_forward_ios_rounded
+                      : Icons.arrow_back_ios_rounded,
+                  color: textPrimary,
+                  size: 20,
+                ),
+                onPressed: () {
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  } else if (widget.onBack != null) {
+                    widget.onBack!();
+                  }
+                },
+              )
+            : null,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

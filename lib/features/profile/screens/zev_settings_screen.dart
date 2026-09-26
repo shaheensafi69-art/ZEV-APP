@@ -318,14 +318,16 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
               elevation: 0,
               scrolledUnderElevation: 0,
               centerTitle: false,
-              leading: IconButton(
-                icon: Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  color: isDark ? Colors.white : textDark,
-                  size: 20,
-                ),
-                onPressed: () => Navigator.pop(context),
-              ),
+              leading: Navigator.canPop(context)
+                  ? IconButton(
+                      icon: Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: isDark ? Colors.white : textDark,
+                        size: 20,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                    )
+                  : null,
               title: Text(
                 context.zevTr('settings'),
                 style: TextStyle(

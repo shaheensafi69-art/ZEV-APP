@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/widgets/auth_required_modal.dart';
 import '../../../core/widgets/fast_cached_image.dart';
 import '../../../core/widgets/responsive_layout.dart';
+import '../../../core/localization/zev_localizations.dart';
 import '../screens/create_story_screen.dart';
 import '../screens/story_viewer_screen.dart';
 import '../screens/sponsored_story_screen.dart';
@@ -116,7 +117,7 @@ class FeedStoriesTray extends StatelessWidget {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    "Add Story",
+                    context.zevTr('addStory'),
                     style: TextStyle(
                       fontSize: labelFontSize,
                       fontWeight: FontWeight.w700,
@@ -163,7 +164,7 @@ class FeedStoriesTray extends StatelessWidget {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    "Sponsored",
+                    context.zevTr('sponsored'),
                     style: TextStyle(
                       fontSize: labelFontSize,
                       fontWeight: FontWeight.bold,

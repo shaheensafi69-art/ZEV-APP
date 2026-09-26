@@ -14,6 +14,9 @@ import '../../../core/widgets/auth_required_modal.dart';
 import '../../../core/widgets/fast_cached_image.dart';
 import '../widgets/feed_post_card.dart';
 import '../widgets/feed_stories_tray.dart';
+import '../screens/create_story_screen.dart';
+import '../screens/story_viewer_screen.dart';
+import '../screens/sponsored_story_screen.dart';
 
 export '../widgets/feed_post_card.dart' show FeedPostItem;
 export '../widgets/feed_stories_tray.dart' show ActiveFriendStory;
@@ -424,8 +427,26 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
   }
 
   Future<void> _deletePost(String postId) async {
+    final currentUserId = supabase.auth.currentUser?.id;
+    if (currentUserId == null) return;
+
+    // Security check: verify current user owns the post
+    final target = allPosts.where((p) => p.id == postId).toList();
+    if (target.isNotEmpty && target.first.studentId != currentUserId) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.zevTr('cannotDeleteOthersPost'))),
+        );
+      }
+      return;
+    }
+
     try {
-      await supabase.from("discussion_posts").delete().eq("id", postId);
+      await supabase
+          .from("discussion_posts")
+          .delete()
+          .eq("id", postId)
+          .eq("student_id", currentUserId);
       setState(() {
         allPosts.removeWhere((p) => p.id == postId);
         filteredPosts.removeWhere((p) => p.id == postId);
@@ -445,6 +466,16 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
   }
 
   Future<void> _editPostModal(FeedPostItem post) async {
+    final currentUserId = supabase.auth.currentUser?.id;
+    if (currentUserId == null || post.studentId != currentUserId) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.zevTr('cannotEditOthersPost'))),
+        );
+      }
+      return;
+    }
+
     final TextEditingController titleController = TextEditingController(
       text: post.cleanTitle,
     );
@@ -459,30 +490,39 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (context) => Padding(
+      builder: (sheetContext) => Padding(
         padding: EdgeInsets.only(
           left: 20,
           right: 20,
           top: 24,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              "Edit Post ✏️",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                color: textDark,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "${context.zevTr('editPost')} ✏️",
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: textDark,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: textGrey),
+                  onPressed: () => Navigator.pop(sheetContext),
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             TextField(
               controller: titleController,
               cursorColor: primaryPink,
-              decoration: _inputDecoration("Title"),
+              decoration: _inputDecoration(context.zevTr('titleReq')),
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
@@ -494,7 +534,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
               controller: contentController,
               cursorColor: primaryPink,
               maxLines: 5,
-              decoration: _inputDecoration("Content"),
+              decoration: _inputDecoration(context.zevTr('contentReq')),
               style: const TextStyle(fontSize: 14, color: textDark),
             ),
             const SizedBox(height: 24),
@@ -518,28 +558,29 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                           'title': finalTitleToSave,
                           'content': contentController.text.trim(),
                         })
-                        .eq("id", post.id);
+                        .eq("id", post.id)
+                        .eq("student_id", currentUserId);
 
-                    if (mounted) {
-                      Navigator.pop(context);
-                      _fetchFeedPosts();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Post updated successfully!"),
-                        ),
-                      );
+                    if (!mounted) return;
+                    if (sheetContext.mounted) {
+                      Navigator.pop(sheetContext);
                     }
+                    _fetchFeedPosts();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(context.zevTr('postUpdated')),
+                      ),
+                    );
                   } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Error updating post: $e")),
-                      );
-                    }
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Error updating post: $e")),
+                    );
                   }
                 },
-                child: const Text(
-                  "UPDATE POST",
-                  style: TextStyle(
+                child: Text(
+                  context.zevTr('updatePost'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
                   ),
@@ -557,23 +598,23 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.red),
-            SizedBox(width: 8),
-            Text("Delete Post", style: TextStyle(fontWeight: FontWeight.w900)),
+            const Icon(Icons.warning_amber_rounded, color: Colors.red),
+            const SizedBox(width: 8),
+            Text(context.zevTr('deletePost'), style: const TextStyle(fontWeight: FontWeight.w900)),
           ],
         ),
-        content: const Text(
-          "Are you sure you want to delete this post? This action cannot be undone.",
-          style: TextStyle(color: textGrey, height: 1.4),
+        content: Text(
+          context.zevTr('confirmDeletePost'),
+          style: const TextStyle(color: textGrey, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
-              "Cancel",
-              style: TextStyle(color: textDark, fontWeight: FontWeight.bold),
+            child: Text(
+              context.zevTr('cancel'),
+              style: const TextStyle(color: textDark, fontWeight: FontWeight.bold),
             ),
           ),
           ElevatedButton(
@@ -588,9 +629,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
               Navigator.pop(context);
               _deletePost(postId);
             },
-            child: const Text(
-              "Delete",
-              style: TextStyle(
+            child: Text(
+              context.zevTr('delete'),
+              style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
@@ -764,6 +805,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                       right: 0,
                       height: headerHeight,
                       child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          bottom: Radius.circular(24),
+                        ),
                         child: BackdropFilter(
                           filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
                           child: Container(
@@ -771,17 +815,23 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                               16,
                               topPadding + 6,
                               16,
-                              8,
+                              10,
                             ),
                             decoration: BoxDecoration(
-                              color: surfaceWhite.withValues(alpha: 0.85),
-                              border: Border(
-                                bottom: BorderSide(
-                                  color: const Color(
-                                    0xFFF3F4F6,
-                                  ).withValues(alpha: 0.8),
-                                  width: 1,
+                              color: surfaceWhite.withValues(alpha: 0.90),
+                              borderRadius: const BorderRadius.vertical(
+                                bottom: Radius.circular(24),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.05),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
                                 ),
+                              ],
+                              border: Border.all(
+                                color: const Color(0xFFF3F4F6).withValues(alpha: 0.8),
+                                width: 1,
                               ),
                             ),
                             child: SingleChildScrollView(
@@ -790,8 +840,6 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       // Left: Stylish ZEV Feed Wordmark (as requested)
                                       Row(
@@ -802,9 +850,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                             style: TextStyle(
                                               color: primaryPink,
                                               fontSize: context.respFont(
-                                                phone: 26.0,
-                                                tablet: 32.0,
-                                                desktop: 34.0,
+                                                phone: 24.0,
+                                                tablet: 30.0,
+                                                desktop: 32.0,
                                               ),
                                               fontWeight: FontWeight.w900,
                                               fontStyle: FontStyle.italic,
@@ -816,9 +864,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                             style: TextStyle(
                                               color: textDark,
                                               fontSize: context.respFont(
-                                                phone: 24.0,
-                                                tablet: 30.0,
-                                                desktop: 32.0,
+                                                phone: 22.0,
+                                                tablet: 28.0,
+                                                desktop: 30.0,
                                               ),
                                               fontWeight: FontWeight.w800,
                                               fontStyle: FontStyle.italic,
@@ -828,10 +876,25 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                         ],
                                       ),
 
+                                      // In the middle: collapsed mini stories opposite ZEV Feed when scrolled
+                                      if (_isScrolled) ...[
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: AnimatedOpacity(
+                                            duration: const Duration(milliseconds: 250),
+                                            opacity: _isScrolled ? 1.0 : 0.0,
+                                            child: _buildMiniScrolledStories(context),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                      ] else
+                                        const Spacer(),
+
                                       // Right: Activity Heart & Direct Messages (Mobile phone only; on Web they are in the sidebar)
                                       if (ResponsiveLayout.isPhone(context))
                                         Row(
-                                        children: [
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
                                           // ZEV Store Button
                                           GestureDetector(
                                             onTap: () {
@@ -1121,6 +1184,139 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildMiniScrolledStories(BuildContext context) {
+    return SizedBox(
+      height: 38,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        shrinkWrap: true,
+        children: [
+          // Mini Add Story
+          GestureDetector(
+            onTap: () {
+              final user = Supabase.instance.client.auth.currentUser;
+              if (user == null) {
+                AuthRequiredModal.show(context, actionName: "create stories");
+                return;
+              }
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CreateStoryScreen()),
+              ).then((_) {
+                _fetchFeedPosts();
+                _fetchActiveFriendStories();
+              });
+            },
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFAF4F6),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: primaryPink.withValues(alpha: 0.5),
+                  width: 1.5,
+                ),
+              ),
+              child: const Stack(
+                alignment: Alignment.center,
+                children: [
+                  Icon(
+                    Icons.camera_alt_outlined,
+                    color: primaryPink,
+                    size: 15,
+                  ),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: CircleAvatar(
+                      radius: 4.5,
+                      backgroundColor: primaryPink,
+                      child: Icon(Icons.add, color: Colors.white, size: 7),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Mini Sponsored
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SponsoredStoryScreen(),
+                ),
+              );
+            },
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: 34,
+              height: 34,
+              padding: const EdgeInsets.all(2),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFFF59E0B), Color(0xFFEF4444)],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: const CircleAvatar(
+                backgroundColor: Colors.black,
+                child: Icon(
+                  Icons.campaign_rounded,
+                  color: Colors.amber,
+                  size: 15,
+                ),
+              ),
+            ),
+          ),
+
+          // Mini Active Friend Stories
+          ...activeFriendStories.map((story) {
+            return GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => StoryViewerScreen(
+                      userId: story.userId,
+                      userName: story.userName,
+                      userAvatar: story.userAvatar,
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: 34,
+                height: 34,
+                padding: const EdgeInsets.all(2),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [primaryPink, Color(0xFFFF4081)],
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: FastCircleAvatar(
+                  imageUrl: story.userAvatar,
+                  radius: 15,
+                  fallbackText: story.userName.isNotEmpty
+                      ? story.userName[0]
+                      : 'U',
+                  backgroundColor: surfaceWhite,
+                  textColor: primaryPink,
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 }

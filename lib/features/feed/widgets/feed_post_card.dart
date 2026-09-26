@@ -356,6 +356,9 @@ class _FeedPostCardState extends State<FeedPostCard> {
   }
 
   void _showPostActionMenu() {
+    final currentUserId = supabase.auth.currentUser?.id;
+    final isOwner = currentUserId != null && currentUserId == widget.post.studentId;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -377,32 +380,58 @@ class _FeedPostCardState extends State<FeedPostCard> {
               ),
             ),
             const SizedBox(height: 16),
+            if (isOwner) ...[
+              ListTile(
+                leading: const Icon(Icons.edit_outlined, color: primaryPink),
+                title: Text(
+                  ctx.zevTr('editPost'),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  widget.onEdit?.call();
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.redAccent,
+                ),
+                title: Text(
+                  ctx.zevTr('deletePost'),
+                  style: const TextStyle(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  widget.onDelete?.call();
+                },
+              ),
+            ],
             ListTile(
-              leading: const Icon(Icons.edit_outlined, color: primaryPink),
+              leading: const Icon(Icons.link_rounded, color: textDark),
               title: Text(
-                ctx.zevTr('editPost'),
+                ctx.zevTr('copyLink'),
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               onTap: () {
                 Navigator.pop(ctx);
-                widget.onEdit?.call();
+                final pureLink = 'https://zevapp.com/post/${widget.post.id}';
+                Clipboard.setData(ClipboardData(text: pureLink));
+                ZevAlert.show(context, "Post link copied to clipboard! 📋");
               },
             ),
             ListTile(
-              leading: const Icon(
-                Icons.delete_outline_rounded,
-                color: Colors.redAccent,
-              ),
+              leading: const Icon(Icons.share_outlined, color: textDark),
               title: Text(
-                ctx.zevTr('deletePost'),
-                style: const TextStyle(
-                  color: Colors.redAccent,
-                  fontWeight: FontWeight.bold,
-                ),
+                ctx.zevTr('sharePost'),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               onTap: () {
                 Navigator.pop(ctx);
-                widget.onDelete?.call();
+                _showSharePostSheet(context);
               },
             ),
           ],
