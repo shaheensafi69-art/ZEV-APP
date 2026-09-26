@@ -1121,7 +1121,17 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.of(context).size.width >= 768;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 768;
+    final showDesktopComments = isDesktop && screenWidth >= 880;
+
+    final rawReelIndex = AdService.instance.getRawItemIndex(
+      activeIndex,
+      AdService.reelsAdInterval,
+    );
+    final currentReel = (rawReelIndex >= 0 && rawReelIndex < reels.length)
+        ? reels[rawReelIndex]
+        : null;
     return Scaffold(
       backgroundColor: Colors.black,
       body: isLoading
@@ -1264,6 +1274,18 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
                         ),
                       ),
                     ),
+                    // Desktop Comments Side Panel (Web/Desktop side-by-side)
+                    if (showDesktopComments && currentReel != null) ...[
+                      const SizedBox(width: 20),
+                      _DesktopReelCommentsSidePanel(
+                        reel: currentReel,
+                        onCommentAdded: (newCount) {
+                          setState(() {
+                            currentReel.commentsCount = newCount;
+                          });
+                        },
+                      ),
+                    ],
                     // Desktop Right/Next Button
                     if (isDesktop)
                       Padding(
@@ -2426,6 +2448,467 @@ class _ReelCommentsBottomSheetState extends State<_ReelCommentsBottomSheet> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _DesktopReelCommentsSidePanel extends StatefulWidget {
+  final ReelItemData reel;
+  final Function(int newCount)? onCommentAdded;
+
+  const _DesktopReelCommentsSidePanel({
+    required this.reel,
+    this.onCommentAdded,
+  });
+
+  @override
+  State<_DesktopReelCommentsSidePanel> createState() =>
+      _DesktopReelCommentsSidePanelState();
+}
+
+class _DesktopReelCommentsSidePanelState
+    extends State<_DesktopReelCommentsSidePanel> {
+  final supabase = Supabase.instance.client;
+  final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+  List<Map<String, dynamic>> comments = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchComments();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DesktopReelCommentsSidePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.reel.id != widget.reel.id) {
+      _fetchComments();
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchComments() async {
+    setState(() => isLoading = true);
+    try {
+      final res = await supabase
+          .from('reel_comments')
+          .select('*, profiles:user_id(first_name, last_name, avatar_url, username)')
+          .eq('reel_id', widget.reel.id)
+          .order('created_at', ascending: true);
+
+      if (mounted) {
+        setState(() {
+          comments = List<Map<String, dynamic>>.from(res as List);
+          isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _addComment() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      AuthRequiredModal.show(context, actionName: "comment on reels");
+      return;
+    }
+
+    _controller.clear();
+
+    try {
+      await supabase.from('reel_comments').insert({
+        'reel_id': widget.reel.id,
+        'user_id': user.id,
+        'comment_text': text,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      final countRes = await supabase
+          .from('reel_comments')
+          .select('id')
+          .eq('reel_id', widget.reel.id);
+      final realCommentsCount = (countRes as List).length;
+
+      await supabase
+          .from('reels')
+          .update({'comments_count': realCommentsCount})
+          .eq('id', widget.reel.id);
+
+      widget.onCommentAdded?.call(realCommentsCount);
+
+      try {
+        final reelData = await supabase
+            .from('reels')
+            .select('user_id, title')
+            .eq('id', widget.reel.id)
+            .maybeSingle();
+
+        if (reelData != null) {
+          final authorId = reelData['user_id']?.toString() ?? '';
+          final reelTitle = reelData['title'] ?? 'your reel';
+          if (authorId.isNotEmpty && authorId != user.id) {
+            final senderProfile = await supabase
+                .from('profiles')
+                .select('first_name, last_name')
+                .eq('id', user.id)
+                .maybeSingle();
+            final String senderName = (senderProfile != null)
+                ? '${senderProfile['first_name'] ?? 'Someone'} ${senderProfile['last_name'] ?? ''}'
+                    .trim()
+                : 'Someone';
+
+            await supabase.from('user_notifications').insert({
+              'user_id': authorId,
+              'sender_id': user.id,
+              'title': '💬 Comment on your Reel',
+              'message': '$senderName commented on "$reelTitle": "$text"',
+              'notification_type': 'comment',
+              'link_url': '/reel/${widget.reel.id}',
+              'is_read': false,
+              'created_at': DateTime.now().toIso8601String(),
+            });
+          }
+        }
+      } catch (_) {}
+
+      _fetchComments();
+    } catch (_) {}
+  }
+
+  void _replyToUser(String username) {
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      AuthRequiredModal.show(context, actionName: "reply to comments");
+      return;
+    }
+    setState(() {
+      _controller.text = '@$username ${_controller.text}';
+    });
+    _focusNode.requestFocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentUserId = supabase.auth.currentUser?.id;
+
+    return Container(
+      width: 380,
+      height: 680,
+      decoration: BoxDecoration(
+        color: const Color(0xFF10121A),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.09)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.5),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header: Reel Author info & Title
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.02),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border(
+                bottom: BorderSide(color: Colors.white.withOpacity(0.06)),
+              ),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: const Color(0xFFFC466B),
+                  backgroundImage: widget.reel.authorAvatar.isNotEmpty
+                      ? NetworkImage(widget.reel.authorAvatar)
+                      : null,
+                  child: widget.reel.authorAvatar.isEmpty
+                      ? Text(
+                          widget.reel.authorName.isNotEmpty
+                              ? widget.reel.authorName[0].toUpperCase()
+                              : 'Z',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.reel.authorName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (widget.reel.title.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.reel.title,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.6),
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFC466B).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: const Color(0xFFFC466B).withOpacity(0.3),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.chat_bubble_outline_rounded,
+                        color: Color(0xFFFC466B),
+                        size: 13,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        '${comments.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Comments List
+          Expanded(
+            child: isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFFFC466B),
+                      strokeWidth: 2,
+                    ),
+                  )
+                : comments.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.chat_bubble_outline_rounded,
+                              size: 44,
+                              color: Colors.white.withOpacity(0.2),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'No comments yet',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Be the first to share your thoughts!',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.4),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: comments.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(height: 14),
+                        itemBuilder: (context, index) {
+                          final c = comments[index];
+                          final profile = c['profiles'];
+                          final String authorName = (profile != null)
+                              ? '${profile['first_name'] ?? ''} ${profile['last_name'] ?? ''}'
+                                  .trim()
+                              : 'ZEV User';
+                          final String avatarUrl = (profile != null)
+                              ? (profile['avatar_url'] ?? '')
+                              : '';
+                          final String username = (profile != null)
+                              ? (profile['username'] ?? authorName)
+                              : authorName;
+                          final String text = c['comment_text'] ?? '';
+
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                radius: 15,
+                                backgroundColor: const Color(0xFF282B38),
+                                backgroundImage: avatarUrl.isNotEmpty
+                                    ? NetworkImage(avatarUrl)
+                                    : null,
+                                child: avatarUrl.isEmpty
+                                    ? Text(
+                                        authorName.isNotEmpty
+                                            ? authorName[0].toUpperCase()
+                                            : 'U',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Text(
+                                          authorName,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        GestureDetector(
+                                          onTap: () => _replyToUser(username),
+                                          child: Text(
+                                            'Reply',
+                                            style: TextStyle(
+                                              color: Colors.white.withOpacity(0.4),
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      text,
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.88),
+                                        fontSize: 13,
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+          ),
+
+          // Input Box at Bottom
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0B0D13),
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+              border: Border(
+                top: BorderSide(color: Colors.white.withOpacity(0.06)),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1B1E29),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.08),
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: TextField(
+                      controller: _controller,
+                      focusNode: _focusNode,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                      ),
+                      onSubmitted: (_) => _addComment(),
+                      decoration: InputDecoration(
+                        hintText: 'Add a comment...',
+                        hintStyle: TextStyle(
+                          color: Colors.white.withOpacity(0.4),
+                          fontSize: 13,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 11),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: _addComment,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [Color(0xFFFC466B), Color(0xFF3F5EFB)],
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_upward_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

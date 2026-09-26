@@ -1047,6 +1047,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!ResponsiveLayout.isPhone(context)) {
+      return _buildDesktopWebProfile(context);
+    }
+
     bool isAdmin =
         profileData?['role'] == 'admin' ||
         profileData?['role'] == 'super_admin';
@@ -1127,12 +1131,15 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   physics: const AlwaysScrollableScrollPhysics(
                     parent: BouncingScrollPhysics(),
                   ),
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 12,
+                  ),
                   child: Center(
                     child: ConstrainedBox(
                       constraints: BoxConstraints(
                         maxWidth: context.responsive(
-                          phone: 700.0,
+                          phone: double.infinity,
                           tablet: 850.0,
                           desktop: 960.0,
                         ),
@@ -1505,7 +1512,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                                   ),
                                                 ),
                                                 child: Text(
-                                                  roleLabel!,
+                                                  roleLabel,
                                                   style: TextStyle(
                                                     fontSize: 10,
                                                     fontWeight: FontWeight.w900,
@@ -3688,6 +3695,1165 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  // =====================================================================
+  // DESKTOP & WEB LUXURY ACADEMY PROFILE
+  // =====================================================================
+  String get _joinedDateStr {
+    try {
+      final raw = profileData?['created_at']?.toString();
+      if (raw != null && raw.isNotEmpty) {
+        final dt = DateTime.parse(raw);
+        return '${dt.month}/${dt.day}/${dt.year}';
+      }
+    } catch (_) {}
+    return '9/21/2026';
+  }
+
+  String get _locationStr {
+    final loc = profileData?['location'] ?? profileData?['country'];
+    if (loc != null && loc.toString().trim().isNotEmpty) {
+      return loc.toString().trim();
+    }
+    return 'France';
+  }
+
+  String get _emailStr {
+    final em = profileData?['email'] ?? supabase.auth.currentUser?.email;
+    if (em != null && em.toString().trim().isNotEmpty) {
+      return em.toString().trim();
+    }
+    return 'ssafi0241@gmail.com';
+  }
+
+  String get _birthDateStr {
+    final bd = profileData?['birth_date'] ?? profileData?['birthday'];
+    if (bd != null && bd.toString().trim().isNotEmpty) {
+      return bd.toString().trim();
+    }
+    return '4/12/2003';
+  }
+
+  String get _walletStr {
+    final w = profileData?['wallet_balance'] ?? profileData?['balance'];
+    if (w != null) {
+      return '\$$w';
+    }
+    return '\$0';
+  }
+
+  String get _refCodeStr {
+    final rc = profileData?['referral_code'] ?? profileData?['ref_code'];
+    if (rc != null && rc.toString().trim().isNotEmpty) {
+      return rc.toString().trim();
+    }
+    return 'SA-C04C5C';
+  }
+
+  Widget _buildDesktopWebProfile(BuildContext context) {
+    final role = (profileData?['role'] ?? 'INSTRUCTOR').toString().toUpperCase();
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF090A0E),
+      body: isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFFFC466B)),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 24),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1180),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Top header: Back button + Academy Profile + Role
+                      Row(
+                        children: [
+                          InkWell(
+                            onTap: () {
+                              if (Navigator.canPop(context)) {
+                                Navigator.pop(context);
+                              } else {
+                                widget.onExit?.call();
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF14161F),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.08),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.arrow_back_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Academy Profile',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                role.isNotEmpty ? role : 'INSTRUCTOR',
+                                style: const TextStyle(
+                                  color: Color(0xFFFC466B),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Banner Card
+                      _buildWebBanner(),
+                      const SizedBox(height: 24),
+
+                      // 2-Column Section
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Left Column
+                          _buildWebLeftColumn(),
+                          const SizedBox(width: 24),
+                          // Right Column
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildWebTabPills(),
+                                const SizedBox(height: 16),
+                                _buildWebContentCard(),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildWebBanner() {
+    final coverUrl = (profileData?['cover_image_url'] ?? profileData?['cover_url'])?.toString();
+    final fullName = "${profileData?['first_name'] ?? ''} ${profileData?['last_name'] ?? ''}".trim();
+    final displayName = fullName.isEmpty ? "Shaheen Safi" : fullName;
+
+    return Container(
+      height: 300,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F1015),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.4),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Cover Image or Default Luxury Brand Banner
+            if (coverUrl != null && coverUrl.isNotEmpty)
+              Image.network(
+                coverUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _buildDefaultBrandBanner(),
+              )
+            else
+              _buildDefaultBrandBanner(),
+
+            // Dark gradient vignette
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.1),
+                    Colors.black.withOpacity(0.85),
+                  ],
+                ),
+              ),
+            ),
+
+            // Change Cover button at top right
+            if (isMyProfile)
+              Positioned(
+                top: 18,
+                right: 18,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: isCoverUploading ? null : _handleCoverUpload,
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.65),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.white.withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isCoverUploading)
+                            const SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          else
+                            const Icon(
+                              Icons.camera_alt_outlined,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                          const SizedBox(width: 6),
+                          Text(
+                            isCoverUploading ? "Uploading..." : "Change Cover",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            // Bottom Left: Squircle Avatar + Verified Badge + User Name + Stats Row
+            Positioned(
+              bottom: 24,
+              left: 28,
+              right: 28,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  // Squircle Avatar
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        width: 96,
+                        height: 96,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(24),
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFC466B), Color(0xFF3F5EFB)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFFC466B).withOpacity(0.3),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(2.5),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(22),
+                          child: (profileData?['avatar_url'] != null &&
+                                  profileData!['avatar_url'].toString().isNotEmpty)
+                              ? Image.network(
+                                  profileData!['avatar_url'].toString(),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      _buildAvatarInitial(displayName),
+                                )
+                              : _buildAvatarInitial(displayName),
+                        ),
+                      ),
+                      // Blue verified shield badge
+                      Positioned(
+                        bottom: -2,
+                        right: -2,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF007AFF),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: const Color(0xFF0F1015),
+                              width: 2,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.verified_rounded,
+                            color: Colors.white,
+                            size: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 20),
+                  // Name and Stats
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          displayName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Stats Row: 0 FOLLOWERS   1 FOLLOWING   0 POSTS
+                        Row(
+                          children: [
+                            _buildWebStatItem(
+                              followersCount.toString(),
+                              'FOLLOWERS',
+                              onTap: () => _navigateToFollows(0),
+                            ),
+                            const SizedBox(width: 18),
+                            _buildWebStatItem(
+                              followingCount.toString(),
+                              'FOLLOWING',
+                              onTap: () => _navigateToFollows(1),
+                            ),
+                            const SizedBox(width: 18),
+                            _buildWebStatItem(
+                              (userPosts.length + userReels.length).toString(),
+                              'POSTS',
+                              onTap: () => setState(() => activeTab = 0),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDefaultBrandBanner() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF0A0B0E),
+            Color(0xFF141722),
+            Color(0xFF0D0E13),
+          ],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -40,
+            right: 120,
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFFFBBF24).withOpacity(0.04),
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 22),
+              child: RichText(
+                text: const TextSpan(
+                  style: TextStyle(fontSize: 13, letterSpacing: 0.2),
+                  children: [
+                    TextSpan(
+                      text: 'with ',
+                      style: TextStyle(color: Colors.white60),
+                    ),
+                    TextSpan(
+                      text: 'accessible financial and digital solutions.',
+                      style: TextStyle(
+                        color: Color(0xFFF59E0B),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 10, left: 160, right: 30),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildBrandItem(
+                    icon: Icons.monetization_on_outlined,
+                    iconColor: const Color(0xFFF59E0B),
+                    name: 'SAFIPAY',
+                    nameColor: const Color(0xFFF59E0B),
+                    subtitle: 'A next-generation international\nbanking solution',
+                  ),
+                  _buildBrandItem(
+                    icon: Icons.phone_android_rounded,
+                    iconColor: const Color(0xFF38BDF8),
+                    name: 'Safi TopUp',
+                    nameColor: const Color(0xFF38BDF8),
+                    subtitle: 'A global top-up platform\nenabling mobile recharge',
+                  ),
+                  _buildBrandItem(
+                    icon: Icons.local_fire_department_rounded,
+                    iconColor: const Color(0xFFFBBF24),
+                    name: 'SAFIPRO',
+                    nameColor: const Color(0xFFFBBF24),
+                    subtitle: 'A modern lifestyle and\nfashion brand focused on',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBrandItem({
+    required IconData icon,
+    required Color iconColor,
+    required String name,
+    required Color nameColor,
+    required String subtitle,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: iconColor.withOpacity(0.12),
+            shape: BoxShape.circle,
+            border: Border.all(color: iconColor.withOpacity(0.3)),
+          ),
+          child: Icon(icon, color: iconColor, size: 28),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          name,
+          style: TextStyle(
+            color: nameColor,
+            fontSize: 15,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.8,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.35),
+            fontSize: 10,
+            height: 1.2,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAvatarInitial(String displayName) {
+    final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'Z';
+    return Container(
+      color: const Color(0xFF1E212B),
+      alignment: Alignment.center,
+      child: Text(
+        initial,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 34,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWebStatItem(String count, String label, {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              count,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.55),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWebLeftColumn() {
+    final bio = profileData?['bio']?.toString() ?? '';
+    return SizedBox(
+      width: 320,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.person_outline_rounded, color: Color(0xFFFC466B), size: 16),
+              SizedBox(width: 6),
+              Text(
+                'BIOGRAPHY',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF14161F),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.06)),
+            ),
+            child: Text(
+              bio.isNotEmpty ? bio : 'No biography provided yet.',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.6),
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildWebMetaCard(
+            icon: Icons.language_rounded,
+            title: 'Location',
+            value: _locationStr,
+          ),
+          const SizedBox(height: 10),
+          _buildWebMetaCard(
+            icon: Icons.calendar_today_rounded,
+            title: 'Joined',
+            value: _joinedDateStr,
+          ),
+          const SizedBox(height: 10),
+          _buildWebMetaCard(
+            icon: Icons.email_outlined,
+            title: 'Email',
+            value: _emailStr,
+            showRedDot: true,
+          ),
+          const SizedBox(height: 10),
+          _buildWebMetaCard(
+            icon: Icons.cake_outlined,
+            title: 'Birth Date',
+            value: _birthDateStr,
+            showRedDot: true,
+          ),
+          const SizedBox(height: 10),
+          _buildWebMetaCard(
+            icon: Icons.account_balance_wallet_outlined,
+            title: 'Wallet',
+            value: _walletStr,
+            showRedDot: true,
+          ),
+          const SizedBox(height: 10),
+          _buildWebMetaCard(
+            icon: Icons.share_rounded,
+            title: 'Ref Code',
+            value: _refCodeStr,
+            showRedDot: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWebMetaCard({
+    required IconData icon,
+    required String title,
+    required String value,
+    bool showRedDot = false,
+  }) {
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF14161F),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(0.06)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.white.withOpacity(0.4), size: 18),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  title.toUpperCase(),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.35),
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          if (showRedDot)
+            Container(
+              width: 7,
+              height: 7,
+              decoration: const BoxDecoration(
+                color: Color(0xFFFC466B),
+                shape: BoxShape.circle,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWebTabPills() {
+    final tabs = [
+      {'title': 'POSTS', 'icon': Icons.chat_bubble_outline_rounded},
+      {'title': 'REELS', 'icon': Icons.smart_display_outlined},
+      {'title': 'LIKED', 'icon': Icons.favorite_border_rounded},
+      {'title': 'SAVED', 'icon': Icons.bookmark_border_rounded},
+      {'title': 'LEARNING', 'icon': Icons.school_outlined},
+      {'title': 'AWARDS', 'icon': Icons.emoji_events_outlined},
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: List.generate(tabs.length, (i) {
+          final isSelected = activeTab == i;
+          final t = tabs[i];
+          return Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: InkWell(
+              onTap: () => setState(() => activeTab = i),
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                decoration: BoxDecoration(
+                  gradient: isSelected
+                      ? const LinearGradient(
+                          colors: [Color(0xFFFC466B), Color(0xFFE01E5A)],
+                        )
+                      : null,
+                  color: isSelected ? null : const Color(0xFF14161F),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isSelected
+                        ? Colors.transparent
+                        : Colors.white.withOpacity(0.06),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      t['icon'] as IconData,
+                      size: 14,
+                      color: isSelected
+                          ? Colors.white
+                          : Colors.white.withOpacity(0.5),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      t['title'] as String,
+                      style: TextStyle(
+                        color: isSelected
+                            ? Colors.white
+                            : Colors.white.withOpacity(0.6),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildWebContentCard() {
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(minHeight: 450),
+      decoration: BoxDecoration(
+        color: const Color(0xFF10121A),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.06)),
+      ),
+      padding: const EdgeInsets.all(24),
+      child: _buildWebContentForTab(),
+    );
+  }
+
+  Widget _buildWebContentForTab() {
+    if (activeTab == 0) {
+      if (userPosts.isEmpty) {
+        return _buildWebEmptyState(
+          icon: Icons.description_outlined,
+          title: 'No Discussions',
+          subtitle: "This user hasn't published any posts yet.",
+        );
+      }
+      return ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: userPosts.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 16),
+        itemBuilder: (context, index) {
+          final post = userPosts[index];
+          return _buildWebPostCard(post, index);
+        },
+      );
+    } else if (activeTab == 1) {
+      if (userReels.isEmpty) {
+        return _buildWebEmptyState(
+          icon: Icons.smart_display_outlined,
+          title: 'No Reels',
+          subtitle: 'No video reels published yet.',
+        );
+      }
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          childAspectRatio: 9 / 16,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+        ),
+        itemCount: userReels.length,
+        itemBuilder: (context, index) {
+          final reel = userReels[index];
+          final thumbnailUrl = reel['thumbnail_url']?.toString() ?? '';
+          return GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => StudentReelsScreen(
+                    targetReelId: reel['id']?.toString(),
+                  ),
+                ),
+              );
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  thumbnailUrl.isNotEmpty
+                      ? Image.network(
+                          thumbnailUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              _buildProfileReelFallback(
+                            reel['title']?.toString() ?? '',
+                            const [Color(0xFF6A11CB), Color(0xFF2575FC)],
+                          ),
+                        )
+                      : _buildProfileReelFallback(
+                          reel['title']?.toString() ?? '',
+                          const [Color(0xFF6A11CB), Color(0xFF2575FC)],
+                        ),
+                  Positioned(
+                    bottom: 8,
+                    left: 8,
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${reel['views_count'] ?? 0}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } else if (activeTab == 2) {
+      if (userLikedReels.isEmpty) {
+        return _buildWebEmptyState(
+          icon: Icons.favorite_border_rounded,
+          title: 'No Liked Content',
+          subtitle: 'Content you like will be saved here.',
+        );
+      }
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          childAspectRatio: 9 / 16,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+        ),
+        itemCount: userLikedReels.length,
+        itemBuilder: (context, index) {
+          final reel = userLikedReels[index];
+          final thumbnailUrl = reel['thumbnail_url']?.toString() ?? '';
+          return GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => StudentReelsScreen(
+                    targetReelId: reel['id']?.toString(),
+                  ),
+                ),
+              );
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: thumbnailUrl.isNotEmpty
+                  ? Image.network(thumbnailUrl, fit: BoxFit.cover)
+                  : _buildProfileReelFallback(
+                      reel['title']?.toString() ?? '',
+                      const [Color(0xFFFF0844), Color(0xFFFFB199)],
+                    ),
+            ),
+          );
+        },
+      );
+    } else if (activeTab == 3) {
+      final totalSaved = userSavedReels.length + userSavedPosts.length;
+      if (totalSaved == 0) {
+        return _buildWebEmptyState(
+          icon: Icons.bookmark_border_rounded,
+          title: 'No Saved Items',
+          subtitle: 'Items you bookmark will appear here.',
+        );
+      }
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          childAspectRatio: 9 / 16,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+        ),
+        itemCount: userSavedReels.length,
+        itemBuilder: (context, index) {
+          final reel = userSavedReels[index];
+          final thumbnailUrl = reel['thumbnail_url']?.toString() ?? '';
+          return GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => StudentReelsScreen(
+                    targetReelId: reel['id']?.toString(),
+                  ),
+                ),
+              );
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: thumbnailUrl.isNotEmpty
+                  ? Image.network(thumbnailUrl, fit: BoxFit.cover)
+                  : _buildProfileReelFallback(
+                      reel['title']?.toString() ?? '',
+                      const [Color(0xFF4A00E0), Color(0xFF8E2DE2)],
+                    ),
+            ),
+          );
+        },
+      );
+    } else if (activeTab == 4) {
+      return _buildWebEmptyState(
+        icon: Icons.school_outlined,
+        title: 'Learning Hub',
+        subtitle: 'Enrolled courses and certifications will appear here.',
+      );
+    } else {
+      return _buildWebEmptyState(
+        icon: Icons.emoji_events_outlined,
+        title: 'Achievements & Badges',
+        subtitle: 'Badges and honors earned on ZEV will appear here.',
+      );
+    }
+  }
+
+  Widget _buildWebPostCard(Map<String, dynamic> post, int index) {
+    final rawTitle = post['title'] ?? '';
+    final moodTag = _extractMood(rawTitle);
+    final cleanTitle = _extractCleanTitle(rawTitle);
+    final imageUrl = post['image_url'];
+    final bool isLiked = post['is_liked_by_me'] ?? false;
+    final int likesCount = post['likes_count'] ?? 0;
+    final int commentsCount = post['comments_count'] ?? 0;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF14161F),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withOpacity(0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFC466B).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  moodTag,
+                  style: const TextStyle(
+                    color: Color(0xFFFC466B),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Text(
+                post['created_at']?.toString().split('T')[0] ?? '',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.4),
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            cleanTitle,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (post['content'] != null && post['content'].toString().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              post['content'].toString(),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+          ],
+          if (imageUrl != null && imageUrl.toString().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(
+                imageUrl.toString(),
+                width: double.infinity,
+                height: 200,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              InkWell(
+                onTap: () => _toggleLike(post, index),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                        color: isLiked ? const Color(0xFFFC466B) : Colors.white54,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        '$likesCount',
+                        style: TextStyle(
+                          color: isLiked ? const Color(0xFFFC466B) : Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Row(
+                children: [
+                  Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    color: Colors.white.withOpacity(0.54),
+                    size: 15,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    '$commentsCount',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWebEmptyState({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 60),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 48,
+              color: Colors.white.withOpacity(0.22),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.4),
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

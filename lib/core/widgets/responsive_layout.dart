@@ -97,36 +97,60 @@ class ResponsiveLayout {
 
   /// Wraps children in a centered box with max width constraint
   /// to prevent awkward stretching on iPad, macOS, Windows, and Web.
+  /// On phones, returns full width without boxing or artificial margins.
   static Widget feedConstraint({
     required Widget child,
     double maxWidth = maxFeedWidth,
     Color? backgroundColor,
   }) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: Container(
-          color: backgroundColor,
-          child: child,
-        ),
-      ),
+    return Builder(
+      builder: (context) {
+        if (isPhone(context)) {
+          return Container(
+            width: double.infinity,
+            color: backgroundColor,
+            child: child,
+          );
+        }
+        return Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: Container(
+              color: backgroundColor,
+              child: child,
+            ),
+          ),
+        );
+      },
     );
   }
 
   /// Full-page responsive container with max width constraint
+  /// On phones, returns full width directly.
   static Widget pageConstraint({
     required Widget child,
     double maxWidth = maxStoreWidth,
     Color? backgroundColor,
   }) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: Container(
-          color: backgroundColor,
-          child: child,
-        ),
-      ),
+    return Builder(
+      builder: (context) {
+        if (isPhone(context)) {
+          return Container(
+            width: double.infinity,
+            color: backgroundColor,
+            child: child,
+          );
+        }
+        return Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: Container(
+              color: backgroundColor,
+              child: child,
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -146,6 +170,14 @@ class ResponsivePageContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (ResponsiveLayout.isPhone(context)) {
+      return Container(
+        width: double.infinity,
+        color: backgroundColor,
+        child: child,
+      );
+    }
+
     final width = MediaQuery.of(context).size.width;
     if (width <= maxWidth) {
       return Container(

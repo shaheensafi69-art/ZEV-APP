@@ -193,87 +193,158 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
               backgroundColor: isDark ? const Color(0xFF090D16) : Colors.white,
               elevation: 0,
               titleSpacing: 16,
-              title: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 720),
-                  child: Container(
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF1E293B)
-                          : const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
+              title: ResponsiveLayout.isPhone(context)
+                  ? Container(
+                      height: 44,
+                      decoration: BoxDecoration(
                         color: isDark
-                            ? Colors.white10
-                            : const Color(0xFFE2E8F0),
+                            ? const Color(0xFF1E293B)
+                            : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white10
+                              : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: _performSearch,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                        decoration: InputDecoration(
+                          hintText: context.zevTr('searchZevHint'),
+                          hintStyle: TextStyle(
+                            color: isDark
+                                ? Colors.white38
+                                : const Color(0xFF94A3B8),
+                            fontSize: 13,
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search_rounded,
+                            color: isDark
+                                ? Colors.white54
+                                : const Color(0xFF64748B),
+                            size: 20,
+                          ),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.close_rounded, size: 18),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    _performSearch('');
+                                  },
+                                )
+                              : null,
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                          ),
+                        ),
+                      ),
+                    )
+                  : Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 720),
+                        child: Container(
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFF1E293B)
+                                : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isDark
+                                  ? Colors.white10
+                                  : const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: _performSearch,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            ),
+                            decoration: InputDecoration(
+                              hintText: context.zevTr('searchZevHint'),
+                              hintStyle: TextStyle(
+                                color: isDark
+                                    ? Colors.white38
+                                    : const Color(0xFF94A3B8),
+                                fontSize: 13,
+                              ),
+                              prefixIcon: Icon(
+                                Icons.search_rounded,
+                                color: isDark
+                                    ? Colors.white54
+                                    : const Color(0xFF64748B),
+                                size: 20,
+                              ),
+                              suffixIcon: _searchQuery.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.close_rounded, size: 18),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        _performSearch('');
+                                      },
+                                    )
+                                  : null,
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 10,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: _performSearch,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                      ),
-                      decoration: InputDecoration(
-                        hintText: context.zevTr('searchZevHint'),
-                        hintStyle: TextStyle(
-                          color: isDark
-                              ? Colors.white38
-                              : const Color(0xFF94A3B8),
-                          fontSize: 13,
-                        ),
-                        prefixIcon: Icon(
-                          Icons.search_rounded,
-                          color: isDark
-                              ? Colors.white54
-                              : const Color(0xFF64748B),
-                          size: 20,
-                        ),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.close_rounded, size: 18),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  _performSearch('');
-                                },
-                              )
-                            : null,
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: 10,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
               bottom: PreferredSize(
                 preferredSize: const Size.fromHeight(48),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 720),
-                    child: TabBar(
-                      controller: _tabController,
-                      indicatorColor: primaryPink,
-                      indicatorWeight: 3,
-                      labelColor: primaryPink,
-                      unselectedLabelColor: isDark
-                          ? Colors.white54
-                          : const Color(0xFF64748B),
-                      labelStyle: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
+                child: ResponsiveLayout.isPhone(context)
+                    ? TabBar(
+                        controller: _tabController,
+                        indicatorColor: primaryPink,
+                        indicatorWeight: 3,
+                        labelColor: primaryPink,
+                        unselectedLabelColor: isDark
+                            ? Colors.white54
+                            : const Color(0xFF64748B),
+                        labelStyle: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                        tabs: [
+                          Tab(text: "🔥 ${context.zevTr('trending')}"),
+                          Tab(text: "🎬 ${context.zevTr('reels')}"),
+                          Tab(text: "👥 ${context.zevTr('people')}"),
+                        ],
+                      )
+                    : Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 720),
+                          child: TabBar(
+                            controller: _tabController,
+                            indicatorColor: primaryPink,
+                            indicatorWeight: 3,
+                            labelColor: primaryPink,
+                            unselectedLabelColor: isDark
+                                ? Colors.white54
+                                : const Color(0xFF64748B),
+                            labelStyle: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                            tabs: [
+                              Tab(text: "🔥 ${context.zevTr('trending')}"),
+                              Tab(text: "🎬 ${context.zevTr('reels')}"),
+                              Tab(text: "👥 ${context.zevTr('people')}"),
+                            ],
+                          ),
+                        ),
                       ),
-                      tabs: [
-                        Tab(text: "🔥 ${context.zevTr('trending')}"),
-                        Tab(text: "🎬 ${context.zevTr('reels')}"),
-                        Tab(text: "👥 ${context.zevTr('people')}"),
-                      ],
-                    ),
-                  ),
-                ),
               ),
             ),
             body: _isLoading
@@ -660,7 +731,7 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
                           ),
                         ),
                         child: Text(
-                          roleBadge!,
+                          roleBadge,
                           style: TextStyle(
                             fontSize: 8,
                             fontWeight: FontWeight.w900,

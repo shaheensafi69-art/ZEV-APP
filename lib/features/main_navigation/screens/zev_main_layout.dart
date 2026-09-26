@@ -13,6 +13,9 @@ import '../../explore/screens/explore_search_screen.dart';
 import '../../profile/screens/zev_settings_screen.dart';
 import '../../profile/screens/zev_terms_of_service_screen.dart';
 import '../../profile/screens/zev_privacy_policy_screen.dart';
+import '../../shop/screens/shop_screen.dart';
+import '../../chat/screens/direct_chat_list_screen.dart';
+import '../../notifications/screens/activity_notifications_screen.dart';
 import '../../../core/widgets/auth_required_modal.dart';
 import '../../../core/widgets/responsive_layout.dart';
 import '../../../core/localization/zev_localizations.dart';
@@ -525,52 +528,140 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
             ),
             const SizedBox(height: 32),
 
-            // Navigation Items
-            _buildSideNavItem(
-              icon: Icons.home_rounded,
-              label: context.zevTr('feed'),
-              index: 0,
-              isDark: isDark,
-              isDesktop: isDesktop,
-            ),
-            _buildSideNavItem(
-              icon: Icons.explore_rounded,
-              label: context.zevTr('explore'),
-              index: 1,
-              isDark: isDark,
-              isDesktop: isDesktop,
-            ),
-            _buildSideNavItem(
-              icon: Icons.play_circle_fill_rounded,
-              label: context.zevTr('reels'),
-              index: 3,
-              isDark: isDark,
-              isDesktop: isDesktop,
-            ),
-            _buildSideNavItem(
-              icon: Icons.person_rounded,
-              label: context.zevTr('profile'),
-              index: 4,
-              isDark: isDark,
-              isDesktop: isDesktop,
-            ),
-            _buildSideNavItem(
-              icon: Icons.settings_rounded,
-              label: context.zevTr('settings'),
-              index: 99, // Custom handler
-              isDark: isDark,
-              isDesktop: isDesktop,
-              customTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ZevSettingsScreen()),
-                );
-              },
+            // Section Indicator
+            if (isDesktop)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: primaryPink,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'SOCIAL FEED HUB',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.1,
+                        color: isDark
+                            ? Colors.white38
+                            : const Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Scrollable Navigation Items so it never overflows vertically
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  children: [
+                    _buildSideNavItem(
+                      icon: Icons.dynamic_feed_rounded,
+                      label: "Feed Stream",
+                      index: 0,
+                      isDark: isDark,
+                      isDesktop: isDesktop,
+                    ),
+                    _buildSideNavItem(
+                      icon: Icons.play_circle_fill_rounded,
+                      label: "Explore Reels",
+                      index: 3,
+                      isDark: isDark,
+                      isDesktop: isDesktop,
+                    ),
+                    _buildSideNavItem(
+                      icon: Icons.storefront_rounded,
+                      label: "Global Network / Shop",
+                      index: 88,
+                      isDark: isDark,
+                      isDesktop: isDesktop,
+                      customTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ShopScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildSideNavItem(
+                      icon: Icons.add_box_outlined,
+                      label: "Create Post",
+                      index: 87,
+                      isDark: isDark,
+                      isDesktop: isDesktop,
+                      customTap: () => _onTabTapped(2),
+                    ),
+                    _buildSideNavItem(
+                      icon: Icons.chat_bubble_outline_rounded,
+                      label: "Messages",
+                      index: 86,
+                      isDark: isDark,
+                      isDesktop: isDesktop,
+                      customTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const DirectChatListScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildSideNavItem(
+                      icon: Icons.favorite_border_rounded,
+                      label: "Likes & Comments",
+                      index: 85,
+                      isDark: isDark,
+                      isDesktop: isDesktop,
+                      customTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const ActivityNotificationsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildSideNavItem(
+                      icon: Icons.person_outline_rounded,
+                      label: "My Profile",
+                      index: 4,
+                      isDark: isDark,
+                      isDesktop: isDesktop,
+                    ),
+                    _buildSideNavItem(
+                      icon: Icons.settings_outlined,
+                      label: context.zevTr('settings'),
+                      index: 99,
+                      isDark: isDark,
+                      isDesktop: isDesktop,
+                      customTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ZevSettingsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 10),
 
-            // Create (+) Button
+            // CREATE NEW POST Button (matching user's screenshot)
             Padding(
               padding: EdgeInsets.symmetric(horizontal: isDesktop ? 16 : 12),
               child: InkWell(
@@ -578,10 +669,10 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                 borderRadius: BorderRadius.circular(18),
                 child: Container(
                   width: double.infinity,
-                  height: isDesktop ? 50 : 52,
+                  height: isDesktop ? 48 : 50,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [primaryPink, lightPinkAccent],
+                      colors: [primaryPink, Color(0xFFFF8A00)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -598,19 +689,19 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Icon(
-                        Icons.add_rounded,
+                        Icons.edit_note_rounded,
                         color: Colors.white,
-                        size: 24,
+                        size: 22,
                       ),
                       if (isDesktop) ...[
                         const SizedBox(width: 8),
-                        Text(
-                          context.zevTr('create'),
-                          style: const TextStyle(
+                        const Text(
+                          'CREATE NEW POST',
+                          style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w900,
-                            fontSize: 15,
-                            letterSpacing: 0.2,
+                            fontSize: 13,
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ],
@@ -619,8 +710,6 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                 ),
               ),
             ),
-
-            const Spacer(),
 
             // Desktop User Profile Pill at bottom of sidebar
             if (isDesktop) ...[

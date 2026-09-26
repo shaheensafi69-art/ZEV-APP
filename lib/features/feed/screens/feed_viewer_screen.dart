@@ -818,8 +818,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                         ],
                                       ),
 
-                                      // Right: Activity Heart & Direct Messages
-                                      Row(
+                                      // Right: Activity Heart & Direct Messages (Mobile phone only; on Web they are in the sidebar)
+                                      if (ResponsiveLayout.isPhone(context))
+                                        Row(
                                         children: [
                                           // ZEV Store Button
                                           GestureDetector(
