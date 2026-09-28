@@ -7,6 +7,7 @@ import '../../../core/localization/zev_localizations.dart';
 import '../../feed/screens/feed_viewer_screen.dart';
 import '../../feed/screens/reels_viewer_screen.dart';
 import '../../feed/screens/user_profile_screen.dart';
+import '../../feed/widgets/zev_reels_preview_grid.dart';
 
 class ExploreSearchScreen extends StatefulWidget {
   const ExploreSearchScreen({super.key});
@@ -450,154 +451,17 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
     return RefreshIndicator(
       onRefresh: _fetchExploreContent,
       color: primaryPink,
-      child: GridView.builder(
-        padding: const EdgeInsets.all(8),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: ResponsiveLayout.gridColumns(
-            context,
-            mobile: 3,
-            tablet: 4,
-            desktop: 5,
-          ),
-          crossAxisSpacing: 6,
-          mainAxisSpacing: 6,
-          childAspectRatio: 0.65,
-        ),
-        itemCount: _trendingReels.length,
-        itemBuilder: (context, index) {
-          final reel = _trendingReels[index];
+      child: ZevReelsPreviewGrid(
+        reels: _trendingReels,
+        onReelTap: (reel, index) {
           final reelId = reel['id']?.toString();
-
-          return GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => StudentReelsScreen(targetReelId: reelId),
-                ),
-              );
-            },
-            child: _buildReelPreview(reel, index),
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => StudentReelsScreen(targetReelId: reelId),
+            ),
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildReelPreview(Map<String, dynamic> reel, int index) {
-    final thumbUrl = reel['thumbnail_url']?.toString() ?? '';
-    final title = reel['title']?.toString() ?? '';
-    final views = reel['views_count'] ?? 0;
-
-    final gradients = [
-      [const Color(0xFF6A11CB), const Color(0xFF2575FC)],
-      [const Color(0xFFFF0844), const Color(0xFFFFB199)],
-      [const Color(0xFF4A00E0), const Color(0xFF8E2DE2)],
-      [const Color(0xFF0BA360), const Color(0xFF3CBA92)],
-      [const Color(0xFFF857A6), const Color(0xFFFF5858)],
-      [const Color(0xFF13547A), const Color(0xFF80D0C7)],
-      [const Color(0xFFFC466B), const Color(0xFF3F5EFB)],
-    ];
-    final gradientColors = gradients[index % gradients.length];
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (thumbUrl.isNotEmpty)
-            FastCachedImage(
-              imageUrl: thumbUrl,
-              fit: BoxFit.cover,
-              errorWidget: _buildGradientFallback(title, gradientColors),
-            )
-          else
-            _buildGradientFallback(title, gradientColors),
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.transparent, Colors.black87],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 6,
-            left: 6,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.play_arrow_rounded,
-                  color: Colors.white,
-                  size: 15,
-                ),
-                const SizedBox(width: 2),
-                Text(
-                  views >= 1000000
-                      ? '${(views / 1000000).toStringAsFixed(1)}M'
-                      : views >= 1000
-                      ? '${(views / 1000).toStringAsFixed(1)}K'
-                      : '$views',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    shadows: [Shadow(color: Colors.black87, blurRadius: 4)],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGradientFallback(String title, List<Color> colors) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: colors,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.3),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white30),
-            ),
-            child: const Icon(
-              Icons.play_arrow_rounded,
-              color: Colors.white,
-              size: 22,
-            ),
-          ),
-          if (title.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 10,
-                height: 1.2,
-                shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
-              ),
-            ),
-          ],
-        ],
       ),
     );
   }
@@ -619,12 +483,16 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
       return const Center(child: CircularProgressIndicator(color: primaryPink));
     }
 
+    final isDesktopWeb =
+        ResponsiveLayout.isDesktop(context) ||
+        ResponsiveLayout.isTablet(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (!isSearching) ...[
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
             child: Row(
               children: [
                 const Icon(Icons.stars_rounded, color: primaryPink, size: 20),
@@ -632,19 +500,31 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
                 Text(
                   "Active Community on ZEV",
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 15,
                     fontWeight: FontWeight.w800,
                     color: isDark ? Colors.white : const Color(0xFF0F172A),
                     letterSpacing: -0.3,
                   ),
                 ),
                 const Spacer(),
-                Text(
-                  "${list.length} suggested",
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    "${list.length} suggested",
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                    ),
                   ),
                 ),
               ],
@@ -652,144 +532,373 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
           ),
         ],
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            itemCount: list.length,
-            separatorBuilder: (_, _) => Divider(
-              color: isDark ? Colors.white10 : const Color(0xFFF1F5F9),
-            ),
-            itemBuilder: (context, index) {
-              final user = list[index];
-              final uid = user['id']?.toString() ?? '';
-              final name =
-                  "${user['first_name'] ?? ''} ${user['last_name'] ?? ''}"
-                      .trim();
-              final avatar = user['avatar_url']?.toString() ?? '';
-              final bio = user['bio']?.toString() ?? '';
-              final role = user['role']?.toString() ?? 'student';
-              final isFollowing = _followingUserIds.contains(uid);
+          child: isDesktopWeb
+              ? _buildPeopleWebGrid(list, isDark)
+              : _buildPeopleMobileList(list, isDark),
+        ),
+      ],
+    );
+  }
 
-              final isAdmin = role == 'admin' || role == 'super_admin';
-              final isTeacher = role == 'teacher';
-              final roleColor = isAdmin
-                  ? Colors.deepPurple
-                  : (isTeacher ? Colors.blueAccent : primaryPink);
-              final String? roleBadge = isAdmin ? "OFFICIAL 🛡️" : null;
+  Widget _buildPeopleWebGrid(List<Map<String, dynamic>> list, bool isDark) {
+    final columns = ResponsiveLayout.gridColumns(
+      context,
+      mobile: 2,
+      tablet: 3,
+      desktop: 4,
+    );
 
-              return ListTile(
-                contentPadding: EdgeInsets.zero,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => UserProfileScreen(userId: uid),
-                    ),
-                  );
-                },
-                leading: CircleAvatar(
-                  radius: 24,
-                  backgroundColor: primaryPink.withValues(alpha: 0.15),
-                  backgroundImage: avatar.isNotEmpty
-                      ? NetworkImage(avatar)
-                      : null,
-                  child: avatar.isEmpty
-                      ? Text(
-                          name.isNotEmpty ? name[0].toUpperCase() : 'Z',
-                          style: const TextStyle(
-                            color: primaryPink,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        )
-                      : null,
-                ),
-                title: Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        name.isNotEmpty ? name : 'ZEV User',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: isDark
-                              ? Colors.white
-                              : const Color(0xFF0F172A),
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (roleBadge != null) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: roleColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: roleColor.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        child: Text(
-                          roleBadge,
-                          style: TextStyle(
-                            fontSize: 8,
-                            fontWeight: FontWeight.w900,
-                            color: roleColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                subtitle: bio.isNotEmpty
-                    ? Text(
-                        bio,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isDark
-                              ? Colors.white54
-                              : const Color(0xFF64748B),
-                        ),
-                      )
-                    : null,
-                trailing: SizedBox(
-                  height: 34,
-                  child: ElevatedButton(
-                    onPressed: () => _toggleFollow(uid),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isFollowing
-                          ? (isDark
-                                ? const Color(0xFF1E293B)
-                                : const Color(0xFFE2E8F0))
-                          : primaryPink,
-                      foregroundColor: isFollowing
-                          ? (isDark ? Colors.white70 : const Color(0xFF334155))
-                          : Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                    ),
-                    child: Text(
-                      isFollowing
-                          ? context.zevTr('following')
-                          : context.zevTr('follow'),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+    return GridView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columns,
+        crossAxisSpacing: 14,
+        mainAxisSpacing: 14,
+        childAspectRatio: 0.82,
+      ),
+      itemCount: list.length,
+      itemBuilder: (context, index) {
+        final user = list[index];
+        final uid = user['id']?.toString() ?? '';
+        final name =
+            "${user['first_name'] ?? ''} ${user['last_name'] ?? ''}".trim();
+        final avatar = user['avatar_url']?.toString() ?? '';
+        final bio = user['bio']?.toString() ?? '';
+        final role = user['role']?.toString() ?? 'student';
+        final isFollowing = _followingUserIds.contains(uid);
+
+        final isAdmin = role == 'admin' || role == 'super_admin';
+        final isTeacher = role == 'teacher';
+        final roleColor = isAdmin
+            ? Colors.deepPurple
+            : (isTeacher ? Colors.blueAccent : primaryPink);
+        final String? roleBadge = isAdmin
+            ? "OFFICIAL 🛡️"
+            : (isTeacher ? "TEACHER 🎓" : null);
+
+        final bannerGradients = [
+          [const Color(0xFF6A11CB), const Color(0xFF2575FC)],
+          [const Color(0xFFFC466B), const Color(0xFFFF8E53)],
+          [const Color(0xFF11998E), const Color(0xFF38EF7D)],
+          [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)],
+          [const Color(0xFFF857A6), const Color(0xFFFF5858)],
+        ];
+        final cardGradient = bannerGradients[index % bannerGradients.length];
+
+        return MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => UserProfileScreen(userId: uid),
                 ),
               );
             },
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF111422) : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.black.withValues(alpha: 0.06),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.04),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Column(
+                  children: [
+                    // Top banner header
+                    Container(
+                      height: 52,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: cardGradient,
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                    ),
+                    // Centered Avatar overlapping banner
+                    Transform.translate(
+                      offset: const Offset(0, -28),
+                      child: Container(
+                        padding: const EdgeInsets.all(3.5),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isDark
+                              ? const Color(0xFF111422)
+                              : Colors.white,
+                        ),
+                        child: CircleAvatar(
+                          radius: 30,
+                          backgroundColor: primaryPink.withValues(alpha: 0.15),
+                          backgroundImage: avatar.isNotEmpty
+                              ? NetworkImage(avatar)
+                              : null,
+                          child: avatar.isEmpty
+                              ? Text(
+                                  name.isNotEmpty ? name[0].toUpperCase() : 'Z',
+                                  style: const TextStyle(
+                                    color: primaryPink,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                )
+                              : null,
+                        ),
+                      ),
+                    ),
+                    // User info
+                    Transform.translate(
+                      offset: const Offset(0, -22),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    name.isNotEmpty ? name : 'ZEV User',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                      color: isDark
+                                          ? Colors.white
+                                          : const Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                ),
+                                if (roleBadge != null) ...[
+                                  const SizedBox(width: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 5,
+                                      vertical: 1.5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: roleColor.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      roleBadge,
+                                      style: TextStyle(
+                                        fontSize: 7.5,
+                                        fontWeight: FontWeight.w900,
+                                        color: roleColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              bio.isNotEmpty ? bio : "Member of ZEV Community",
+                              maxLines: 2,
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                height: 1.3,
+                                color: isDark
+                                    ? Colors.white54
+                                    : const Color(0xFF64748B),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            // Web Follow Action Button
+                            SizedBox(
+                              width: double.infinity,
+                              height: 34,
+                              child: ElevatedButton(
+                                onPressed: () => _toggleFollow(uid),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isFollowing
+                                      ? (isDark
+                                            ? const Color(0xFF1E293B)
+                                            : const Color(0xFFF1F5F9))
+                                      : primaryPink,
+                                  foregroundColor: isFollowing
+                                      ? (isDark
+                                            ? Colors.white70
+                                            : const Color(0xFF334155))
+                                      : Colors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    side: isFollowing
+                                        ? BorderSide(
+                                            color: isDark
+                                                ? Colors.white12
+                                                : const Color(0xFFE2E8F0),
+                                          )
+                                        : BorderSide.none,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                ),
+                                child: Text(
+                                  isFollowing
+                                      ? context.zevTr('following')
+                                      : context.zevTr('follow'),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
-      ],
+        );
+      },
+    );
+  }
+
+  Widget _buildPeopleMobileList(List<Map<String, dynamic>> list, bool isDark) {
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      itemCount: list.length,
+      separatorBuilder: (_, _) =>
+          Divider(color: isDark ? Colors.white10 : const Color(0xFFF1F5F9)),
+      itemBuilder: (context, index) {
+        final user = list[index];
+        final uid = user['id']?.toString() ?? '';
+        final name =
+            "${user['first_name'] ?? ''} ${user['last_name'] ?? ''}".trim();
+        final avatar = user['avatar_url']?.toString() ?? '';
+        final bio = user['bio']?.toString() ?? '';
+        final role = user['role']?.toString() ?? 'student';
+        final isFollowing = _followingUserIds.contains(uid);
+
+        final isAdmin = role == 'admin' || role == 'super_admin';
+        final isTeacher = role == 'teacher';
+        final roleColor = isAdmin
+            ? Colors.deepPurple
+            : (isTeacher ? Colors.blueAccent : primaryPink);
+        final String? roleBadge = isAdmin ? "OFFICIAL 🛡️" : null;
+
+        return ListTile(
+          contentPadding: EdgeInsets.zero,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => UserProfileScreen(userId: uid)),
+            );
+          },
+          leading: CircleAvatar(
+            radius: 24,
+            backgroundColor: primaryPink.withValues(alpha: 0.15),
+            backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
+            child: avatar.isEmpty
+                ? Text(
+                    name.isNotEmpty ? name[0].toUpperCase() : 'Z',
+                    style: const TextStyle(
+                      color: primaryPink,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  )
+                : null,
+          ),
+          title: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  name.isNotEmpty ? name : 'ZEV User',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (roleBadge != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: roleColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: roleColor.withValues(alpha: 0.2)),
+                  ),
+                  child: Text(
+                    roleBadge,
+                    style: TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                      color: roleColor,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          subtitle: bio.isNotEmpty
+              ? Text(
+                  bio,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                  ),
+                )
+              : null,
+          trailing: SizedBox(
+            height: 34,
+            child: ElevatedButton(
+              onPressed: () => _toggleFollow(uid),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isFollowing
+                    ? (isDark
+                          ? const Color(0xFF1E293B)
+                          : const Color(0xFFE2E8F0))
+                    : primaryPink,
+                foregroundColor: isFollowing
+                    ? (isDark ? Colors.white70 : const Color(0xFF334155))
+                    : Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+              ),
+              child: Text(
+                isFollowing
+                    ? context.zevTr('following')
+                    : context.zevTr('follow'),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

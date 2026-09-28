@@ -1125,7 +1125,6 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth >= 768;
     final showDesktopComments = isDesktop && screenWidth >= 880;
-    final showDesktopAds = isDesktop && screenWidth >= 1200;
 
     final rawReelIndex = AdService.instance.getRawItemIndex(
       activeIndex,
@@ -1277,11 +1276,6 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
                               },
                             ),
                           ),
-                          // Desktop Ad Side Panel (Fills empty space on widescreen desktop!)
-                          if (showDesktopAds) ...[
-                            const _DesktopReelAdSidePanel(),
-                            const SizedBox(width: 20),
-                          ],
                           ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 560),
                             child: reelPlayerContainer,
@@ -1342,9 +1336,12 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
         bottom: false,
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          child: Stack(
+            alignment: Alignment.center,
             children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
               // Friends tab button
               GestureDetector(
                 onTap: () {
@@ -1455,10 +1452,24 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
               ),
             ],
           ),
-        ),
+          Positioned(
+            right: 16,
+            child: IconButton(
+              icon: const Icon(
+                Icons.video_call_rounded,
+                color: Colors.white,
+                size: 26,
+              ),
+              tooltip: "Upload Reel",
+              onPressed: _showUploadReelDialog,
+            ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 
   // Empty state for Friends tab
   Widget _buildEmptyFriendsState() {
@@ -2477,341 +2488,6 @@ class _ReelCommentsBottomSheetState extends State<_ReelCommentsBottomSheet> {
   }
 }
 
-/// Desktop Sponsored/Ad Side Panel to fill widescreen empty space elegantly
-class _DesktopReelAdSidePanel extends StatelessWidget {
-  const _DesktopReelAdSidePanel();
-
-  static const Color primaryPink = Color(0xFFFC466B);
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      width: 340,
-      height: 680,
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF10121A) : Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.09)
-              : Colors.black.withValues(alpha: 0.07),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.06),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header: Sponsor Badge + Tag
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.02)
-                  : const Color(0xFFFFF1F4),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(24),
-              ),
-              border: Border(
-                bottom: BorderSide(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : Colors.black.withValues(alpha: 0.05),
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: primaryPink.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.campaign_rounded,
-                        size: 14,
-                        color: primaryPink,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        context.zevTr('sponsored'),
-                        style: const TextStyle(
-                          color: primaryPink,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  "Google Ads / Partner",
-                  style: TextStyle(
-                    color: isDark ? Colors.white38 : Colors.black38,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Main Ad Content Banner
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Featured Graphic Banner
-                  Container(
-                    height: 190,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFFC466B), Color(0xFF3F5EFB)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: [
-                        BoxShadow(
-                          color: primaryPink.withValues(alpha: 0.25),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Stack(
-                      children: [
-                        Positioned(
-                          right: -20,
-                          bottom: -20,
-                          child: Icon(
-                            Icons.auto_awesome,
-                            size: 130,
-                            color: Colors.white.withValues(alpha: 0.18),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.all(18),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.25),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Text(
-                                  "ZEV VERIFIED",
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                "Empowering Youth with Digital Knowledge",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  height: 1.25,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                "Join Safi Academy & ZEV ecosystem",
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.85),
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-
-                  // Brand info
-                  Row(
-                    children: [
-                      Container(
-                        width: 42,
-                        height: 42,
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Color(0xFFFC466B), Color(0xFFFF8E53)],
-                          ),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Center(
-                          child: Text(
-                            "Z",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Safi TopUp & SafiPay",
-                              style: TextStyle(
-                                color: isDark
-                                    ? Colors.white
-                                    : const Color(0xFF0F172A),
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              "International digital services & shop",
-                              style: TextStyle(
-                                color: isDark
-                                    ? Colors.white54
-                                    : const Color(0xFF64748B),
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Description
-                  Text(
-                    "Discover the latest digital tools, verified shop vouchers, and high-performance financial solutions with instant automated processing.",
-                    style: TextStyle(
-                      color: isDark ? Colors.white70 : const Color(0xFF334155),
-                      fontSize: 12.5,
-                      height: 1.45,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Interactive Feature tags
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _buildAdTag("⚡ Instant Activation", isDark),
-                      _buildAdTag("🛡️ 100% Secure", isDark),
-                      _buildAdTag("🌍 Global Reach", isDark),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Bottom Action Button
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0B0D13) : Colors.white,
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(24),
-              ),
-              border: Border(
-                top: BorderSide(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : Colors.black.withValues(alpha: 0.06),
-                ),
-              ),
-            ),
-            child: ElevatedButton(
-              onPressed: () {
-                // Navigate to Shop
-                Navigator.of(context).pushNamed('/shop');
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryPink,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    "Explore Partner Offers",
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(width: 6),
-                  Icon(Icons.arrow_forward_rounded, size: 16),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAdTag(String text, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.05)
-            : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.08)
-              : Colors.black.withValues(alpha: 0.05),
-        ),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: isDark ? Colors.white70 : const Color(0xFF475569),
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
-}
-
 class _DesktopReelCommentsSidePanel extends StatefulWidget {
   final ReelItemData reel;
   final Function(int newCount)? onCommentAdded;
@@ -2963,7 +2639,6 @@ class _DesktopReelCommentsSidePanelState
 
   @override
   Widget build(BuildContext context) {
-    final currentUserId = supabase.auth.currentUser?.id;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
@@ -3552,70 +3227,94 @@ class _ReelVideoPlayerWidgetState extends State<ReelVideoPlayerWidget> {
       );
     }
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: _togglePlayPause,
-      onDoubleTap: widget.onDoubleTap,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned.fill(
-            child: Container(
-              color: Colors.black,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Ambient background layer: fills screen with subtle darkened video backdrop
-                  Positioned.fill(
-                    child: FittedBox(
-                      fit: BoxFit.cover,
-                      child: SizedBox(
-                        width: _controller.value.size.width,
-                        height: _controller.value.size.height,
-                        child: VideoPlayer(_controller),
-                      ),
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Positioned.fill(
+          child: Container(
+            color: Colors.black,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Ambient background layer: fills screen with subtle darkened video backdrop
+                Positioned.fill(
+                  child: FittedBox(
+                    fit: BoxFit.cover,
+                    child: SizedBox(
+                      width: _controller.value.size.width,
+                      height: _controller.value.size.height,
+                      child: VideoPlayer(_controller),
                     ),
                   ),
-                  Positioned.fill(
-                    child: Container(
-                      color: Colors.black.withValues(alpha: 0.75),
+                ),
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black.withValues(alpha: 0.75),
+                  ),
+                ),
+                // Foreground player: 100% visible, never zoomed or cropped at the edges
+                Center(
+                  child: FittedBox(
+                    fit: BoxFit.contain,
+                    child: SizedBox(
+                      width: _controller.value.size.width,
+                      height: _controller.value.size.height,
+                      child: VideoPlayer(_controller),
                     ),
                   ),
-                  // Foreground player: 100% visible, never zoomed or cropped at the edges
-                  Center(
-                    child: FittedBox(
-                      fit: BoxFit.contain,
-                      child: SizedBox(
-                        width: _controller.value.size.width,
-                        height: _controller.value.size.height,
-                        child: VideoPlayer(_controller),
-                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Interactive hit-test layer directly on top of video platform view for 100% reliable tap-to-pause
+        Positioned.fill(
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _togglePlayPause,
+              onDoubleTap: widget.onDoubleTap,
+              child: const ColoredBox(color: Colors.transparent),
+            ),
+          ),
+        ),
+        if (!_isPlaying || _showPlayPauseIcon)
+          IgnorePointer(
+            ignoring: false,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: _togglePlayPause,
+                child: AnimatedOpacity(
+                  opacity: (!_isPlaying || _showPlayPauseIcon) ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 250),
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.65),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white38, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          blurRadius: 20,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      _isPlaying
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
+                      color: Colors.white,
+                      size: 54,
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           ),
-          if (!_isPlaying || _showPlayPauseIcon)
-            AnimatedOpacity(
-              opacity: (!_isPlaying || _showPlayPauseIcon) ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 250),
-              child: Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.6),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white24, width: 1.5),
-                ),
-                child: Icon(
-                  _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  color: Colors.white,
-                  size: 50,
-                ),
-              ),
-            ),
-        ],
-      ),
+      ],
     );
   }
 }

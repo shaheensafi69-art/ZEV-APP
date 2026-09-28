@@ -9,6 +9,7 @@ import 'user_follows_list_screen.dart';
 import '../../profile/screens/zev_settings_screen.dart';
 import '../../../core/localization/zev_localizations.dart';
 import '../../../core/widgets/responsive_layout.dart';
+import '../widgets/zev_reels_preview_grid.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final String? userId;
@@ -2318,139 +2319,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                   ),
                           ] else if (activeTab == 1) ...[
                             userReels.isNotEmpty
-                                ? GridView.builder(
+                                ? ZevReelsPreviewGrid(
+                                    reels: userReels,
                                     shrinkWrap: true,
                                     physics:
                                         const NeverScrollableScrollPhysics(),
-                                    gridDelegate:
-                                        const SliverGridDelegateWithFixedCrossAxisCount(
-                                          crossAxisCount: 3,
-                                          childAspectRatio: 0.65,
-                                          crossAxisSpacing: 8,
-                                          mainAxisSpacing: 8,
-                                        ),
-                                    itemCount: userReels.length,
-                                    itemBuilder: (context, index) {
-                                      final reel = userReels[index];
-                                      final thumbnailUrl =
-                                          reel['thumbnail_url']?.toString() ??
-                                          '';
-                                      return GestureDetector(
-                                        onTap: () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) =>
-                                                  StudentReelsScreen(
-                                                    targetReelId: reel['id']
-                                                        ?.toString(),
-                                                  ),
-                                            ),
-                                          );
-                                        },
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          child: Stack(
-                                            fit: StackFit.expand,
-                                            children: [
-                                              Image.network(
-                                                thumbnailUrl.isNotEmpty
-                                                    ? thumbnailUrl
-                                                    : "",
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (_, _, _) =>
-                                                    _buildProfileReelFallback(
-                                                      reel['title']
-                                                              ?.toString() ??
-                                                          '',
-                                                      [
-                                                        [
-                                                          const Color(
-                                                            0xFF6A11CB,
-                                                          ),
-                                                          const Color(
-                                                            0xFF2575FC,
-                                                          ),
-                                                        ],
-                                                        [
-                                                          const Color(
-                                                            0xFFFF0844,
-                                                          ),
-                                                          const Color(
-                                                            0xFFFFB199,
-                                                          ),
-                                                        ],
-                                                        [
-                                                          const Color(
-                                                            0xFF4A00E0,
-                                                          ),
-                                                          const Color(
-                                                            0xFF8E2DE2,
-                                                          ),
-                                                        ],
-                                                        [
-                                                          const Color(
-                                                            0xFF0BA360,
-                                                          ),
-                                                          const Color(
-                                                            0xFF3CBA92,
-                                                          ),
-                                                        ],
-                                                        [
-                                                          const Color(
-                                                            0xFFFC466B,
-                                                          ),
-                                                          const Color(
-                                                            0xFF3F5EFB,
-                                                          ),
-                                                        ],
-                                                      ][index % 5],
-                                                    ),
-                                              ),
-                                              Container(
-                                                decoration: const BoxDecoration(
-                                                  gradient: LinearGradient(
-                                                    begin: Alignment.topCenter,
-                                                    end: Alignment.bottomCenter,
-                                                    colors: [
-                                                      Colors.transparent,
-                                                      Colors.black54,
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                              Positioned(
-                                                bottom: 6,
-                                                left: 6,
-                                                right: 6,
-                                                child: Row(
-                                                  children: [
-                                                    const Icon(
-                                                      Icons.play_arrow_rounded,
-                                                      color: Colors.white,
-                                                      size: 14,
-                                                    ),
-                                                    const SizedBox(width: 2),
-                                                    Expanded(
-                                                      child: Text(
-                                                        "${reel['views_count'] ?? 0}",
-                                                        style: const TextStyle(
-                                                          color: Colors.white,
-                                                          fontSize: 10,
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                        ),
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
+                                    padding: EdgeInsets.zero,
+                                    onReelTap: (reel, index) {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => StudentReelsScreen(
+                                            targetReelId:
+                                                reel['id']?.toString(),
                                           ),
                                         ),
                                       );
@@ -2479,139 +2360,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           ] else if (isMyProfile && activeTab == 2) ...[
                             // Liked reels (Liked Videos)
                             userLikedReels.isNotEmpty
-                                ? GridView.builder(
+                                ? ZevReelsPreviewGrid(
+                                    reels: userLikedReels,
                                     shrinkWrap: true,
                                     physics:
                                         const NeverScrollableScrollPhysics(),
-                                    gridDelegate:
-                                        const SliverGridDelegateWithFixedCrossAxisCount(
-                                          crossAxisCount: 3,
-                                          childAspectRatio: 0.65,
-                                          crossAxisSpacing: 8,
-                                          mainAxisSpacing: 8,
-                                        ),
-                                    itemCount: userLikedReels.length,
-                                    itemBuilder: (context, index) {
-                                      final reel = userLikedReels[index];
-                                      final thumbnailUrl =
-                                          reel['thumbnail_url']?.toString() ??
-                                          '';
-                                      return GestureDetector(
-                                        onTap: () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) =>
-                                                  StudentReelsScreen(
-                                                    targetReelId: reel['id']
-                                                        ?.toString(),
-                                                  ),
-                                            ),
-                                          );
-                                        },
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          child: Stack(
-                                            fit: StackFit.expand,
-                                            children: [
-                                              Image.network(
-                                                thumbnailUrl.isNotEmpty
-                                                    ? thumbnailUrl
-                                                    : "",
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (_, _, _) =>
-                                                    _buildProfileReelFallback(
-                                                      reel['title']
-                                                              ?.toString() ??
-                                                          '',
-                                                      [
-                                                        [
-                                                          const Color(
-                                                            0xFF6A11CB,
-                                                          ),
-                                                          const Color(
-                                                            0xFF2575FC,
-                                                          ),
-                                                        ],
-                                                        [
-                                                          const Color(
-                                                            0xFFFF0844,
-                                                          ),
-                                                          const Color(
-                                                            0xFFFFB199,
-                                                          ),
-                                                        ],
-                                                        [
-                                                          const Color(
-                                                            0xFF4A00E0,
-                                                          ),
-                                                          const Color(
-                                                            0xFF8E2DE2,
-                                                          ),
-                                                        ],
-                                                        [
-                                                          const Color(
-                                                            0xFF0BA360,
-                                                          ),
-                                                          const Color(
-                                                            0xFF3CBA92,
-                                                          ),
-                                                        ],
-                                                        [
-                                                          const Color(
-                                                            0xFFFC466B,
-                                                          ),
-                                                          const Color(
-                                                            0xFF3F5EFB,
-                                                          ),
-                                                        ],
-                                                      ][index % 5],
-                                                    ),
-                                              ),
-                                              Container(
-                                                decoration: const BoxDecoration(
-                                                  gradient: LinearGradient(
-                                                    begin: Alignment.topCenter,
-                                                    end: Alignment.bottomCenter,
-                                                    colors: [
-                                                      Colors.transparent,
-                                                      Colors.black54,
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                              Positioned(
-                                                bottom: 6,
-                                                left: 6,
-                                                right: 6,
-                                                child: Row(
-                                                  children: [
-                                                    const Icon(
-                                                      Icons.favorite_rounded,
-                                                      color: primaryPink,
-                                                      size: 14,
-                                                    ),
-                                                    const SizedBox(width: 3),
-                                                    Expanded(
-                                                      child: Text(
-                                                        "${reel['likes_count'] ?? 0}",
-                                                        style: const TextStyle(
-                                                          color: Colors.white,
-                                                          fontSize: 10,
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                        ),
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
+                                    padding: EdgeInsets.zero,
+                                    onReelTap: (reel, index) {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => StudentReelsScreen(
+                                            targetReelId:
+                                                reel['id']?.toString(),
                                           ),
                                         ),
                                       );
@@ -2696,149 +2457,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             const SizedBox(height: 12),
                             if (activeSavedSubTab == 0) ...[
                               userSavedReels.isNotEmpty
-                                  ? GridView.builder(
+                                  ? ZevReelsPreviewGrid(
+                                      reels: userSavedReels,
+                                      crossAxisCount: 3,
                                       shrinkWrap: true,
                                       physics:
                                           const NeverScrollableScrollPhysics(),
-                                      gridDelegate:
-                                          const SliverGridDelegateWithFixedCrossAxisCount(
-                                            crossAxisCount: 3,
-                                            childAspectRatio: 0.65,
-                                            crossAxisSpacing: 8,
-                                            mainAxisSpacing: 8,
-                                          ),
-                                      itemCount: userSavedReels.length,
-                                      itemBuilder: (context, index) {
-                                        final reel = userSavedReels[index];
-                                        final thumbnailUrl =
-                                            reel['thumbnail_url']?.toString() ??
-                                            '';
-                                        return GestureDetector(
-                                          onTap: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    StudentReelsScreen(
-                                                      targetReelId: reel['id']
-                                                          ?.toString(),
-                                                    ),
-                                              ),
-                                            );
-                                          },
-                                          child: ClipRRect(
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                            child: Stack(
-                                              fit: StackFit.expand,
-                                              children: [
-                                                Image.network(
-                                                  thumbnailUrl.isNotEmpty
-                                                      ? thumbnailUrl
-                                                      : "",
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (_, _, _) =>
-                                                      _buildProfileReelFallback(
-                                                        reel['title']
-                                                                ?.toString() ??
-                                                            '',
-                                                        [
-                                                          [
-                                                            const Color(
-                                                              0xFF6A11CB,
-                                                            ),
-                                                            const Color(
-                                                              0xFF2575FC,
-                                                            ),
-                                                          ],
-                                                          [
-                                                            const Color(
-                                                              0xFFFF0844,
-                                                            ),
-                                                            const Color(
-                                                              0xFFFFB199,
-                                                            ),
-                                                          ],
-                                                          [
-                                                            const Color(
-                                                              0xFF4A00E0,
-                                                            ),
-                                                            const Color(
-                                                              0xFF8E2DE2,
-                                                            ),
-                                                          ],
-                                                          [
-                                                            const Color(
-                                                              0xFF0BA360,
-                                                            ),
-                                                            const Color(
-                                                              0xFF3CBA92,
-                                                            ),
-                                                          ],
-                                                          [
-                                                            const Color(
-                                                              0xFFFC466B,
-                                                            ),
-                                                            const Color(
-                                                              0xFF3F5EFB,
-                                                            ),
-                                                          ],
-                                                        ][index % 5],
-                                                      ),
-                                                ),
-                                                Container(
-                                                  decoration:
-                                                      const BoxDecoration(
-                                                        gradient: LinearGradient(
-                                                          begin: Alignment
-                                                              .topCenter,
-                                                          end: Alignment
-                                                              .bottomCenter,
-                                                          colors: [
-                                                            Colors.transparent,
-                                                            Colors.black54,
-                                                          ],
-                                                        ),
-                                                      ),
-                                                ),
-                                                Positioned(
-                                                  bottom: 6,
-                                                  left: 6,
-                                                  right: 6,
-                                                  child: Row(
-                                                    children: [
-                                                      const Icon(
-                                                        Icons.bookmark_rounded,
-                                                        color: primaryPink,
-                                                        size: 14,
-                                                      ),
-                                                      const SizedBox(width: 3),
-                                                      Expanded(
-                                                        child: Text(
-                                                          "${reel['views_count'] ?? 0}",
-                                                          style:
-                                                              const TextStyle(
-                                                                color: Colors
-                                                                    .white,
-                                                                fontSize: 10,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                              ),
-                                                          maxLines: 1,
-                                                          overflow: TextOverflow
-                                                              .ellipsis,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        );
-                                      },
                                     )
                                   : Container(
                                       padding: const EdgeInsets.all(36),
@@ -3588,132 +3212,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ),
               ),
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileReelThumbnail(
-    Map<String, dynamic> reel,
-    int index, {
-    required IconData statIcon,
-    required dynamic statCount,
-    Color statIconColor = Colors.white,
-  }) {
-    final thumbnailUrl = reel['thumbnail_url']?.toString() ?? '';
-    final title = reel['title']?.toString() ?? '';
-    final int count = (statCount is int)
-        ? statCount
-        : int.tryParse(statCount.toString()) ?? 0;
-
-    final gradients = [
-      [const Color(0xFF6A11CB), const Color(0xFF2575FC)],
-      [const Color(0xFFFF0844), const Color(0xFFFFB199)],
-      [const Color(0xFF4A00E0), const Color(0xFF8E2DE2)],
-      [const Color(0xFF0BA360), const Color(0xFF3CBA92)],
-      [const Color(0xFFF857A6), const Color(0xFFFF5858)],
-      [const Color(0xFF13547A), const Color(0xFF80D0C7)],
-      [const Color(0xFFFC466B), const Color(0xFF3F5EFB)],
-    ];
-    final gradientColors = gradients[index % gradients.length];
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (thumbnailUrl.isNotEmpty)
-            Image.network(
-              thumbnailUrl,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) =>
-                  _buildProfileReelFallback(title, gradientColors),
-            )
-          else
-            _buildProfileReelFallback(title, gradientColors),
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Colors.transparent, Colors.black54],
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 6,
-            left: 6,
-            right: 6,
-            child: Row(
-              children: [
-                Icon(statIcon, color: statIconColor, size: 14),
-                const SizedBox(width: 3),
-                Expanded(
-                  child: Text(
-                    count >= 1000000
-                        ? '${(count / 1000000).toStringAsFixed(1)}M'
-                        : count >= 1000
-                        ? '${(count / 1000).toStringAsFixed(1)}K'
-                        : '$count',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileReelFallback(String title, List<Color> colors) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: colors,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.3),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white30),
-            ),
-            child: const Icon(
-              Icons.play_arrow_rounded,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-          if (title.isNotEmpty) ...[
-            const SizedBox(height: 5),
-            Text(
-              title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 9.5,
-                height: 1.15,
-                shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -4620,75 +4118,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           subtitle: context.zevTr('noReelsSub'),
         );
       }
-      return GridView.builder(
+      return ZevReelsPreviewGrid(
+        reels: userReels,
+        crossAxisCount: 4,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          childAspectRatio: 9 / 16,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-        ),
-        itemCount: userReels.length,
-        itemBuilder: (context, index) {
-          final reel = userReels[index];
-          final thumbnailUrl = reel['thumbnail_url']?.toString() ?? '';
-          return GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      StudentReelsScreen(targetReelId: reel['id']?.toString()),
-                ),
-              );
-            },
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  thumbnailUrl.isNotEmpty
-                      ? Image.network(
-                          thumbnailUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              _buildProfileReelFallback(
-                                reel['title']?.toString() ?? '',
-                                const [Color(0xFFFC466B), Color(0xFFFF758C)],
-                              ),
-                        )
-                      : _buildProfileReelFallback(
-                          reel['title']?.toString() ?? '',
-                          const [Color(0xFFFC466B), Color(0xFFFF758C)],
-                        ),
-                  Positioned(
-                    bottom: 8,
-                    left: 8,
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.play_arrow_rounded,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${reel['views_count'] ?? 0}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
       );
     } else if (activeTab == 2) {
       if (userLikedReels.isEmpty) {
@@ -4698,40 +4132,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           subtitle: context.zevTr('noLikedContentSub'),
         );
       }
-      return GridView.builder(
+      return ZevReelsPreviewGrid(
+        reels: userLikedReels,
+        crossAxisCount: 4,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          childAspectRatio: 9 / 16,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-        ),
-        itemCount: userLikedReels.length,
-        itemBuilder: (context, index) {
-          final reel = userLikedReels[index];
-          final thumbnailUrl = reel['thumbnail_url']?.toString() ?? '';
-          return GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      StudentReelsScreen(targetReelId: reel['id']?.toString()),
-                ),
-              );
-            },
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: thumbnailUrl.isNotEmpty
-                  ? Image.network(thumbnailUrl, fit: BoxFit.cover)
-                  : _buildProfileReelFallback(
-                      reel['title']?.toString() ?? '',
-                      const [Color(0xFFFF0844), Color(0xFFFFB199)],
-                    ),
-            ),
-          );
-        },
       );
     } else if (activeTab == 3) {
       if (userReposts.isEmpty) {
@@ -4760,40 +4165,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           subtitle: context.zevTr('noSavedItemsSub'),
         );
       }
-      return GridView.builder(
+      return ZevReelsPreviewGrid(
+        reels: userSavedReels,
+        crossAxisCount: 4,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          childAspectRatio: 9 / 16,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-        ),
-        itemCount: userSavedReels.length,
-        itemBuilder: (context, index) {
-          final reel = userSavedReels[index];
-          final thumbnailUrl = reel['thumbnail_url']?.toString() ?? '';
-          return GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      StudentReelsScreen(targetReelId: reel['id']?.toString()),
-                ),
-              );
-            },
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: thumbnailUrl.isNotEmpty
-                  ? Image.network(thumbnailUrl, fit: BoxFit.cover)
-                  : _buildProfileReelFallback(
-                      reel['title']?.toString() ?? '',
-                      const [Color(0xFFFC466B), Color(0xFFFF758C)],
-                    ),
-            ),
-          );
-        },
       );
     }
   }

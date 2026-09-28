@@ -14,7 +14,7 @@ import '../../../core/widgets/auth_required_modal.dart';
 import '../../../core/widgets/fast_cached_image.dart';
 import '../widgets/feed_post_card.dart';
 import '../widgets/feed_stories_tray.dart';
-import '../screens/create_story_screen.dart';
+import '../../creator_studio/screens/zev_creator_studio_screen.dart';
 import '../screens/story_viewer_screen.dart';
 import '../screens/sponsored_story_screen.dart';
 
@@ -1248,7 +1248,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
               }
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const CreateStoryScreen()),
+                MaterialPageRoute(
+                  builder: (_) => const ZevCreatorStudioScreen(initialTab: 2),
+                ),
               ).then((_) {
                 _fetchFeedPosts();
                 _fetchActiveFriendStories();

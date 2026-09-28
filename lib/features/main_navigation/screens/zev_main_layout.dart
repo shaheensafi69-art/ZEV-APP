@@ -6,9 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../feed/screens/feed_viewer_screen.dart';
 import '../../feed/screens/reels_viewer_screen.dart';
 import '../../feed/screens/user_profile_screen.dart';
-import '../../feed/screens/create_post_screen.dart';
-import '../../feed/screens/upload_reel_screen.dart';
-import '../../feed/screens/create_story_screen.dart';
+import '../../creator_studio/screens/zev_creator_studio_screen.dart';
 import '../../explore/screens/explore_search_screen.dart';
 import '../../profile/screens/zev_settings_screen.dart';
 import '../../profile/screens/zev_terms_of_service_screen.dart';
@@ -98,6 +96,25 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
 
   void _onTabTapped(int index) {
     if (index == 2) {
+      final isGuest = supabase.auth.currentUser == null;
+      if (isGuest) {
+        AuthRequiredModal.show(
+          context,
+          actionName: "create posts or reels",
+          customMessage:
+              "Log in or sign up to share posts, reels, and stories with friends on ZEV.",
+        );
+        return;
+      }
+
+      if (!ResponsiveLayout.isPhone(context)) {
+        HapticFeedback.lightImpact();
+        setState(() {
+          _currentIndex = 2;
+        });
+        return;
+      }
+
       _showCreateModal();
       return;
     }
@@ -203,7 +220,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const CreatePostScreen(),
+                          builder: (_) =>
+                              const ZevCreatorStudioScreen(initialTab: 0),
                         ),
                       );
                     },
@@ -217,7 +235,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const UploadReelScreen(),
+                          builder: (_) =>
+                              const ZevCreatorStudioScreen(initialTab: 1),
                         ),
                       );
                     },
@@ -231,7 +250,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const CreateStoryScreen(),
+                          builder: (_) =>
+                              const ZevCreatorStudioScreen(initialTab: 2),
                         ),
                       );
                     },
@@ -293,7 +313,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
         final pages = [
           const FeedViewerScreen(),
           const ExploreSearchScreen(),
-          const SizedBox(), // Placeholder for Create button
+          ZevCreatorStudioScreen(
+            onBack: () => setState(() => _currentIndex = 0),
+          ),
           StudentReelsScreen(isActive: _currentIndex == 3),
           const UserProfileScreen(),
           const ShopScreen(),
