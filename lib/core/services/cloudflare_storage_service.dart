@@ -302,10 +302,6 @@ class CloudflareStorageService {
     return '$y$m$d';
   }
 
-  String _formatContentType(String path) {
-    return _inferContentType(path);
-  }
-
   String _inferContentType(String path) {
     final ext = path.split('.').last.toLowerCase();
     switch (ext) {
@@ -318,10 +314,28 @@ class CloudflareStorageService {
         return 'image/webp';
       case 'gif':
         return 'image/gif';
+      case 'bmp':
+        return 'image/bmp';
+      case 'heic':
+      case 'heif':
+        return 'image/heic';
+      case 'svg':
+        return 'image/svg+xml';
+      case 'tiff':
+      case 'tif':
+        return 'image/tiff';
       case 'mp4':
         return 'video/mp4';
       case 'mov':
         return 'video/quicktime';
+      case 'webm':
+        return 'video/webm';
+      case 'avi':
+        return 'video/x-msvideo';
+      case 'mkv':
+        return 'video/x-matroska';
+      case '3gp':
+        return 'video/3gpp';
       case 'm4a':
       case 'mp3':
         return 'audio/mpeg';

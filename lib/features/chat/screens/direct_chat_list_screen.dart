@@ -613,13 +613,14 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
         backgroundColor: surfaceWhite,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text("${context.zevTr('logout')}?"),
-        content: Text(
-          context.zevTr('logout'),
-        ),
+        content: Text(context.zevTr('logout')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(context.zevTr('cancel'), style: const TextStyle(color: textGrey)),
+            child: Text(
+              context.zevTr('cancel'),
+              style: const TextStyle(color: textGrey),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -887,14 +888,19 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                       style: const TextStyle(fontSize: 14, color: textDark),
                       decoration: InputDecoration(
                         hintText: context.zevTr('searchByName'),
-                        hintStyle: const TextStyle(fontSize: 13, color: textGrey),
+                        hintStyle: const TextStyle(
+                          fontSize: 13,
+                          color: textGrey,
+                        ),
                         prefixIcon: const Icon(
                           Icons.search_rounded,
                           color: textGrey,
                           size: 20,
                         ),
                         border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                        ),
                       ),
                       onChanged: (q) async {
                         final trimmed = q.trim();
@@ -1756,7 +1762,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: _selectedFilter == f['val'] ? primaryPink : cardBorder,
+                    color: _selectedFilter == f['val']
+                        ? primaryPink
+                        : cardBorder,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
@@ -1764,7 +1772,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: _selectedFilter == f['val'] ? Colors.white : textDark,
+                      color: _selectedFilter == f['val']
+                          ? Colors.white
+                          : textDark,
                     ),
                   ),
                 ),
@@ -1868,7 +1878,10 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
               ),
             ),
             if (item.time.isNotEmpty) ...[
-              const Text(" · ", style: TextStyle(color: textGrey, fontSize: 13)),
+              const Text(
+                " · ",
+                style: TextStyle(color: textGrey, fontSize: 13),
+              ),
               Text(
                 item.time,
                 style: const TextStyle(color: textGrey, fontSize: 12),
@@ -1898,7 +1911,10 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                     ),
                     child: Text(
                       context.l10n.accept,
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -1919,7 +1935,10 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                     ),
                     child: Text(
                       context.l10n.reject,
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],

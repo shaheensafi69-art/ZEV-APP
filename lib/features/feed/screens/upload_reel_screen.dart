@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:video_player/video_player.dart';
 import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/services/language_service.dart';
-import '../../../core/services/media_processing_service.dart';
 import '../../../core/services/hashtag_service.dart';
 import '../../../core/utils/app_media_picker.dart';
 import 'reels_viewer_screen.dart';
@@ -19,6 +19,9 @@ class _UploadReelScreenState extends State<UploadReelScreen> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _urlController = TextEditingController();
+
+  VideoPlayerController? _previewController;
+  List<HashtagItem> _trendingHashtags = [];
 
   String selectedCategory = 'Explore';
   final List<String> categories = [
@@ -40,8 +43,30 @@ class _UploadReelScreenState extends State<UploadReelScreen> {
   static const Color textGrey = Color(0xFF6B7280);
   static const Color cardBorder = Color(0xFFF3F4F6);
 
+  bool _isRtlText(String text) {
+    if (text.isEmpty) return false;
+    final rtlRegex = RegExp(
+      r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]',
+    );
+    return rtlRegex.hasMatch(text);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTrendingHashtags();
+  }
+
+  Future<void> _loadTrendingHashtags() async {
+    try {
+      final tags = await HashtagService.instance.getTrendingHashtags(limit: 10);
+      if (mounted) setState(() => _trendingHashtags = tags);
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
+    _previewController?.dispose();
     _titleController.dispose();
     _descriptionController.dispose();
     _urlController.dispose();
@@ -49,36 +74,50 @@ class _UploadReelScreenState extends State<UploadReelScreen> {
   }
 
   Future<void> _pickAndUploadVideo() async {
-    final file = await AppMediaPicker.instance.pickVideo();
-    if (file == null) return;
-    final pickedFilePath = file.path;
+    final media = await AppMediaPicker.instance.pickUniversalMedia(
+      allowImages: false,
+      allowVideos: true,
+    );
+    if (media == null) return;
 
     setState(() => isUploadingFile = true);
 
     try {
-      // 🎬 Hardware-accelerated mobile compression (Media3 / AVFoundation)
-      final processedFile = await MediaProcessingService.instance
-          .compressVideo(pickedFilePath);
-
       final user = supabase.auth.currentUser;
       final uId = user?.id ?? 'guest';
-      final fileName = "reel_${DateTime.now().millisecondsSinceEpoch}_$uId.mp4";
+      final ext = media.name.split('.').last.toLowerCase();
+      final fileName = "reel_${DateTime.now().millisecondsSinceEpoch}_$uId.$ext";
 
       final publicUrl = await CloudflareStorageService.instance.upload(
         bucket: "safiacademy-media",
         path: "reels/$fileName",
-        file: processedFile,
-        contentType: 'video/mp4',
+        bytes: media.bytes,
+        file: media.file,
+        contentType: media.mimeType,
       );
 
-      setState(() {
-        uploadedPublicUrl = publicUrl;
-        _urlController.text = publicUrl;
-        isUploadingFile = false;
-      });
-    } catch (e) {
-      setState(() => isUploadingFile = false);
+      if (publicUrl.isEmpty) {
+        throw Exception("Failed to upload video file.");
+      }
+
+      // Initialize live preview controller
+      _previewController?.dispose();
+      final controller = VideoPlayerController.networkUrl(Uri.parse(publicUrl));
+      await controller.initialize();
+      controller.setLooping(true);
+      controller.play();
+
       if (mounted) {
+        setState(() {
+          uploadedPublicUrl = publicUrl;
+          _urlController.text = publicUrl;
+          _previewController = controller;
+          isUploadingFile = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => isUploadingFile = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Error uploading video: $e"),
@@ -228,10 +267,9 @@ class _UploadReelScreenState extends State<UploadReelScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Preview card or video pick button
-            GestureDetector(
-              onTap: isUploadingFile ? null : _pickAndUploadVideo,
-              child: Container(
-                height: 200,
+            if (isUploadingFile)
+              Container(
+                height: 220,
                 width: double.infinity,
                 decoration: BoxDecoration(
                   color: lightPinkBg.withValues(alpha: 0.5),
@@ -241,90 +279,186 @@ class _UploadReelScreenState extends State<UploadReelScreen> {
                     width: 1.5,
                   ),
                 ),
-                child: isUploadingFile
-                    ? Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const CircularProgressIndicator(
-                            color: primaryPink,
-                            strokeWidth: 3,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            "${context.l10n.uploading}... ⏳",
-                            style: const TextStyle(
-                              color: primaryPink,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      )
-                    : uploadedPublicUrl != null
-                    ? Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: const BoxDecoration(
-                              color: Colors.green,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.check_rounded,
-                              color: Colors.white,
-                              size: 32,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            context.l10n.videoReadyToPublish,
-                            style: const TextStyle(
-                              color: textDark,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            "Tap to change video",
-                            style: TextStyle(color: textGrey, fontSize: 11),
-                          ),
-                        ],
-                      )
-                    : Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: const BoxDecoration(
-                              color: primaryPink,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.video_library_rounded,
-                              color: Colors.white,
-                              size: 36,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Text(
-                            context.l10n.selectVideo,
-                            style: const TextStyle(
-                              color: primaryPink,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 15,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            "Tap to open gallery and pick MP4 video",
-                            style: TextStyle(color: textGrey, fontSize: 11),
-                          ),
-                        ],
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const CircularProgressIndicator(
+                      color: primaryPink,
+                      strokeWidth: 3,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      "${context.l10n.uploading}... ⏳",
+                      style: const TextStyle(
+                        color: primaryPink,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
                       ),
+                    ),
+                  ],
+                ),
+              )
+            else if (_previewController != null && _previewController!.value.isInitialized)
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: Container(
+                      color: Colors.black,
+                      constraints: const BoxConstraints(maxHeight: 280),
+                      width: double.infinity,
+                      child: Center(
+                        child: AspectRatio(
+                          aspectRatio: _previewController!.value.aspectRatio,
+                          child: VideoPlayer(_previewController!),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Play / Pause toggle overlay button
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        if (_previewController!.value.isPlaying) {
+                          _previewController!.pause();
+                        } else {
+                          _previewController!.play();
+                        }
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _previewController!.value.isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 36,
+                      ),
+                    ),
+                  ),
+                  // Change Video button
+                  Positioned(
+                    bottom: 12,
+                    right: 12,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black87,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      ),
+                      onPressed: isUploadingFile ? null : _pickAndUploadVideo,
+                      icon: const Icon(Icons.sync_rounded, size: 16),
+                      label: const Text(
+                        "Change Video",
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            else if (uploadedPublicUrl != null)
+              GestureDetector(
+                onTap: isUploadingFile ? null : _pickAndUploadVideo,
+                child: Container(
+                  height: 180,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: lightPinkBg.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: primaryPink.withValues(alpha: 0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: const BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.check_rounded,
+                          color: Colors.white,
+                          size: 32,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        context.l10n.videoReadyToPublish,
+                        style: const TextStyle(
+                          color: textDark,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        "Tap to change video",
+                        style: TextStyle(color: textGrey, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              GestureDetector(
+                onTap: isUploadingFile ? null : _pickAndUploadVideo,
+                child: Container(
+                  height: 200,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: lightPinkBg.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: primaryPink.withValues(alpha: 0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: const BoxDecoration(
+                          color: primaryPink,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.video_library_rounded,
+                          color: Colors.white,
+                          size: 36,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        context.l10n.selectVideo,
+                        style: const TextStyle(
+                          color: primaryPink,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        "Tap to pick MP4, MOV, WebM or any video",
+                        style: TextStyle(color: textGrey, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
             const SizedBox(height: 24),
 
             // Reel title
@@ -339,6 +473,13 @@ class _UploadReelScreenState extends State<UploadReelScreen> {
             const SizedBox(height: 8),
             TextField(
               controller: _titleController,
+              textDirection: _isRtlText(_titleController.text)
+                  ? TextDirection.rtl
+                  : TextDirection.ltr,
+              textAlign: _isRtlText(_titleController.text)
+                  ? TextAlign.right
+                  : TextAlign.left,
+              onChanged: (_) => setState(() {}),
               style: const TextStyle(
                 fontSize: 14,
                 color: textDark,
@@ -414,6 +555,13 @@ class _UploadReelScreenState extends State<UploadReelScreen> {
             const SizedBox(height: 8),
             TextField(
               controller: _descriptionController,
+              textDirection: _isRtlText(_descriptionController.text)
+                  ? TextDirection.rtl
+                  : TextDirection.ltr,
+              textAlign: _isRtlText(_descriptionController.text)
+                  ? TextAlign.right
+                  : TextAlign.left,
+              onChanged: (_) => setState(() {}),
               maxLines: 3,
               style: const TextStyle(fontSize: 13, color: textDark),
               decoration: InputDecoration(
@@ -435,6 +583,42 @@ class _UploadReelScreenState extends State<UploadReelScreen> {
                 ),
               ),
             ),
+            if (_trendingHashtags.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 34,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _trendingHashtags.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 6),
+                  itemBuilder: (context, index) {
+                    final h = _trendingHashtags[index];
+                    return ActionChip(
+                      backgroundColor: lightPinkBg,
+                      side: BorderSide(color: primaryPink.withValues(alpha: 0.2)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      label: Text(
+                        "#${h.tag}",
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: primaryPink,
+                        ),
+                      ),
+                      onPressed: () {
+                        final cur = _descriptionController.text.trim();
+                        final sep = cur.isEmpty ? '' : ' ';
+                        setState(() {
+                          _descriptionController.text = "$cur$sep#${h.tag} ";
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
 
             // Direct video URL (optional)

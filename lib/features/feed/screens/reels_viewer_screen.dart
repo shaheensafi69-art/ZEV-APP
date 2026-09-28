@@ -1139,9 +1139,7 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
     final Widget reelPlayerContainer = Container(
       decoration: BoxDecoration(
         color: Colors.black,
-        borderRadius: isDesktop
-            ? BorderRadius.circular(24)
-            : BorderRadius.zero,
+        borderRadius: isDesktop ? BorderRadius.circular(24) : BorderRadius.zero,
         border: isDesktop
             ? Border.all(
                 color: isDark
@@ -1153,9 +1151,7 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
         boxShadow: isDesktop
             ? [
                 BoxShadow(
-                  color: primaryPink.withValues(
-                    alpha: isDark ? 0.2 : 0.12,
-                  ),
+                  color: primaryPink.withValues(alpha: isDark ? 0.2 : 0.12),
                   blurRadius: 35,
                   offset: const Offset(0, 8),
                 ),
@@ -1225,7 +1221,9 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
     );
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF090A0E) : const Color(0xFFF8FAFC),
+      backgroundColor: isDark
+          ? const Color(0xFF090A0E)
+          : const Color(0xFFF8FAFC),
       body: isLoading
           ? const Center(child: CircularProgressIndicator(color: primaryPink))
           : Focus(
@@ -1285,7 +1283,7 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
                             const SizedBox(width: 20),
                           ],
                           ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 480),
+                            constraints: const BoxConstraints(maxWidth: 560),
                             child: reelPlayerContainer,
                           ),
                           // Desktop Comments Side Panel (Web/Desktop side-by-side)
@@ -1329,9 +1327,7 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
                         ],
                       ),
                     )
-                  : SizedBox.expand(
-                      child: reelPlayerContainer,
-                    ),
+                  : SizedBox.expand(child: reelPlayerContainer),
             ),
     );
   }
@@ -1731,7 +1727,11 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
                 },
                 child: Column(
                   children: [
-                    const Icon(Icons.repeat_rounded, color: Colors.white, size: 28),
+                    const Icon(
+                      Icons.repeat_rounded,
+                      color: Colors.white,
+                      size: 28,
+                    ),
                     const SizedBox(height: 3),
                     Text(
                       context.zevTr('repost'),
@@ -1752,7 +1752,11 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
                 onTap: () => _openShareModal(reel),
                 child: Column(
                   children: [
-                    const Icon(Icons.send_outlined, color: Colors.white, size: 25),
+                    const Icon(
+                      Icons.send_outlined,
+                      color: Colors.white,
+                      size: 25,
+                    ),
                     const SizedBox(height: 3),
                     Text(
                       context.zevTr('send'),
@@ -2512,7 +2516,9 @@ class _DesktopReelAdSidePanel extends StatelessWidget {
               color: isDark
                   ? Colors.white.withValues(alpha: 0.02)
                   : const Color(0xFFFFF1F4),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
               border: Border(
                 bottom: BorderSide(
                   color: isDark
@@ -2524,7 +2530,10 @@ class _DesktopReelAdSidePanel extends StatelessWidget {
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: primaryPink.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
@@ -2532,7 +2541,11 @@ class _DesktopReelAdSidePanel extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.campaign_rounded, size: 14, color: primaryPink),
+                      const Icon(
+                        Icons.campaign_rounded,
+                        size: 14,
+                        color: primaryPink,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         context.zevTr('sponsored'),
@@ -2601,7 +2614,10 @@ class _DesktopReelAdSidePanel extends StatelessWidget {
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
                                 decoration: BoxDecoration(
                                   color: Colors.white.withValues(alpha: 0.25),
                                   borderRadius: BorderRadius.circular(8),
@@ -2673,7 +2689,9 @@ class _DesktopReelAdSidePanel extends StatelessWidget {
                             Text(
                               "Safi TopUp & SafiPay",
                               style: TextStyle(
-                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                color: isDark
+                                    ? Colors.white
+                                    : const Color(0xFF0F172A),
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -2681,7 +2699,9 @@ class _DesktopReelAdSidePanel extends StatelessWidget {
                             Text(
                               "International digital services & shop",
                               style: TextStyle(
-                                color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                                color: isDark
+                                    ? Colors.white54
+                                    : const Color(0xFF64748B),
                                 fontSize: 11,
                               ),
                             ),
@@ -2723,7 +2743,9 @@ class _DesktopReelAdSidePanel extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF0B0D13) : Colors.white,
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(24),
+              ),
               border: Border(
                 top: BorderSide(
                   color: isDark
@@ -2751,10 +2773,7 @@ class _DesktopReelAdSidePanel extends StatelessWidget {
                 children: [
                   Text(
                     "Explore Partner Offers",
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(width: 6),
                   Icon(Icons.arrow_forward_rounded, size: 16),
@@ -3016,7 +3035,9 @@ class _DesktopReelCommentsSidePanelState
                       Text(
                         widget.reel.authorName,
                         style: TextStyle(
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF0F172A),
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                         ),
@@ -3064,7 +3085,9 @@ class _DesktopReelCommentsSidePanelState
                       Text(
                         '${comments.length}',
                         style: TextStyle(
-                          color: isDark ? Colors.white : const Color(0xFFFC466B),
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFFFC466B),
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -3530,6 +3553,7 @@ class _ReelVideoPlayerWidgetState extends State<ReelVideoPlayerWidget> {
     }
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: _togglePlayPause,
       onDoubleTap: widget.onDoubleTap,
       child: Stack(
@@ -3572,20 +3596,21 @@ class _ReelVideoPlayerWidgetState extends State<ReelVideoPlayerWidget> {
               ),
             ),
           ),
-          if (_showPlayPauseIcon)
+          if (!_isPlaying || _showPlayPauseIcon)
             AnimatedOpacity(
-              opacity: _showPlayPauseIcon ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 300),
+              opacity: (!_isPlaying || _showPlayPauseIcon) ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 250),
               child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
-                  color: Colors.black45,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
                   shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white24, width: 1.5),
                 ),
                 child: Icon(
-                  _isPlaying ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                  _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                   color: Colors.white,
-                  size: 48,
+                  size: 50,
                 ),
               ),
             ),

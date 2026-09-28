@@ -224,6 +224,52 @@ class _FeedPostCardState extends State<FeedPostCard> {
     }
   }
 
+  static bool _isRtlText(String text) {
+    if (text.isEmpty) return false;
+    return RegExp(
+      r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]',
+    ).hasMatch(text);
+  }
+
+  void _openFullScreenImage(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.92),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            InteractiveViewer(
+              minScale: 0.8,
+              maxScale: 4.0,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: FastCachedImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            Positioned(
+              top: 12,
+              right: 12,
+              child: IconButton(
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.black54,
+                  foregroundColor: Colors.white,
+                ),
+                icon: const Icon(Icons.close_rounded),
+                onPressed: () => Navigator.pop(ctx),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _toggleBookmark() async {
     final user = supabase.auth.currentUser;
     if (user == null) {
@@ -357,7 +403,8 @@ class _FeedPostCardState extends State<FeedPostCard> {
 
   void _showPostActionMenu() {
     final currentUserId = supabase.auth.currentUser?.id;
-    final isOwner = currentUserId != null && currentUserId == widget.post.studentId;
+    final isOwner =
+        currentUserId != null && currentUserId == widget.post.studentId;
 
     showModalBottomSheet(
       context: context,
@@ -684,58 +731,88 @@ class _FeedPostCardState extends State<FeedPostCard> {
           ),
           const SizedBox(height: 10),
 
-          // Post title and body
+          // Post title and body with smart RTL / LTR detection
           Padding(
             padding: EdgeInsets.symmetric(horizontal: cardPadding),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (post.cleanTitle.isNotEmpty) ...[
-                  Text(
-                    post.cleanTitle,
-                    style: TextStyle(
-                      color: textDark,
-                      fontWeight: FontWeight.w900,
-                      fontSize: titleFontSize,
+                  Directionality(
+                    textDirection: _isRtlText(post.cleanTitle)
+                        ? TextDirection.rtl
+                        : TextDirection.ltr,
+                    child: Text(
+                      post.cleanTitle,
+                      textAlign: _isRtlText(post.cleanTitle)
+                          ? TextAlign.right
+                          : TextAlign.left,
+                      style: TextStyle(
+                        color: textDark,
+                        fontWeight: FontWeight.w900,
+                        fontSize: titleFontSize,
+                        height: 1.35,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
                 ],
-                Text(
-                  post.content,
-                  style: TextStyle(
-                    color: const Color(0xFF374151),
-                    fontSize: contentFontSize,
-                    height: 1.5,
+                Directionality(
+                  textDirection: _isRtlText(post.content)
+                      ? TextDirection.rtl
+                      : TextDirection.ltr,
+                  child: Text(
+                    post.content,
+                    textAlign: _isRtlText(post.content)
+                        ? TextAlign.right
+                        : TextAlign.left,
+                    style: TextStyle(
+                      color: const Color(0xFF374151),
+                      fontSize: contentFontSize,
+                      height: 1.6,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
 
-          // Post image via FastCachedImage
+          // Post image via FastCachedImage - 100% visible, BoxFit.contain, zero edges cropped
           if (post.imageUrl != null && post.imageUrl!.isNotEmpty) ...[
             const SizedBox(height: 16),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: cardPadding),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(
-                  context.responsive(phone: 20.0, tablet: 24.0, desktop: 26.0),
-                ),
-                child: Container(
-                  constraints: BoxConstraints(
-                    maxHeight: context.responsive(
-                      phone: MediaQuery.of(context).size.height * 0.4,
-                      tablet: 500.0,
-                      desktop: 600.0,
-                    ),
+              child: GestureDetector(
+                onTap: () => _openFullScreenImage(context, post.imageUrl!),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(
+                    context.responsive(phone: 18.0, tablet: 22.0, desktop: 24.0),
                   ),
-                  width: double.infinity,
-                  color: Colors.grey.shade100,
-                  child: FastCachedImage(
-                    imageUrl: post.imageUrl!,
-                    fit: BoxFit.cover,
-                    memCacheWidth: 1080,
+                  child: Container(
+                    constraints: BoxConstraints(
+                      minHeight: 180,
+                      maxHeight: context.responsive(
+                        phone: 620.0,
+                        tablet: 720.0,
+                        desktop: 800.0,
+                      ),
+                    ),
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                      borderRadius: BorderRadius.circular(
+                        context.responsive(phone: 18.0, tablet: 22.0, desktop: 24.0),
+                      ),
+                      border: Border.all(
+                        color: const Color(0xFFE2E8F0).withValues(alpha: 0.8),
+                        width: 1,
+                      ),
+                    ),
+                    child: FastCachedImage(
+                      imageUrl: post.imageUrl!,
+                      fit: BoxFit.contain,
+                      memCacheWidth: 1440,
+                    ),
                   ),
                 ),
               ),

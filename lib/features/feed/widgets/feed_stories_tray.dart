@@ -41,14 +41,46 @@ class FeedStoriesTray extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Responsive metrics per device class
-    final double trayHeight = context.responsive(phone: 105.0, tablet: 128.0, desktop: 138.0);
-    final double addCircleSize = context.responsive(phone: 50.0, tablet: 64.0, desktop: 70.0);
-    final double avatarRadius = context.responsive(phone: 20.0, tablet: 28.0, desktop: 31.0);
-    final double cameraIconSize = context.respIcon(phone: 22.0, tablet: 28.0, desktop: 30.0);
-    final double plusIconSize = context.respIcon(phone: 14.0, tablet: 18.0, desktop: 20.0);
-    final double labelFontSize = context.respFont(phone: 10.0, tablet: 12.0, desktop: 13.0);
-    final double labelWidth = context.responsive(phone: 58.0, tablet: 76.0, desktop: 84.0);
-    final double itemSpacing = context.respSpacing(phone: 14.0, tablet: 20.0, desktop: 24.0);
+    final double trayHeight = context.responsive(
+      phone: 105.0,
+      tablet: 128.0,
+      desktop: 138.0,
+    );
+    final double addCircleSize = context.responsive(
+      phone: 50.0,
+      tablet: 64.0,
+      desktop: 70.0,
+    );
+    final double avatarRadius = context.responsive(
+      phone: 20.0,
+      tablet: 28.0,
+      desktop: 31.0,
+    );
+    final double cameraIconSize = context.respIcon(
+      phone: 22.0,
+      tablet: 28.0,
+      desktop: 30.0,
+    );
+    final double plusIconSize = context.respIcon(
+      phone: 14.0,
+      tablet: 18.0,
+      desktop: 20.0,
+    );
+    final double labelFontSize = context.respFont(
+      phone: 10.0,
+      tablet: 12.0,
+      desktop: 13.0,
+    );
+    final double labelWidth = context.responsive(
+      phone: 58.0,
+      tablet: 76.0,
+      desktop: 84.0,
+    );
+    final double itemSpacing = context.respSpacing(
+      phone: 14.0,
+      tablet: 20.0,
+      desktop: 24.0,
+    );
 
     return SizedBox(
       height: trayHeight,
@@ -56,7 +88,11 @@ class FeedStoriesTray extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         padding: EdgeInsets.symmetric(
-          horizontal: context.respSpacing(phone: 16.0, tablet: 24.0, desktop: 32.0),
+          horizontal: context.respSpacing(
+            phone: 16.0,
+            tablet: 24.0,
+            desktop: 32.0,
+          ),
           vertical: 8,
         ),
         children: [
@@ -88,7 +124,11 @@ class FeedStoriesTray extends StatelessWidget {
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: primaryPink.withValues(alpha: 0.3),
-                            width: context.responsive(phone: 1.5, tablet: 2.0, desktop: 2.2),
+                            width: context.responsive(
+                              phone: 1.5,
+                              tablet: 2.0,
+                              desktop: 2.2,
+                            ),
                           ),
                         ),
                         child: Icon(
@@ -134,9 +174,7 @@ class FeedStoriesTray extends StatelessWidget {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const SponsoredStoryScreen(),
-                ),
+                MaterialPageRoute(builder: (_) => const SponsoredStoryScreen()),
               );
             },
             child: Padding(

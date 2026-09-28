@@ -151,4 +151,25 @@ class HashtagService {
       ];
     }
   }
+
+  /// Search or suggest hashtags from database matching query (or top hashtags if query is empty)
+  Future<List<HashtagItem>> searchHashtags(String query, {int limit = 10}) async {
+    try {
+      final cleanQuery = query.replaceAll('#', '').trim();
+      var req = supabase.from('hashtags').select('*');
+      if (cleanQuery.isNotEmpty) {
+        req = req.ilike('tag', '%$cleanQuery%');
+      }
+      final res = await req
+          .order('posts_count', ascending: false)
+          .limit(limit);
+
+      final list = (res as List).map((m) => HashtagItem.fromMap(m)).toList();
+      if (list.isNotEmpty) return list;
+      return await getTrendingHashtags(limit: limit);
+    } catch (e) {
+      debugPrint('Error searching hashtags: $e');
+      return await getTrendingHashtags(limit: limit);
+    }
+  }
 }

@@ -29,13 +29,9 @@ class _LoginScreenState extends State<LoginScreen>
   final passwordCtrl = TextEditingController();
 
   bool isLoading = false;
-  bool isSearching = false;
   bool showPassword = false;
   bool rememberMe = false;
   String? errorMsg;
-
-  Map<String, dynamic>? userData;
-  Timer? _debounce;
 
   late AnimationController _floatController;
   late Animation<Offset> _floatAnimation;
@@ -67,41 +63,7 @@ class _LoginScreenState extends State<LoginScreen>
     _floatController.dispose();
     emailCtrl.dispose();
     passwordCtrl.dispose();
-    _debounce?.cancel();
     super.dispose();
-  }
-
-  // Lookup user profile upon email entry
-  void _onEmailChanged(String query) {
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
-
-    if (!query.contains("@") || !query.contains(".")) {
-      setState(() => userData = null);
-      return;
-    }
-
-    _debounce = Timer(const Duration(milliseconds: 500), () async {
-      setState(() => isSearching = true);
-      try {
-        final data = await supabase
-            .from('profiles')
-            .select('first_name, last_name, avatar_url, role')
-            .eq('email', query.toLowerCase().trim())
-            .maybeSingle();
-
-        if (data != null && mounted) {
-          setState(() {
-            userData = data;
-          });
-        } else {
-          setState(() => userData = null);
-        }
-      } catch (_) {
-        setState(() => userData = null);
-      } finally {
-        if (mounted) setState(() => isSearching = false);
-      }
-    });
   }
 
   // ==========================================
@@ -415,95 +377,6 @@ class _LoginScreenState extends State<LoginScreen>
                                     ),
                                   ],
 
-                                  // User Avatar Preview & Detected Role Badge when Email Matched
-                                  if (userData != null) ...[
-                                    Center(
-                                      child: Column(
-                                        children: [
-                                          Stack(
-                                            children: [
-                                              CircleAvatar(
-                                                radius: 28,
-                                                backgroundColor: lightPinkBg,
-                                                backgroundImage:
-                                                    (userData!['avatar_url'] !=
-                                                            null &&
-                                                        userData!['avatar_url']
-                                                            .toString()
-                                                            .isNotEmpty)
-                                                    ? NetworkImage(
-                                                        userData!['avatar_url'],
-                                                      )
-                                                    : null,
-                                                child:
-                                                    (userData!['avatar_url'] ==
-                                                            null ||
-                                                        userData!['avatar_url']
-                                                            .toString()
-                                                            .isEmpty)
-                                                    ? Text(
-                                                        userData!['first_name']?[0] ??
-                                                            'U',
-                                                        style: TextStyle(
-                                                          color: primaryPink,
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          fontSize: 18,
-                                                        ),
-                                                      )
-                                                    : null,
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Text(
-                                                "${userData!['first_name'] ?? ''} ${userData!['last_name'] ?? ''}",
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: textDark,
-                                                ),
-                                              ),
-                                              if ((userData!['role'] ?? 'student').toString() == 'admin' ||
-                                                  (userData!['role'] ?? 'student').toString() == 'super_admin') ...[
-                                                const SizedBox(width: 6),
-                                                Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 2,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color: lightPinkBg,
-                                                    borderRadius:
-                                                        BorderRadius.circular(6),
-                                                    border: Border.all(
-                                                      color: primaryPink
-                                                          .withOpacity(0.3),
-                                                    ),
-                                                  ),
-                                                  child: Text(
-                                                    "OFFICIAL 🛡️",
-                                                    style: TextStyle(
-                                                      color: primaryPink,
-                                                      fontSize: 8,
-                                                      fontWeight: FontWeight.w900,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                          const SizedBox(height: 16),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-
                                   // Autofill Group for Samsung Pass / Apple Keychain / Google Autofill
                                   AutofillGroup(
                                     child: Column(
@@ -519,23 +392,6 @@ class _LoginScreenState extends State<LoginScreen>
                                             AutofillHints.email,
                                             AutofillHints.username,
                                           ],
-                                          onChanged: _onEmailChanged,
-                                          suffixIcon: isSearching
-                                              ? Padding(
-                                                  padding: const EdgeInsets.all(
-                                                    12,
-                                                  ),
-                                                  child: SizedBox(
-                                                    width: 16,
-                                                    height: 16,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                          color: primaryPink,
-                                                          strokeWidth: 2,
-                                                        ),
-                                                  ),
-                                                )
-                                              : null,
                                         ),
                                         const SizedBox(height: 16),
 

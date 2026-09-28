@@ -567,9 +567,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                     }
                     _fetchFeedPosts();
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(context.zevTr('postUpdated')),
-                      ),
+                      SnackBar(content: Text(context.zevTr('postUpdated'))),
                     );
                   } catch (e) {
                     if (!mounted) return;
@@ -602,7 +600,10 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
           children: [
             const Icon(Icons.warning_amber_rounded, color: Colors.red),
             const SizedBox(width: 8),
-            Text(context.zevTr('deletePost'), style: const TextStyle(fontWeight: FontWeight.w900)),
+            Text(
+              context.zevTr('deletePost'),
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
           ],
         ),
         content: Text(
@@ -614,7 +615,10 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
             onPressed: () => Navigator.pop(context),
             child: Text(
               context.zevTr('cancel'),
-              style: const TextStyle(color: textDark, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                color: textDark,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           ElevatedButton(
@@ -676,14 +680,19 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
           tablet: 48.0,
           desktop: 52.0,
         );
-        final double storiesAndSearchHeight = storiesHeight + searchHeight + 20.0;
+        final double storiesAndSearchHeight =
+            storiesHeight + searchHeight + 20.0;
         final double topRowHeight = context.responsive(
           phone: 54.0,
           tablet: 62.0,
           desktop: 66.0,
         );
-        final double headerHeight = topPadding + topRowHeight + (_isScrolled ? 0.0 : storiesAndSearchHeight);
-        final double listTopPadding = topPadding + topRowHeight + storiesAndSearchHeight + 6.0;
+        final double headerHeight =
+            topPadding +
+            topRowHeight +
+            (_isScrolled ? 0.0 : storiesAndSearchHeight);
+        final double listTopPadding =
+            topPadding + topRowHeight + storiesAndSearchHeight + 6.0;
 
         return Directionality(
           textDirection: LanguageService.instance.isCurrentRtl
@@ -830,7 +839,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                 ),
                               ],
                               border: Border.all(
-                                color: const Color(0xFFF3F4F6).withValues(alpha: 0.8),
+                                color: const Color(
+                                  0xFFF3F4F6,
+                                ).withValues(alpha: 0.8),
                                 width: 1,
                               ),
                             ),
@@ -881,9 +892,13 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                         const SizedBox(width: 8),
                                         Expanded(
                                           child: AnimatedOpacity(
-                                            duration: const Duration(milliseconds: 250),
+                                            duration: const Duration(
+                                              milliseconds: 250,
+                                            ),
                                             opacity: _isScrolled ? 1.0 : 0.0,
-                                            child: _buildMiniScrolledStories(context),
+                                            child: _buildMiniScrolledStories(
+                                              context,
+                                            ),
                                           ),
                                         ),
                                         const SizedBox(width: 6),
@@ -895,165 +910,174 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                         Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                          // ZEV Store Button
-                                          GestureDetector(
-                                            onTap: () {
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (_) =>
-                                                      const ShopScreen(),
+                                            // ZEV Store Button
+                                            GestureDetector(
+                                              onTap: () {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        const ShopScreen(),
+                                                  ),
+                                                );
+                                              },
+                                              child: Container(
+                                                margin: const EdgeInsets.only(
+                                                  right: 6,
                                                 ),
-                                              );
-                                            },
-                                            child: Container(
-                                              margin: const EdgeInsets.only(
-                                                right: 6,
-                                              ),
-                                              padding: EdgeInsets.symmetric(
-                                                horizontal: context.respSpacing(
-                                                  phone: 10.0,
-                                                  tablet: 14.0,
-                                                  desktop: 16.0,
+                                                padding: EdgeInsets.symmetric(
+                                                  horizontal: context
+                                                      .respSpacing(
+                                                        phone: 10.0,
+                                                        tablet: 14.0,
+                                                        desktop: 16.0,
+                                                      ),
+                                                  vertical: context.respSpacing(
+                                                    phone: 5.0,
+                                                    tablet: 7.0,
+                                                    desktop: 8.0,
+                                                  ),
                                                 ),
-                                                vertical: context.respSpacing(
-                                                  phone: 5.0,
-                                                  tablet: 7.0,
-                                                  desktop: 8.0,
-                                                ),
-                                              ),
-                                              decoration: BoxDecoration(
-                                                gradient: const LinearGradient(
-                                                  colors: [
-                                                    Color(0xFFFC466B),
-                                                    Color(0xFFFF758C),
+                                                decoration: BoxDecoration(
+                                                  gradient:
+                                                      const LinearGradient(
+                                                        colors: [
+                                                          Color(0xFFFC466B),
+                                                          Color(0xFFFF758C),
+                                                        ],
+                                                        begin:
+                                                            Alignment.topLeft,
+                                                        end: Alignment
+                                                            .bottomRight,
+                                                      ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(16),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: const Color(
+                                                        0xFFFC466B,
+                                                      ).withValues(alpha: 0.35),
+                                                      blurRadius: 8,
+                                                      offset: const Offset(
+                                                        0,
+                                                        2,
+                                                      ),
+                                                    ),
                                                   ],
-                                                  begin: Alignment.topLeft,
-                                                  end: Alignment.bottomRight,
                                                 ),
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: const Color(
-                                                      0xFFFC466B,
-                                                    ).withValues(alpha: 0.35),
-                                                    blurRadius: 8,
-                                                    offset: const Offset(0, 2),
-                                                  ),
-                                                ],
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(
-                                                    Icons.shopping_bag_rounded,
-                                                    color: Colors.white,
-                                                    size: context.respIcon(
-                                                      phone: 14.0,
-                                                      tablet: 17.0,
-                                                      desktop: 17.0,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 4),
-                                                  Text(
-                                                    context.zevTr('shop'),
-                                                    style: TextStyle(
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      Icons
+                                                          .shopping_bag_rounded,
                                                       color: Colors.white,
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                      fontSize: context
-                                                          .respFont(
-                                                            phone: 11.5,
-                                                            tablet: 13.5,
-                                                            desktop: 14.0,
-                                                          ),
-                                                      letterSpacing: 0.2,
+                                                      size: context.respIcon(
+                                                        phone: 14.0,
+                                                        tablet: 17.0,
+                                                        desktop: 17.0,
+                                                      ),
                                                     ),
-                                                  ),
-                                                ],
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      context.zevTr('shop'),
+                                                      style: TextStyle(
+                                                        color: Colors.white,
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                        fontSize: context
+                                                            .respFont(
+                                                              phone: 11.5,
+                                                              tablet: 13.5,
+                                                              desktop: 14.0,
+                                                            ),
+                                                        letterSpacing: 0.2,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
                                             ),
-                                          ),
 
-                                          // Notifications
-                                          GestureDetector(
-                                            onTap: () {
-                                              final user =
-                                                  supabase.auth.currentUser;
-                                              if (user == null) {
-                                                AuthRequiredModal.show(
+                                            // Notifications
+                                            GestureDetector(
+                                              onTap: () {
+                                                final user =
+                                                    supabase.auth.currentUser;
+                                                if (user == null) {
+                                                  AuthRequiredModal.show(
+                                                    context,
+                                                    actionName:
+                                                        "view notifications",
+                                                  );
+                                                  return;
+                                                }
+                                                Navigator.push(
                                                   context,
-                                                  actionName:
-                                                      "view notifications",
-                                                );
-                                                return;
-                                              }
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (_) =>
-                                                      const ActivityNotificationsScreen(),
-                                                ),
-                                              );
-                                            },
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 6,
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        const ActivityNotificationsScreen(),
                                                   ),
-                                              child: Icon(
-                                                Icons.favorite_border_rounded,
-                                                color: textDark,
-                                                size: context.respIcon(
-                                                  phone: 26.0,
-                                                  tablet: 30.0,
-                                                  desktop: 28.0,
+                                                );
+                                              },
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                    ),
+                                                child: Icon(
+                                                  Icons.favorite_border_rounded,
+                                                  color: textDark,
+                                                  size: context.respIcon(
+                                                    phone: 26.0,
+                                                    tablet: 30.0,
+                                                    desktop: 28.0,
+                                                  ),
                                                 ),
                                               ),
                                             ),
-                                          ),
-                                          const SizedBox(width: 8),
+                                            const SizedBox(width: 8),
 
-                                          // Direct Messages
-                                          GestureDetector(
-                                            onTap: () {
-                                              final user =
-                                                  supabase.auth.currentUser;
-                                              if (user == null) {
-                                                AuthRequiredModal.show(
+                                            // Direct Messages
+                                            GestureDetector(
+                                              onTap: () {
+                                                final user =
+                                                    supabase.auth.currentUser;
+                                                if (user == null) {
+                                                  AuthRequiredModal.show(
+                                                    context,
+                                                    actionName:
+                                                        "open direct messages",
+                                                  );
+                                                  return;
+                                                }
+                                                Navigator.push(
                                                   context,
-                                                  actionName:
-                                                      "open direct messages",
-                                                );
-                                                return;
-                                              }
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (_) =>
-                                                      const DirectChatListScreen(),
-                                                ),
-                                              );
-                                            },
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 6,
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        const DirectChatListScreen(),
                                                   ),
-                                              child: Icon(
-                                                Icons.send_outlined,
-                                                color: textDark,
-                                                size: context.respIcon(
-                                                  phone: 23.0,
-                                                  tablet: 28.0,
-                                                  desktop: 26.0,
+                                                );
+                                              },
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                    ),
+                                                child: Icon(
+                                                  Icons.send_outlined,
+                                                  color: textDark,
+                                                  size: context.respIcon(
+                                                    phone: 23.0,
+                                                    tablet: 28.0,
+                                                    desktop: 26.0,
+                                                  ),
                                                 ),
                                               ),
                                             ),
-                                          ),
-                                        ],
-                                      ),
+                                          ],
+                                        ),
                                     ],
                                   ),
 
@@ -1061,17 +1085,23 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                   AnimatedContainer(
                                     duration: const Duration(milliseconds: 350),
                                     curve: Curves.easeInOutCubic,
-                                    height: _isScrolled ? 0.0 : storiesAndSearchHeight,
+                                    height: _isScrolled
+                                        ? 0.0
+                                        : storiesAndSearchHeight,
                                     clipBehavior: Clip.hardEdge,
                                     decoration: const BoxDecoration(),
                                     child: AnimatedSlide(
-                                      duration: const Duration(milliseconds: 350),
+                                      duration: const Duration(
+                                        milliseconds: 350,
+                                      ),
                                       curve: Curves.easeInOutCubic,
                                       offset: _isScrolled
                                           ? const Offset(0, -0.6)
                                           : Offset.zero,
                                       child: AnimatedOpacity(
-                                        duration: const Duration(milliseconds: 260),
+                                        duration: const Duration(
+                                          milliseconds: 260,
+                                        ),
                                         curve: Curves.easeInOut,
                                         opacity: _isScrolled ? 0.0 : 1.0,
                                         child: Column(
@@ -1079,7 +1109,8 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                           children: [
                                             const SizedBox(height: 8),
                                             FeedStoriesTray(
-                                              activeFriendStories: activeFriendStories,
+                                              activeFriendStories:
+                                                  activeFriendStories,
                                               onStoryCreated: () {
                                                 _fetchFeedPosts();
                                                 _fetchActiveFriendStories();
@@ -1124,7 +1155,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                                     ),
                                                   ),
                                                   suffixIcon:
-                                                      _searchController.text.isNotEmpty
+                                                      _searchController
+                                                          .text
+                                                          .isNotEmpty
                                                       ? IconButton(
                                                           icon: const Icon(
                                                             Icons.close_rounded,
@@ -1132,8 +1165,11 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                                             size: 16,
                                                           ),
                                                           onPressed: () {
-                                                            _searchController.clear();
-                                                            _onSearchChanged("");
+                                                            _searchController
+                                                                .clear();
+                                                            _onSearchChanged(
+                                                              "",
+                                                            );
                                                             FocusScope.of(
                                                               context,
                                                             ).unfocus();
@@ -1141,27 +1177,34 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                                         )
                                                       : null,
                                                   filled: true,
-                                                  fillColor: const Color(0xFFF3F4F6),
+                                                  fillColor: const Color(
+                                                    0xFFF3F4F6,
+                                                  ),
                                                   contentPadding:
                                                       const EdgeInsets.symmetric(
                                                         vertical: 0,
                                                         horizontal: 14,
                                                       ),
                                                   border: OutlineInputBorder(
-                                                    borderRadius: BorderRadius.circular(
-                                                      16,
-                                                    ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          16,
+                                                        ),
                                                     borderSide: BorderSide.none,
                                                   ),
-                                                  focusedBorder: OutlineInputBorder(
-                                                    borderRadius: BorderRadius.circular(
-                                                      16,
-                                                    ),
-                                                    borderSide: const BorderSide(
-                                                      color: primaryPink,
-                                                      width: 1.5,
-                                                    ),
-                                                  ),
+                                                  focusedBorder:
+                                                      OutlineInputBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              16,
+                                                            ),
+                                                        borderSide:
+                                                            const BorderSide(
+                                                              color:
+                                                                  primaryPink,
+                                                              width: 1.5,
+                                                            ),
+                                                      ),
                                                 ),
                                               ),
                                             ),
@@ -1226,11 +1269,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
               child: const Stack(
                 alignment: Alignment.center,
                 children: [
-                  Icon(
-                    Icons.camera_alt_outlined,
-                    color: primaryPink,
-                    size: 15,
-                  ),
+                  Icon(Icons.camera_alt_outlined, color: primaryPink, size: 15),
                   Positioned(
                     right: 0,
                     bottom: 0,
@@ -1250,9 +1289,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const SponsoredStoryScreen(),
-                ),
+                MaterialPageRoute(builder: (_) => const SponsoredStoryScreen()),
               );
             },
             child: Container(

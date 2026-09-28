@@ -5,10 +5,26 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 export 'package:image_picker/image_picker.dart' show ImageSource;
 
-/// Robust media and file picker for Android and iOS
-/// Strictly complies with Google Play Photo & Video Permissions Policy:
-/// - Gallery media (Images, Videos, Files): Exclusively uses FilePicker / Storage Access Framework (SAF) with ZERO storage/gallery runtime permissions.
-/// - Camera: Only requests Camera permission when source is ImageSource.camera.
+/// Container for picked media compatible across Mobile and Web
+class AppPickedMedia {
+  final String name;
+  final Uint8List bytes;
+  final String? path;
+  final File? file;
+  final bool isVideo;
+  final String mimeType;
+
+  const AppPickedMedia({
+    required this.name,
+    required this.bytes,
+    this.path,
+    this.file,
+    this.isVideo = false,
+    required this.mimeType,
+  });
+}
+
+/// Robust media and file picker for Android, iOS, Desktop and Web
 class AppMediaPicker {
   AppMediaPicker._();
   static final AppMediaPicker instance = AppMediaPicker._();
@@ -28,8 +44,137 @@ class AppMediaPicker {
     }
   }
 
-  /// Save bytes to temporary file if path is not directly available
+  /// Infer MIME type from file extension
+  static String inferMime(String fileName) {
+    final ext = fileName.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'gif':
+        return 'image/gif';
+      case 'bmp':
+        return 'image/bmp';
+      case 'heic':
+      case 'heif':
+        return 'image/heic';
+      case 'svg':
+        return 'image/svg+xml';
+      case 'mp4':
+        return 'video/mp4';
+      case 'mov':
+        return 'video/quicktime';
+      case 'webm':
+        return 'video/webm';
+      case 'avi':
+        return 'video/x-msvideo';
+      case 'mkv':
+        return 'video/x-matroska';
+      case '3gp':
+        return 'video/3gpp';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
+  /// Universal media picker returning raw bytes and metadata, 100% compatible with Mobile and Web
+  Future<AppPickedMedia?> pickUniversalMedia({
+    bool allowImages = true,
+    bool allowVideos = true,
+    ImageSource source = ImageSource.gallery,
+  }) async {
+    if (source == ImageSource.camera && !kIsWeb) {
+      if (allowImages) {
+        await _ensureCameraPermission();
+        try {
+          final XFile? picked =
+              await _imagePicker.pickImage(source: ImageSource.camera);
+          if (picked != null) {
+            final bytes = await picked.readAsBytes();
+            return AppPickedMedia(
+              name: picked.name,
+              bytes: bytes,
+              path: picked.path,
+              file: File(picked.path),
+              isVideo: false,
+              mimeType: inferMime(picked.name),
+            );
+          }
+        } catch (e) {
+          debugPrint("Camera pick error: $e");
+        }
+      }
+      return null;
+    }
+
+    try {
+      List<String> extensions = [];
+      if (allowImages) {
+        extensions.addAll([
+          'jpg',
+          'jpeg',
+          'png',
+          'webp',
+          'gif',
+          'bmp',
+          'heic',
+          'heif',
+          'svg'
+        ]);
+      }
+      if (allowVideos) {
+        extensions.addAll(['mp4', 'mov', 'webm', 'avi', 'mkv', '3gp']);
+      }
+
+      final FilePickerResult? result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: extensions,
+        allowMultiple: false,
+        withData: true,
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        final pf = result.files.single;
+        Uint8List? bytes = pf.bytes;
+        File? file;
+        if (!kIsWeb && pf.path != null && pf.path!.isNotEmpty) {
+          file = File(pf.path!);
+          if (bytes == null && await file.exists()) {
+            bytes = await file.readAsBytes();
+          }
+        }
+        if (bytes != null && bytes.isNotEmpty) {
+          final isVid = [
+            'mp4',
+            'mov',
+            'webm',
+            'avi',
+            'mkv',
+            '3gp'
+          ].contains(pf.extension?.toLowerCase());
+          return AppPickedMedia(
+            name: pf.name,
+            bytes: bytes,
+            path: pf.path,
+            file: file,
+            isVideo: isVid,
+            mimeType: inferMime(pf.name),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("pickUniversalMedia error: $e");
+    }
+    return null;
+  }
+
+  /// Save bytes to temporary file if path is not directly available (native only)
   Future<File?> _saveBytesToTempFile(Uint8List bytes, String fileName) async {
+    if (kIsWeb) return null;
     try {
       final tempDir = Directory.systemTemp;
       final uniqueName = '${DateTime.now().millisecondsSinceEpoch}_$fileName';
