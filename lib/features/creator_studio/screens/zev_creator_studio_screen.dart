@@ -1,6 +1,11 @@
+import 'dart:io' as io;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
+import '../../../core/localization/zev_localizations.dart';
+import '../../../core/utils/blob_url.dart';
 import 'package:zev_app/core/services/cloudflare_storage_service.dart';
 import 'package:zev_app/core/services/hashtag_service.dart';
 import 'package:zev_app/core/utils/app_media_picker.dart';
@@ -40,6 +45,32 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
   // Media
   AppPickedMedia? _pickedMedia;
   VideoPlayerController? _videoPreviewController;
+  String? _blobVideoUrl;
+  bool _isVideoInitializing = false;
+
+  int get _maxContentLength {
+    switch (_activeTab) {
+      case 0:
+        return 2200;
+      case 1:
+        return 1000;
+      case 2:
+      default:
+        return 280;
+    }
+  }
+
+  int get _maxHashtags {
+    switch (_activeTab) {
+      case 0:
+        return 30;
+      case 1:
+        return 20;
+      case 2:
+      default:
+        return 5;
+    }
+  }
 
   // Post Mood
   String _selectedMood = "🚀 Excited";
@@ -81,7 +112,7 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
 
   @override
   void dispose() {
-    _videoPreviewController?.dispose();
+    _cleanupVideoController();
     _contentController.removeListener(_onContentChanged);
     _titleController.dispose();
     _contentController.dispose();
@@ -150,16 +181,38 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
         sel.baseOffset >= 0 ? text.substring(sel.baseOffset) : '';
     final lastHashIndex = beforeCursor.lastIndexOf('#');
 
+    final isCurrentlyTypingTag = lastHashIndex != -1 &&
+        !beforeCursor.substring(lastHashIndex).contains(' ') &&
+        !beforeCursor.substring(lastHashIndex).contains('\n');
+
+    final currentTagsCount =
+        RegExp(r'#[a-zA-Z0-9_\u0600-\u06FF]+').allMatches(text).length;
+
+    if (!isCurrentlyTypingTag && currentTagsCount >= _maxHashtags) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Maximum $_maxHashtags hashtags allowed for this mode."),
+          backgroundColor: Colors.orangeAccent,
+        ),
+      );
+      return;
+    }
+
     String newText;
     int newCursorPos;
 
-    if (lastHashIndex != -1) {
+    if (isCurrentlyTypingTag) {
       newText =
           "${beforeCursor.substring(0, lastHashIndex)}#$cleanTag $afterCursor";
       newCursorPos = lastHashIndex + cleanTag.length + 2;
     } else {
-      newText = "$text #$cleanTag ";
-      newCursorPos = newText.length;
+      final prefix = (beforeCursor.isNotEmpty &&
+              !beforeCursor.endsWith(' ') &&
+              !beforeCursor.endsWith('\n'))
+          ? ' '
+          : '';
+      newText = "$beforeCursor$prefix#$cleanTag $afterCursor";
+      newCursorPos = beforeCursor.length + prefix.length + cleanTag.length + 2;
     }
 
     _contentController.value = TextEditingValue(
@@ -181,17 +234,64 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
 
     if (media == null) return;
 
-    _videoPreviewController?.dispose();
-    _videoPreviewController = null;
+    _cleanupVideoController();
 
     setState(() {
       _pickedMedia = media;
     });
+
+    if (media.isVideo) {
+      await _initVideoPreview(media);
+    }
+  }
+
+  Future<void> _initVideoPreview(AppPickedMedia media) async {
+    setState(() => _isVideoInitializing = true);
+    try {
+      if (kIsWeb) {
+        final mime = media.mimeType.isNotEmpty ? media.mimeType : 'video/mp4';
+        _blobVideoUrl = createBlobUrlFromBytes(media.bytes, mimeType: mime);
+        _videoPreviewController =
+            VideoPlayerController.networkUrl(Uri.parse(_blobVideoUrl!));
+      } else {
+        if (media.file != null && media.file!.existsSync()) {
+          _videoPreviewController = VideoPlayerController.file(media.file!);
+        } else if (media.path != null && media.path!.isNotEmpty) {
+          _videoPreviewController =
+              VideoPlayerController.file(io.File(media.path!));
+        } else {
+          final tempDir = await getTemporaryDirectory();
+          final tempFile = io.File(
+            '${tempDir.path}/zev_preview_${DateTime.now().millisecondsSinceEpoch}.mp4',
+          );
+          await tempFile.writeAsBytes(media.bytes);
+          _videoPreviewController = VideoPlayerController.file(tempFile);
+        }
+      }
+
+      await _videoPreviewController!.initialize();
+      await _videoPreviewController!.setLooping(true);
+      await _videoPreviewController!.setVolume(0); // muted for preview
+      await _videoPreviewController!.play();
+    } catch (e) {
+      debugPrint("Error initializing studio video preview: $e");
+    } finally {
+      if (mounted) setState(() => _isVideoInitializing = false);
+    }
+  }
+
+  void _cleanupVideoController() {
+    if (_blobVideoUrl != null) {
+      revokeBlobUrl(_blobVideoUrl!);
+      _blobVideoUrl = null;
+    }
+    _videoPreviewController?.pause();
+    _videoPreviewController?.dispose();
+    _videoPreviewController = null;
   }
 
   void _clearMedia() {
-    _videoPreviewController?.dispose();
-    _videoPreviewController = null;
+    _cleanupVideoController();
     setState(() => _pickedMedia = null);
   }
 
@@ -603,7 +703,156 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
   // =========================================================================
   // TOP STUDIO TOOLBAR & MODE SELECTOR
   // =========================================================================
+  // =========================================================================
+  // TOP STUDIO TOOLBAR & MODE SELECTOR
+  // =========================================================================
   Widget _buildStudioTopHeader(bool isDark, Color cardBg, Color borderColor) {
+    final isDesktop = ResponsiveLayout.isDesktop(context);
+
+    final modeSwitcher = Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E2433) : const Color(0xFFEDF2F7),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : const Color(0xFFCBD5E1),
+        ),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.white.withOpacity(0.9),
+                  offset: const Offset(-2, -2),
+                  blurRadius: 4,
+                ),
+                BoxShadow(
+                  color: const Color(0xFFD1D9E6),
+                  offset: const Offset(2, 2),
+                  blurRadius: 4,
+                ),
+              ],
+      ),
+      child: Row(
+        mainAxisSize: isDesktop ? MainAxisSize.min : MainAxisSize.max,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildModeTabItem(
+            index: 0,
+            icon: Icons.article_rounded,
+            label: context.zevTr('studioPost'),
+            isDark: isDark,
+          ),
+          const SizedBox(width: 4),
+          _buildModeTabItem(
+            index: 1,
+            icon: Icons.movie_filter_rounded,
+            label: context.zevTr('studioReel'),
+            isDark: isDark,
+          ),
+          const SizedBox(width: 4),
+          _buildModeTabItem(
+            index: 2,
+            icon: Icons.camera_alt_rounded,
+            label: context.zevTr('studioStory'),
+            isDark: isDark,
+          ),
+        ],
+      ),
+    );
+
+    final publishBtn = Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: primaryPink.withValues(alpha: 0.4),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ElevatedButton.icon(
+        onPressed: _isPublishing ? null : _publish,
+        icon: const Icon(Icons.rocket_launch_rounded, size: 15),
+        label: Text(
+          _activeTab == 0
+              ? context.zevTr('publishPost')
+              : (_activeTab == 1
+                  ? context.zevTr('publishReel')
+                  : context.zevTr('publishStory')),
+          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primaryPink,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: EdgeInsets.symmetric(
+            horizontal: isDesktop ? 20 : 12,
+            vertical: isDesktop ? 14 : 10,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+    );
+
+    if (!isDesktop) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: cardBg,
+          border: Border(bottom: BorderSide(color: borderColor)),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                if (widget.onBack != null) ...[
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_rounded, size: 20),
+                    onPressed: widget.onBack,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [primaryPink, accentPurple],
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  "CREATOR STUDIO",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                const Spacer(),
+                publishBtn,
+              ],
+            ),
+            const SizedBox(height: 8),
+            modeSwitcher,
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
       decoration: BoxDecoration(
@@ -612,9 +861,15 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
       ),
       child: Row(
         children: [
-          // Studio Logo & Title
           Row(
             children: [
+              if (widget.onBack != null) ...[
+                IconButton(
+                  icon: const Icon(Icons.arrow_back_rounded, size: 22),
+                  onPressed: widget.onBack,
+                ),
+                const SizedBox(width: 8),
+              ],
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
@@ -662,71 +917,10 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
               ),
             ],
           ),
-
           const Spacer(),
-
-          // Centered Segmented Control (Post | Reel | Story)
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E2433) : const Color(0xFFEDF2F7),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : const Color(0xFFCBD5E1),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildModeTabItem(
-                  index: 0,
-                  icon: Icons.article_rounded,
-                  label: "Post",
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 4),
-                _buildModeTabItem(
-                  index: 1,
-                  icon: Icons.movie_filter_rounded,
-                  label: "Reel",
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 4),
-                _buildModeTabItem(
-                  index: 2,
-                  icon: Icons.camera_alt_rounded,
-                  label: "24h Story",
-                  isDark: isDark,
-                ),
-              ],
-            ),
-          ),
-
+          modeSwitcher,
           const Spacer(),
-
-          // Publish Button
-          ElevatedButton.icon(
-            onPressed: _isPublishing ? null : _publish,
-            icon: const Icon(Icons.rocket_launch_rounded, size: 16),
-            label: Text(
-              _activeTab == 0
-                  ? "PUBLISH POST"
-                  : (_activeTab == 1 ? "PUBLISH REEL" : "SHARE STORY"),
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryPink,
-              foregroundColor: Colors.white,
-              elevation: 4,
-              shadowColor: primaryPink.withValues(alpha: 0.4),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-          ),
+          publishBtn,
         ],
       ),
     );
@@ -751,7 +945,14 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? primaryPink : Colors.transparent,
+          gradient: isSelected
+              ? const LinearGradient(
+                  colors: [primaryPink, Color(0xFFFF5E7E)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: isSelected ? null : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           boxShadow: isSelected
               ? [
@@ -786,8 +987,6 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
             ),
           ],
         ),
-      ),
-    );
   }
 
   // =========================================================================
@@ -1025,6 +1224,66 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
           ],
         ),
 
+        const SizedBox(height: 8),
+
+        // Live Character & Hashtag Limits Counter
+        Builder(
+          builder: (context) {
+            final textLen = _contentController.text.length;
+            final currentTagsCount = RegExp(r'#[a-zA-Z0-9_\u0600-\u06FF]+')
+                .allMatches(_contentController.text)
+                .length;
+            final isNearLenLimit = textLen > _maxContentLength * 0.9;
+            final isOverLenLimit = textLen > _maxContentLength;
+
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E2433) : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white.withOpacity(0.06)
+                          : Colors.black.withOpacity(0.06),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.tag_rounded, size: 13, color: primaryPink),
+                      const SizedBox(width: 4),
+                      Text(
+                        "Hashtags: $currentTagsCount/$_maxHashtags",
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: currentTagsCount >= _maxHashtags
+                              ? Colors.orangeAccent
+                              : (isDark ? Colors.white70 : const Color(0xFF64748B)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  "$textLen/$_maxContentLength",
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: isOverLenLimit
+                        ? Colors.redAccent
+                        : (isNearLenLimit
+                            ? Colors.orangeAccent
+                            : (isDark ? Colors.white38 : const Color(0xFF94A3B8))),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+
         const SizedBox(height: 12),
 
         // Quick Hashtags Row
@@ -1156,8 +1415,16 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                 color:
                     isDark ? const Color(0xFF1E2433) : const Color(0xFFF1F5F9),
                 child: isVideo
-                    ? const Icon(Icons.videocam_rounded,
-                        color: primaryPink, size: 32)
+                    ? (_videoPreviewController != null &&
+                            _videoPreviewController!.value.isInitialized
+                        ? _buildVideoPlayerWidget(
+                            height: 70,
+                            fit: BoxFit.cover,
+                            showControls: false,
+                          )
+                        : const Center(
+                            child: Icon(Icons.videocam_rounded,
+                                color: primaryPink, size: 32)))
                     : Image.memory(
                         _pickedMedia!.bytes,
                         fit: BoxFit.cover,
@@ -1275,6 +1542,164 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // =========================================================================
+  // LIVE VIDEO PLAYER WIDGET
+  // =========================================================================
+  Widget _buildVideoPlayerWidget({
+    double? height,
+    BoxFit fit = BoxFit.cover,
+    bool showControls = true,
+  }) {
+    if (_isVideoInitializing) {
+      return Container(
+        height: height,
+        color: Colors.black,
+        child: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(primaryPink),
+                ),
+              ),
+              SizedBox(height: 10),
+              Text(
+                "Loading video preview...",
+                style: TextStyle(color: Colors.white70, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_videoPreviewController == null ||
+        !_videoPreviewController!.value.isInitialized) {
+      return Container(
+        height: height,
+        color: Colors.black87,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.videocam_rounded, color: primaryPink, size: 40),
+              const SizedBox(height: 6),
+              Text(
+                "Video preview ready",
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.7),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final isPlaying = _videoPreviewController!.value.isPlaying;
+    final isMuted = _videoPreviewController!.value.volume == 0;
+
+    return Container(
+      height: height,
+      color: Colors.black,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox.expand(
+            child: FittedBox(
+              fit: fit,
+              child: SizedBox(
+                width: _videoPreviewController!.value.size.width > 0
+                    ? _videoPreviewController!.value.size.width
+                    : 16,
+                height: _videoPreviewController!.value.size.height > 0
+                    ? _videoPreviewController!.value.size.height
+                    : 9,
+                child: VideoPlayer(_videoPreviewController!),
+              ),
+            ),
+          ),
+          if (showControls) ...[
+            // Tap area to play/pause
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  setState(() {
+                    if (isPlaying) {
+                      _videoPreviewController!.pause();
+                    } else {
+                      _videoPreviewController!.play();
+                    }
+                  });
+                },
+                child: Container(
+                  color: Colors.transparent,
+                ),
+              ),
+            ),
+            // Play icon overlay when paused
+            Positioned(
+              child: IgnorePointer(
+                child: AnimatedOpacity(
+                  opacity: isPlaying ? 0.0 : 0.85,
+                  duration: const Duration(milliseconds: 200),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: const BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.play_arrow_rounded,
+                      color: Colors.white,
+                      size: 36,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Mute / Unmute toggle button
+            Positioned(
+              bottom: 10,
+              right: 10,
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    if (isMuted) {
+                      _videoPreviewController!.setVolume(1.0);
+                    } else {
+                      _videoPreviewController!.setVolume(0.0);
+                    }
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.black60,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    isMuted
+                        ? Icons.volume_off_rounded
+                        : Icons.volume_up_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -1473,15 +1898,10 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
               child: _pickedMedia!.isVideo
-                  ? Container(
-                      height: 220,
-                      color: Colors.black87,
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.play_circle_fill_rounded,
-                        color: Colors.white,
-                        size: 50,
-                      ),
+                  ? _buildVideoPlayerWidget(
+                      height: 240,
+                      fit: BoxFit.cover,
+                      showControls: true,
                     )
                   : Image.memory(
                       _pickedMedia!.bytes,
@@ -1527,7 +1947,9 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
         fit: StackFit.expand,
         children: [
           // Background / Media
-          if (_pickedMedia != null && !_pickedMedia!.isVideo)
+          if (_pickedMedia != null && _pickedMedia!.isVideo)
+            _buildVideoPlayerWidget(fit: BoxFit.cover, showControls: true)
+          else if (_pickedMedia != null && !_pickedMedia!.isVideo)
             Image.memory(_pickedMedia!.bytes, fit: BoxFit.cover)
           else
             Container(
@@ -1647,7 +2069,9 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (_pickedMedia != null)
+          if (_pickedMedia != null && _pickedMedia!.isVideo)
+            _buildVideoPlayerWidget(fit: BoxFit.cover, showControls: true)
+          else if (_pickedMedia != null && !_pickedMedia!.isVideo)
             Image.memory(_pickedMedia!.bytes, fit: BoxFit.cover)
           else
             Container(
@@ -1681,10 +2105,18 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    const CircleAvatar(
+                    CircleAvatar(
                       radius: 14,
                       backgroundColor: Colors.white24,
-                      child: Icon(Icons.person, color: Colors.white, size: 16),
+                      backgroundImage: (_userProfile?['avatar_url'] != null &&
+                              (_userProfile!['avatar_url'] as String).isNotEmpty)
+                          ? NetworkImage(_userProfile!['avatar_url'])
+                          : null,
+                      child: (_userProfile?['avatar_url'] == null ||
+                              (_userProfile!['avatar_url'] as String).isEmpty)
+                          ? const Icon(Icons.person,
+                              color: Colors.white, size: 16)
+                          : null,
                     ),
                     const SizedBox(width: 8),
                     Text(

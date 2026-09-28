@@ -244,6 +244,7 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
 
   final Set<String> _viewedReelIds = {};
   final Set<String> _recentlyFeaturedReelIds = {};
+  final Set<String> _expandedReelCaptions = {};
   String? _activeHeartReelId;
   int _heartAnimTrigger = 0;
 
@@ -1647,28 +1648,68 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              Text(
-                reel.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                ),
+              Builder(
+                builder: (context) {
+                  final isExpanded = _expandedReelCaptions.contains(reel.id);
+                  final hasDescription = reel.description != null &&
+                      reel.description!.trim().isNotEmpty;
+                  final hasMore = hasDescription || reel.title.length > 45;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        reel.title,
+                        maxLines: isExpanded ? null : 1,
+                        overflow: isExpanded
+                            ? TextOverflow.visible
+                            : TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      if (isExpanded && hasDescription) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          reel.description!,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                      if (hasMore) ...[
+                        const SizedBox(height: 3),
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              if (isExpanded) {
+                                _expandedReelCaptions.remove(reel.id);
+                              } else {
+                                _expandedReelCaptions.add(reel.id);
+                              }
+                            });
+                          },
+                          child: Text(
+                            isExpanded
+                                ? context.zevTr('seeLess')
+                                : '... ${context.zevTr('seeMore')}',
+                            style: const TextStyle(
+                              color: primaryPink,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  );
+                },
               ),
-              if (reel.description != null &&
-                  reel.description!.trim().isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  reel.description!,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    height: 1.3,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
             ],
           ),
         ),

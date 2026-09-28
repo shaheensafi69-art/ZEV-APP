@@ -27,6 +27,7 @@ class ActiveFriendStory {
 class FeedStoriesTray extends StatelessWidget {
   final List<ActiveFriendStory> activeFriendStories;
   final VoidCallback onStoryCreated;
+  final String? currentUserAvatar;
 
   static const Color primaryPink = Color(0xFFFC466B);
   static const Color surfaceWhite = Colors.white;
@@ -36,6 +37,7 @@ class FeedStoriesTray extends StatelessWidget {
     super.key,
     required this.activeFriendStories,
     required this.onStoryCreated,
+    this.currentUserAvatar,
   });
 
   @override
@@ -125,18 +127,46 @@ class FeedStoriesTray extends StatelessWidget {
                           color: const Color(0xFFFAF4F6),
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: primaryPink.withValues(alpha: 0.3),
+                            color: primaryPink,
                             width: context.responsive(
-                              phone: 1.5,
-                              tablet: 2.0,
-                              desktop: 2.2,
+                              phone: 1.8,
+                              tablet: 2.2,
+                              desktop: 2.5,
                             ),
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: primaryPink.withValues(alpha: 0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                        child: Icon(
-                          Icons.camera_alt_outlined,
-                          color: primaryPink,
-                          size: cameraIconSize,
+                        child: ClipOval(
+                          child: (currentUserAvatar != null &&
+                                  currentUserAvatar!.trim().isNotEmpty)
+                              ? FastCachedImage(
+                                  imageUrl: currentUserAvatar!.trim(),
+                                  width: addCircleSize,
+                                  height: addCircleSize,
+                                  fit: BoxFit.cover,
+                                  errorWidget: Container(
+                                    color: const Color(0xFFFAF4F6),
+                                    child: Icon(
+                                      Icons.person_rounded,
+                                      color: primaryPink,
+                                      size: cameraIconSize,
+                                    ),
+                                  ),
+                                )
+                              : Container(
+                                  color: const Color(0xFFFAF4F6),
+                                  child: Icon(
+                                    Icons.person_rounded,
+                                    color: primaryPink,
+                                    size: cameraIconSize,
+                                  ),
+                                ),
                         ),
                       ),
                       Positioned(

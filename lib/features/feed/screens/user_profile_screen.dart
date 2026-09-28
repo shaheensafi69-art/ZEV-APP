@@ -34,6 +34,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   List<Map<String, dynamic>> userSavedPosts = [];
   List<Map<String, dynamic>> userReposts = [];
   int activeTab = 0; // 0: Posts, 1: Reels, 2: Liked, 3: Reposts, 4: Saved
+  String activeWebTab = 'posts';
   int activeSavedSubTab = 0; // 0: Saved Reels, 1: Saved Posts
 
   int followersCount = 0;
@@ -55,8 +56,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   @override
   void initState() {
     super.initState();
-    if (!isMyProfile && activeTab >= 2) {
-      activeTab = 0;
+    if (!isMyProfile) {
+      if (activeTab >= 2) activeTab = 0;
+      if (activeWebTab == 'liked' || activeWebTab == 'saved') {
+        activeWebTab = 'posts';
+      }
     }
     _fetchProfileAndPosts();
   }
@@ -3955,37 +3959,45 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final tabs = [
       {
+        'id': 'posts',
         'title': context.zevTr('posts').toUpperCase(),
         'icon': Icons.chat_bubble_outline_rounded,
       },
       {
+        'id': 'reels',
         'title': context.zevTr('reels').toUpperCase(),
         'icon': Icons.smart_display_outlined,
       },
+      if (isMyProfile)
+        {
+          'id': 'liked',
+          'title': context.zevTr('liked').toUpperCase(),
+          'icon': Icons.favorite_border_rounded,
+        },
       {
-        'title': context.zevTr('liked').toUpperCase(),
-        'icon': Icons.favorite_border_rounded,
-      },
-      {
+        'id': 'reposts',
         'title': context.zevTr('reposts').toUpperCase(),
         'icon': Icons.repeat_rounded,
       },
-      {
-        'title': context.zevTr('saved').toUpperCase(),
-        'icon': Icons.bookmark_border_rounded,
-      },
+      if (isMyProfile)
+        {
+          'id': 'saved',
+          'title': context.zevTr('saved').toUpperCase(),
+          'icon': Icons.bookmark_border_rounded,
+        },
     ];
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: List.generate(tabs.length, (i) {
-          final isSelected = activeTab == i;
           final t = tabs[i];
+          final tabId = t['id'] as String;
+          final isSelected = activeWebTab == tabId;
           return Padding(
             padding: const EdgeInsets.only(right: 8.0),
             child: InkWell(
-              onTap: () => setState(() => activeTab = i),
+              onTap: () => setState(() => activeWebTab = tabId),
               borderRadius: BorderRadius.circular(10),
               child: Container(
                 padding: const EdgeInsets.symmetric(
@@ -4092,7 +4104,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Widget _buildWebContentForTab() {
-    if (activeTab == 0) {
+    if (activeWebTab == 'posts') {
       if (userPosts.isEmpty) {
         return _buildWebEmptyState(
           icon: Icons.chat_bubble_outline_rounded,
@@ -4110,7 +4122,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           return _buildWebPostCard(post, index);
         },
       );
-    } else if (activeTab == 1) {
+    } else if (activeWebTab == 'reels') {
       if (userReels.isEmpty) {
         return _buildWebEmptyState(
           icon: Icons.smart_display_outlined,
@@ -4124,7 +4136,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
       );
-    } else if (activeTab == 2) {
+    } else if (activeWebTab == 'liked') {
+      if (!isMyProfile) {
+        return _buildWebEmptyState(
+          icon: Icons.lock_outline_rounded,
+          title: context.zevTr('privateSection'),
+          subtitle: context.zevTr('onlyYouCanSee'),
+        );
+      }
       if (userLikedReels.isEmpty) {
         return _buildWebEmptyState(
           icon: Icons.favorite_border_rounded,
@@ -4138,7 +4157,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
       );
-    } else if (activeTab == 3) {
+    } else if (activeWebTab == 'reposts') {
       if (userReposts.isEmpty) {
         return _buildWebEmptyState(
           icon: Icons.repeat_rounded,
@@ -4156,7 +4175,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           return _buildWebPostCard(post, index, isRepost: true);
         },
       );
-    } else {
+    } else if (activeWebTab == 'saved') {
+      if (!isMyProfile) {
+        return _buildWebEmptyState(
+          icon: Icons.lock_outline_rounded,
+          title: context.zevTr('privateSection'),
+          subtitle: context.zevTr('onlyYouCanSee'),
+        );
+      }
       final totalSaved = userSavedReels.length + userSavedPosts.length;
       if (totalSaved == 0) {
         return _buildWebEmptyState(
@@ -4172,6 +4198,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         physics: const NeverScrollableScrollPhysics(),
       );
     }
+    return const SizedBox.shrink();
   }
 
   Widget _buildWebPostCard(

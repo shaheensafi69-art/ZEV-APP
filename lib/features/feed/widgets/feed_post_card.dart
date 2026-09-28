@@ -119,6 +119,7 @@ class _FeedPostCardState extends State<FeedPostCard> {
   late int likesCount;
   bool isReposted = false;
   int repostsCount = 0;
+  bool _isContentExpanded = false;
 
   @override
   void initState() {
@@ -761,16 +762,48 @@ class _FeedPostCardState extends State<FeedPostCard> {
                   textDirection: _isRtlText(post.content)
                       ? TextDirection.rtl
                       : TextDirection.ltr,
-                  child: Text(
-                    post.content,
-                    textAlign: _isRtlText(post.content)
-                        ? TextAlign.right
-                        : TextAlign.left,
-                    style: TextStyle(
-                      color: const Color(0xFF374151),
-                      fontSize: contentFontSize,
-                      height: 1.6,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: _isRtlText(post.content)
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        post.content,
+                        maxLines: _isContentExpanded ? null : 1,
+                        overflow: _isContentExpanded
+                            ? TextOverflow.visible
+                            : TextOverflow.ellipsis,
+                        textAlign: _isRtlText(post.content)
+                            ? TextAlign.right
+                            : TextAlign.left,
+                        style: TextStyle(
+                          color: const Color(0xFF374151),
+                          fontSize: contentFontSize,
+                          height: 1.6,
+                        ),
+                      ),
+                      if (post.content.length > 50 || post.content.contains('\n'))
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _isContentExpanded = !_isContentExpanded;
+                            });
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              _isContentExpanded
+                                  ? context.zevTr('seeLess')
+                                  : '... ${context.zevTr('seeMore')}',
+                              style: const TextStyle(
+                                color: primaryPink,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ],

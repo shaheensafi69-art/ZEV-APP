@@ -496,33 +496,20 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     return Container(
       width: width,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: isDark
-              ? const [
-                  Color(0xFF0F172A),
-                  Color(0xFF090D16),
-                ]
-              : const [
-                  Color(0xFFFFFFFF),
-                  Color(0xFFFFF1F4),
-                  Color(0xFFF8FAFC),
-                ],
-        ),
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF6F8FB),
         border: Border(
           right: BorderSide(
             color: isDark
                 ? Colors.white.withValues(alpha: 0.08)
-                : const Color(0xFFF1F5F9),
+                : const Color(0xFFE2E8F0),
             width: 1.2,
           ),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.03),
-            blurRadius: 14,
-            offset: const Offset(2, 0),
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.04),
+            blurRadius: 16,
+            offset: const Offset(3, 0),
           ),
         ],
       ),
@@ -547,13 +534,31 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                         end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: primaryPink.withValues(alpha: 0.35),
-                          blurRadius: 12,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
+                      boxShadow: isDark
+                          ? [
+                              BoxShadow(
+                                color: primaryPink.withValues(alpha: 0.4),
+                                blurRadius: 12,
+                                offset: const Offset(0, 3),
+                              ),
+                              BoxShadow(
+                                color: Colors.white.withValues(alpha: 0.06),
+                                blurRadius: 6,
+                                offset: const Offset(-2, -2),
+                              ),
+                            ]
+                          : [
+                              BoxShadow(
+                                color: primaryPink.withValues(alpha: 0.35),
+                                blurRadius: 10,
+                                offset: const Offset(2, 3),
+                              ),
+                              const BoxShadow(
+                                color: Colors.white,
+                                blurRadius: 8,
+                                offset: Offset(-2, -2),
+                              ),
+                            ],
                     ),
                     child: Image.asset(
                       'assets/logo-without-b.png',
@@ -687,7 +692,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
 
             const SizedBox(height: 10),
 
-            // CREATE NEW POST Button (matching user's screenshot)
+            // CREATE NEW POST Button (Neumorphic)
             Padding(
               padding: EdgeInsets.symmetric(horizontal: isDesktop ? 16 : 12),
               child: InkWell(
@@ -703,13 +708,36 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                       end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(18),
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryPink.withValues(alpha: 0.4),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+                    boxShadow: isDark
+                        ? [
+                            BoxShadow(
+                              color: primaryPink.withValues(alpha: 0.45),
+                              blurRadius: 14,
+                              offset: const Offset(0, 4),
+                            ),
+                            BoxShadow(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              blurRadius: 6,
+                              offset: const Offset(-2, -2),
+                            ),
+                          ]
+                        : [
+                            BoxShadow(
+                              color: primaryPink.withValues(alpha: 0.35),
+                              blurRadius: 12,
+                              offset: const Offset(3, 4),
+                            ),
+                            const BoxShadow(
+                              color: Colors.white,
+                              blurRadius: 8,
+                              offset: Offset(-3, -3),
+                            ),
+                            const BoxShadow(
+                              color: Color(0xFFD1D9E6),
+                              blurRadius: 6,
+                              offset: Offset(2, 2),
+                            ),
+                          ],
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -737,7 +765,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
               ),
             ),
 
-            // Desktop User Profile Pill at bottom of sidebar
+            // Desktop User Profile Pill at bottom of sidebar (Neumorphic)
             if (isDesktop) ...[
               Padding(
                 padding: const EdgeInsets.symmetric(
@@ -754,14 +782,41 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     ),
                     decoration: BoxDecoration(
                       color: isDark
-                          ? const Color(0xFF1E293B)
-                          : const Color(0xFFF8FAFC),
+                          ? const Color(0xFF131D30)
+                          : const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: isDark
-                            ? Colors.white10
-                            : const Color(0xFFE2E8F0),
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Colors.white,
+                        width: 1.2,
                       ),
+                      boxShadow: isDark
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.35),
+                                offset: const Offset(2, 2),
+                                blurRadius: 6,
+                              ),
+                              BoxShadow(
+                                color: Colors.white.withValues(alpha: 0.03),
+                                offset: const Offset(-2, -2),
+                                blurRadius: 4,
+                              ),
+                            ]
+                          : [
+                              BoxShadow(
+                                color: const Color(0xFFCBD5E1)
+                                    .withValues(alpha: 0.8),
+                                offset: const Offset(2, 2),
+                                blurRadius: 5,
+                              ),
+                              const BoxShadow(
+                                color: Colors.white,
+                                offset: Offset(-2, -2),
+                                blurRadius: 5,
+                              ),
+                            ],
                     ),
                     child: Row(
                       children: [
@@ -856,16 +911,76 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
           decoration: BoxDecoration(
             color: isSelected
                 ? (isDark
-                      ? primaryPink.withValues(alpha: 0.18)
-                      : primaryPink.withValues(alpha: 0.1))
-                : Colors.transparent,
+                    ? const Color(0xFF162033)
+                    : const Color(0xFFECEFF5))
+                : (isDark
+                    ? const Color(0xFF0F172A)
+                    : const Color(0xFFF8FAFC)),
             borderRadius: BorderRadius.circular(16),
-            border: isSelected
-                ? Border.all(
-                    color: primaryPink.withValues(alpha: 0.25),
-                    width: 1,
-                  )
-                : null,
+            border: Border.all(
+              color: isSelected
+                  ? primaryPink.withValues(alpha: 0.5)
+                  : (isDark
+                      ? Colors.white.withValues(alpha: 0.04)
+                      : Colors.white),
+              width: 1.2,
+            ),
+            boxShadow: isSelected
+                ? (isDark
+                    ? [
+                        BoxShadow(
+                          color: primaryPink.withValues(alpha: 0.2),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          offset: const Offset(2, 2),
+                          blurRadius: 4,
+                        ),
+                      ]
+                    : [
+                        BoxShadow(
+                          color: primaryPink.withValues(alpha: 0.15),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                        BoxShadow(
+                          color: const Color(0xFFCBD5E1).withValues(alpha: 0.7),
+                          offset: const Offset(2, 2),
+                          blurRadius: 4,
+                        ),
+                        const BoxShadow(
+                          color: Colors.white,
+                          offset: Offset(-2, -2),
+                          blurRadius: 4,
+                        ),
+                      ])
+                : (isDark
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.25),
+                          offset: const Offset(2, 2),
+                          blurRadius: 4,
+                        ),
+                        BoxShadow(
+                          color: Colors.white.withValues(alpha: 0.02),
+                          offset: const Offset(-1, -1),
+                          blurRadius: 3,
+                        ),
+                      ]
+                    : [
+                        BoxShadow(
+                          color: const Color(0xFFE2E8F0).withValues(alpha: 0.7),
+                          offset: const Offset(2, 2),
+                          blurRadius: 4,
+                        ),
+                        const BoxShadow(
+                          color: Colors.white,
+                          offset: Offset(-2, -2),
+                          blurRadius: 4,
+                        ),
+                      ]),
           ),
           child: isDesktop
               ? Row(

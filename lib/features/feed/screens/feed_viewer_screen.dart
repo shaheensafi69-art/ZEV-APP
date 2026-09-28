@@ -51,6 +51,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isScrolled = false;
+  String _myAvatarUrl = "";
 
   static const Color primaryPink = Color(0xFFFC466B);
   static const Color lightPinkBg = Color(0xFFFFF0F5);
@@ -161,8 +162,22 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
       }
 
       if (mounted) {
+        String myAv = _myAvatarUrl;
+        if (myAv.isEmpty) {
+          try {
+            final myP = await supabase
+                .from("profiles")
+                .select("avatar_url")
+                .eq("id", currentUserId)
+                .maybeSingle();
+            if (myP != null) {
+              myAv = myP['avatar_url']?.toString() ?? '';
+            }
+          } catch (_) {}
+        }
         setState(() {
           activeFriendStories = loaded;
+          _myAvatarUrl = myAv;
         });
       }
     } catch (e) {
@@ -1111,6 +1126,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                             FeedStoriesTray(
                                               activeFriendStories:
                                                   activeFriendStories,
+                                              currentUserAvatar: _myAvatarUrl,
                                               onStoryCreated: () {
                                                 _fetchFeedPosts();
                                                 _fetchActiveFriendStories();
