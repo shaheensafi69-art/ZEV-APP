@@ -987,6 +987,8 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
             ),
           ],
         ),
+      ),
+    );
   }
 
   // =========================================================================
@@ -1685,7 +1687,7 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: Colors.black60,
+                    color: Colors.black54,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(
