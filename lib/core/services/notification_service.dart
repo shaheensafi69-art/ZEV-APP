@@ -140,6 +140,21 @@ class NotificationService {
       final user = supabase.auth.currentUser;
       if (user == null) return;
 
+      // 1. Update push_subscriptions (multi-device & multi-app safe)
+      final deviceType = kIsWeb ? 'web' : defaultTargetPlatform.name.toLowerCase();
+      final deviceName = kIsWeb ? 'Web Browser' : '${defaultTargetPlatform.name} Device';
+
+      await supabase.from('push_subscriptions').upsert({
+        'user_id': user.id,
+        'fcm_token': token,
+        'app_name': 'zev',
+        'device_type': deviceType,
+        'device_name': deviceName,
+        'is_active': true,
+        'updated_at': DateTime.now().toIso8601String(),
+      }, onConflict: 'fcm_token');
+
+      // 2. Also update profiles.fcm_token for backwards compatibility
       await supabase
           .from('profiles')
           .update({'fcm_token': token})
@@ -147,14 +162,14 @@ class NotificationService {
 
       _lastSavedUserId = user.id;
       debugPrint(
-        "Successfully saved FCM token to Supabase profile for user: ${user.id}",
+        "Successfully saved FCM token to push_subscriptions (ZEV) for user: ${user.id}",
       );
     } catch (e) {
-      debugPrint("Error updating fcm_token in profiles table: $e");
+      debugPrint("Error updating push_subscriptions in Supabase: $e");
     }
   }
 
-  /// Helper to insert new notification in database
+  /// Helper to insert new notification in database tagged with app_source
   Future<void> sendNotificationToUser({
     required String targetUserId,
     required String title,
@@ -163,6 +178,7 @@ class NotificationService {
     notificationType, // 'like_comment', 'chat', 'class_reminder', 'admin_announcement', 'scheduled'
     String? linkUrl,
     String? senderId,
+    String appSource = 'zev',
   }) async {
     try {
       await supabase.from("user_notifications").insert({
@@ -173,6 +189,7 @@ class NotificationService {
         'notification_type': notificationType,
         'link_url': linkUrl,
         'is_read': false,
+        'app_source': appSource,
         'created_at': DateTime.now().toIso8601String(),
       });
     } catch (e) {

@@ -72,7 +72,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
   String _currentUserAvatar = "";
   String _myNote = "";
   String _selectedFilter = "All"; // "All", "Primary", "Requests"
-  String _activeSecondaryFilter = "all"; // "all", "unread"
+  final String _activeSecondaryFilter = "all"; // "all", "unread"
   String? _activeDesktopPeerId;
   String? _activeDesktopPeerName;
   String? _activeDesktopPeerAvatar;

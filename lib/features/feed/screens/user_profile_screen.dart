@@ -463,7 +463,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
-  // Edit profile dialog
+  // Edit profile dialog with complete field customization and privacy toggles
   void _showEditProfileModal() {
     final TextEditingController firstNameController = TextEditingController(
       text: profileData?['first_name'] ?? '',
@@ -493,12 +493,124 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       text: profileData?['bio'] ?? '',
     );
 
-    // Privacy toggles (hide / show from public profile)
-    bool isPhoneHidden = profileData?['is_phone_hidden'] == true;
-    bool isDobHidden = profileData?['is_dob_hidden'] == true;
-    bool isFatherNameHidden = profileData?['is_father_name_hidden'] == true;
-    bool isCountryHidden = profileData?['is_country_hidden'] == true;
+    // Extract privacy settings
+    final privacyMap = (profileData?['privacy_settings'] is Map)
+        ? Map<String, dynamic>.from(profileData!['privacy_settings'])
+        : <String, dynamic>{};
+
+    bool isPhoneHidden = profileData?['is_phone_hidden'] == true || privacyMap['hide_phone'] == true;
+    bool isDobHidden = profileData?['is_dob_hidden'] == true || privacyMap['hide_dob'] == true;
+    bool isFatherNameHidden = profileData?['is_father_name_hidden'] == true || privacyMap['hide_father_name'] == true;
+    bool isCountryHidden = profileData?['is_country_hidden'] == true || privacyMap['hide_country'] == true;
+    bool isEmailHidden = profileData?['is_email_hidden'] == true || privacyMap['hide_email'] == true;
+    bool isBioHidden = profileData?['is_bio_hidden'] == true || privacyMap['hide_bio'] == true;
+    bool isWalletHidden = profileData?['is_wallet_hidden'] == true || privacyMap['hide_wallet'] == true;
+    bool isScoreHidden = profileData?['is_score_hidden'] == true || privacyMap['hide_score'] == true;
+    bool isReferralHidden = profileData?['is_referral_hidden'] == true || privacyMap['hide_referral'] == true;
+    bool isLanguageHidden = profileData?['is_language_hidden'] == true || privacyMap['hide_language'] == true;
+    bool isRoleHidden = profileData?['is_role_hidden'] == true || privacyMap['hide_role'] == true;
+    bool isLastNameHidden = privacyMap['hide_lastname'] == true;
+
     bool isSavingProfile = false;
+
+    Widget buildPrivacyToggleTile({
+      required IconData icon,
+      required String title,
+      required String subtitle,
+      required bool isHidden,
+      required VoidCallback onToggle,
+    }) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isHidden
+              ? Colors.red.withValues(alpha: 0.04)
+              : Colors.teal.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isHidden
+                ? Colors.redAccent.withValues(alpha: 0.25)
+                : Colors.teal.withValues(alpha: 0.25),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isHidden
+                    ? Colors.redAccent.withValues(alpha: 0.1)
+                    : Colors.teal.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: 18,
+                color: isHidden ? Colors.redAccent : Colors.teal,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      color: textGrey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            InkWell(
+              onTap: onToggle,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: isHidden
+                      ? Colors.redAccent.withValues(alpha: 0.15)
+                      : Colors.teal.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isHidden ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                      size: 14,
+                      color: isHidden ? Colors.redAccent : Colors.teal,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isHidden ? "مخفی (Hidden)" : "نمایان (Visible)",
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isHidden ? Colors.redAccent : Colors.teal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     showModalBottomSheet(
       context: context,
@@ -524,7 +636,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      "Edit Profile ✏️",
+                      "Edit Profile & Privacy ✏️",
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w900,
@@ -788,43 +900,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ),
                 const SizedBox(height: 14),
 
-                // Privacy info banner
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.blueGrey.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.blueGrey.withValues(alpha: 0.15),
-                    ),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline_rounded,
-                        size: 16,
-                        color: textGrey,
-                      ),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          "Tap the 👁️ eye icon on any field below to hide (🔒) or show it on your public profile.",
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            color: textGrey,
-                            height: 1.3,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Father's Name with privacy toggle
+                // Father's Name
                 TextField(
                   controller: fatherNameController,
                   cursorColor: primaryPink,
@@ -833,33 +909,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       Icons.person_outline_rounded,
                       color: textGrey,
                       size: 20,
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        isFatherNameHidden
-                            ? Icons.visibility_off_rounded
-                            : Icons.visibility_rounded,
-                        color: isFatherNameHidden
-                            ? Colors.redAccent
-                            : Colors.teal,
-                        size: 20,
-                      ),
-                      tooltip: isFatherNameHidden
-                          ? "Hidden from public (پنهان)"
-                          : "Visible to public (نمایان)",
-                      onPressed: () => setModalState(
-                        () => isFatherNameHidden = !isFatherNameHidden,
-                      ),
-                    ),
-                    helperText: isFatherNameHidden
-                        ? "🔒 Hidden from others (پنهان)"
-                        : "👁️ Visible to public (نمایان)",
-                    helperStyle: TextStyle(
-                      fontSize: 11,
-                      color: isFatherNameHidden
-                          ? Colors.redAccent
-                          : Colors.teal,
-                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   style: const TextStyle(
@@ -870,7 +919,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // Phone with privacy toggle
+                // Phone
                 TextField(
                   controller: phoneController,
                   keyboardType: TextInputType.phone,
@@ -881,28 +930,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       color: textGrey,
                       size: 20,
                     ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        isPhoneHidden
-                            ? Icons.visibility_off_rounded
-                            : Icons.visibility_rounded,
-                        color: isPhoneHidden ? Colors.redAccent : Colors.teal,
-                        size: 20,
-                      ),
-                      tooltip: isPhoneHidden
-                          ? "Hidden from public (پنهان)"
-                          : "Visible to public (نمایان)",
-                      onPressed: () =>
-                          setModalState(() => isPhoneHidden = !isPhoneHidden),
-                    ),
-                    helperText: isPhoneHidden
-                        ? "🔒 Hidden from others (پنهان)"
-                        : "👁️ Visible to public (نمایان)",
-                    helperStyle: TextStyle(
-                      fontSize: 11,
-                      color: isPhoneHidden ? Colors.redAccent : Colors.teal,
-                      fontWeight: FontWeight.w600,
-                    ),
                   ),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
@@ -912,7 +939,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // Country with privacy toggle
+                // Country
                 TextField(
                   controller: countryController,
                   cursorColor: primaryPink,
@@ -922,29 +949,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       color: textGrey,
                       size: 20,
                     ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        isCountryHidden
-                            ? Icons.visibility_off_rounded
-                            : Icons.visibility_rounded,
-                        color: isCountryHidden ? Colors.redAccent : Colors.teal,
-                        size: 20,
-                      ),
-                      tooltip: isCountryHidden
-                          ? "Hidden from public (پنهان)"
-                          : "Visible to public (نمایان)",
-                      onPressed: () => setModalState(
-                        () => isCountryHidden = !isCountryHidden,
-                      ),
-                    ),
-                    helperText: isCountryHidden
-                        ? "🔒 Hidden from others (پنهان)"
-                        : "👁️ Visible to public (نمایان)",
-                    helperStyle: TextStyle(
-                      fontSize: 11,
-                      color: isCountryHidden ? Colors.redAccent : Colors.teal,
-                      fontWeight: FontWeight.w600,
-                    ),
                   ),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
@@ -954,7 +958,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // Date of birth with privacy toggle
+                // Date of birth
                 TextField(
                   controller: dobController,
                   cursorColor: primaryPink,
@@ -964,28 +968,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           Icons.cake_outlined,
                           color: textGrey,
                           size: 20,
-                        ),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            isDobHidden
-                                ? Icons.visibility_off_rounded
-                                : Icons.visibility_rounded,
-                            color: isDobHidden ? Colors.redAccent : Colors.teal,
-                            size: 20,
-                          ),
-                          tooltip: isDobHidden
-                              ? "Hidden from public (پنهان)"
-                              : "Visible to public (نمایان)",
-                          onPressed: () =>
-                              setModalState(() => isDobHidden = !isDobHidden),
-                        ),
-                        helperText: isDobHidden
-                            ? "🔒 Hidden from others (پنهان)"
-                            : "👁️ Visible to public (نمایان)",
-                        helperStyle: TextStyle(
-                          fontSize: 11,
-                          color: isDobHidden ? Colors.redAccent : Colors.teal,
-                          fontWeight: FontWeight.w600,
                         ),
                       ),
                   style: const TextStyle(
@@ -1004,7 +986,163 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   decoration: _inputDecoration("Biography / About Me"),
                   style: const TextStyle(fontSize: 14, color: textDark),
                 ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 24),
+
+                // ==========================================
+                // SECTION: COMPLETE PROFILE PRIVACY TOGGLES
+                // ==========================================
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: lightPinkBg,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: primaryPink.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(
+                            Icons.shield_outlined,
+                            color: primaryPink,
+                            size: 20,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            "Profile Privacy & Visibility (حریم خصوصی)",
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              color: textDark,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        "هر بخشی را که می‌خواهید دیگران در پروفایل عمومی شما نبینند، با زدن روی دکمه مخفی (🔒) کنید:",
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: textGrey,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // 1. Phone Number
+                      buildPrivacyToggleTile(
+                        icon: Icons.phone_outlined,
+                        title: "Phone Number (شماره تماس)",
+                        subtitle: "نمایش یا عدم نمایش شماره تلفن برای دیگران",
+                        isHidden: isPhoneHidden,
+                        onToggle: () => setModalState(() => isPhoneHidden = !isPhoneHidden),
+                      ),
+
+                      // 2. Date of Birth
+                      buildPrivacyToggleTile(
+                        icon: Icons.cake_outlined,
+                        title: "Date of Birth (تاریخ تولد)",
+                        subtitle: "نمایش یا مخفی‌سازی تاریخ تولد در پروفایل",
+                        isHidden: isDobHidden,
+                        onToggle: () => setModalState(() => isDobHidden = !isDobHidden),
+                      ),
+
+                      // 3. Country / Location
+                      buildPrivacyToggleTile(
+                        icon: Icons.public_rounded,
+                        title: "Country & Location (کشور و موقعیت)",
+                        subtitle: "نمایش کشور و موقعیت جغرافیایی شما",
+                        isHidden: isCountryHidden,
+                        onToggle: () => setModalState(() => isCountryHidden = !isCountryHidden),
+                      ),
+
+                      // 4. Father's Name
+                      buildPrivacyToggleTile(
+                        icon: Icons.badge_outlined,
+                        title: "Father's Name (نام پدر)",
+                        subtitle: "نمایش نام پدر در اطلاعات کاربری",
+                        isHidden: isFatherNameHidden,
+                        onToggle: () => setModalState(() => isFatherNameHidden = !isFatherNameHidden),
+                      ),
+
+                      // 5. Email Address
+                      buildPrivacyToggleTile(
+                        icon: Icons.email_outlined,
+                        title: "Email Address (آدرس ایمیل)",
+                        subtitle: "نمایش یا پنهان‌سازی آدرس ایمیل برای عموم",
+                        isHidden: isEmailHidden,
+                        onToggle: () => setModalState(() => isEmailHidden = !isEmailHidden),
+                      ),
+
+                      // 6. Biography
+                      buildPrivacyToggleTile(
+                        icon: Icons.notes_rounded,
+                        title: "Biography (متن درباره من / بیو)",
+                        subtitle: "نمایش متن بیوگرافی برای سایر کاربران",
+                        isHidden: isBioHidden,
+                        onToggle: () => setModalState(() => isBioHidden = !isBioHidden),
+                      ),
+
+                      // 7. ZEV Points & Level
+                      buildPrivacyToggleTile(
+                        icon: Icons.bolt_rounded,
+                        title: "ZEV Points / XP (امتیاز کل)",
+                        subtitle: "نمایش امتیازات و لول شما در پروفایل",
+                        isHidden: isScoreHidden,
+                        onToggle: () => setModalState(() => isScoreHidden = !isScoreHidden),
+                      ),
+
+                      // 8. Wallet Balance
+                      buildPrivacyToggleTile(
+                        icon: Icons.account_balance_wallet_outlined,
+                        title: "Wallet Balance (موجودی کیف پول)",
+                        subtitle: "مخفی کردن رقم کیف پول از دید سایرین",
+                        isHidden: isWalletHidden,
+                        onToggle: () => setModalState(() => isWalletHidden = !isWalletHidden),
+                      ),
+
+                      // 9. Referral Code
+                      buildPrivacyToggleTile(
+                        icon: Icons.share_rounded,
+                        title: "Referral Code (کد و لینک دعوت)",
+                        subtitle: "نمایش کد معرف و لینک دعوت شما",
+                        isHidden: isReferralHidden,
+                        onToggle: () => setModalState(() => isReferralHidden = !isReferralHidden),
+                      ),
+
+                      // 10. Last Name
+                      buildPrivacyToggleTile(
+                        icon: Icons.person_outline_rounded,
+                        title: "Last Name (تخلص / نام خانوادگی)",
+                        subtitle: "نمایش تخلص یا نمایش تنها اسم کوچک",
+                        isHidden: isLastNameHidden,
+                        onToggle: () => setModalState(() => isLastNameHidden = !isLastNameHidden),
+                      ),
+
+                      // 11. Preferred Language
+                      buildPrivacyToggleTile(
+                        icon: Icons.language_rounded,
+                        title: "Preferred Language (زبان انتخابی)",
+                        subtitle: "نمایش زبان مورد علاقه در پروفایل",
+                        isHidden: isLanguageHidden,
+                        onToggle: () => setModalState(() => isLanguageHidden = !isLanguageHidden),
+                      ),
+
+                      // 12. Account Role
+                      buildPrivacyToggleTile(
+                        icon: Icons.verified_user_outlined,
+                        title: "Account Role (نقش کاربری)",
+                        subtitle: "نمایش تگ نقش کاربری (User/Creator/Admin)",
+                        isHidden: isRoleHidden,
+                        onToggle: () => setModalState(() => isRoleHidden = !isRoleHidden),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
 
                 SizedBox(
                   width: double.infinity,
@@ -1087,6 +1225,27 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 'is_dob_hidden': isDobHidden,
                                 'is_father_name_hidden': isFatherNameHidden,
                                 'is_country_hidden': isCountryHidden,
+                                'is_email_hidden': isEmailHidden,
+                                'is_bio_hidden': isBioHidden,
+                                'is_wallet_hidden': isWalletHidden,
+                                'is_score_hidden': isScoreHidden,
+                                'is_referral_hidden': isReferralHidden,
+                                'is_language_hidden': isLanguageHidden,
+                                'is_role_hidden': isRoleHidden,
+                                'privacy_settings': {
+                                  'hide_phone': isPhoneHidden,
+                                  'hide_dob': isDobHidden,
+                                  'hide_father_name': isFatherNameHidden,
+                                  'hide_country': isCountryHidden,
+                                  'hide_email': isEmailHidden,
+                                  'hide_bio': isBioHidden,
+                                  'hide_wallet': isWalletHidden,
+                                  'hide_score': isScoreHidden,
+                                  'hide_referral': isReferralHidden,
+                                  'hide_language': isLanguageHidden,
+                                  'hide_role': isRoleHidden,
+                                  'hide_lastname': isLastNameHidden,
+                                },
                               };
                               if (rawUsername.isNotEmpty) {
                                 updatePayload['username'] = rawUsername;
@@ -1104,7 +1263,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text(
-                                    "Profile updated successfully! ✅",
+                                    "Profile and privacy settings updated! ✅",
                                   ),
                                   backgroundColor: Colors.green,
                                 ),
@@ -1130,7 +1289,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             ),
                           )
                         : const Text(
-                            "SAVE CHANGES",
+                            "SAVE ALL CHANGES",
                             style: TextStyle(
                               fontWeight: FontWeight.w900,
                               letterSpacing: 0.5,
@@ -3849,61 +4008,117 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               ),
             ),
 
-            // Change Cover button at top right
+            // Top Right Action Buttons: Edit Profile & Privacy + Change Cover
             if (isMyProfile)
               Positioned(
                 top: 18,
                 right: 18,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: isCoverUploading ? null : _handleCoverUpload,
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.5),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Edit Profile & Privacy Button
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _showEditProfileModal,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.25),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (isCoverUploading)
-                            const SizedBox(
-                              width: 12,
-                              height: 12,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          else
-                            const Icon(
-                              Icons.camera_alt_outlined,
-                              color: Colors.white,
-                              size: 14,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFFC466B), Color(0xFFFF5E7E)],
                             ),
-                          const SizedBox(width: 6),
-                          Text(
-                            isCoverUploading
-                                ? context.zevTr('uploading')
-                                : context.zevTr('changeCover'),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFC466B).withOpacity(0.4),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.3),
                             ),
                           ),
-                        ],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.tune_rounded,
+                                color: Colors.white,
+                                size: 14,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                context.zevTr('editProfile'),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    // Change Cover button
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: isCoverUploading ? null : _handleCoverUpload,
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.25),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isCoverUploading)
+                                const SizedBox(
+                                  width: 12,
+                                  height: 12,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              else
+                                const Icon(
+                                  Icons.camera_alt_outlined,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
+                              const SizedBox(width: 6),
+                              Text(
+                                isCoverUploading
+                                    ? context.zevTr('uploading')
+                                    : context.zevTr('changeCover'),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
@@ -4169,103 +4384,241 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Widget _buildWebLeftColumn() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bio = profileData?['bio']?.toString() ?? '';
+
+    // Privacy extraction
+    final privacyMap = (profileData?['privacy_settings'] is Map)
+        ? Map<String, dynamic>.from(profileData!['privacy_settings'])
+        : <String, dynamic>{};
+
+    final isBioHidden = profileData?['is_bio_hidden'] == true || privacyMap['hide_bio'] == true;
+    final isCountryHidden = profileData?['is_country_hidden'] == true || privacyMap['hide_country'] == true;
+    final isEmailHidden = profileData?['is_email_hidden'] == true || privacyMap['hide_email'] == true;
+    final isDobHidden = profileData?['is_dob_hidden'] == true || privacyMap['hide_dob'] == true;
+    final isWalletHidden = profileData?['is_wallet_hidden'] == true || privacyMap['hide_wallet'] == true;
+    final isReferralHidden = profileData?['is_referral_hidden'] == true || privacyMap['hide_referral'] == true;
+    final isPhoneHidden = profileData?['is_phone_hidden'] == true || privacyMap['hide_phone'] == true;
+    final isFatherNameHidden = profileData?['is_father_name_hidden'] == true || privacyMap['hide_father_name'] == true;
+
+    final phoneVal = (profileData?['phone_number'] ?? '').toString().trim();
+    final fatherVal = (profileData?['father_name'] ?? '').toString().trim();
+
     return SizedBox(
       width: 320,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.person_outline_rounded,
-                color: Color(0xFFFC466B),
-                size: 16,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                context.zevTr('biography').toUpperCase(),
-                style: TextStyle(
-                  color: isDark ? Colors.white : const Color(0xFF0F172A),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.2,
+          // Owner Edit Profile & Privacy quick action button
+          if (isMyProfile) ...[
+            InkWell(
+              onTap: _showEditProfileModal,
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 16),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFC466B), Color(0xFFFF5E7E)],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFC466B).withOpacity(0.35),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.tune_rounded, color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      context.zevTr('editProfile'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF14161F) : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isDark
-                    ? Colors.white.withOpacity(0.06)
-                    : Colors.black.withOpacity(0.06),
-              ),
-              boxShadow: isDark
-                  ? null
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.03),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
             ),
-            child: Text(
-              bio.isNotEmpty ? bio : context.zevTr('noBioProvided'),
-              style: TextStyle(
-                color: isDark
-                    ? Colors.white.withOpacity(0.7)
-                    : const Color(0xFF475569),
-                fontSize: 13,
-                height: 1.4,
+            const SizedBox(height: 16),
+          ],
+
+          // Biography Card (respects privacy)
+          if (isMyProfile || !isBioHidden) ...[
+            Row(
+              children: [
+                const Icon(
+                  Icons.person_outline_rounded,
+                  color: Color(0xFFFC466B),
+                  size: 16,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  context.zevTr('biography').toUpperCase(),
+                  style: TextStyle(
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                if (isBioHidden && isMyProfile) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.lock_rounded, size: 10, color: Colors.redAccent),
+                        SizedBox(width: 3),
+                        Text(
+                          'PRIVATE',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.redAccent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF14161F) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.06)
+                      : Colors.black.withOpacity(0.06),
+                ),
+                boxShadow: isDark
+                    ? null
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.03),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+              ),
+              child: Text(
+                bio.isNotEmpty ? bio : context.zevTr('noBioProvided'),
+                style: TextStyle(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.7)
+                      : const Color(0xFF475569),
+                  fontSize: 13,
+                  height: 1.4,
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          _buildWebMetaCard(
-            icon: Icons.location_on_outlined,
-            title: context.zevTr('location'),
-            value: _locationStr,
-          ),
-          const SizedBox(height: 10),
+            const SizedBox(height: 16),
+          ],
+
+          // Location
+          if (isMyProfile || !isCountryHidden) ...[
+            _buildWebMetaCard(
+              icon: Icons.location_on_outlined,
+              title: context.zevTr('location'),
+              value: _locationStr,
+              isPrivate: isCountryHidden,
+            ),
+            const SizedBox(height: 10),
+          ],
+
+          // Joined Date (publicly safe)
           _buildWebMetaCard(
             icon: Icons.calendar_today_rounded,
             title: context.zevTr('joined'),
             value: _joinedDateStr,
           ),
           const SizedBox(height: 10),
-          _buildWebMetaCard(
-            icon: Icons.email_outlined,
-            title: context.zevTr('email'),
-            value: _emailStr,
-            showRedDot: true,
-          ),
-          const SizedBox(height: 10),
-          _buildWebMetaCard(
-            icon: Icons.cake_outlined,
-            title: context.zevTr('birthDate'),
-            value: _birthDateStr,
-            showRedDot: true,
-          ),
-          const SizedBox(height: 10),
-          _buildWebMetaCard(
-            icon: Icons.account_balance_wallet_outlined,
-            title: context.zevTr('wallet'),
-            value: _walletStr,
-            showRedDot: true,
-          ),
-          const SizedBox(height: 10),
-          _buildWebMetaCard(
-            icon: Icons.share_rounded,
-            title: context.zevTr('refCode'),
-            value: _refCodeStr,
-            showRedDot: true,
-          ),
+
+          // Email
+          if (isMyProfile || !isEmailHidden) ...[
+            _buildWebMetaCard(
+              icon: Icons.email_outlined,
+              title: context.zevTr('email'),
+              value: _emailStr,
+              showRedDot: true,
+              isPrivate: isEmailHidden,
+            ),
+            const SizedBox(height: 10),
+          ],
+
+          // Birth Date
+          if (isMyProfile || !isDobHidden) ...[
+            _buildWebMetaCard(
+              icon: Icons.cake_outlined,
+              title: context.zevTr('birthDate'),
+              value: _birthDateStr,
+              showRedDot: true,
+              isPrivate: isDobHidden,
+            ),
+            const SizedBox(height: 10),
+          ],
+
+          // Phone Number (if present)
+          if (phoneVal.isNotEmpty && (isMyProfile || !isPhoneHidden)) ...[
+            _buildWebMetaCard(
+              icon: Icons.phone_outlined,
+              title: 'PHONE',
+              value: phoneVal,
+              showRedDot: true,
+              isPrivate: isPhoneHidden,
+            ),
+            const SizedBox(height: 10),
+          ],
+
+          // Father Name (if present)
+          if (fatherVal.isNotEmpty && (isMyProfile || !isFatherNameHidden)) ...[
+            _buildWebMetaCard(
+              icon: Icons.family_restroom_rounded,
+              title: 'FATHER NAME',
+              value: fatherVal,
+              isPrivate: isFatherNameHidden,
+            ),
+            const SizedBox(height: 10),
+          ],
+
+          // Wallet Balance
+          if (isMyProfile || !isWalletHidden) ...[
+            _buildWebMetaCard(
+              icon: Icons.account_balance_wallet_outlined,
+              title: context.zevTr('wallet'),
+              value: _walletStr,
+              showRedDot: true,
+              isPrivate: isWalletHidden,
+            ),
+            const SizedBox(height: 10),
+          ],
+
+          // Referral Code
+          if (isMyProfile || !isReferralHidden) ...[
+            _buildWebMetaCard(
+              icon: Icons.share_rounded,
+              title: context.zevTr('refCode'),
+              value: _refCodeStr,
+              showRedDot: true,
+              isPrivate: isReferralHidden,
+            ),
+          ],
         ],
       ),
     );
@@ -4276,6 +4629,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     required String title,
     required String value,
     bool showRedDot = false,
+    bool isPrivate = false,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
@@ -4285,9 +4639,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         color: isDark ? const Color(0xFF14161F) : Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isDark
-              ? Colors.white.withOpacity(0.06)
-              : Colors.black.withOpacity(0.06),
+          color: isPrivate
+              ? Colors.redAccent.withOpacity(0.3)
+              : (isDark
+                  ? Colors.white.withOpacity(0.06)
+                  : Colors.black.withOpacity(0.06)),
         ),
         boxShadow: isDark
             ? null
@@ -4308,16 +4664,24 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  title.toUpperCase(),
-                  style: TextStyle(
-                    color: isDark
-                        ? Colors.white.withOpacity(0.35)
-                        : const Color(0xFF94A3B8),
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      title.toUpperCase(),
+                      style: TextStyle(
+                        color: isDark
+                            ? Colors.white.withOpacity(0.35)
+                            : const Color(0xFF94A3B8),
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    if (isPrivate) ...[
+                      const SizedBox(width: 5),
+                      const Icon(Icons.lock_rounded, size: 10, color: Colors.redAccent),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 2),
                 Text(
