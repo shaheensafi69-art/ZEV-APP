@@ -88,16 +88,25 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
       if (res != null && mounted) {
         final fn = res['first_name'] ?? '';
         final ln = res['last_name'] ?? '';
-        final un = res['username']?.toString() ?? '';
+        String un = (res['username']?.toString() ?? '').trim().replaceFirst('@', '');
         final full = "$fn $ln".trim();
-        final cleanUn = un.replaceAll('@', '').trim();
-        final fallbackHandle = "$fn$ln".toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '');
+
+        // If username is empty, auto-generate unique handle and persist to DB
+        if (un.isEmpty && user.id.isNotEmpty) {
+          final cleanBase = full.isNotEmpty
+              ? full.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '')
+              : (user.email?.split('@').first.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '') ?? 'user');
+          final randSuffix = (user.id.hashCode.abs() % 9000 + 1000).toString();
+          un = "${cleanBase}_$randSuffix";
+          try {
+            await supabase.from('profiles').update({'username': un}).eq('id', user.id);
+          } catch (_) {}
+        }
+
         setState(() {
           if (full.isNotEmpty) _currentUserName = full;
           _currentUserAvatar = res['avatar_url'] ?? '';
-          _currentUserHandle = cleanUn.isNotEmpty
-              ? cleanUn
-              : (fallbackHandle.isNotEmpty ? fallbackHandle : (user.email?.split('@').first ?? 'user'));
+          _currentUserHandle = un.isNotEmpty ? un : 'user';
         });
       }
     } catch (_) {}
@@ -151,7 +160,6 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
 
     HapticFeedback.lightImpact();
     WebNavigationService.instance.updateUrlForTab(index);
-    if (index == 4) _loadUserProfile();
     setState(() {
       _currentIndex = index;
     });
@@ -702,6 +710,13 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                       icon: Icons.notifications_none_rounded,
                       label: context.zevTr('notifications'),
                       index: 7,
+                      isDark: isDark,
+                      isDesktop: isDesktop,
+                    ),
+                    _buildSideNavItem(
+                      icon: Icons.search_rounded,
+                      label: context.zevTr('explore'),
+                      index: 1,
                       isDark: isDark,
                       isDesktop: isDesktop,
                     ),

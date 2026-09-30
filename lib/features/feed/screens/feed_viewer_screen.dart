@@ -39,18 +39,13 @@ class FeedViewerScreen extends StatefulWidget {
 }
 
 class _FeedViewerScreenState extends State<FeedViewerScreen> {
+  static List<FeedPostItem>? _cachedFeedPosts;
   final supabase = Supabase.instance.client;
   bool isLoading = true;
-  bool _hasError = false;
-  int _retryAttempts = 0;
+  bool hasError = false;
   List<FeedPostItem> allPosts = [];
   List<FeedPostItem> filteredPosts = [];
   List<ActiveFriendStory> activeFriendStories = [];
-
-  // Static in-memory cache to preserve feed posts across navigation and tab switches
-  static List<FeedPostItem> _cachedFeedPosts = [];
-  static List<ActiveFriendStory> _cachedStories = [];
-  static DateTime? _lastFeedFetchTime;
 
   // Tracks posts featured at top in previous refresh to guarantee fresh explore rotation
   final Set<String> _recentlyFeaturedPostIds = {};
@@ -70,26 +65,13 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
   @override
   void initState() {
     super.initState();
-
-    // Instant load from memory cache if available (sub-millisecond instant display)
-    if (_cachedFeedPosts.isNotEmpty) {
-      allPosts = List.from(_cachedFeedPosts);
-      filteredPosts = List.from(_cachedFeedPosts);
+    if (_cachedFeedPosts != null && _cachedFeedPosts!.isNotEmpty) {
+      allPosts = List.from(_cachedFeedPosts!);
+      filteredPosts = List.from(_cachedFeedPosts!);
       isLoading = false;
     }
-    if (_cachedStories.isNotEmpty) {
-      activeFriendStories = List.from(_cachedStories);
-    }
-
-    // Only trigger full network fetch if cache is empty or older than 3 minutes
-    final bool shouldFetch = _cachedFeedPosts.isEmpty ||
-        _lastFeedFetchTime == null ||
-        DateTime.now().difference(_lastFeedFetchTime!).inMinutes >= 3;
-
-    if (shouldFetch) {
-      _fetchFeedPosts(showLoading: _cachedFeedPosts.isEmpty);
-      _fetchActiveFriendStories();
-    }
+    _fetchFeedPosts();
+    _fetchActiveFriendStories();
 
     _scrollController.addListener(() {
       if (_scrollController.hasClients) {
@@ -200,7 +182,6 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
             }
           } catch (_) {}
         }
-        _cachedStories = loaded;
         setState(() {
           activeFriendStories = loaded;
           _myAvatarUrl = myAv;
@@ -213,13 +194,11 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
 
   /// Ultra-fast parallel batched loading for feed posts:
   /// Reduces 150+ serial HTTP requests down to 3 parallel requests (~150ms)
-  Future<void> _fetchFeedPosts({bool showLoading = true, bool isRetry = false}) async {
-    if (showLoading && allPosts.isEmpty) {
-      setState(() {
-        isLoading = true;
-        _hasError = false;
-      });
+  Future<void> _fetchFeedPosts() async {
+    if (allPosts.isEmpty) {
+      setState(() => isLoading = true);
     }
+    setState(() => hasError = false);
     try {
       final user = supabase.auth.currentUser;
       final userId = user?.id;
@@ -433,16 +412,13 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
         }
       }
 
-      _cachedFeedPosts = loadedPosts;
-      _lastFeedFetchTime = DateTime.now();
-      _retryAttempts = 0;
-      _hasError = false;
-
       if (mounted) {
+        _cachedFeedPosts = loadedPosts;
         setState(() {
           allPosts = loadedPosts;
           filteredPosts = loadedPosts;
           isLoading = false;
+          hasError = false;
         });
 
         // Asynchronously pre-cache the top 8 post images for sub-second rendering
@@ -458,20 +434,10 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
     } catch (e) {
       debugPrint("Feed posts fetch error: $e");
       if (mounted) {
-        if (_retryAttempts < 2) {
-          _retryAttempts++;
-          // Automatic retry attempt after brief delay
-          Future.delayed(const Duration(milliseconds: 1800), () {
-            if (mounted) {
-              _fetchFeedPosts(showLoading: false, isRetry: true);
-            }
-          });
-        } else {
-          setState(() {
-            isLoading = false;
-            _hasError = allPosts.isEmpty;
-          });
-        }
+        setState(() {
+          isLoading = false;
+          hasError = true;
+        });
       }
     }
   }
@@ -794,18 +760,18 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                           _fetchActiveFriendStories(),
                         ]);
                       },
-                      child: (isLoading && allPosts.isEmpty)
+                      child: isLoading
                           ? const Center(
                               child: CircularProgressIndicator(
                                 color: primaryPink,
                                 strokeWidth: 3,
                               ),
                             )
-                          : (_hasError && allPosts.isEmpty)
+                          : hasError && allPosts.isEmpty
                           ? ListView(
                               physics: const AlwaysScrollableScrollPhysics(),
                               children: [
-                                SizedBox(height: topPadding + 180),
+                                SizedBox(height: topPadding + 140),
                                 Center(
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -813,57 +779,39 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
                                         Container(
-                                          width: 72,
-                                          height: 72,
-                                          decoration: const BoxDecoration(
-                                            color: lightPinkBg,
+                                          padding: const EdgeInsets.all(20),
+                                          decoration: BoxDecoration(
+                                            color: primaryPink.withValues(alpha: 0.1),
                                             shape: BoxShape.circle,
                                           ),
                                           child: const Icon(
                                             Icons.wifi_off_rounded,
+                                            size: 48,
                                             color: primaryPink,
-                                            size: 34,
                                           ),
                                         ),
                                         const SizedBox(height: 16),
-                                        const Text(
-                                          "خطا در دریافت پست‌ها",
-                                          style: TextStyle(
-                                            fontSize: 17,
-                                            fontWeight: FontWeight.bold,
-                                            color: textDark,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        const Text(
-                                          "ارتباط با سرور برقرار نشد، سیستم به صورت خودکار کوشش می‌کند",
+                                        Text(
+                                          context.zevTr('failedToLoadPosts'),
                                           textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: textGrey,
-                                            height: 1.4,
+                                          style: const TextStyle(
+                                            color: textDark,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
-                                        const SizedBox(height: 20),
+                                        const SizedBox(height: 16),
                                         ElevatedButton.icon(
                                           onPressed: () {
-                                            _retryAttempts = 0;
-                                            _fetchFeedPosts(showLoading: true);
+                                            _fetchFeedPosts();
+                                            _fetchActiveFriendStories();
                                           },
-                                          icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.white),
-                                          label: const Text(
-                                            "تلاش مجدد",
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                            ),
-                                          ),
+                                          icon: const Icon(Icons.refresh_rounded, size: 18),
+                                          label: Text(context.zevTr('tryAgain')),
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: primaryPink,
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 24,
-                                              vertical: 12,
-                                            ),
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                                             shape: RoundedRectangleBorder(
                                               borderRadius: BorderRadius.circular(14),
                                             ),

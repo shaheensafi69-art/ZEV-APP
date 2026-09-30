@@ -197,35 +197,21 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
         );
       }
 
-      // Generate clean unique username matching user's full name
-      final fNameRaw = firstNameCtrl.text.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
-      final lNameRaw = lastNameCtrl.text.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
-      String baseUsername = "${fNameRaw}_$lNameRaw".replaceAll('__', '_');
-      if (baseUsername.startsWith('_')) baseUsername = baseUsername.substring(1);
-      if (baseUsername.endsWith('_')) baseUsername = baseUsername.substring(0, baseUsername.length - 1);
-      if (baseUsername.length < 3) {
-        baseUsername = emailCtrl.text.split('@').first.toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '');
+      final fNameClean = firstNameCtrl.text.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+      final lNameClean = lastNameCtrl.text.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+      String baseHandle = "$fNameClean$lNameClean";
+      if (baseHandle.isEmpty) {
+        baseHandle = emailCtrl.text.trim().split('@').first.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
       }
-      if (baseUsername.length < 3) baseUsername = "user_${DateTime.now().millisecondsSinceEpoch % 10000}";
-
-      String generatedUsername = baseUsername;
-      try {
-        final existing = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('username', generatedUsername)
-            .maybeSingle();
-        if (existing != null) {
-          final rnd = 100 + (DateTime.now().millisecondsSinceEpoch % 899);
-          generatedUsername = "${baseUsername}_$rnd";
-        }
-      } catch (_) {}
+      if (baseHandle.isEmpty) baseHandle = "user";
+      final randSuffix = (DateTime.now().millisecondsSinceEpoch % 9000 + 1000).toString();
+      final autoUsername = "${baseHandle}_$randSuffix";
 
       await supabase.from('profiles').upsert({
         'id': userId,
+        'username': autoUsername,
         'first_name': firstNameCtrl.text.trim(),
         'last_name': lastNameCtrl.text.trim(),
-        'username': generatedUsername,
         'father_name': fatherNameCtrl.text.trim(),
         'date_of_birth': dobCtrl.text.trim(),
         'country': countryCtrl.text.trim(),

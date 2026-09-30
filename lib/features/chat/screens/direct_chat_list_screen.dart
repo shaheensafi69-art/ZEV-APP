@@ -68,10 +68,11 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
   List<ChatThreadItem> threads = [];
   List<ChatThreadItem> searchResults = [];
 
-  String _currentUserName = "ZEV Member";
+  String _currentDisplayName = "ZEV User";
+  String _currentUserName = "";
   String _currentUserAvatar = "";
   String _myNote = "";
-  Map<String, String> _peerActiveNotes = {};
+  List<UserNoteItem> _activeNotes = [];
   String _selectedFilter = "All"; // "All", "Primary", "Requests"
   final String _activeSecondaryFilter = "all"; // "all", "unread"
   String? _activeDesktopPeerId;
@@ -92,7 +93,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
     super.initState();
     _fetchCurrentUserInfo();
     _fetchExistingChatThreads();
-    _fetchActiveUserNotes();
+    _fetch24hNotes();
     _refreshTimer = Timer.periodic(const Duration(milliseconds: 3000), (_) {
       if (mounted && !isSearchingLive) {
         _fetchExistingChatThreads(showLoading: false);
@@ -113,59 +114,88 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
       if (user == null) return;
       final res = await supabase
           .from("profiles")
-          .select("first_name, last_name, username, avatar_url")
+          .select("first_name, last_name, avatar_url, username")
           .eq("id", user.id)
           .maybeSingle();
       if (res != null && mounted) {
         final fName = res['first_name'] ?? '';
         final lName = res['last_name'] ?? '';
         final combined = "$fName $lName".trim();
-        final un = (res['username'] ?? '').toString().replaceAll('@', '').trim();
+        final rawUser = res['username']?.toString() ?? '';
         setState(() {
-          if (combined.isNotEmpty) {
-            _currentUserName = combined;
-          } else if (un.isNotEmpty) {
-            _currentUserName = un;
-          } else {
-            _currentUserName = user.email?.split('@').first ?? "ZEV Member";
-          }
+          _currentDisplayName = combined.isNotEmpty ? combined : 'ZEV User';
+          _currentUserName = rawUser.isNotEmpty ? rawUser : combined.toLowerCase().replaceAll(' ', '_');
           _currentUserAvatar = res['avatar_url'] ?? '';
         });
       }
     } catch (_) {}
   }
 
-  Future<void> _fetchActiveUserNotes() async {
+  Future<void> _fetch24hNotes() async {
     try {
       final user = supabase.auth.currentUser;
-      final res = await supabase
-          .from("user_notes")
-          .select("user_id, note_text, expires_at")
-          .gt("expires_at", DateTime.now().toUtc().toIso8601String());
+      if (user == null) return;
+      final nowStr = DateTime.now().toIso8601String();
 
-      final notesMap = <String, String>{};
-      String myNoteFound = "";
-      for (var n in (res as List)) {
-        final uId = n['user_id']?.toString() ?? '';
-        final text = n['note_text']?.toString() ?? '';
-        if (uId.isNotEmpty && text.isNotEmpty) {
-          notesMap[uId] = text;
-          if (user != null && uId == user.id) {
-            myNoteFound = text;
+      final res = await supabase
+          .from("user_stories")
+          .select("id, user_id, caption, media_url, media_type, created_at, expires_at")
+          .eq("media_type", "note")
+          .gt("expires_at", nowStr)
+          .order("created_at", ascending: false)
+          .limit(30);
+
+      final List<dynamic> notesData = res as List<dynamic>? ?? [];
+
+      String myNote = "";
+      List<UserNoteItem> loadedNotes = [];
+      Set<String> seenUserIds = {};
+
+      if (notesData.isNotEmpty) {
+        final userIds = notesData.map((e) => e['user_id'].toString()).toSet().toList();
+        final profilesRes = await supabase
+            .from("profiles")
+            .select("id, first_name, last_name, avatar_url, username")
+            .filter("id", "in", userIds);
+
+        final Map<String, Map<String, dynamic>> profMap = {};
+        for (var p in (profilesRes as List)) {
+          profMap[p['id'].toString()] = p;
+        }
+
+        for (var item in notesData) {
+          final uId = item['user_id'].toString();
+          if (seenUserIds.contains(uId)) continue;
+          seenUserIds.add(uId);
+
+          final noteText = (item['caption'] ?? item['media_url'] ?? '').toString();
+          if (uId == user.id) {
+            myNote = noteText;
+          } else {
+            final prof = profMap[uId];
+            final fName = prof?['first_name'] ?? '';
+            final lName = prof?['last_name'] ?? '';
+            String name = "$fName $lName".trim();
+            if (name.isEmpty) name = prof?['username'] ?? 'Friend';
+            loadedNotes.add(UserNoteItem(
+              userId: uId,
+              userName: name,
+              userAvatar: prof?['avatar_url'] ?? '',
+              noteText: noteText,
+              isCurrentUser: false,
+            ));
           }
         }
       }
 
       if (mounted) {
         setState(() {
-          _peerActiveNotes = notesMap;
-          if (myNoteFound.isNotEmpty) {
-            _myNote = myNoteFound;
-          }
+          _myNote = myNote;
+          _activeNotes = loadedNotes;
         });
       }
     } catch (e) {
-      debugPrint("Active notes notice: $e");
+      debugPrint("Error fetching 24h notes: $e");
     }
   }
 
@@ -334,13 +364,13 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
     try {
       final user = supabase.auth.currentUser;
       final currentUserId = user?.id ?? '';
-      final cleanQ = q.replaceAll('@', '').trim();
+      final cleanQ = q.replaceFirst('@', '').trim();
 
       final res = await supabase
           .from("profiles")
-          .select("id, first_name, last_name, username, avatar_url, role")
+          .select("id, first_name, last_name, avatar_url, role, username")
           .or("first_name.ilike.%$cleanQ%,last_name.ilike.%$cleanQ%,username.ilike.%$cleanQ%")
-          .limit(25);
+          .limit(20);
 
       List<ChatThreadItem> found = [];
       for (var p in (res as List)) {
@@ -349,9 +379,8 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
 
         final fName = p['first_name'] ?? '';
         final lName = p['last_name'] ?? '';
-        final un = (p['username'] ?? '').toString().replaceAll('@', '').trim();
         String fullName = "$fName $lName".trim();
-        if (fullName.isEmpty) fullName = un.isNotEmpty ? un : "ZEV User";
+        if (fullName.isEmpty) fullName = p['username'] ?? "ZEV User";
 
         found.add(
           ChatThreadItem(
@@ -359,7 +388,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
             peerName: fullName,
             peerAvatar: p['avatar_url'] ?? '',
             role: (p['role'] ?? 'STUDENT').toString().toUpperCase(),
-            lastMessage: un.isNotEmpty ? "@$un" : "start_conversation_placeholder",
+            lastMessage: "start_conversation_placeholder",
             time: "",
             unreadCount: 0,
             isOnline: true,
@@ -443,28 +472,29 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
-                    onPressed: () async {
+                    onPressed: () {
                       final text = controller.text.trim();
-                      setState(() => _myNote = text);
-                      Navigator.pop(ctx);
                       final user = supabase.auth.currentUser;
-                      if (user != null) {
-                        try {
-                          if (text.isNotEmpty) {
-                            await supabase.from("user_notes").upsert({
-                              'user_id': user.id,
-                              'note_text': text,
-                              'expires_at': DateTime.now().toUtc().add(const Duration(hours: 24)).toIso8601String(),
-                              'created_at': DateTime.now().toUtc().toIso8601String(),
-                            }, onConflict: 'user_id');
-                          } else {
-                            await supabase.from("user_notes").delete().eq("user_id", user.id);
-                          }
-                          await _fetchActiveUserNotes();
-                        } catch (e) {
+                      if (user != null && text.isNotEmpty) {
+                        final now = DateTime.now();
+                        final expiresAt = now.add(const Duration(hours: 24)).toIso8601String();
+                        supabase.from("user_stories").insert({
+                          'user_id': user.id,
+                          'caption': text,
+                          'media_type': 'note',
+                          'media_url': '',
+                          'expires_at': expiresAt,
+                          'created_at': now.toIso8601String(),
+                        }).then((_) {
+                          _fetch24hNotes();
+                        }).catchError((e) {
                           debugPrint("Error saving note: $e");
-                        }
+                        });
                       }
+                      setState(() {
+                        _myNote = text;
+                      });
+                      Navigator.pop(ctx);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryPink,
@@ -1214,29 +1244,48 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                _currentUserName,
-                style: const TextStyle(
-                  color: textDark,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.3,
+              if (_currentUserAvatar.isNotEmpty) ...[
+                CircleAvatar(
+                  radius: 17,
+                  backgroundColor: lightPinkBg,
+                  backgroundImage: NetworkImage(_currentUserAvatar),
                 ),
-              ),
-              const SizedBox(width: 4),
-              const Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: textDark,
-                size: 20,
-              ),
-              const SizedBox(width: 4),
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: primaryPink,
-                  shape: BoxShape.circle,
-                ),
+                const SizedBox(width: 8),
+              ],
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _currentDisplayName,
+                        style: const TextStyle(
+                          color: textDark,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: textDark,
+                        size: 18,
+                      ),
+                    ],
+                  ),
+                  if (_currentUserName.isNotEmpty)
+                    Text(
+                      "@${_currentUserName.replaceFirst('@', '')}",
+                      style: const TextStyle(
+                        color: primaryPink,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                ],
               ),
             ],
           ),
@@ -1647,171 +1696,75 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
           ),
           const SizedBox(width: 8),
 
-          // Real 24-hour peer notes (Instagram Notes style)
-          ..._buildPeerNotesList(threads),
+          // Real 24h Notes from active users (Instagram Style)
+          for (var note in _activeNotes)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: SizedBox(
+                width: 86,
+                child: Column(
+                  children: [
+                    Container(
+                      height: 38,
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: cardBorder,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Text(
+                        note.noteText.isNotEmpty ? note.noteText : "👋",
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: textDark,
+                          height: 1.1,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    CircleAvatar(
+                      radius: 26,
+                      backgroundColor: lightPinkBg,
+                      backgroundImage: note.userAvatar.isNotEmpty
+                          ? NetworkImage(note.userAvatar)
+                          : null,
+                      child: note.userAvatar.isEmpty
+                          ? Text(
+                              note.userName.isNotEmpty
+                                  ? note.userName[0].toUpperCase()
+                                  : 'Z',
+                              style: const TextStyle(
+                                color: primaryPink,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      note.userName.split(' ').first,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: textDark,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
-  }
-
-  List<Widget> _buildPeerNotesList(List<ChatThreadItem> threads) {
-    final peersWithNotes = threads.where((t) =>
-      _peerActiveNotes.containsKey(t.peerId) &&
-      (_peerActiveNotes[t.peerId]?.isNotEmpty ?? false)
-    ).toList();
-
-    if (peersWithNotes.isNotEmpty) {
-      return peersWithNotes.map((t) {
-        final note = _peerActiveNotes[t.peerId] ?? "";
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () => _openChatThread(t.peerId, t.peerName, t.peerAvatar),
-            child: SizedBox(
-              width: 86,
-              child: Column(
-                children: [
-                  Container(
-                    height: 38,
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: surfaceWhite,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: primaryPink.withValues(alpha: 0.35),
-                        width: 1.2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      note,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: textDark,
-                        height: 1.1,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  CircleAvatar(
-                    radius: 26,
-                    backgroundColor: lightPinkBg,
-                    backgroundImage: t.peerAvatar.isNotEmpty
-                        ? NetworkImage(t.peerAvatar)
-                        : null,
-                    child: t.peerAvatar.isEmpty
-                        ? Text(
-                            t.peerName.isNotEmpty ? t.peerName[0] : '?',
-                            style: const TextStyle(
-                              color: primaryPink,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          )
-                        : null,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    t.peerName.split(' ').first,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: textDark,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }).toList();
-    } else {
-      // If friends have not posted any 24h note yet, show recent contacts cleanly without fake note bubbles
-      return threads.take(4).map((t) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () => _openChatThread(t.peerId, t.peerName, t.peerAvatar),
-            child: SizedBox(
-              width: 86,
-              child: Column(
-                children: [
-                  const SizedBox(height: 38), // Empty spacer so avatars align with 'Your Note'
-                  const SizedBox(height: 6),
-                  CircleAvatar(
-                    radius: 26,
-                    backgroundColor: lightPinkBg,
-                    backgroundImage: t.peerAvatar.isNotEmpty
-                        ? NetworkImage(t.peerAvatar)
-                        : null,
-                    child: t.peerAvatar.isEmpty
-                        ? Text(
-                            t.peerName.isNotEmpty ? t.peerName[0] : '?',
-                            style: const TextStyle(
-                              color: primaryPink,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          )
-                        : null,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    t.peerName.split(' ').first,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: textDark,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }).toList();
-    }
-  }
-
-  void _openChatThread(String peerId, String peerName, String peerAvatar) async {
-    final isDesktop = MediaQuery.of(context).size.width >= 900;
-    if (isDesktop) {
-      setState(() {
-        _activeDesktopPeerId = peerId;
-        _activeDesktopPeerName = peerName;
-        _activeDesktopPeerAvatar = peerAvatar;
-      });
-      return;
-    }
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => DirectChatScreen(
-          peerId: peerId,
-          peerName: peerName,
-          peerAvatar: peerAvatar,
-        ),
-      ),
-    );
-    _fetchExistingChatThreads(showLoading: false);
   }
 
   /// Filter Pills Row (All, Primary, Requests with unread counts)

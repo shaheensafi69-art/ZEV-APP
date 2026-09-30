@@ -53,6 +53,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   static const Color textGrey = Color(0xFF6B7280);
   static const Color cardBorder = Color(0xFFF3F4F6);
 
+  static final Map<String, Map<String, dynamic>> _profileMemoryCache = {};
+  static final Map<String, List<Map<String, dynamic>>> _userPostsMemoryCache = {};
+
   @override
   void initState() {
     super.initState();
@@ -61,6 +64,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       if (activeWebTab == 'liked' || activeWebTab == 'saved') {
         activeWebTab = 'posts';
       }
+    }
+    final uid = targetUserId;
+    if (_profileMemoryCache.containsKey(uid)) {
+      profileData = _profileMemoryCache[uid];
+      isLoading = false;
+    }
+    if (_userPostsMemoryCache.containsKey(uid)) {
+      userPosts = List.from(_userPostsMemoryCache[uid]!);
     }
     _fetchProfileAndPosts();
   }
@@ -297,6 +308,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       }
 
       if (mounted) {
+        if (res != null) {
+          _profileMemoryCache[targetUserId] = res;
+        }
+        _userPostsMemoryCache[targetUserId] = enrichedPosts;
         setState(() {
           profileData = res;
           friendsCount = count;
@@ -512,649 +527,690 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     bool isLastNameHidden = privacyMap['hide_lastname'] == true;
 
     bool isSavingProfile = false;
+    int selectedTab = 0; // 0: Personal Info, 1: Privacy & Visibility
 
-    Widget buildPrivacyToggleTile({
-      required IconData icon,
-      required String title,
-      required String subtitle,
-      required bool isHidden,
-      required VoidCallback onToggle,
-    }) {
-      return Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: isHidden
-              ? Colors.red.withValues(alpha: 0.04)
-              : Colors.teal.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
+    Widget buildModalContent(BuildContext modalContext, StateSetter setModalState, bool isDesktop) {
+      Widget buildPrivacyToggleTile({
+        required IconData icon,
+        required String title,
+        required String subtitle,
+        required bool isHidden,
+        required VoidCallback onToggle,
+      }) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
             color: isHidden
-                ? Colors.redAccent.withValues(alpha: 0.25)
-                : Colors.teal.withValues(alpha: 0.25),
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isHidden
-                    ? Colors.redAccent.withValues(alpha: 0.1)
-                    : Colors.teal.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                icon,
-                size: 18,
-                color: isHidden ? Colors.redAccent : Colors.teal,
-              ),
+                ? Colors.red.withValues(alpha: 0.04)
+                : Colors.teal.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isHidden
+                  ? Colors.redAccent.withValues(alpha: 0.25)
+                  : Colors.teal.withValues(alpha: 0.25),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isHidden
+                      ? Colors.redAccent.withValues(alpha: 0.1)
+                      : Colors.teal.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  size: 18,
+                  color: isHidden ? Colors.redAccent : Colors.teal,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: textGrey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: onToggle,
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isHidden
+                        ? Colors.redAccent.withValues(alpha: 0.15)
+                        : Colors.teal.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isHidden ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                        size: 14,
+                        color: isHidden ? Colors.redAccent : Colors.teal,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        isHidden ? modalContext.zevTr('hide') : modalContext.zevTr('show'),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: isHidden ? Colors.redAccent : Colors.teal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: isDesktop ? 28 : 20,
+          vertical: 20,
+        ),
+        constraints: BoxConstraints(
+          maxHeight: isDesktop
+              ? MediaQuery.of(modalContext).size.height * 0.85
+              : MediaQuery.of(modalContext).size.height * 0.9,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Bar
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: primaryPink.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.edit_rounded, color: primaryPink, size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      modalContext.zevTr('editProfile'),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: textDark,
+                      ),
+                    ),
+                  ],
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: textGrey),
+                  onPressed: () => Navigator.pop(modalContext),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // Responsive Tab Switcher
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: cardBorder.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
                 children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: textDark,
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => setModalState(() => selectedTab = 0),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 9),
+                        decoration: BoxDecoration(
+                          color: selectedTab == 0 ? surfaceWhite : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: selectedTab == 0
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 6,
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.person_rounded,
+                              size: 16,
+                              color: selectedTab == 0 ? primaryPink : textGrey,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              modalContext.zevTr('profile'),
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: selectedTab == 0
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                color: selectedTab == 0 ? primaryPink : textGrey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 10.5,
-                      color: textGrey,
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => setModalState(() => selectedTab = 1),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 9),
+                        decoration: BoxDecoration(
+                          color: selectedTab == 1 ? surfaceWhite : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: selectedTab == 1
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 6,
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.shield_outlined,
+                              size: 16,
+                              color: selectedTab == 1 ? primaryPink : textGrey,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              modalContext.zevTr('privacyAndVisibility'),
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: selectedTab == 1
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                color: selectedTab == 1 ? primaryPink : textGrey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            InkWell(
-              onTap: onToggle,
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: isHidden
-                      ? Colors.redAccent.withValues(alpha: 0.15)
-                      : Colors.teal.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isHidden ? Icons.visibility_off_rounded : Icons.visibility_rounded,
-                      size: 14,
-                      color: isHidden ? Colors.redAccent : Colors.teal,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      isHidden ? "مخفی (Hidden)" : "نمایان (Visible)",
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: isHidden ? Colors.redAccent : Colors.teal,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+            const SizedBox(height: 16),
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: surfaceWhite,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (modalContext, setModalState) => Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      "Edit Profile & Privacy ✏️",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        color: textDark,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded, color: textGrey),
-                      onPressed: () => Navigator.pop(sheetContext),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Manage avatar and cover images
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: lightPinkBg.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: primaryPink.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: InkWell(
-                          onTap: () async {
-                            await _handleAvatarUpload();
-                            setModalState(() {});
-                          },
-                          borderRadius: BorderRadius.circular(14),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: surfaceWhite,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: cardBorder),
-                            ),
-                            child: Column(
-                              children: [
-                                CircleAvatar(
-                                  radius: 24,
-                                  backgroundColor: primaryPink.withValues(
-                                    alpha: 0.1,
-                                  ),
-                                  backgroundImage:
-                                      profileData?['avatar_url'] != null &&
-                                          profileData!['avatar_url']
-                                              .toString()
-                                              .isNotEmpty
-                                      ? NetworkImage(profileData!['avatar_url'])
-                                      : null,
-                                  child: isAvatarUploading
-                                      ? const SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: primaryPink,
-                                          ),
-                                        )
-                                      : const Icon(
-                                          Icons.camera_alt_rounded,
-                                          color: primaryPink,
-                                          size: 20,
-                                        ),
-                                ),
-                                const SizedBox(height: 6),
-                                const Text(
-                                  "Change Photo 👤",
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: textDark,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: InkWell(
-                          onTap: () async {
-                            await _handleCoverUpload();
-                            setModalState(() {});
-                          },
-                          borderRadius: BorderRadius.circular(14),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: surfaceWhite,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: cardBorder),
-                            ),
-                            child: Column(
-                              children: [
-                                Container(
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    color: Colors.purple.withValues(alpha: 0.1),
-                                    image:
-                                        (profileData?['cover_image_url'] ??
-                                                    profileData?['cover_url']) !=
-                                                null &&
-                                            (profileData!['cover_image_url'] ??
-                                                    profileData!['cover_url'])
-                                                .toString()
-                                                .isNotEmpty
-                                        ? DecorationImage(
-                                            image: NetworkImage(
-                                              (profileData!['cover_image_url'] ??
-                                                      profileData!['cover_url'])
-                                                  .toString(),
-                                            ),
-                                            fit: BoxFit.cover,
-                                          )
-                                        : null,
-                                  ),
-                                  child: isCoverUploading
-                                      ? const Center(
-                                          child: SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.purple,
-                                            ),
-                                          ),
-                                        )
-                                      : const Center(
-                                          child: Icon(
-                                            Icons.image_rounded,
-                                            color: Colors.purple,
-                                            size: 22,
-                                          ),
-                                        ),
-                                ),
-                                const SizedBox(height: 6),
-                                const Text(
-                                  "Change Cover 🖼️",
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: textDark,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 18),
-
-                // Name fields
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: firstNameController,
-                        cursorColor: primaryPink,
-                        decoration: _inputDecoration("First Name"),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: textDark,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: lastNameController,
-                        cursorColor: primaryPink,
-                        decoration: _inputDecoration("Last Name"),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: textDark,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                // Username field (customizable, unique)
-                TextField(
-                  controller: usernameController,
-                  cursorColor: primaryPink,
-                  decoration: _inputDecoration("Username (e.g. zev_star)")
-                      .copyWith(
-                        prefixIcon: const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
-                          ),
-                          child: Text(
-                            "@",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: primaryPink,
-                            ),
-                          ),
-                        ),
-                        prefixIconConstraints: const BoxConstraints(
-                          minWidth: 0,
-                          minHeight: 0,
-                        ),
-                        helperText:
-                            "Unique username (3-30 letters, numbers, or _)",
-                        helperStyle: const TextStyle(
-                          fontSize: 11,
-                          color: textGrey,
-                        ),
-                      ),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: textDark,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Email field (Read-only / Non-editable as requested)
-                TextField(
-                  controller: emailController,
-                  readOnly: true,
-                  decoration: _inputDecoration("Email Address").copyWith(
-                    prefixIcon: const Icon(
-                      Icons.email_outlined,
-                      color: textGrey,
-                      size: 20,
-                    ),
-                    suffixIcon: const Tooltip(
-                      message: "Email cannot be changed (غیر قابل تغییر)",
-                      child: Icon(
-                        Icons.lock_rounded,
-                        color: textGrey,
-                        size: 18,
-                      ),
-                    ),
-                    helperText:
-                        "Email cannot be changed (ایمیل ثابت و غیر قابل تغییر است)",
-                    helperStyle: const TextStyle(fontSize: 11, color: textGrey),
-                  ),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: textGrey,
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                // Father's Name
-                TextField(
-                  controller: fatherNameController,
-                  cursorColor: primaryPink,
-                  decoration: _inputDecoration("Father's Name").copyWith(
-                    prefixIcon: const Icon(
-                      Icons.person_outline_rounded,
-                      color: textGrey,
-                      size: 20,
-                    ),
-                  ),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: textDark,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Phone
-                TextField(
-                  controller: phoneController,
-                  keyboardType: TextInputType.phone,
-                  cursorColor: primaryPink,
-                  decoration: _inputDecoration("Phone Number (+...)").copyWith(
-                    prefixIcon: const Icon(
-                      Icons.phone_outlined,
-                      color: textGrey,
-                      size: 20,
-                    ),
-                  ),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: textDark,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Country
-                TextField(
-                  controller: countryController,
-                  cursorColor: primaryPink,
-                  decoration: _inputDecoration("Country / Location").copyWith(
-                    prefixIcon: const Icon(
-                      Icons.public_rounded,
-                      color: textGrey,
-                      size: 20,
-                    ),
-                  ),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: textDark,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Date of birth
-                TextField(
-                  controller: dobController,
-                  cursorColor: primaryPink,
-                  decoration: _inputDecoration("Date of Birth (YYYY-MM-DD)")
-                      .copyWith(
-                        prefixIcon: const Icon(
-                          Icons.cake_outlined,
-                          color: textGrey,
-                          size: 20,
-                        ),
-                      ),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: textDark,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Bio
-                TextField(
-                  controller: bioController,
-                  cursorColor: primaryPink,
-                  maxLines: 3,
-                  decoration: _inputDecoration("Biography / About Me"),
-                  style: const TextStyle(fontSize: 14, color: textDark),
-                ),
-                const SizedBox(height: 24),
-
-                // ==========================================
-                // SECTION: COMPLETE PROFILE PRIVACY TOGGLES
-                // ==========================================
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: lightPinkBg,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: primaryPink.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Row(
+            // Scrollable Content
+            Expanded(
+              child: SingleChildScrollView(
+                child: selectedTab == 0
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.shield_outlined,
-                            color: primaryPink,
-                            size: 20,
+                          // Manage avatar and cover images
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: lightPinkBg.withValues(alpha: 0.6),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: primaryPink.withValues(alpha: 0.2),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () async {
+                                      await _handleAvatarUpload();
+                                      setModalState(() {});
+                                    },
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      decoration: BoxDecoration(
+                                        color: surfaceWhite,
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(color: cardBorder),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          CircleAvatar(
+                                            radius: 26,
+                                            backgroundColor: primaryPink.withValues(alpha: 0.1),
+                                            backgroundImage: profileData?['avatar_url'] != null &&
+                                                    profileData!['avatar_url'].toString().isNotEmpty
+                                                ? NetworkImage(profileData!['avatar_url'])
+                                                : null,
+                                            child: isAvatarUploading
+                                                ? const SizedBox(
+                                                    width: 18,
+                                                    height: 18,
+                                                    child: CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: primaryPink,
+                                                    ),
+                                                  )
+                                                : const Icon(
+                                                    Icons.camera_alt_rounded,
+                                                    color: primaryPink,
+                                                    size: 20,
+                                                  ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          const Text(
+                                            "Change Photo",
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: textDark,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () async {
+                                      await _handleCoverUpload();
+                                      setModalState(() {});
+                                    },
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      decoration: BoxDecoration(
+                                        color: surfaceWhite,
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(color: cardBorder),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          Container(
+                                            width: 52,
+                                            height: 52,
+                                            decoration: BoxDecoration(
+                                              borderRadius: BorderRadius.circular(12),
+                                              color: Colors.purple.withValues(alpha: 0.1),
+                                              image: (profileData?['cover_image_url'] ??
+                                                              profileData?['cover_url']) !=
+                                                          null &&
+                                                      (profileData!['cover_image_url'] ??
+                                                              profileData!['cover_url'])
+                                                          .toString()
+                                                          .isNotEmpty
+                                                  ? DecorationImage(
+                                                      image: NetworkImage(
+                                                        (profileData!['cover_image_url'] ??
+                                                                profileData!['cover_url'])
+                                                            .toString(),
+                                                      ),
+                                                      fit: BoxFit.cover,
+                                                    )
+                                                  : null,
+                                            ),
+                                            child: isCoverUploading
+                                                ? const Center(
+                                                    child: SizedBox(
+                                                      width: 18,
+                                                      height: 18,
+                                                      child: CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: Colors.purple,
+                                                      ),
+                                                    ),
+                                                  )
+                                                : const Center(
+                                                    child: Icon(
+                                                      Icons.image_rounded,
+                                                      color: Colors.purple,
+                                                      size: 22,
+                                                    ),
+                                                  ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            modalContext.zevTr('changeCover'),
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: textDark,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          SizedBox(width: 8),
-                          Text(
-                            "Profile Privacy & Visibility (حریم خصوصی)",
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
+                          const SizedBox(height: 16),
+
+                          // Names
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: firstNameController,
+                                  cursorColor: primaryPink,
+                                  decoration: _inputDecoration("First Name"),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: textDark,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: TextField(
+                                  controller: lastNameController,
+                                  cursorColor: primaryPink,
+                                  decoration: _inputDecoration("Last Name"),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: textDark,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Username
+                          TextField(
+                            controller: usernameController,
+                            cursorColor: primaryPink,
+                            decoration: _inputDecoration("Username (e.g. zev_star)").copyWith(
+                              prefixIcon: const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                child: Text(
+                                  "@",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: primaryPink,
+                                  ),
+                                ),
+                              ),
+                              prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                              helperText: "Unique username (3-30 letters, numbers, or _)",
+                              helperStyle: const TextStyle(fontSize: 11, color: textGrey),
+                            ),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
                               color: textDark,
                             ),
                           ),
+                          const SizedBox(height: 12),
+
+                          // Email (Read-only)
+                          TextField(
+                            controller: emailController,
+                            readOnly: true,
+                            decoration: _inputDecoration("Email Address").copyWith(
+                              prefixIcon: const Icon(Icons.email_outlined, color: textGrey, size: 20),
+                              suffixIcon: const Icon(Icons.lock_rounded, color: textGrey, size: 18),
+                              helperText: "Account email address is locked",
+                              helperStyle: const TextStyle(fontSize: 11, color: textGrey),
+                            ),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                              color: textGrey,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Additional fields
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: fatherNameController,
+                                  cursorColor: primaryPink,
+                                  decoration: _inputDecoration("Father's Name").copyWith(
+                                    prefixIcon: const Icon(Icons.badge_outlined, color: textGrey, size: 20),
+                                  ),
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: textDark),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: TextField(
+                                  controller: phoneController,
+                                  keyboardType: TextInputType.phone,
+                                  cursorColor: primaryPink,
+                                  decoration: _inputDecoration("Phone Number (+...)").copyWith(
+                                    prefixIcon: const Icon(Icons.phone_outlined, color: textGrey, size: 20),
+                                  ),
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: textDark),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: countryController,
+                                  cursorColor: primaryPink,
+                                  decoration: _inputDecoration("Country / Location").copyWith(
+                                    prefixIcon: const Icon(Icons.public_rounded, color: textGrey, size: 20),
+                                  ),
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: textDark),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: TextField(
+                                  controller: dobController,
+                                  cursorColor: primaryPink,
+                                  decoration: _inputDecoration("Date of Birth (YYYY-MM-DD)").copyWith(
+                                    prefixIcon: const Icon(Icons.cake_outlined, color: textGrey, size: 20),
+                                  ),
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: textDark),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Bio
+                          TextField(
+                            controller: bioController,
+                            cursorColor: primaryPink,
+                            maxLines: 3,
+                            decoration: _inputDecoration("Biography / About Me"),
+                            style: const TextStyle(fontSize: 14, color: textDark),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            margin: const EdgeInsets.only(bottom: 14),
+                            decoration: BoxDecoration(
+                              color: lightPinkBg,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: primaryPink.withValues(alpha: 0.2)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.info_outline_rounded, color: primaryPink, size: 18),
+                                const SizedBox(width: 10),
+                                const Expanded(
+                                  child: Text(
+                                    "Choose which information is visible to other users on your profile.",
+                                    style: TextStyle(fontSize: 12, color: textDark, fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          buildPrivacyToggleTile(
+                            icon: Icons.phone_outlined,
+                            title: "Phone Number",
+                            subtitle: "Show or hide your phone number on your profile",
+                            isHidden: isPhoneHidden,
+                            onToggle: () => setModalState(() => isPhoneHidden = !isPhoneHidden),
+                          ),
+                          buildPrivacyToggleTile(
+                            icon: Icons.cake_outlined,
+                            title: "Date of Birth",
+                            subtitle: "Show or hide your date of birth",
+                            isHidden: isDobHidden,
+                            onToggle: () => setModalState(() => isDobHidden = !isDobHidden),
+                          ),
+                          buildPrivacyToggleTile(
+                            icon: Icons.public_rounded,
+                            title: "Country & Location",
+                            subtitle: "Show or hide your geographic location",
+                            isHidden: isCountryHidden,
+                            onToggle: () => setModalState(() => isCountryHidden = !isCountryHidden),
+                          ),
+                          buildPrivacyToggleTile(
+                            icon: Icons.badge_outlined,
+                            title: "Father's Name",
+                            subtitle: "Show or hide father's name",
+                            isHidden: isFatherNameHidden,
+                            onToggle: () => setModalState(() => isFatherNameHidden = !isFatherNameHidden),
+                          ),
+                          buildPrivacyToggleTile(
+                            icon: Icons.email_outlined,
+                            title: "Email Address",
+                            subtitle: "Show or hide your email address publicly",
+                            isHidden: isEmailHidden,
+                            onToggle: () => setModalState(() => isEmailHidden = !isEmailHidden),
+                          ),
+                          buildPrivacyToggleTile(
+                            icon: Icons.notes_rounded,
+                            title: "Biography",
+                            subtitle: "Show or hide your bio section",
+                            isHidden: isBioHidden,
+                            onToggle: () => setModalState(() => isBioHidden = !isBioHidden),
+                          ),
+                          buildPrivacyToggleTile(
+                            icon: Icons.bolt_rounded,
+                            title: "ZEV Points / XP",
+                            subtitle: "Show or hide total earned points and level",
+                            isHidden: isScoreHidden,
+                            onToggle: () => setModalState(() => isScoreHidden = !isScoreHidden),
+                          ),
+                          buildPrivacyToggleTile(
+                            icon: Icons.account_balance_wallet_outlined,
+                            title: "Wallet Balance",
+                            subtitle: "Show or hide your wallet balance",
+                            isHidden: isWalletHidden,
+                            onToggle: () => setModalState(() => isWalletHidden = !isWalletHidden),
+                          ),
+                          buildPrivacyToggleTile(
+                            icon: Icons.share_rounded,
+                            title: "Referral Code",
+                            subtitle: "Show or hide your invitation code",
+                            isHidden: isReferralHidden,
+                            onToggle: () => setModalState(() => isReferralHidden = !isReferralHidden),
+                          ),
+                          buildPrivacyToggleTile(
+                            icon: Icons.person_outline_rounded,
+                            title: "Last Name",
+                            subtitle: "Show full last name or only first name",
+                            isHidden: isLastNameHidden,
+                            onToggle: () => setModalState(() => isLastNameHidden = !isLastNameHidden),
+                          ),
+                          buildPrivacyToggleTile(
+                            icon: Icons.language_rounded,
+                            title: "Preferred Language",
+                            subtitle: "Show or hide your selected language",
+                            isHidden: isLanguageHidden,
+                            onToggle: () => setModalState(() => isLanguageHidden = !isLanguageHidden),
+                          ),
+                          buildPrivacyToggleTile(
+                            icon: Icons.verified_user_outlined,
+                            title: "Account Role",
+                            subtitle: "Show or hide your role badge (User/Creator/Admin)",
+                            isHidden: isRoleHidden,
+                            onToggle: () => setModalState(() => isRoleHidden = !isRoleHidden),
+                          ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        "هر بخشی را که می‌خواهید دیگران در پروفایل عمومی شما نبینند، با زدن روی دکمه مخفی (🔒) کنید:",
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: textGrey,
-                          height: 1.4,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
+              ),
+            ),
+            const SizedBox(height: 16),
 
-                      // 1. Phone Number
-                      buildPrivacyToggleTile(
-                        icon: Icons.phone_outlined,
-                        title: "Phone Number (شماره تماس)",
-                        subtitle: "نمایش یا عدم نمایش شماره تلفن برای دیگران",
-                        isHidden: isPhoneHidden,
-                        onToggle: () => setModalState(() => isPhoneHidden = !isPhoneHidden),
-                      ),
-
-                      // 2. Date of Birth
-                      buildPrivacyToggleTile(
-                        icon: Icons.cake_outlined,
-                        title: "Date of Birth (تاریخ تولد)",
-                        subtitle: "نمایش یا مخفی‌سازی تاریخ تولد در پروفایل",
-                        isHidden: isDobHidden,
-                        onToggle: () => setModalState(() => isDobHidden = !isDobHidden),
-                      ),
-
-                      // 3. Country / Location
-                      buildPrivacyToggleTile(
-                        icon: Icons.public_rounded,
-                        title: "Country & Location (کشور و موقعیت)",
-                        subtitle: "نمایش کشور و موقعیت جغرافیایی شما",
-                        isHidden: isCountryHidden,
-                        onToggle: () => setModalState(() => isCountryHidden = !isCountryHidden),
-                      ),
-
-                      // 4. Father's Name
-                      buildPrivacyToggleTile(
-                        icon: Icons.badge_outlined,
-                        title: "Father's Name (نام پدر)",
-                        subtitle: "نمایش نام پدر در اطلاعات کاربری",
-                        isHidden: isFatherNameHidden,
-                        onToggle: () => setModalState(() => isFatherNameHidden = !isFatherNameHidden),
-                      ),
-
-                      // 5. Email Address
-                      buildPrivacyToggleTile(
-                        icon: Icons.email_outlined,
-                        title: "Email Address (آدرس ایمیل)",
-                        subtitle: "نمایش یا پنهان‌سازی آدرس ایمیل برای عموم",
-                        isHidden: isEmailHidden,
-                        onToggle: () => setModalState(() => isEmailHidden = !isEmailHidden),
-                      ),
-
-                      // 6. Biography
-                      buildPrivacyToggleTile(
-                        icon: Icons.notes_rounded,
-                        title: "Biography (متن درباره من / بیو)",
-                        subtitle: "نمایش متن بیوگرافی برای سایر کاربران",
-                        isHidden: isBioHidden,
-                        onToggle: () => setModalState(() => isBioHidden = !isBioHidden),
-                      ),
-
-                      // 7. ZEV Points & Level
-                      buildPrivacyToggleTile(
-                        icon: Icons.bolt_rounded,
-                        title: "ZEV Points / XP (امتیاز کل)",
-                        subtitle: "نمایش امتیازات و لول شما در پروفایل",
-                        isHidden: isScoreHidden,
-                        onToggle: () => setModalState(() => isScoreHidden = !isScoreHidden),
-                      ),
-
-                      // 8. Wallet Balance
-                      buildPrivacyToggleTile(
-                        icon: Icons.account_balance_wallet_outlined,
-                        title: "Wallet Balance (موجودی کیف پول)",
-                        subtitle: "مخفی کردن رقم کیف پول از دید سایرین",
-                        isHidden: isWalletHidden,
-                        onToggle: () => setModalState(() => isWalletHidden = !isWalletHidden),
-                      ),
-
-                      // 9. Referral Code
-                      buildPrivacyToggleTile(
-                        icon: Icons.share_rounded,
-                        title: "Referral Code (کد و لینک دعوت)",
-                        subtitle: "نمایش کد معرف و لینک دعوت شما",
-                        isHidden: isReferralHidden,
-                        onToggle: () => setModalState(() => isReferralHidden = !isReferralHidden),
-                      ),
-
-                      // 10. Last Name
-                      buildPrivacyToggleTile(
-                        icon: Icons.person_outline_rounded,
-                        title: "Last Name (تخلص / نام خانوادگی)",
-                        subtitle: "نمایش تخلص یا نمایش تنها اسم کوچک",
-                        isHidden: isLastNameHidden,
-                        onToggle: () => setModalState(() => isLastNameHidden = !isLastNameHidden),
-                      ),
-
-                      // 11. Preferred Language
-                      buildPrivacyToggleTile(
-                        icon: Icons.language_rounded,
-                        title: "Preferred Language (زبان انتخابی)",
-                        subtitle: "نمایش زبان مورد علاقه در پروفایل",
-                        isHidden: isLanguageHidden,
-                        onToggle: () => setModalState(() => isLanguageHidden = !isLanguageHidden),
-                      ),
-
-                      // 12. Account Role
-                      buildPrivacyToggleTile(
-                        icon: Icons.verified_user_outlined,
-                        title: "Account Role (نقش کاربری)",
-                        subtitle: "نمایش تگ نقش کاربری (User/Creator/Admin)",
-                        isHidden: isRoleHidden,
-                        onToggle: () => setModalState(() => isRoleHidden = !isRoleHidden),
-                      ),
-                    ],
+            // Action Buttons
+            Row(
+              children: [
+                Expanded(
+                  flex: 1,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      side: BorderSide(color: cardBorder),
+                    ),
+                    onPressed: () => Navigator.pop(modalContext),
+                    child: Text(
+                      modalContext.zevTr('close'),
+                      style: const TextStyle(fontWeight: FontWeight.w700, color: textGrey),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 24),
-
-                SizedBox(
-                  width: double.infinity,
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryPink,
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
                     onPressed: isSavingProfile
                         ? null
@@ -1172,7 +1228,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text(
-                                      "Username must be 3-30 letters, numbers, or underscores (نام کاربری باید ۳ تا ۳۰ کاراکتر انگلیسی و بدون فاصله باشد)",
+                                      "Username must be 3-30 letters, numbers, or underscores",
                                     ),
                                     backgroundColor: Colors.orange,
                                   ),
@@ -1195,7 +1251,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text(
-                                        "This username is already taken! این نام کاربری قبلاً انتخاب شده است",
+                                        "This username is already taken. Please choose another.",
                                       ),
                                       backgroundColor: Colors.redAccent,
                                     ),
@@ -1216,8 +1272,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 'father_name': fatherNameController.text.trim(),
                                 'phone_number': phoneController.text.trim(),
                                 'country': countryController.text.trim(),
-                                'date_of_birth':
-                                    dobController.text.trim().isEmpty
+                                'date_of_birth': dobController.text.trim().isEmpty
                                     ? null
                                     : dobController.text.trim(),
                                 'bio': bioController.text.trim(),
@@ -1256,15 +1311,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                   .update(updatePayload)
                                   .eq("id", user.id);
 
+                              // Update in-memory instant cache
+                              if (_profileMemoryCache.containsKey(user.id)) {
+                                _profileMemoryCache[user.id] = {
+                                  ..._profileMemoryCache[user.id]!,
+                                  ...updatePayload,
+                                };
+                              }
+
                               if (!mounted) return;
-                              Navigator.pop(sheetContext);
+                              Navigator.pop(modalContext);
                               await _fetchProfileAndPosts();
                               if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text(
-                                    "Profile and privacy settings updated! ✅",
-                                  ),
+                                  content: Text("Profile updated successfully!"),
                                   backgroundColor: Colors.green,
                                 ),
                               );
@@ -1283,26 +1344,67 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                           )
-                        : const Text(
-                            "SAVE ALL CHANGES",
-                            style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.5,
-                            ),
+                        : Text(
+                            modalContext.zevTr('save'),
+                            style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5),
                           ),
                   ),
                 ),
               ],
             ),
+          ],
+        ),
+      );
+    }
+
+    final isDesktop = MediaQuery.of(context).size.width > 700;
+
+    if (isDesktop) {
+      showDialog(
+        context: context,
+        builder: (dialogContext) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Container(
+            width: 620,
+            decoration: BoxDecoration(
+              color: surfaceWhite,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.14),
+                  blurRadius: 28,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: StatefulBuilder(
+              builder: (modalContext, setModalState) =>
+                  buildModalContent(dialogContext, setModalState, true),
+            ),
           ),
         ),
-      ),
-    );
+      );
+    } else {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: surfaceWhite,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        builder: (sheetContext) => StatefulBuilder(
+          builder: (modalContext, setModalState) => Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+            ),
+            child: buildModalContent(sheetContext, setModalState, false),
+          ),
+        ),
+      );
+    }
   }
 
   InputDecoration _inputDecoration(String hint) {

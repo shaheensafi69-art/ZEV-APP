@@ -90,7 +90,7 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
       // 3. Fetch active users by default
       final activeUsersRes = await supabase
           .from('profiles')
-          .select('id, first_name, last_name, avatar_url, bio, role')
+          .select('id, first_name, last_name, avatar_url, cover_image_url, bio, role, username')
           .order('created_at', ascending: false)
           .limit(30);
 
@@ -117,12 +117,14 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
       return;
     }
 
+    final cleanQuery = _searchQuery.replaceFirst('@', '').trim();
+
     try {
       final usersRes = await supabase
           .from('profiles')
-          .select('id, first_name, last_name, avatar_url, bio, role')
+          .select('id, first_name, last_name, avatar_url, cover_image_url, bio, role, username')
           .or(
-            'first_name.ilike.%$_searchQuery%,last_name.ilike.%$_searchQuery%,bio.ilike.%$_searchQuery%',
+            'first_name.ilike.%$cleanQuery%,last_name.ilike.%$cleanQuery%,username.ilike.%$cleanQuery%,bio.ilike.%$cleanQuery%',
           )
           .limit(20);
 
@@ -554,7 +556,7 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
         crossAxisCount: columns,
         crossAxisSpacing: 14,
         mainAxisSpacing: 14,
-        childAspectRatio: 0.82,
+        childAspectRatio: 0.68,
       ),
       itemCount: list.length,
       itemBuilder: (context, index) {
@@ -563,6 +565,8 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
         final name =
             "${user['first_name'] ?? ''} ${user['last_name'] ?? ''}".trim();
         final avatar = user['avatar_url']?.toString() ?? '';
+        final coverUrl = user['cover_image_url']?.toString() ?? '';
+        final username = user['username']?.toString() ?? '';
         final bio = user['bio']?.toString() ?? '';
         final role = user['role']?.toString() ?? 'student';
         final isFollowing = _followingUserIds.contains(uid);
@@ -617,20 +621,39 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
                 borderRadius: BorderRadius.circular(20),
                 child: Column(
                   children: [
-                    // Top banner header
-                    Container(
-                      height: 52,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: cardGradient,
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
+                    // Top banner / cover image header
+                    SizedBox(
+                      height: 84,
+                      width: double.infinity,
+                      child: coverUrl.isNotEmpty
+                          ? Image.network(
+                              coverUrl,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              height: 84,
+                              errorBuilder: (_, __, ___) => Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: cardGradient,
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: cardGradient,
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                              ),
+                            ),
                     ),
                     // Centered Avatar overlapping banner
                     Transform.translate(
-                      offset: const Offset(0, -28),
+                      offset: const Offset(0, -30),
                       child: Container(
                         padding: const EdgeInsets.all(3.5),
                         decoration: BoxDecoration(
@@ -640,7 +663,7 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
                               : Colors.white,
                         ),
                         child: CircleAvatar(
-                          radius: 30,
+                          radius: 32,
                           backgroundColor: primaryPink.withValues(alpha: 0.15),
                           backgroundImage: avatar.isNotEmpty
                               ? NetworkImage(avatar)
@@ -650,7 +673,7 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
                                   name.isNotEmpty ? name[0].toUpperCase() : 'Z',
                                   style: const TextStyle(
                                     color: primaryPink,
-                                    fontSize: 20,
+                                    fontSize: 22,
                                     fontWeight: FontWeight.w900,
                                   ),
                                 )
@@ -658,11 +681,11 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
                         ),
                       ),
                     ),
-                    // User info
+                    // User info & action
                     Transform.translate(
-                      offset: const Offset(0, -22),
+                      offset: const Offset(0, -24),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
                         child: Column(
                           children: [
                             Row(
@@ -705,7 +728,20 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
                                 ],
                               ],
                             ),
-                            const SizedBox(height: 4),
+                            if (username.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                "@$username",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: primaryPink,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 5),
                             Text(
                               bio.isNotEmpty ? bio : "Member of ZEV Community",
                               maxLines: 2,
@@ -719,8 +755,8 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
                                     : const Color(0xFF64748B),
                               ),
                             ),
-                            const SizedBox(height: 12),
-                            // Web Follow Action Button
+                            const SizedBox(height: 14),
+                            // Web Follow Action Button at bottom
                             SizedBox(
                               width: double.infinity,
                               height: 34,
