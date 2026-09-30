@@ -55,9 +55,5 @@ flutter pub get
 echo "🔨 Running flutter build web --release..."
 flutter build web --release
 
-# Ensure SPA rewrites exist in output
-if [ -f "vercel.json" ]; then
-  cp vercel.json build/web/
-fi
 
 echo "✅ Build complete! Output ready in build/web"
