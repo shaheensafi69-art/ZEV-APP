@@ -90,12 +90,14 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
         final ln = res['last_name'] ?? '';
         final un = res['username']?.toString() ?? '';
         final full = "$fn $ln".trim();
+        final cleanUn = un.replaceAll('@', '').trim();
+        final fallbackHandle = "$fn$ln".toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '');
         setState(() {
           if (full.isNotEmpty) _currentUserName = full;
           _currentUserAvatar = res['avatar_url'] ?? '';
-          _currentUserHandle = un.isNotEmpty
-              ? un
-              : (user.email?.split('@').first ?? 'user');
+          _currentUserHandle = cleanUn.isNotEmpty
+              ? cleanUn
+              : (fallbackHandle.isNotEmpty ? fallbackHandle : (user.email?.split('@').first ?? 'user'));
         });
       }
     } catch (_) {}
@@ -149,6 +151,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
 
     HapticFeedback.lightImpact();
     WebNavigationService.instance.updateUrlForTab(index);
+    if (index == 4) _loadUserProfile();
     setState(() {
       _currentIndex = index;
     });
@@ -699,13 +702,6 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                       icon: Icons.notifications_none_rounded,
                       label: context.zevTr('notifications'),
                       index: 7,
-                      isDark: isDark,
-                      isDesktop: isDesktop,
-                    ),
-                    _buildSideNavItem(
-                      icon: Icons.person_outline_rounded,
-                      label: context.zevTr('myProfile'),
-                      index: 4,
                       isDark: isDark,
                       isDesktop: isDesktop,
                     ),

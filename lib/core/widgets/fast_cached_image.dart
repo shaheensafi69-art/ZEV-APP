@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 /// 2. Strict RAM memory caching ([memCacheWidth], [memCacheHeight]) to prevent decoding multi-megapixel photos in RAM.
 /// 3. Zero frame-drops and sub-second load times on low-bandwidth Afghan internet connections.
 /// 4. Graceful shimmer / pulsing placeholder and fallback error handling.
-class FastCachedImage extends StatelessWidget {
+class FastCachedImage extends StatefulWidget {
   final String? imageUrl;
   final double? width;
   final double? height;
@@ -34,8 +34,24 @@ class FastCachedImage extends StatelessWidget {
   });
 
   @override
+  State<FastCachedImage> createState() => _FastCachedImageState();
+}
+
+class _FastCachedImageState extends State<FastCachedImage> {
+  int _retryCount = 0;
+  bool _hasAutoRetried = false;
+
+  void _manualRetry() {
+    if (mounted) {
+      setState(() {
+        _retryCount++;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final validUrl = imageUrl?.trim();
+    final validUrl = widget.imageUrl?.trim();
 
     Widget imageContent;
 
@@ -43,30 +59,38 @@ class FastCachedImage extends StatelessWidget {
       imageContent = _buildPlaceholder(context);
     } else {
       imageContent = CachedNetworkImage(
+        key: ValueKey('${validUrl}_$_retryCount'),
         imageUrl: validUrl,
-        width: width,
-        height: height,
-        fit: fit,
-        memCacheWidth: memCacheWidth,
-        memCacheHeight: memCacheHeight,
+        width: widget.width,
+        height: widget.height,
+        fit: widget.fit,
+        memCacheWidth: widget.memCacheWidth,
+        memCacheHeight: widget.memCacheHeight,
         fadeInDuration: const Duration(milliseconds: 180),
         fadeOutDuration: const Duration(milliseconds: 180),
-        placeholder: (context, url) => placeholder ?? _buildShimmerPlaceholder(),
-        errorWidget: (context, url, error) =>
-            errorWidget ?? _buildErrorWidget(context),
+        placeholder: (context, url) => widget.placeholder ?? _buildShimmerPlaceholder(),
+        errorWidget: (context, url, error) {
+          if (!_hasAutoRetried) {
+            _hasAutoRetried = true;
+            Future.delayed(const Duration(milliseconds: 1600), () {
+              if (mounted) _manualRetry();
+            });
+          }
+          return widget.errorWidget ?? _buildErrorWidget(context);
+        },
       );
     }
 
-    if (borderRadius != null) {
+    if (widget.borderRadius != null) {
       imageContent = ClipRRect(
-        borderRadius: borderRadius!,
+        borderRadius: widget.borderRadius!,
         child: imageContent,
       );
     }
 
-    if (onTap != null) {
+    if (widget.onTap != null) {
       return GestureDetector(
-        onTap: onTap,
+        onTap: widget.onTap,
         child: imageContent,
       );
     }
@@ -76,8 +100,8 @@ class FastCachedImage extends StatelessWidget {
 
   Widget _buildShimmerPlaceholder() {
     return Container(
-      width: width,
-      height: height,
+      width: widget.width,
+      height: widget.height,
       color: const Color(0xFFF3F4F6),
       child: const Center(
         child: SizedBox(
@@ -94,8 +118,8 @@ class FastCachedImage extends StatelessWidget {
 
   Widget _buildPlaceholder(BuildContext context) {
     return Container(
-      width: width,
-      height: height,
+      width: widget.width,
+      height: widget.height,
       color: const Color(0xFFF3F4F6),
       child: const Icon(
         Icons.image_outlined,
@@ -107,14 +131,35 @@ class FastCachedImage extends StatelessWidget {
 
   Widget _buildErrorWidget(BuildContext context) {
     return Container(
-      width: width,
-      height: height,
-      color: const Color(0xFFFEE2E2),
-      child: const Center(
-        child: Icon(
-          Icons.broken_image_rounded,
-          color: Color(0xFFEF4444),
-          size: 24,
+      width: widget.width,
+      height: widget.height,
+      color: const Color(0xFFF9FAFB),
+      child: Center(
+        child: InkWell(
+          onTap: _manualRetry,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(
+                  Icons.refresh_rounded,
+                  color: Color(0xFFFC466B),
+                  size: 18,
+                ),
+                SizedBox(width: 6),
+                Text(
+                  "تلاش دوباره",
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFFC466B),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

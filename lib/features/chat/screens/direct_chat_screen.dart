@@ -642,21 +642,27 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
             ),
 
           // ================= Reply Preview Box =================
+          // ================= Luxury Reply Preview Box =================
           if (replyingToMessage != null)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFFF3F4F6),
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF1E2230)
+                    : const Color(0xFFF1F5F9),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                 border: Border(
-                  top: BorderSide(color: cardBorder, width: 1),
-                  bottom: BorderSide(color: cardBorder, width: 1),
+                  top: BorderSide(
+                    color: primaryPink.withValues(alpha: 0.35),
+                    width: 1.5,
+                  ),
                 ),
               ),
               child: Row(
                 children: [
                   Container(
-                    width: 3,
-                    height: 32,
+                    width: 3.5,
+                    height: 36,
                     decoration: BoxDecoration(
                       color: primaryPink,
                       borderRadius: BorderRadius.circular(2),
@@ -667,19 +673,35 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          "${context.l10n.replyingTo} ${replyingToMessage!.isMe ? context.l10n.yourself : widget.peerName}",
-                          style: const TextStyle(
-                            color: primaryPink,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.reply_rounded,
+                              size: 13,
+                              color: primaryPink,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              "${context.l10n.replyingTo} ${replyingToMessage!.isMe ? context.l10n.yourself : widget.peerName}",
+                              style: const TextStyle(
+                                color: primaryPink,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
                         ),
+                        const SizedBox(height: 2),
                         Text(
-                          replyingToMessage!.text,
+                          _getCleanMessageText(replyingToMessage!.text),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: textDark, fontSize: 12),
+                          style: TextStyle(
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white70
+                                : textDark,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),
@@ -1186,68 +1208,212 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
       );
     }
 
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: GestureDetector(
-        onLongPress: () => _showMessageActionsModal(msg),
-        onDoubleTap: () {
-          setState(() {
-            replyingToMessage = msg;
-          });
-        },
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.75,
-          ),
-          decoration: BoxDecoration(
-            color: isMe ? primaryPink : lightPinkBg,
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(20),
-              topRight: const Radius.circular(20),
-              bottomLeft: Radius.circular(isMe ? 20 : 4),
-              bottomRight: Radius.circular(isMe ? 4 : 20),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Parse embedded reply quote if message is a reply
+    String? replyAuthor;
+    String? replySnippet;
+    String actualText = msg.text;
+
+    if (actualText.startsWith('↩️')) {
+      final firstLineEnd = actualText.indexOf('\n');
+      if (firstLineEnd != -1) {
+        final headerLine = actualText.substring(0, firstLineEnd);
+        actualText = actualText.substring(firstLineEnd + 1).trim();
+        final colonIdx = headerLine.indexOf(':');
+        if (colonIdx != -1) {
+          replyAuthor = headerLine.substring(0, colonIdx).replaceFirst('↩️', '').trim();
+          final quotePart = headerLine.substring(colonIdx + 1).trim();
+          replySnippet = quotePart.replaceAll('"', '').trim();
+        } else {
+          replyAuthor = headerLine.replaceFirst('↩️', '').trim();
+        }
+      }
+    }
+
+    Widget buildRepliedQuoteBox() {
+      final quoteBg = isMe
+          ? Colors.black.withValues(alpha: 0.18)
+          : (isDark ? Colors.white.withValues(alpha: 0.07) : const Color(0xFFE2E8F0));
+      final accentColor = isMe ? Colors.white : primaryPink;
+
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+        decoration: BoxDecoration(
+          color: quoteBg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border(
+            left: BorderSide(
+              color: accentColor,
+              width: 3.5,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.reply_rounded,
+                  size: 13,
+                  color: isMe ? Colors.white : primaryPink,
+                ),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    replyAuthor ?? "Replying",
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: isMe ? Colors.white : primaryPink,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            if (replySnippet != null && replySnippet!.isNotEmpty) ...[
+              const SizedBox(height: 2),
               Text(
-                msg.text,
+                replySnippet!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: isMe ? Colors.white : textDark,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  height: 1.4,
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                  color: isMe
+                      ? Colors.white.withValues(alpha: 0.85)
+                      : (isDark ? Colors.white70 : textGrey),
                 ),
               ),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    _formatTime(msg.createdAt),
-                    style: TextStyle(
-                      color: isMe
-                          ? Colors.white.withValues(alpha: 0.8)
-                          : textGrey,
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (isMe) ...[const SizedBox(width: 4), statusIcon],
-                ],
-              ),
             ],
+          ],
+        ),
+      );
+    }
+
+    return Dismissible(
+      key: ValueKey("swipe_reply_${msg.id}"),
+      direction: isMe ? DismissDirection.endToStart : DismissDirection.startToEnd,
+      confirmDismiss: (direction) async {
+        HapticFeedback.mediumImpact();
+        setState(() {
+          replyingToMessage = msg;
+        });
+        return false; // Never dismiss or remove item from chat list
+      },
+      background: Container(
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+        padding: EdgeInsets.symmetric(horizontal: 24),
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: primaryPink.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.reply_rounded,
+            color: primaryPink,
+            size: 20,
+          ),
+        ),
+      ),
+      child: Align(
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+        child: GestureDetector(
+          onLongPress: () => _showMessageActionsModal(msg),
+          onDoubleTap: () {
+            HapticFeedback.lightImpact();
+            setState(() {
+              replyingToMessage = msg;
+            });
+          },
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.75,
+            ),
+            decoration: BoxDecoration(
+              gradient: isMe
+                  ? const LinearGradient(
+                      colors: [primaryPink, Color(0xFFFF5E7E)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
+              color: isMe
+                  ? null
+                  : (isDark ? const Color(0xFF1E2230) : const Color(0xFFF1F5F9)),
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(18),
+                topRight: const Radius.circular(18),
+                bottomLeft: Radius.circular(isMe ? 18 : 4),
+                bottomRight: Radius.circular(isMe ? 4 : 18),
+              ),
+              border: isMe
+                  ? null
+                  : Border.all(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.08)
+                          : Colors.black.withValues(alpha: 0.05),
+                      width: 1,
+                    ),
+              boxShadow: [
+                BoxShadow(
+                  color: isMe
+                      ? primaryPink.withValues(alpha: 0.3)
+                      : Colors.black.withValues(alpha: 0.04),
+                  blurRadius: isMe ? 10 : 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Quoted reply block if present
+                if (replyAuthor != null) buildRepliedQuoteBox(),
+
+                // Message Text
+                Text(
+                  actualText,
+                  style: TextStyle(
+                    color: isMe
+                        ? Colors.white
+                        : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w500,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      _formatTime(msg.createdAt),
+                      style: TextStyle(
+                        color: isMe
+                            ? Colors.white.withValues(alpha: 0.8)
+                            : textGrey,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (isMe) ...[const SizedBox(width: 4), statusIcon],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

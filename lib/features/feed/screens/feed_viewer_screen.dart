@@ -41,9 +41,16 @@ class FeedViewerScreen extends StatefulWidget {
 class _FeedViewerScreenState extends State<FeedViewerScreen> {
   final supabase = Supabase.instance.client;
   bool isLoading = true;
+  bool _hasError = false;
+  int _retryAttempts = 0;
   List<FeedPostItem> allPosts = [];
   List<FeedPostItem> filteredPosts = [];
   List<ActiveFriendStory> activeFriendStories = [];
+
+  // Static in-memory cache to preserve feed posts across navigation and tab switches
+  static List<FeedPostItem> _cachedFeedPosts = [];
+  static List<ActiveFriendStory> _cachedStories = [];
+  static DateTime? _lastFeedFetchTime;
 
   // Tracks posts featured at top in previous refresh to guarantee fresh explore rotation
   final Set<String> _recentlyFeaturedPostIds = {};
@@ -63,8 +70,26 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchFeedPosts();
-    _fetchActiveFriendStories();
+
+    // Instant load from memory cache if available (sub-millisecond instant display)
+    if (_cachedFeedPosts.isNotEmpty) {
+      allPosts = List.from(_cachedFeedPosts);
+      filteredPosts = List.from(_cachedFeedPosts);
+      isLoading = false;
+    }
+    if (_cachedStories.isNotEmpty) {
+      activeFriendStories = List.from(_cachedStories);
+    }
+
+    // Only trigger full network fetch if cache is empty or older than 3 minutes
+    final bool shouldFetch = _cachedFeedPosts.isEmpty ||
+        _lastFeedFetchTime == null ||
+        DateTime.now().difference(_lastFeedFetchTime!).inMinutes >= 3;
+
+    if (shouldFetch) {
+      _fetchFeedPosts(showLoading: _cachedFeedPosts.isEmpty);
+      _fetchActiveFriendStories();
+    }
 
     _scrollController.addListener(() {
       if (_scrollController.hasClients) {
@@ -175,6 +200,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
             }
           } catch (_) {}
         }
+        _cachedStories = loaded;
         setState(() {
           activeFriendStories = loaded;
           _myAvatarUrl = myAv;
@@ -187,8 +213,13 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
 
   /// Ultra-fast parallel batched loading for feed posts:
   /// Reduces 150+ serial HTTP requests down to 3 parallel requests (~150ms)
-  Future<void> _fetchFeedPosts() async {
-    setState(() => isLoading = true);
+  Future<void> _fetchFeedPosts({bool showLoading = true, bool isRetry = false}) async {
+    if (showLoading && allPosts.isEmpty) {
+      setState(() {
+        isLoading = true;
+        _hasError = false;
+      });
+    }
     try {
       final user = supabase.auth.currentUser;
       final userId = user?.id;
@@ -402,6 +433,11 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
         }
       }
 
+      _cachedFeedPosts = loadedPosts;
+      _lastFeedFetchTime = DateTime.now();
+      _retryAttempts = 0;
+      _hasError = false;
+
       if (mounted) {
         setState(() {
           allPosts = loadedPosts;
@@ -421,7 +457,22 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
       }
     } catch (e) {
       debugPrint("Feed posts fetch error: $e");
-      if (mounted) setState(() => isLoading = false);
+      if (mounted) {
+        if (_retryAttempts < 2) {
+          _retryAttempts++;
+          // Automatic retry attempt after brief delay
+          Future.delayed(const Duration(milliseconds: 1800), () {
+            if (mounted) {
+              _fetchFeedPosts(showLoading: false, isRetry: true);
+            }
+          });
+        } else {
+          setState(() {
+            isLoading = false;
+            _hasError = allPosts.isEmpty;
+          });
+        }
+      }
     }
   }
 
@@ -743,12 +794,86 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                           _fetchActiveFriendStories(),
                         ]);
                       },
-                      child: isLoading
+                      child: (isLoading && allPosts.isEmpty)
                           ? const Center(
                               child: CircularProgressIndicator(
                                 color: primaryPink,
                                 strokeWidth: 3,
                               ),
+                            )
+                          : (_hasError && allPosts.isEmpty)
+                          ? ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              children: [
+                                SizedBox(height: topPadding + 180),
+                                Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          width: 72,
+                                          height: 72,
+                                          decoration: const BoxDecoration(
+                                            color: lightPinkBg,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.wifi_off_rounded,
+                                            color: primaryPink,
+                                            size: 34,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 16),
+                                        const Text(
+                                          "خطا در دریافت پست‌ها",
+                                          style: TextStyle(
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.bold,
+                                            color: textDark,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        const Text(
+                                          "ارتباط با سرور برقرار نشد، سیستم به صورت خودکار کوشش می‌کند",
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: textGrey,
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 20),
+                                        ElevatedButton.icon(
+                                          onPressed: () {
+                                            _retryAttempts = 0;
+                                            _fetchFeedPosts(showLoading: true);
+                                          },
+                                          icon: const Icon(Icons.refresh_rounded, size: 18, color: Colors.white),
+                                          label: const Text(
+                                            "تلاش مجدد",
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: primaryPink,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 24,
+                                              vertical: 12,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(14),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             )
                           : filteredPosts.isEmpty
                           ? ListView(
