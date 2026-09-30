@@ -1,8 +1,10 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/utils/app_media_picker.dart';
+import '../../../core/widgets/media_frame_preview_dialog.dart';
 import '../../chat/screens/direct_chat_screen.dart';
 import 'reels_viewer_screen.dart';
 import 'user_follows_list_screen.dart';
@@ -371,6 +373,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
     if (file == null) return;
 
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+    final confirmed = await MediaFramePreviewDialog.show(
+      context,
+      imageBytes: bytes,
+      isCircle: false,
+      title: "تنظیم و فیکس کاور پیج",
+    );
+    if (confirmed != true) return;
+
     setState(() => isCoverUploading = true);
     try {
       final user = supabase.auth.currentUser;
@@ -379,7 +391,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       final fileExt = file.path.split('.').lastOrNull ?? 'jpg';
       final fileName =
           'cover-${user.id}-${DateTime.now().millisecondsSinceEpoch}.$fileExt';
-      final bytes = await file.readAsBytes();
 
       final publicUrl = await CloudflareStorageService.instance.upload(
         bucket: 'covers',
@@ -429,6 +440,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
     if (file == null) return;
 
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+    final confirmed = await MediaFramePreviewDialog.show(
+      context,
+      imageBytes: bytes,
+      isCircle: true,
+      title: "تنظیم و فیکس عکس پروفایل",
+    );
+    if (confirmed != true) return;
+
     setState(() => isAvatarUploading = true);
     try {
       final user = supabase.auth.currentUser;
@@ -437,7 +458,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       final fileExt = file.path.split('.').lastOrNull ?? 'jpg';
       final fileName =
           'avatar-${user.id}-${DateTime.now().millisecondsSinceEpoch}.$fileExt';
-      final bytes = await file.readAsBytes();
 
       final publicUrl = await CloudflareStorageService.instance.upload(
         bucket: 'avatars',
@@ -1802,32 +1822,62 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                                       profileData!['cover_url'])
                                                   .toString()
                                                   .isNotEmpty
-                                          ? Image.network(
-                                              (profileData!['cover_image_url'] ??
-                                                      profileData!['cover_url'])
-                                                  .toString(),
-                                              width: double.infinity,
-                                              height: context.responsive(
-                                                phone: 180.0,
-                                                tablet: 240.0,
-                                                desktop: 270.0,
-                                              ),
-                                              fit: BoxFit.cover,
-                                              errorBuilder:
-                                                  (
-                                                    context,
-                                                    error,
-                                                    stackTrace,
-                                                  ) => Center(
-                                                    child: Icon(
-                                                      Icons.landscape_rounded,
-                                                      size: 48,
-                                                      color: Colors.white
+                                          ? Stack(
+                                              fit: StackFit.expand,
+                                              children: [
+                                                // Ambient blurred background to fill the frame
+                                                Image.network(
+                                                  (profileData!['cover_image_url'] ??
+                                                          profileData!['cover_url'])
+                                                      .toString(),
+                                                  width: double.infinity,
+                                                  height: double.infinity,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (_, __, ___) =>
+                                                      const SizedBox(),
+                                                ),
+                                                ClipRect(
+                                                  child: BackdropFilter(
+                                                    filter: ImageFilter.blur(
+                                                      sigmaX: 24,
+                                                      sigmaY: 24,
+                                                    ),
+                                                    child: Container(
+                                                      color: Colors.black
                                                           .withValues(
-                                                            alpha: 0.4,
-                                                          ),
+                                                        alpha: 0.28,
+                                                      ),
                                                     ),
                                                   ),
+                                                ),
+                                                // Smart foreground - 100% of cover photo fitted without cropping
+                                                Center(
+                                                  child: Image.network(
+                                                    (profileData![
+                                                                'cover_image_url'] ??
+                                                            profileData![
+                                                                'cover_url'])
+                                                        .toString(),
+                                                    width: double.infinity,
+                                                    height: double.infinity,
+                                                    fit: BoxFit.contain,
+                                                    errorBuilder: (
+                                                      context,
+                                                      error,
+                                                      stackTrace,
+                                                    ) => Center(
+                                                      child: Icon(
+                                                        Icons.landscape_rounded,
+                                                        size: 48,
+                                                        color: Colors.white
+                                                            .withValues(
+                                                          alpha: 0.4,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             )
                                           : Center(
                                               child: Icon(
@@ -4088,10 +4138,34 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           children: [
             // Cover Image or Signature ZEV Brand Gradient Banner
             if (coverUrl != null && coverUrl.isNotEmpty)
-              Image.network(
-                coverUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _buildDefaultBrandBanner(),
+              Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Ambient blurred background to fill the wide card
+                  Image.network(
+                    coverUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => _buildDefaultBrandBanner(),
+                  ),
+                  ClipRect(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                      child: Container(
+                        color: Colors.black.withValues(alpha: 0.3),
+                      ),
+                    ),
+                  ),
+                  // Smart foreground - complete cover image visible without any crop
+                  Center(
+                    child: Image.network(
+                      coverUrl,
+                      fit: BoxFit.contain,
+                      width: double.infinity,
+                      height: double.infinity,
+                      errorBuilder: (_, _, _) => _buildDefaultBrandBanner(),
+                    ),
+                  ),
+                ],
               )
             else
               _buildDefaultBrandBanner(),

@@ -242,6 +242,7 @@ class ZevStrings {
       "hide": "Hide",
       "show": "Show",
       "tryAgain": "Try Again",
+      "imageLoadFailed": "Failed to load image",
       "failedToLoadPosts": "Could not load posts. Please check your internet connection.",
       "privacyAndVisibility": "Privacy & Visibility",
     },
@@ -486,6 +487,7 @@ class ZevStrings {
       "hide": "پنهان کردن",
       "show": "آشکار کردن",
       "tryAgain": "تلاش مجدد",
+      "imageLoadFailed": "بارگذاری تصویر ناموفق بود",
       "failedToLoadPosts": "بارگذاری پست‌ها با خطا مواجه شد. لطفاً اتصال اینترنت را بررسی کنید.",
       "privacyAndVisibility": "حریم خصوصی و نمایش",
     },
@@ -706,6 +708,8 @@ class ZevStrings {
       "sendPrivateMessages":
           "په ZEV کې خپلو ملګرو ته په خوندي ډول خصوصي پیغامونه واستوئ",
       "sendMessage": "پیغام واستوئ",
+      "tryAgain": "بیا هڅه وکړئ",
+      "imageLoadFailed": "انځور پورته نشو",
     },
     "ar": {
       "feed": "الخلاصة",
@@ -911,6 +915,8 @@ class ZevStrings {
       "selectChatToMessage": "اختر محادثة لبدء المراسلة",
       "sendPrivateMessages": "أرسل رسائل خاصة وصور بأمان على ZEV",
       "sendMessage": "إرسال رسالة",
+      "tryAgain": "إعادة المحاولة",
+      "imageLoadFailed": "فشل تحميل الصورة",
     },
     "ur": {
       "feed": "فیڈ",
@@ -1120,6 +1126,8 @@ class ZevStrings {
       "sendPrivateMessages":
           "ZEV پر دوستوں کو محفوظ طریقے سے نجی پیغامات بھیجیں",
       "sendMessage": "پیغام بھیجیں",
+      "tryAgain": "دوبارہ کوشش کریں",
+      "imageLoadFailed": "تصویر لوڈ نہیں ہو سکی",
     },
     "tr": {
       "feed": "Akış",
@@ -1333,6 +1341,8 @@ class ZevStrings {
       "sendPrivateMessages":
           "ZEV üzerinde arkadaşlarınıza güvenle özel mesaj gönderin",
       "sendMessage": "Mesaj Gönder",
+      "tryAgain": "Tekrar Dene",
+      "imageLoadFailed": "Görsel yüklenemedi",
     },
     "ru": {
       "feed": "Лента",
@@ -1538,6 +1548,8 @@ class ZevStrings {
       "selectChatToMessage": "Выберите чат, чтобы начать общение",
       "sendPrivateMessages": "Безопасно отправляйте личные сообщения в ZEV",
       "sendMessage": "Написать сообщение",
+      "tryAgain": "Повторить попытку",
+      "imageLoadFailed": "Не удалось загрузить изображение",
     },
     "de": {
       "feed": "Feed",
@@ -1747,6 +1759,8 @@ class ZevStrings {
       "selectChatToMessage": "Wähle einen Chat aus, um Nachrichten zu senden",
       "sendPrivateMessages": "Sende private Nachrichten sicher auf ZEV",
       "sendMessage": "Nachricht senden",
+      "tryAgain": "Erneut versuchen",
+      "imageLoadFailed": "Bild konnte nicht geladen werden",
     },
     "fr": {
       "feed": "Fil d'actualité",
@@ -1961,6 +1975,8 @@ class ZevStrings {
       "sendPrivateMessages":
           "Envoyez des messages privés en toute sécurité sur ZEV",
       "sendMessage": "Envoyer un message",
+      "tryAgain": "Réessayer",
+      "imageLoadFailed": "Échec du chargement de l'image",
     },
     "es": {
       "feed": "Feed",
@@ -2171,6 +2187,8 @@ class ZevStrings {
       "sendPrivateMessages":
           "Envía mensajes privados con total seguridad en ZEV",
       "sendMessage": "Enviar mensaje",
+      "tryAgain": "Reintentar",
+      "imageLoadFailed": "Error al cargar la imagen",
     },
     "it": {
       "feed": "Feed",
@@ -2380,6 +2398,8 @@ class ZevStrings {
       "selectChatToMessage": "Seleziona una chat per iniziare a messaggiare",
       "sendPrivateMessages": "Invia messaggi privati in tutta sicurezza su ZEV",
       "sendMessage": "Invia messaggio",
+      "tryAgain": "Riprova",
+      "imageLoadFailed": "Impossibile caricare l'immagine",
     },
     "pt": {
       "feed": "Feed",
@@ -2588,6 +2608,8 @@ class ZevStrings {
       "sendPrivateMessages":
           "Envie mensagens e mídias privadas com segurança no ZEV",
       "sendMessage": "Enviar mensagem",
+      "tryAgain": "Tentar novamente",
+      "imageLoadFailed": "Falha ao carregar a imagem",
     },
     "nl": {
       "feed": "Feed",
@@ -2765,6 +2787,8 @@ class ZevStrings {
       "selectChatToMessage": "Selecteer een chat om te beginnen",
       "sendPrivateMessages": "Verzend veilig privéberichten op ZEV",
       "sendMessage": "Bericht sturen",
+      "tryAgain": "Opnieuw proberen",
+      "imageLoadFailed": "Afbeelding kon niet worden geladen",
     },
     "zh": {
       "feed": "动态",
@@ -2967,6 +2991,8 @@ class ZevStrings {
       "selectChatToMessage": "选择一个会话开始聊天",
       "sendPrivateMessages": "在ZEV上安全收发私信与媒体",
       "sendMessage": "发消息",
+      "tryAgain": "重试",
+      "imageLoadFailed": "图片加载失败",
     },
     "ja": {
       "feed": "フィード",
@@ -3170,6 +3196,8 @@ class ZevStrings {
       "selectChatToMessage": "チャットを選択してメッセージを開始",
       "sendPrivateMessages": "ZEVで安全にプライベートメッセージを送信",
       "sendMessage": "メッセージを送信",
+      "tryAgain": "再試行",
+      "imageLoadFailed": "画像を読み込めませんでした",
     },
     "ko": {
       "feed": "피드",
@@ -3373,6 +3401,8 @@ class ZevStrings {
       "selectChatToMessage": "대화를 시작할 채팅을 선택하세요",
       "sendPrivateMessages": "ZEV에서 안전하게 비공개 메시지를 보내세요",
       "sendMessage": "메시지 보내기",
+      "tryAgain": "다시 시도",
+      "imageLoadFailed": "이미지를 불러오지 못했습니다",
     },
     "hi": {
       "feed": "फ़ीड",
@@ -3580,6 +3610,8 @@ class ZevStrings {
       "selectChatToMessage": "बातचीत शुरू करने के लिए कोई चैट चुनें",
       "sendPrivateMessages": "ZEV पर दोस्तों को सुरक्षित रूप से संदेश भेजें",
       "sendMessage": "संदेश भेजें",
+      "tryAgain": "पुनः प्रयास करें",
+      "imageLoadFailed": "छवि लोड करने में विफल",
     },
     "id": {
       "feed": "Feed",
@@ -3789,6 +3821,8 @@ class ZevStrings {
       "selectChatToMessage": "Pilih obrolan untuk mulai berkirim pesan",
       "sendPrivateMessages": "Kirim pesan pribadi dengan aman di ZEV",
       "sendMessage": "Kirim Pesan",
+      "tryAgain": "Coba Lagi",
+      "imageLoadFailed": "Gagal memuat gambar",
     },
     "uz": {
       "feed": "Tasma",
@@ -4001,6 +4035,8 @@ class ZevStrings {
       "sendPrivateMessages":
           "ZEV orqali do'stlaringizga xavfsiz shaxsiy xabarlar yuboring",
       "sendMessage": "Xabar yuborish",
+      "tryAgain": "Qayta urinish",
+      "imageLoadFailed": "Rasm yuklanmadi",
     },
   };
 

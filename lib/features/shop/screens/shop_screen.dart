@@ -166,106 +166,7 @@ class _ShopScreenState extends State<ShopScreen> {
         final textSecondary = palette.textSecondary;
         final isRtl = LanguageService.isRtl(activeLocale.languageCode);
 
-        return Directionality(
-          textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
-          child: Scaffold(
-            backgroundColor: palette.background,
-            appBar: AppBar(
-              backgroundColor: palette.surface,
-              elevation: 0,
-              surfaceTintColor: Colors.transparent,
-              centerTitle: true,
-              leading: (Navigator.of(context).canPop() || widget.onBack != null)
-                  ? IconButton(
-                      icon: Icon(
-                        isRtl
-                            ? Icons.arrow_forward_ios_rounded
-                            : Icons.arrow_back_ios_rounded,
-                        color: textPrimary,
-                        size: 20,
-                      ),
-                      onPressed: () {
-                        if (Navigator.of(context).canPop()) {
-                          Navigator.of(context).pop();
-                        } else if (widget.onBack != null) {
-                          widget.onBack!();
-                        }
-                      },
-                    )
-                  : null,
-              title: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      gradient: palette.gradient,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.storefront_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _t('title'),
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                // Currency Selector Pill
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  child: InkWell(
-                    onTap: _showCurrencyPickerSheet,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: palette.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: palette.primary.withValues(alpha: 0.4),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _activeCurrency,
-                            style: TextStyle(
-                              color: palette.primary,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.arrow_drop_down,
-                            color: palette.primary,
-                            size: 18,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            body: RefreshIndicator(
+        final Widget mainContent = RefreshIndicator(
               color: palette.primary,
               onRefresh: _fetchProducts,
               child: ResponsiveLayout.pageConstraint(
@@ -467,10 +368,10 @@ class _ShopScreenState extends State<ShopScreen> {
                           gridDelegate:
                               SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount:
-                                    ResponsiveLayout.isTablet(context) ? 2 : 3,
-                                crossAxisSpacing: 16,
-                                mainAxisSpacing: 16,
-                                childAspectRatio: 0.88,
+                                    ResponsiveLayout.isTablet(context) ? 2 : (MediaQuery.of(context).size.width >= 1200 ? 3 : 2),
+                                crossAxisSpacing: 18,
+                                mainAxisSpacing: 18,
+                                childAspectRatio: 0.69,
                               ),
                           delegate: SliverChildBuilderDelegate((
                             context,
@@ -484,10 +385,261 @@ class _ShopScreenState extends State<ShopScreen> {
                   ],
                 ),
               ),
+            );
+
+        if (MediaQuery.of(context).size.width >= 1050) {
+          return Directionality(
+            textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+            child: Scaffold(
+              backgroundColor: palette.background,
+              appBar: AppBar(
+                backgroundColor: palette.surface,
+                elevation: 0,
+                surfaceTintColor: Colors.transparent,
+                centerTitle: false,
+                leading: (Navigator.of(context).canPop() || widget.onBack != null)
+                    ? IconButton(
+                        icon: Icon(
+                          isRtl
+                              ? Icons.arrow_forward_ios_rounded
+                              : Icons.arrow_back_ios_rounded,
+                          color: textPrimary,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          if (Navigator.of(context).canPop()) {
+                            Navigator.of(context).pop();
+                          } else if (widget.onBack != null) {
+                            widget.onBack!();
+                          }
+                        },
+                      )
+                    : null,
+                title: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        gradient: palette.gradient,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.storefront_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      _t('title'),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                actions: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    child: InkWell(
+                      onTap: _showCurrencyPickerSheet,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: palette.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: palette.primary.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _activeCurrency,
+                              style: TextStyle(
+                                color: palette.primary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.arrow_drop_down,
+                              color: palette.primary,
+                              size: 18,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              body: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Main products area (70%)
+                    Expanded(child: mainContent),
+                    const SizedBox(width: 22),
+                    // Right ads and trust sidebar (30%)
+                    SizedBox(
+                      width: 320,
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: _buildShopSidebar(palette, isDark, isRtl),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
+          );
+        }
+
+        return Directionality(
+          textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+          child: Scaffold(
+            backgroundColor: palette.background,
+            appBar: AppBar(
+              backgroundColor: palette.surface,
+              elevation: 0,
+              surfaceTintColor: Colors.transparent,
+              centerTitle: true,
+              leading: (Navigator.of(context).canPop() || widget.onBack != null)
+                  ? IconButton(
+                      icon: Icon(
+                        isRtl
+                            ? Icons.arrow_forward_ios_rounded
+                            : Icons.arrow_back_ios_rounded,
+                        color: textPrimary,
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        if (Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop();
+                        } else if (widget.onBack != null) {
+                          widget.onBack!();
+                        }
+                      },
+                    )
+                  : null,
+              title: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      gradient: palette.gradient,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.storefront_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _t('title'),
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  child: InkWell(
+                    onTap: _showCurrencyPickerSheet,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: palette.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: palette.primary.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _activeCurrency,
+                            style: TextStyle(
+                              color: palette.primary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_drop_down,
+                            color: palette.primary,
+                            size: 18,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            body: mainContent,
           ),
         );
       },
+    );
+  }
+
+  (List<Color>, IconData) _getCategoryStyle(String category) {
+    final c = category.toLowerCase();
+    if (c.contains('bot') || c.contains('ai') || c.contains('algo')) {
+      return (
+        [const Color(0xFF6366F1), const Color(0xFF8B5CF6)],
+        Icons.smart_toy_rounded,
+      );
+    } else if (c.contains('signal') || c.contains('forex') || c.contains('gold')) {
+      return (
+        [const Color(0xFFF59E0B), const Color(0xFFEF4444)],
+        Icons.trending_up_rounded,
+      );
+    } else if (c.contains('vps') || c.contains('server')) {
+      return (
+        [const Color(0xFF06B6D4), const Color(0xFF3B82F6)],
+        Icons.dns_rounded,
+      );
+    } else if (c.contains('account') || c.contains('key') || c.contains('license')) {
+      return (
+        [const Color(0xFF10B981), const Color(0xFF059669)],
+        Icons.vpn_key_rounded,
+      );
+    }
+    return (
+      [const Color(0xFFFC466B), const Color(0xFFFF8E53)],
+      Icons.shopping_bag_rounded,
     );
   }
 
@@ -498,7 +650,7 @@ class _ShopScreenState extends State<ShopScreen> {
   ) {
     final name = product['name']?.toString() ?? 'Product';
     final desc = product['description']?.toString() ?? '';
-    final cat = product['category']?.toString() ?? 'Gear';
+    final cat = product['category']?.toString() ?? 'General';
     final sellingPrice = (product['selling_price'] as num?)?.toDouble() ?? 0.0;
     final inStock = product['in_stock'] == true;
     final isDark = palette.isDark;
@@ -510,224 +662,542 @@ class _ShopScreenState extends State<ShopScreen> {
       _activeCurrency,
     );
 
+    final (catGradient, catIcon) = _getCategoryStyle(cat);
+    final simulatedOriginalPrice = sellingPrice > 0 ? (sellingPrice * 1.35).toStringAsFixed(2) : '';
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 4),
       decoration: BoxDecoration(
         color: palette.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: palette.cardBorder, width: 1.2),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.09)
+              : const Color(0xFFE2E8F0),
+          width: 1.2,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(22),
-          onTap: () => _openProductCheckout(product),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header Badge Row
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-                child: Row(
-                  children: [
-                    // Category Pill
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: palette.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: palette.primary.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Text(
-                        cat,
-                        style: TextStyle(
-                          color: palette.primary,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _openProductCheckout(product),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. Vibrant Top Product Banner Header
+                Container(
+                  height: 72,
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: catGradient,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    const Spacer(),
-                    // In Stock Indicator
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.22),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(catIcon, color: Colors.white, size: 20),
                       ),
-                      decoration: BoxDecoration(
-                        color: inStock
-                            ? Colors.green.withValues(alpha: 0.15)
-                            : Colors.red.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircleAvatar(
-                            radius: 3.5,
-                            backgroundColor: inStock
-                                ? Colors.green
-                                : Colors.red,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            inStock ? _t('in_stock') : _t('out_of_stock'),
-                            style: TextStyle(
-                              color: inStock ? Colors.green : Colors.red,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              cat.toUpperCase(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.8,
+                              ),
                             ),
+                            const Text(
+                              "⚡ INSTANT DELIVERY",
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // In-stock badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: inStock
+                              ? Colors.greenAccent.withValues(alpha: 0.25)
+                              : Colors.redAccent.withValues(alpha: 0.25),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: inStock ? Colors.greenAccent : Colors.redAccent,
+                            width: 0.8,
                           ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Title & Description
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  crossAxisAlignment: isRtl
-                      ? CrossAxisAlignment.end
-                      : CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      style: TextStyle(
-                        color: textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        height: 1.35,
-                      ),
-                    ),
-                    if (desc.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        desc,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: textSecondary,
-                          fontSize: 12.5,
-                          height: 1.4,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircleAvatar(
+                              radius: 3,
+                              backgroundColor: inStock ? Colors.greenAccent : Colors.redAccent,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              inStock ? _t('in_stock') : _t('out_of_stock'),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // Price & Order Button Footer
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.02)
-                      : const Color(0xFFF8FAFC),
-                  borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(22),
                   ),
-                  border: Border(top: BorderSide(color: palette.cardBorder)),
                 ),
-                child: Row(
-                  children: [
-                    // Price Column (USD + Converted Local Currency)
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: isRtl
-                            ? CrossAxisAlignment.end
-                            : CrossAxisAlignment.start,
+
+                // 2. Product Name & Badges
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+                  child: Column(
+                    crossAxisAlignment: isRtl ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: textPrimary,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                          height: 1.3,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Feature Tags Row
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
                         children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '\$${sellingPrice.toStringAsFixed(2)}',
-                                style: TextStyle(
-                                  color: textPrimary,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'USD',
-                                style: TextStyle(
-                                  color: textSecondary,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '≈ $localPriceFormatted',
-                            style: TextStyle(
-                              color: palette.primary,
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          _buildTagPill("Verified 🛡️", palette.primary, isDark),
+                          _buildTagPill("⭐ 4.9 Rated", Colors.amber[700]!, isDark),
+                          _buildTagPill("Auto Setup", Colors.blueAccent, isDark),
                         ],
                       ),
-                    ),
 
-                    const SizedBox(width: 12),
+                      if (desc.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          desc,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: textSecondary,
+                            fontSize: 11.5,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
 
-                    // Order / View Button
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: palette.primary,
-                        foregroundColor: Colors.white,
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 11,
-                        ),
-                        elevation: 3,
-                        shadowColor: palette.primary.withValues(alpha: 0.3),
-                      ),
-                      onPressed: () => _openProductCheckout(product),
-                      icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                      label: Text(
-                        _t('details_order'),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
+                const Spacer(),
+
+                // 3. Price & Action Button Footer
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.02)
+                        : const Color(0xFFF8FAFC),
+                    border: Border(
+                      top: BorderSide(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : const Color(0xFFF1F5F9),
                       ),
                     ),
-                  ],
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: isRtl ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '\$${sellingPrice.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    color: textPrimary,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Text(
+                                  'USD',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                if (simulatedOriginalPrice.isNotEmpty) ...[
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '\$$simulatedOriginalPrice',
+                                    style: const TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 10.5,
+                                      decoration: TextDecoration.lineThrough,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            Text(
+                              '≈ $localPriceFormatted',
+                              style: TextStyle(
+                                color: palette.primary,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Order Action Button
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: palette.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 2,
+                          shadowColor: palette.primary.withValues(alpha: 0.4),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                        ),
+                        onPressed: () => _openProductCheckout(product),
+                        icon: const Icon(Icons.arrow_forward_rounded, size: 14),
+                        label: Text(
+                          _t('details_order'),
+                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTagPill(String label, Color color, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 0.8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 9.5,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShopSidebar(LuxuryPalette palette, bool isDark, bool isRtl) {
+    return Column(
+      children: [
+        // 1. Featured Sponsored Deal Banner
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF2575FC).withValues(alpha: 0.35),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      "⭐ FEATURED DEAL",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  const Icon(Icons.bolt_rounded, color: Colors.amberAccent, size: 20),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "ZEV VIP Trading & Bots\nSave up to 40% Today",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  height: 1.3,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                "Automated high win-rate bots & VIP signals verified by top market mentors.",
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 11.5,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                height: 36,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF2575FC),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () {
+                    setState(() => _selectedCategory = 'Trading Bots');
+                  },
+                  child: const Text(
+                    "Explore VIP Bots ➔",
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+                  ),
                 ),
               ),
             ],
           ),
         ),
-      ),
+
+        const SizedBox(height: 18),
+
+        // 2. Buyer Guarantee & Trust Box
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.verified_user_rounded, color: palette.primary, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    "ZEV Buyer Guarantee",
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _buildTrustItem(Icons.flash_on_rounded, "Instant Auto-Delivery", "Licenses and logins dispatched instantly", palette),
+              const SizedBox(height: 12),
+              _buildTrustItem(Icons.security_rounded, "100% Escrow Protection", "Funds held safely until full verification", palette),
+              const SizedBox(height: 12),
+              _buildTrustItem(Icons.support_agent_rounded, "24/7 Priority Support", "Dedicated dispute & activation team", palette),
+              const SizedBox(height: 12),
+              _buildTrustItem(Icons.replay_rounded, "Warranty & Replacement", "30-day official replacement coverage", palette),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 18),
+
+        // 3. Merchant / Reseller Partner Program
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isDark
+                  ? [const Color(0xFF1E1B4B), const Color(0xFF0F172A)]
+                  : [const Color(0xFFF1F5F9), const Color(0xFFE2E8F0)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: palette.primary.withValues(alpha: 0.25),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.storefront_rounded, color: palette.primary, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Sell On ZEV Shop",
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                "Are you a software creator or digital provider? List your licenses to 50k+ students.",
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontSize: 11,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 34,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: palette.primary),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Reseller program application: Contact support@zevapp.com"),
+                        backgroundColor: Colors.blueAccent,
+                      ),
+                    );
+                  },
+                  child: Text(
+                    "Become a Partner",
+                    style: TextStyle(
+                      color: palette.primary,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTrustItem(IconData icon, String title, String sub, LuxuryPalette palette) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: palette.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: palette.primary, size: 16),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  color: palette.textPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                sub,
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontSize: 10.5,
+                  height: 1.25,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

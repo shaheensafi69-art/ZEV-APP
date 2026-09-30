@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -83,14 +84,16 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
   ];
 
   Timer? _pollTimer;
+  final FocusNode _inputFocusNode = FocusNode();
+  bool _isFirstLoad = true;
 
   @override
   void initState() {
     super.initState();
     _fetchMessages();
     _subscribeToRealtimeChat();
-    // Ultra-fast 400ms polling refresh to receive incoming messages instantly
-    _pollTimer = Timer.periodic(const Duration(milliseconds: 400), (_) {
+    // Graceful fallback polling (Supabase realtime channel delivers messages instantly)
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (mounted) _fetchMessages(showLoading: false);
     });
   }
@@ -98,6 +101,7 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _inputFocusNode.dispose();
     if (_chatChannel != null) {
       supabase.removeChannel(_chatChannel!);
     }
@@ -127,14 +131,22 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
     }
   }
 
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
+  void _scrollToBottom({bool force = false}) {
+    if (!_scrollController.hasClients) return;
+    try {
+      final position = _scrollController.position;
+      // Only auto-scroll if forced (e.g. user sent a message), on initial load,
+      // or if the user is already at the bottom (within 120 pixels).
+      // If user is scrolled up reading previous history, NEVER jump them down!
+      final isNearBottom = (position.maxScrollExtent - position.pixels) < 120;
+      if (force || _isFirstLoad || isNearBottom) {
+        _scrollController.animateTo(
+          position.maxScrollExtent,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    } catch (_) {}
   }
 
   bool isFriend = false;
@@ -252,13 +264,25 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
       } catch (_) {}
 
       if (mounted) {
+        final previousCount = messages.length;
         setState(() {
           isFriend = friendStatus;
           isMutualFollow = mutualStatus;
           messages = loadedMessages;
           isLoading = false;
         });
-        Future.delayed(const Duration(milliseconds: 100), _scrollToBottom);
+
+        if (_isFirstLoad) {
+          Future.delayed(const Duration(milliseconds: 150), () {
+            if (mounted) {
+              _scrollToBottom(force: true);
+              _isFirstLoad = false;
+            }
+          });
+        } else if (loadedMessages.length > previousCount) {
+          // Only scroll if already at bottom, don't hijack user's scroll up
+          _scrollToBottom(force: false);
+        }
       }
     } catch (e) {
       debugPrint("Error fetching direct messages: $e");
@@ -332,6 +356,9 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
     }
 
     _messageController.clear();
+    if (kIsWeb) {
+      _inputFocusNode.requestFocus();
+    }
     final user = supabase.auth.currentUser;
     if (user == null) return;
 
@@ -350,7 +377,7 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
       isSending = true;
       showEmojiPicker = false;
     });
-    _scrollToBottom();
+    _scrollToBottom(force: true);
 
     try {
       final inserted = await supabase
@@ -917,6 +944,7 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                           Expanded(
                             child: TextField(
                               controller: _messageController,
+                              focusNode: _inputFocusNode,
                               style: const TextStyle(
                                 color: textDark,
                                 fontSize: 13,

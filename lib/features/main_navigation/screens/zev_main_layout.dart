@@ -532,33 +532,33 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     );
   }
 
-  /// Sleek sidebar for iPad, Android tablets, macOS, Windows, and Web browsers
+  /// Sleek modern sidebar for iPad, Android tablets, macOS, Windows, and Web browsers
   Widget _buildSideNav({required bool isDark, required bool isDesktop}) {
-    final double width = isDesktop ? 240 : 80;
+    final double width = isDesktop ? 250 : 80;
     return Container(
       width: width,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF6F8FB),
+        color: isDark ? const Color(0xFF0C101A) : Colors.white,
         border: Border(
           right: BorderSide(
             color: isDark
-                ? Colors.white.withValues(alpha: 0.08)
-                : const Color(0xFFE2E8F0),
-            width: 1.2,
+                ? Colors.white.withValues(alpha: 0.07)
+                : const Color(0xFFEEF2F6),
+            width: 1.0,
           ),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.04),
-            blurRadius: 16,
-            offset: const Offset(3, 0),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.03),
+            blurRadius: 12,
+            offset: const Offset(2, 0),
           ),
         ],
       ),
       child: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 22),
+            const SizedBox(height: 20),
             // ZEV Logo Header
             Padding(
               padding: EdgeInsets.symmetric(horizontal: isDesktop ? 20 : 12),
@@ -568,7 +568,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     : MainAxisAlignment.center,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(9),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [primaryPink, lightPinkAccent],
@@ -576,31 +576,13 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                         end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: isDark
-                          ? [
-                              BoxShadow(
-                                color: primaryPink.withValues(alpha: 0.4),
-                                blurRadius: 12,
-                                offset: const Offset(0, 3),
-                              ),
-                              BoxShadow(
-                                color: Colors.white.withValues(alpha: 0.06),
-                                blurRadius: 6,
-                                offset: const Offset(-2, -2),
-                              ),
-                            ]
-                          : [
-                              BoxShadow(
-                                color: primaryPink.withValues(alpha: 0.35),
-                                blurRadius: 10,
-                                offset: const Offset(2, 3),
-                              ),
-                              const BoxShadow(
-                                color: Colors.white,
-                                blurRadius: 8,
-                                offset: Offset(-2, -2),
-                              ),
-                            ],
+                      boxShadow: [
+                        BoxShadow(
+                          color: primaryPink.withValues(alpha: 0.38),
+                          blurRadius: 14,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Image.asset(
                       'assets/logo-without-b.png',
@@ -614,14 +596,38 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'ZEV',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.5,
-                            color: primaryPink,
-                          ),
+                        Row(
+                          children: [
+                            const Text(
+                              'ZEV',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.5,
+                                color: primaryPink,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: primaryPink.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'PRO',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.8,
+                                  color: primaryPink,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         Text(
                           'SOCIAL APP',
@@ -645,24 +651,30 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
             // Section Indicator
             if (isDesktop)
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
                 child: Row(
                   children: [
                     Container(
                       width: 6,
                       height: 6,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         color: primaryPink,
                         shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: primaryPink.withValues(alpha: 0.6),
+                            blurRadius: 6,
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      context.zevTr('socialFeedHub'),
+                      context.zevTr('socialFeedHub').toUpperCase(),
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 9.5,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 1.1,
+                        letterSpacing: 1.2,
                         color: isDark
                             ? Colors.white38
                             : const Color(0xFF94A3B8),
@@ -734,181 +746,158 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
 
             const SizedBox(height: 10),
 
-            // CREATE NEW POST Button (Neumorphic)
+            // CREATE NEW POST Button (Modern Luxury Gradient)
             Padding(
               padding: EdgeInsets.symmetric(horizontal: isDesktop ? 16 : 12),
-              child: InkWell(
-                onTap: () => _onTabTapped(2),
-                borderRadius: BorderRadius.circular(18),
-                child: Container(
-                  width: double.infinity,
-                  height: isDesktop ? 48 : 50,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [primaryPink, Color(0xFFFF8A00)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: isDark
-                        ? [
-                            BoxShadow(
-                              color: primaryPink.withValues(alpha: 0.45),
-                              blurRadius: 14,
-                              offset: const Offset(0, 4),
-                            ),
-                            BoxShadow(
-                              color: Colors.white.withValues(alpha: 0.08),
-                              blurRadius: 6,
-                              offset: const Offset(-2, -2),
-                            ),
-                          ]
-                        : [
-                            BoxShadow(
-                              color: primaryPink.withValues(alpha: 0.35),
-                              blurRadius: 12,
-                              offset: const Offset(3, 4),
-                            ),
-                            const BoxShadow(
-                              color: Colors.white,
-                              blurRadius: 8,
-                              offset: Offset(-3, -3),
-                            ),
-                            const BoxShadow(
-                              color: Color(0xFFD1D9E6),
-                              blurRadius: 6,
-                              offset: Offset(2, 2),
-                            ),
-                          ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.edit_note_rounded,
-                        color: Colors.white,
-                        size: 22,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _onTabTapped(2),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    width: double.infinity,
+                    height: isDesktop ? 48 : 50,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [primaryPink, Color(0xFFFF5277)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                      if (isDesktop) ...[
-                        const SizedBox(width: 8),
-                        Text(
-                          context.zevTr('createNewPost').toUpperCase(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 13,
-                            letterSpacing: 0.5,
-                          ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: primaryPink.withValues(alpha: 0.38),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
                         ),
                       ],
-                    ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.edit_note_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                        if (isDesktop) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            context.zevTr('createNewPost').toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12.5,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
 
-            // Desktop User Profile Pill at bottom of sidebar (Neumorphic)
+            // Desktop User Profile Card at bottom of sidebar (Modern Luxury)
             if (isDesktop) ...[
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 12,
                 ),
-                child: InkWell(
-                  onTap: () => _onTabTapped(4),
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF131D30)
-                          : const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.06)
-                            : Colors.white,
-                        width: 1.2,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _onTabTapped(4),
+                    borderRadius: BorderRadius.circular(16),
+                    hoverColor: isDark
+                        ? Colors.white.withValues(alpha: 0.04)
+                        : const Color(0xFFF1F5F9),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
                       ),
-                      boxShadow: isDark
-                          ? [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.35),
-                                offset: const Offset(2, 2),
-                                blurRadius: 6,
-                              ),
-                              BoxShadow(
-                                color: Colors.white.withValues(alpha: 0.03),
-                                offset: const Offset(-2, -2),
-                                blurRadius: 4,
-                              ),
-                            ]
-                          : [
-                              BoxShadow(
-                                color: const Color(
-                                  0xFFCBD5E1,
-                                ).withValues(alpha: 0.8),
-                                offset: const Offset(2, 2),
-                                blurRadius: 5,
-                              ),
-                              const BoxShadow(
-                                color: Colors.white,
-                                offset: Offset(-2, -2),
-                                blurRadius: 5,
-                              ),
-                            ],
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 18,
-                          backgroundColor: primaryPink.withValues(alpha: 0.15),
-                          backgroundImage: _currentUserAvatar.isNotEmpty
-                              ? NetworkImage(_currentUserAvatar)
-                              : null,
-                          child: _currentUserAvatar.isEmpty
-                              ? const Icon(
-                                  Icons.person,
-                                  color: primaryPink,
-                                  size: 18,
-                                )
-                              : null,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF131926)
+                            : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.08)
+                              : const Color(0xFFE2E8F0),
+                          width: 1,
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                _currentUserName,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: isDark
-                                      ? Colors.white
-                                      : const Color(0xFF0F172A),
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                "@$_currentUserHandle",
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: isDark
-                                      ? Colors.white38
-                                      : const Color(0xFF94A3B8),
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(
+                              alpha: isDark ? 0.2 : 0.03,
+                            ),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
                           ),
-                        ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: LinearGradient(
+                                colors: [primaryPink, lightPinkAccent],
+                              ),
+                            ),
+                            child: CircleAvatar(
+                              radius: 17,
+                              backgroundColor: isDark
+                                  ? const Color(0xFF0F172A)
+                                  : Colors.white,
+                              backgroundImage: _currentUserAvatar.isNotEmpty
+                                  ? NetworkImage(_currentUserAvatar)
+                                  : null,
+                              child: _currentUserAvatar.isEmpty
+                                  ? const Icon(
+                                      Icons.person,
+                                      color: primaryPink,
+                                      size: 18,
+                                    )
+                                  : null,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _currentUserName,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: isDark
+                                        ? Colors.white
+                                        : const Color(0xFF0F172A),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  "@$_currentUserHandle",
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: primaryPink,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
                         Theme(
                           data: Theme.of(context).copyWith(
                             hoverColor: isDark
@@ -1108,7 +1097,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                   ),
                 ),
               ),
-            ],
+            ),
+          ],
             const SizedBox(height: 8),
           ],
         ),
@@ -1127,155 +1117,133 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     final isSelected = index != 99 && _currentIndex == index;
     return Padding(
       padding: EdgeInsets.symmetric(
-        horizontal: isDesktop ? 14 : 8,
-        vertical: 4,
+        horizontal: isDesktop ? 12 : 8,
+        vertical: 3,
       ),
-      child: InkWell(
-        onTap: customTap ?? () => _onTabTapped(index),
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: isDesktop ? 16 : 8,
-            vertical: isDesktop ? 13 : 11,
-          ),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? (isDark ? const Color(0xFF162033) : const Color(0xFFECEFF5))
-                : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSelected
-                  ? primaryPink.withValues(alpha: 0.5)
-                  : (isDark
-                        ? Colors.white.withValues(alpha: 0.04)
-                        : Colors.white),
-              width: 1.2,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: customTap ?? () => _onTabTapped(index),
+          borderRadius: BorderRadius.circular(14),
+          hoverColor: isDark
+              ? Colors.white.withValues(alpha: 0.05)
+              : const Color(0xFFF1F5F9),
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isDesktop ? 14 : 8,
+              vertical: isDesktop ? 12 : 10,
             ),
-            boxShadow: isSelected
-                ? (isDark
-                      ? [
-                          BoxShadow(
-                            color: primaryPink.withValues(alpha: 0.2),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? (isDark
+                      ? primaryPink.withValues(alpha: 0.12)
+                      : const Color(0xFFFFF0F3))
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isSelected
+                    ? primaryPink.withValues(alpha: isDark ? 0.28 : 0.22)
+                    : Colors.transparent,
+                width: 1,
+              ),
+            ),
+            child: isDesktop
+                ? Row(
+                    children: [
+                      if (isSelected)
+                        Container(
+                          width: 3.5,
+                          height: 18,
+                          margin: const EdgeInsets.only(right: 10),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [primaryPink, lightPinkAccent],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            ),
+                            borderRadius: BorderRadius.circular(3),
+                            boxShadow: [
+                              BoxShadow(
+                                color: primaryPink.withValues(alpha: 0.5),
+                                blurRadius: 6,
+                              ),
+                            ],
                           ),
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.4),
-                            offset: const Offset(2, 2),
-                            blurRadius: 4,
-                          ),
-                        ]
-                      : [
-                          BoxShadow(
-                            color: primaryPink.withValues(alpha: 0.15),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                          BoxShadow(
-                            color: const Color(
-                              0xFFCBD5E1,
-                            ).withValues(alpha: 0.7),
-                            offset: const Offset(2, 2),
-                            blurRadius: 4,
-                          ),
-                          const BoxShadow(
-                            color: Colors.white,
-                            offset: Offset(-2, -2),
-                            blurRadius: 4,
-                          ),
-                        ])
-                : (isDark
-                      ? [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.25),
-                            offset: const Offset(2, 2),
-                            blurRadius: 4,
-                          ),
-                          BoxShadow(
-                            color: Colors.white.withValues(alpha: 0.02),
-                            offset: const Offset(-1, -1),
-                            blurRadius: 3,
-                          ),
-                        ]
-                      : [
-                          BoxShadow(
-                            color: const Color(
-                              0xFFE2E8F0,
-                            ).withValues(alpha: 0.7),
-                            offset: const Offset(2, 2),
-                            blurRadius: 4,
-                          ),
-                          const BoxShadow(
-                            color: Colors.white,
-                            offset: Offset(-2, -2),
-                            blurRadius: 4,
-                          ),
-                        ]),
-          ),
-          child: isDesktop
-              ? Row(
-                  children: [
-                    Icon(
-                      icon,
-                      size: 22,
-                      color: isSelected
-                          ? primaryPink
-                          : (isDark
-                                ? Colors.grey[400]
+                        )
+                      else
+                        const SizedBox(width: 4),
+                      Icon(
+                        icon,
+                        size: 21,
+                        color: isSelected
+                            ? primaryPink
+                            : (isDark
+                                ? const Color(0xFF94A3B8)
                                 : const Color(0xFF64748B)),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Text(
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: isSelected
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                            letterSpacing: 0.2,
+                            color: isSelected
+                                ? (isDark ? Colors.white : primaryPink)
+                                : (isDark
+                                    ? const Color(0xFFCBD5E1)
+                                    : const Color(0xFF334155)),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (isSelected)
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: primaryPink,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                    ],
+                  )
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 23,
+                        color: isSelected
+                            ? primaryPink
+                            : (isDark
+                                ? const Color(0xFF94A3B8)
+                                : const Color(0xFF64748B)),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
                         label,
                         style: TextStyle(
-                          fontSize: 14.5,
+                          fontSize: 9.5,
                           fontWeight: isSelected
                               ? FontWeight.w800
                               : FontWeight.w600,
                           color: isSelected
                               ? primaryPink
                               : (isDark
-                                    ? Colors.grey[200]
-                                    : const Color(0xFF1E293B)),
+                                  ? const Color(0xFF94A3B8)
+                                  : const Color(0xFF64748B)),
                         ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                  ],
-                )
-              : Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      icon,
-                      size: 24,
-                      color: isSelected
-                          ? primaryPink
-                          : (isDark
-                                ? Colors.grey[400]
-                                : const Color(0xFF64748B)),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: isSelected
-                            ? FontWeight.w800
-                            : FontWeight.w600,
-                        color: isSelected
-                            ? primaryPink
-                            : (isDark
-                                  ? Colors.grey[400]
-                                  : const Color(0xFF64748B)),
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+          ),
         ),
       ),
     );

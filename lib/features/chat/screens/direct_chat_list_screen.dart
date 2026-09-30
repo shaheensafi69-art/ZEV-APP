@@ -80,6 +80,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
   String? _activeDesktopPeerAvatar;
 
   static const Color primaryPink = Color(0xFFFC466B);
+  static const Color lightPink = Color(0xFFFF5E8A);
   static const Color lightPinkBg = Color(0xFFFFF0F5);
   static const Color surfaceWhite = Colors.white;
   static const Color textDark = Color(0xFF111827);
@@ -526,6 +527,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
     final savedAccounts = await MultiAccountService.instance.getSavedAccounts();
 
     if (!mounted) return;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -533,166 +535,357 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
       builder: (ctx) {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          decoration: const BoxDecoration(
-            color: surfaceWhite,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF111827) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : const Color(0xFFE5E7EB),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.08),
+                blurRadius: 24,
+                offset: const Offset(0, -4),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 40,
-                height: 4,
+                width: 44,
+                height: 4.5,
                 decoration: BoxDecoration(
-                  color: cardBorder,
-                  borderRadius: BorderRadius.circular(2),
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.2)
+                      : const Color(0xFFCBD5E1),
+                  borderRadius: BorderRadius.circular(3),
                 ),
               ),
               const SizedBox(height: 18),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    context.zevTr('switchAccounts'),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: textDark,
-                    ),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [primaryPink, lightPink],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.switch_account_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        context.zevTr('switchAccounts'),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white : textDark,
+                        ),
+                      ),
+                    ],
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, color: textGrey),
+                    icon: Icon(
+                      Icons.close_rounded,
+                      color: isDark ? Colors.white54 : textGrey,
+                    ),
                     onPressed: () => Navigator.pop(ctx),
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 14),
 
               for (var acc in savedAccounts) ...[
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    radius: 24,
-                    backgroundColor: lightPinkBg,
-                    backgroundImage: acc.avatarUrl.isNotEmpty
-                        ? NetworkImage(acc.avatarUrl)
-                        : null,
-                    child: acc.avatarUrl.isEmpty
-                        ? Text(
-                            acc.name.isNotEmpty ? acc.name[0] : 'U',
-                            style: const TextStyle(
-                              color: primaryPink,
-                              fontWeight: FontWeight.bold,
+                Builder(
+                  builder: (context) {
+                    final isCurrent = acc.id == user.id;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isCurrent
+                            ? (isDark
+                                ? primaryPink.withValues(alpha: 0.12)
+                                : const Color(0xFFFFF0F5))
+                            : (isDark
+                                ? const Color(0xFF1E293B)
+                                : const Color(0xFFF8FAFC)),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: isCurrent
+                              ? primaryPink.withValues(
+                                  alpha: isDark ? 0.35 : 0.25,
+                                )
+                              : (isDark
+                                  ? Colors.white.withValues(alpha: 0.05)
+                                  : const Color(0xFFE2E8F0)),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: isCurrent
+                                  ? const LinearGradient(
+                                      colors: [primaryPink, lightPink],
+                                    )
+                                  : null,
+                              color: isCurrent ? null : Colors.transparent,
                             ),
-                          )
-                        : null,
-                  ),
-                  title: Text(
-                    acc.name,
-                    style: TextStyle(
-                      fontWeight: acc.id == user.id
-                          ? FontWeight.w800
-                          : FontWeight.w600,
-                      color: textDark,
-                    ),
-                  ),
-                  subtitle: Text(
-                    acc.email,
-                    style: const TextStyle(fontSize: 12, color: textGrey),
-                  ),
-                  trailing: acc.id == user.id
-                      ? const Icon(
-                          Icons.check_circle_rounded,
-                          color: primaryPink,
-                          size: 24,
-                        )
-                      : TextButton(
-                          onPressed: () async {
-                            Navigator.pop(ctx);
-                            final switched = await MultiAccountService.instance
-                                .switchAccount(acc);
-                            if (switched && mounted) {
-                              _fetchCurrentUserInfo();
-                              _fetchExistingChatThreads();
-                            }
-                          },
-                          child: Text(
-                            context.zevTr('switchAccounts'),
-                            style: const TextStyle(
-                              color: primaryPink,
-                              fontWeight: FontWeight.bold,
+                            child: CircleAvatar(
+                              radius: 22,
+                              backgroundColor: isDark
+                                  ? const Color(0xFF0F172A)
+                                  : lightPinkBg,
+                              backgroundImage: acc.avatarUrl.isNotEmpty
+                                  ? NetworkImage(acc.avatarUrl)
+                                  : null,
+                              child: acc.avatarUrl.isEmpty
+                                  ? Text(
+                                      acc.name.isNotEmpty ? acc.name[0] : 'U',
+                                      style: const TextStyle(
+                                        color: primaryPink,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    )
+                                  : null,
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      acc.name,
+                                      style: TextStyle(
+                                        fontWeight: isCurrent
+                                            ? FontWeight.w800
+                                            : FontWeight.w600,
+                                        fontSize: 14.5,
+                                        color: isDark ? Colors.white : textDark,
+                                      ),
+                                    ),
+                                    if (isCurrent) ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: primaryPink.withValues(
+                                            alpha: 0.15,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          'ACTIVE',
+                                          style: TextStyle(
+                                            color: primaryPink,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w900,
+                                            letterSpacing: 0.8,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  acc.email,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isDark ? Colors.white38 : textGrey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (isCurrent)
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              color: primaryPink,
+                              size: 22,
+                            )
+                          else
+                            TextButton(
+                              onPressed: () async {
+                                Navigator.pop(ctx);
+                                final switched = await MultiAccountService
+                                    .instance
+                                    .switchAccount(acc);
+                                if (switched && mounted) {
+                                  _fetchCurrentUserInfo();
+                                  _fetchExistingChatThreads();
+                                }
+                              },
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 6,
+                                ),
+                                backgroundColor: primaryPink.withValues(
+                                  alpha: 0.1,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: Text(
+                                context.zevTr('switchAccounts'),
+                                style: const TextStyle(
+                                  color: primaryPink,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12.5,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
-                const Divider(color: cardBorder, height: 1),
               ],
 
-              const SizedBox(height: 10),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: lightPinkBg,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: primaryPink.withValues(alpha: 0.3),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.add_rounded,
-                    color: primaryPink,
-                    size: 24,
-                  ),
-                ),
-                title: Text(
-                  context.zevTr('addExistingAccount'),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: primaryPink,
-                  ),
-                ),
-                subtitle: Text(
-                  context.zevTr('addExistingAccount'),
-                  style: const TextStyle(fontSize: 12, color: textGrey),
-                ),
+              const SizedBox(height: 6),
+              InkWell(
                 onTap: () {
                   Navigator.pop(ctx);
                   _showAddAccountDialog();
                 },
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: primaryPink.withValues(alpha: 0.25),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: primaryPink.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.add_rounded,
+                          color: primaryPink,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              context.zevTr('addExistingAccount'),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                color: primaryPink,
+                              ),
+                            ),
+                            Text(
+                              context.zevTr('addExistingAccount'),
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: isDark ? Colors.white38 : textGrey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
 
-              const Divider(color: cardBorder, height: 20),
+              const SizedBox(height: 12),
 
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.logout_rounded,
-                    color: Colors.redAccent,
-                    size: 22,
-                  ),
-                ),
-                title: Text(
-                  context.zevTr('logoutActiveAccount'),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: Colors.redAccent,
-                  ),
-                ),
+              InkWell(
                 onTap: () async {
                   Navigator.pop(ctx);
                   await _logoutCurrent();
                 },
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withValues(
+                      alpha: isDark ? 0.12 : 0.06,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.redAccent.withValues(alpha: 0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.logout_rounded,
+                          color: Colors.redAccent,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        context.zevTr('logoutActiveAccount'),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
             ],

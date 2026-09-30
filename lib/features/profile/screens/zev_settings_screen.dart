@@ -293,6 +293,8 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
     );
   }
 
+  final GlobalKey<NavigatorState> _nestedNavKey = GlobalKey<NavigatorState>();
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<Locale>(
@@ -307,45 +309,82 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
           orElse: () => LanguageService.supportedLanguages.first,
         );
 
-        return Directionality(
-          textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
-          child: Scaffold(
-            backgroundColor: isDark
-                ? const Color(0xFF090D16)
-                : const Color(0xFFF8FAFC),
-            appBar: AppBar(
-              backgroundColor: isDark ? const Color(0xFF090D16) : surfaceWhite,
-              elevation: 0,
-              scrolledUnderElevation: 0,
-              centerTitle: false,
-              leading: Navigator.canPop(context)
-                  ? IconButton(
-                      icon: Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        color: isDark ? Colors.white : textDark,
-                        size: 20,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                    )
-                  : null,
-              title: Text(
-                context.zevTr('settings'),
-                style: TextStyle(
-                  color: isDark ? Colors.white : textDark,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.4,
-                ),
+        if (!ResponsiveLayout.isPhone(context)) {
+          return PopScope(
+            canPop: !(_nestedNavKey.currentState?.canPop() ?? false),
+            onPopInvokedWithResult: (didPop, _) {
+              if (!didPop && (_nestedNavKey.currentState?.canPop() ?? false)) {
+                _nestedNavKey.currentState?.pop();
+              }
+            },
+            child: ClipRect(
+              child: Navigator(
+                key: _nestedNavKey,
+                onGenerateRoute: (routeSettings) {
+                  return MaterialPageRoute(
+                    builder: (nestedContext) => _buildMainSettingsScaffold(
+                      nestedContext,
+                      currentLang,
+                      isDark,
+                      isRtl,
+                    ),
+                  );
+                },
               ),
             ),
-            body: ResponsiveLayout.pageConstraint(
-              maxWidth: 780,
-              child: ListView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
+          );
+        }
+
+        return _buildMainSettingsScaffold(context, currentLang, isDark, isRtl);
+      },
+    );
+  }
+
+  Widget _buildMainSettingsScaffold(
+    BuildContext context,
+    AppLanguage currentLang,
+    bool isDark,
+    bool isRtl,
+  ) {
+    return Directionality(
+      textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+      child: Scaffold(
+        backgroundColor: isDark
+            ? const Color(0xFF090D16)
+            : const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          backgroundColor: isDark ? const Color(0xFF090D16) : surfaceWhite,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          centerTitle: false,
+          leading: Navigator.canPop(context)
+              ? IconButton(
+                  icon: Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: isDark ? Colors.white : textDark,
+                    size: 20,
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                )
+              : null,
+          title: Text(
+            context.zevTr('settings'),
+            style: TextStyle(
+              color: isDark ? Colors.white : textDark,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.4,
+            ),
+          ),
+        ),
+        body: ResponsiveLayout.pageConstraint(
+          maxWidth: 780,
+          child: ListView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 16,
+            ),
                 children: [
                   // Profile Identity Header Card
                   _buildProfileIdentityCard(isDark),
@@ -545,8 +584,6 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
             ),
           ),
         );
-      },
-    );
   }
 
   Widget _buildProfileIdentityCard(bool isDark) {

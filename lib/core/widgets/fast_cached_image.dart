@@ -1,13 +1,15 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../localization/zev_localizations.dart';
+import '../theme/app_theme_service.dart';
 
 /// Central, high-performance image caching component for Safi Academy.
 /// Features:
 /// 1. Persistent disk caching: Download once, instant load thereafter.
 /// 2. Strict RAM memory caching ([memCacheWidth], [memCacheHeight]) to prevent decoding multi-megapixel photos in RAM.
 /// 3. Zero frame-drops and sub-second load times on low-bandwidth Afghan internet connections.
-/// 4. Graceful shimmer / pulsing placeholder and fallback error handling.
-class FastCachedImage extends StatelessWidget {
+/// 4. Graceful shimmer / pulsing placeholder and fallback error handling with retry.
+class FastCachedImage extends StatefulWidget {
   final String? imageUrl;
   final double? width;
   final double? height;
@@ -34,8 +36,16 @@ class FastCachedImage extends StatelessWidget {
   });
 
   @override
+  State<FastCachedImage> createState() => _FastCachedImageState();
+}
+
+class _FastCachedImageState extends State<FastCachedImage> {
+  int _retryKey = 0;
+  bool _isRetrying = false;
+
+  @override
   Widget build(BuildContext context) {
-    final validUrl = imageUrl?.trim();
+    final validUrl = widget.imageUrl?.trim();
 
     Widget imageContent;
 
@@ -43,30 +53,31 @@ class FastCachedImage extends StatelessWidget {
       imageContent = _buildPlaceholder(context);
     } else {
       imageContent = CachedNetworkImage(
+        key: ValueKey('${validUrl}_$_retryKey'),
         imageUrl: validUrl,
-        width: width,
-        height: height,
-        fit: fit,
-        memCacheWidth: memCacheWidth,
-        memCacheHeight: memCacheHeight,
+        width: widget.width,
+        height: widget.height,
+        fit: widget.fit,
+        memCacheWidth: widget.memCacheWidth,
+        memCacheHeight: widget.memCacheHeight,
         fadeInDuration: const Duration(milliseconds: 180),
         fadeOutDuration: const Duration(milliseconds: 180),
-        placeholder: (context, url) => placeholder ?? _buildShimmerPlaceholder(),
+        placeholder: (context, url) => widget.placeholder ?? _buildShimmerPlaceholder(),
         errorWidget: (context, url, error) =>
-            errorWidget ?? _buildErrorWidget(context),
+            widget.errorWidget ?? _buildErrorWidget(context, validUrl),
       );
     }
 
-    if (borderRadius != null) {
+    if (widget.borderRadius != null) {
       imageContent = ClipRRect(
-        borderRadius: borderRadius!,
+        borderRadius: widget.borderRadius!,
         child: imageContent,
       );
     }
 
-    if (onTap != null) {
+    if (widget.onTap != null) {
       return GestureDetector(
-        onTap: onTap,
+        onTap: widget.onTap,
         child: imageContent,
       );
     }
@@ -76,8 +87,8 @@ class FastCachedImage extends StatelessWidget {
 
   Widget _buildShimmerPlaceholder() {
     return Container(
-      width: width,
-      height: height,
+      width: widget.width,
+      height: widget.height,
       color: const Color(0xFFF3F4F6),
       child: const Center(
         child: SizedBox(
@@ -94,8 +105,8 @@ class FastCachedImage extends StatelessWidget {
 
   Widget _buildPlaceholder(BuildContext context) {
     return Container(
-      width: width,
-      height: height,
+      width: widget.width,
+      height: widget.height,
       color: const Color(0xFFF3F4F6),
       child: const Icon(
         Icons.image_outlined,
@@ -105,19 +116,120 @@ class FastCachedImage extends StatelessWidget {
     );
   }
 
-  Widget _buildErrorWidget(BuildContext context) {
+  Widget _buildErrorWidget(BuildContext context, String validUrl) {
+    final palette = AppThemeService.instance.current;
+    final isDark = palette.isDark;
+
+    // For compact icons or small circles (e.g. height < 65)
+    if (widget.height != null && widget.height! < 65) {
+      return InkWell(
+        onTap: () => _handleRetry(validUrl),
+        child: Container(
+          width: widget.width,
+          height: widget.height,
+          color: isDark ? const Color(0xFF242436) : const Color(0xFFF1F5F9),
+          child: Center(
+            child: Icon(
+              Icons.refresh_rounded,
+              color: palette.primary,
+              size: 20,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
-      width: width,
-      height: height,
-      color: const Color(0xFFFEE2E2),
-      child: const Center(
-        child: Icon(
-          Icons.broken_image_rounded,
-          color: Color(0xFFEF4444),
-          size: 24,
+      width: widget.width,
+      height: widget.height,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E2D) : const Color(0xFFF8FAFC),
+        borderRadius: widget.borderRadius,
+        border: Border.all(
+          color: isDark ? Colors.white12 : const Color(0xFFE2E8F0),
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: palette.primary.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.broken_image_rounded,
+                color: palette.primary,
+                size: 28,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              context.zevTr('imageLoadFailed'),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_isRetrying)
+              SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.2,
+                  color: palette.primary,
+                ),
+              )
+            else
+              ElevatedButton.icon(
+                onPressed: () => _handleRetry(validUrl),
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: Text(
+                  context.zevTr('tryAgain'),
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: palette.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
+  }
+
+  Future<void> _handleRetry(String validUrl) async {
+    if (_isRetrying) return;
+    setState(() => _isRetrying = true);
+    try {
+      await CachedNetworkImage.evictFromCache(validUrl);
+    } catch (_) {}
+    await Future.delayed(const Duration(milliseconds: 350));
+    if (mounted) {
+      setState(() {
+        _retryKey++;
+        _isRetrying = false;
+      });
+    }
   }
 }
 
