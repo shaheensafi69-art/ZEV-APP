@@ -80,9 +80,8 @@ CREATE TABLE IF NOT EXISTS user_notes (
     CONSTRAINT user_notes_single_active UNIQUE (user_id)
 );
 
--- Index for instant querying of active notes
-CREATE INDEX IF NOT EXISTS idx_user_notes_active ON user_notes(user_id, expires_at)
-WHERE expires_at > NOW();
+-- Index for instant querying of active notes (B-tree composite index)
+CREATE INDEX IF NOT EXISTS idx_user_notes_active ON user_notes(user_id, expires_at DESC);
 
 -- Enable RLS for user_notes
 ALTER TABLE user_notes ENABLE ROW LEVEL SECURITY;
@@ -90,7 +89,7 @@ ALTER TABLE user_notes ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public can view active notes" ON user_notes;
 CREATE POLICY "Public can view active notes"
 ON user_notes FOR SELECT
-TO authenticated
+TO authenticated, anon
 USING (expires_at > NOW());
 
 DROP POLICY IF EXISTS "Users can manage own note" ON user_notes;
@@ -99,3 +98,52 @@ ON user_notes FOR ALL
 TO authenticated
 USING (auth.uid() = user_id)
 WITH CHECK (auth.uid() = user_id);
+
+-- =========================================================================
+-- Security Fix 1: Enable RLS on public.post_reposts (Resolves Critical Alert)
+-- =========================================================================
+ALTER TABLE IF EXISTS public.post_reposts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anyone can view reposts" ON public.post_reposts;
+CREATE POLICY "Anyone can view reposts"
+ON public.post_reposts FOR SELECT
+TO authenticated, anon
+USING (true);
+
+DROP POLICY IF EXISTS "Users can insert own reposts" ON public.post_reposts;
+CREATE POLICY "Users can insert own reposts"
+ON public.post_reposts FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can delete own reposts" ON public.post_reposts;
+CREATE POLICY "Users can delete own reposts"
+ON public.post_reposts FOR DELETE
+TO authenticated
+USING (auth.uid() = user_id);
+
+-- =========================================================================
+-- Security Fix 2: Secure Admin Policy on public.profiles (Resolves Critical Alert)
+-- Replaces insecure user_metadata reference with app_metadata or profiles.role check
+-- =========================================================================
+DROP POLICY IF EXISTS "Allow admin full update access" ON public.profiles;
+
+CREATE POLICY "Allow admin full update access"
+ON public.profiles FOR UPDATE
+TO authenticated
+USING (
+    (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
+    OR (auth.jwt() -> 'app_metadata' ->> 'is_admin')::boolean = true
+    OR EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE id = auth.uid() AND (role = 'admin' OR is_admin = true)
+    )
+)
+WITH CHECK (
+    (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
+    OR (auth.jwt() -> 'app_metadata' ->> 'is_admin')::boolean = true
+    OR EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE id = auth.uid() AND (role = 'admin' OR is_admin = true)
+    )
+);
