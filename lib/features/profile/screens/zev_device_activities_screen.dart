@@ -112,25 +112,31 @@ class _ZevDeviceActivitiesScreenState extends State<ZevDeviceActivitiesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBg = isDark ? const Color(0xFF0B0F19) : surfaceWhite;
+    final appbarBg = isDark ? const Color(0xFF131926) : surfaceWhite;
+    final primaryTextColor = isDark ? Colors.white : textDark;
+    final secondaryTextColor = isDark ? Colors.white70 : textGrey;
+
     return Scaffold(
-      backgroundColor: surfaceWhite,
+      backgroundColor: scaffoldBg,
       appBar: AppBar(
-        backgroundColor: surfaceWhite,
+        backgroundColor: appbarBg,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.arrow_back_ios_new_rounded,
-            color: textDark,
+            color: primaryTextColor,
             size: 20,
           ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           "Device Activity",
           style: TextStyle(
-            color: textDark,
+            color: primaryTextColor,
             fontSize: 18,
             fontWeight: FontWeight.w800,
           ),
@@ -155,16 +161,22 @@ class _ZevDeviceActivitiesScreenState extends State<ZevDeviceActivitiesScreen> {
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
-                        color: lightPinkBg,
+                        color: isDark ? const Color(0xFF1E293B) : lightPinkBg,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: primaryPink.withOpacity(0.2)),
+                        border: Border.all(
+                          color: isDark
+                              ? const Color(0xFF334155)
+                              : primaryPink.withOpacity(0.2),
+                        ),
                       ),
                       child: Row(
                         children: [
                           Container(
                             padding: const EdgeInsets.all(12),
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? const Color(0xFF0F172A)
+                                  : Colors.white,
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
@@ -178,10 +190,10 @@ class _ZevDeviceActivitiesScreenState extends State<ZevDeviceActivitiesScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   "Where You're Logged In",
                                   style: TextStyle(
-                                    color: textDark,
+                                    color: primaryTextColor,
                                     fontSize: 15,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -190,7 +202,7 @@ class _ZevDeviceActivitiesScreenState extends State<ZevDeviceActivitiesScreen> {
                                 Text(
                                   "Manage your active ZEV accounts across your phones, tablets, and computers.",
                                   style: TextStyle(
-                                    color: textGrey.withOpacity(0.9),
+                                    color: secondaryTextColor,
                                     fontSize: 12,
                                     height: 1.3,
                                   ),
@@ -204,12 +216,12 @@ class _ZevDeviceActivitiesScreenState extends State<ZevDeviceActivitiesScreen> {
                     const SizedBox(height: 24),
 
                     // Section title
-                    const Text(
+                    Text(
                       "LOGIN SESSIONS",
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: textGrey,
+                        color: secondaryTextColor,
                         letterSpacing: 0.8,
                       ),
                     ),
@@ -219,14 +231,14 @@ class _ZevDeviceActivitiesScreenState extends State<ZevDeviceActivitiesScreen> {
                       Container(
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
-                          color: cardBorder,
+                          color: isDark ? const Color(0xFF131926) : cardBorder,
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: const Center(
+                        child: Center(
                           child: Text(
                             "No recent login history recorded yet.",
                             style: TextStyle(
-                              color: textGrey,
+                              color: secondaryTextColor,
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
                             ),
@@ -273,6 +285,14 @@ class _ZevDeviceActivitiesScreenState extends State<ZevDeviceActivitiesScreen> {
   }
 
   Widget _buildDeviceItem(Map<String, dynamic> act, {required bool isCurrent}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF131926) : surfaceWhite;
+    final cardBorderColor = isCurrent
+        ? primaryPink.withOpacity(0.6)
+        : (isDark ? const Color(0xFF1E293B) : cardBorder);
+    final primaryTextColor = isDark ? Colors.white : textDark;
+    final secondaryTextColor = isDark ? Colors.white70 : textGrey;
+
     final devName = act['device_name']?.toString() ?? 'Mobile Device';
     final city = act['city']?.toString() ?? '';
     final country = act['country']?.toString() ?? '';
@@ -295,19 +315,18 @@ class _ZevDeviceActivitiesScreenState extends State<ZevDeviceActivitiesScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: surfaceWhite,
+        color: cardBg,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isCurrent ? primaryPink.withOpacity(0.4) : cardBorder,
-          width: isCurrent ? 1.5 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: cardBorderColor, width: isCurrent ? 1.5 : 1),
+        boxShadow: isDark
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -315,12 +334,16 @@ class _ZevDeviceActivitiesScreenState extends State<ZevDeviceActivitiesScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: isCurrent ? lightPinkBg : cardBorder,
+              color: isCurrent
+                  ? (isDark ? const Color(0xFF3B1E2B) : lightPinkBg)
+                  : (isDark ? const Color(0xFF1E293B) : cardBorder),
               shape: BoxShape.circle,
             ),
             child: Icon(
               devIcon,
-              color: isCurrent ? primaryPink : textDark,
+              color: isCurrent
+                  ? primaryPink
+                  : (isDark ? Colors.white70 : textDark),
               size: 24,
             ),
           ),
@@ -334,10 +357,10 @@ class _ZevDeviceActivitiesScreenState extends State<ZevDeviceActivitiesScreen> {
                     Expanded(
                       child: Text(
                         devName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color: textDark,
+                          color: primaryTextColor,
                         ),
                       ),
                     ),
@@ -365,9 +388,9 @@ class _ZevDeviceActivitiesScreenState extends State<ZevDeviceActivitiesScreen> {
                 const SizedBox(height: 4),
                 Text(
                   loc,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: textGrey,
+                    color: secondaryTextColor,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -377,7 +400,7 @@ class _ZevDeviceActivitiesScreenState extends State<ZevDeviceActivitiesScreen> {
                     "Logged in: ${loggedAt.split('T').first} ${loggedAt.contains('T') ? loggedAt.split('T')[1].split('.').first : ''}",
                     style: TextStyle(
                       fontSize: 11,
-                      color: textGrey.withOpacity(0.7),
+                      color: secondaryTextColor.withOpacity(0.7),
                     ),
                   ),
                 ],

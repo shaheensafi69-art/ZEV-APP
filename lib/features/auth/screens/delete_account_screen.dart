@@ -184,11 +184,12 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
       if (!mounted) return;
 
       // Show success dialog
+      final isDark = Theme.of(context).brightness == Brightness.dark;
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
-          backgroundColor: surfaceWhite,
+          backgroundColor: isDark ? const Color(0xFF1E293B) : surfaceWhite,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
@@ -210,10 +211,10 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
               Expanded(
                 child: Text(
                   context.l10n.deleteAccount,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 16,
-                    color: textDark,
+                    color: isDark ? Colors.white : textDark,
                   ),
                 ),
               ),
@@ -221,7 +222,11 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
           ),
           content: Text(
             context.l10n.accountDeletionSubmitted,
-            style: const TextStyle(color: textGrey, fontSize: 13, height: 1.5),
+            style: TextStyle(
+              color: isDark ? Colors.white70 : textGrey,
+              fontSize: 13,
+              height: 1.5,
+            ),
           ),
           actions: [
             ElevatedButton(
@@ -262,6 +267,12 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBg = isDark ? const Color(0xFF0B0F19) : surfaceWhite;
+    final appbarBg = isDark ? const Color(0xFF131926) : surfaceWhite;
+    final primaryTextColor = isDark ? Colors.white : textDark;
+    final secondaryTextColor = isDark ? Colors.white70 : textGrey;
+
     final user = supabase.auth.currentUser;
     final email = user?.email ?? _userProfile?['email'] ?? "—";
     final fullName =
@@ -270,20 +281,20 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
     final role = (_userProfile?['role'] ?? 'student').toString().toUpperCase();
 
     return Scaffold(
-      backgroundColor: surfaceWhite,
+      backgroundColor: scaffoldBg,
       appBar: AppBar(
-        backgroundColor: surfaceWhite,
+        backgroundColor: appbarBg,
         elevation: 0,
         centerTitle: true,
         title: Text(
           context.l10n.deleteAccount,
-          style: const TextStyle(
-            color: textDark,
+          style: TextStyle(
+            color: primaryTextColor,
             fontWeight: FontWeight.w900,
             fontSize: 16,
           ),
         ),
-        iconTheme: const IconThemeData(color: textDark),
+        iconTheme: IconThemeData(color: primaryTextColor),
       ),
       body: _isFetchingUser
           ? const Center(child: CircularProgressIndicator(color: primaryPink))
@@ -305,10 +316,15 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
-                              colors: [
-                                dangerRed.withValues(alpha: 0.08),
-                                lightPinkBg.withValues(alpha: 0.6),
-                              ],
+                              colors: isDark
+                                  ? [
+                                      dangerRed.withValues(alpha: 0.15),
+                                      const Color(0xFF1E293B),
+                                    ]
+                                  : [
+                                      dangerRed.withValues(alpha: 0.08),
+                                      lightPinkBg.withValues(alpha: 0.6),
+                                    ],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
@@ -349,7 +365,9 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                                     Text(
                                       context.l10n.deleteAccountWarning,
                                       style: TextStyle(
-                                        color: textDark.withValues(alpha: 0.8),
+                                        color: isDark
+                                            ? Colors.white70
+                                            : textDark.withValues(alpha: 0.8),
                                         fontSize: 11,
                                         height: 1.4,
                                         fontWeight: FontWeight.w500,
@@ -367,15 +385,24 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                         Container(
                           padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
-                            color: surfaceWhite,
+                            color: isDark
+                                ? const Color(0xFF131926)
+                                : surfaceWhite,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: cardBorder, width: 1.5),
+                            border: Border.all(
+                              color: isDark
+                                  ? const Color(0xFF1E293B)
+                                  : cardBorder,
+                              width: 1.5,
+                            ),
                           ),
                           child: Row(
                             children: [
                               CircleAvatar(
                                 radius: 24,
-                                backgroundColor: lightPinkBg,
+                                backgroundColor: isDark
+                                    ? const Color(0xFF1E293B)
+                                    : lightPinkBg,
                                 backgroundImage:
                                     (_userProfile?['avatar_url'] != null &&
                                         _userProfile!['avatar_url']
@@ -401,8 +428,8 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                                   children: [
                                     Text(
                                       fullName.isEmpty ? "ZEV User" : fullName,
-                                      style: const TextStyle(
-                                        color: textDark,
+                                      style: TextStyle(
+                                        color: primaryTextColor,
                                         fontWeight: FontWeight.w900,
                                         fontSize: 14,
                                       ),
@@ -410,8 +437,8 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                                     const SizedBox(height: 2),
                                     Text(
                                       email,
-                                      style: const TextStyle(
-                                        color: textGrey,
+                                      style: TextStyle(
+                                        color: secondaryTextColor,
                                         fontSize: 11,
                                       ),
                                     ),
@@ -424,7 +451,9 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: lightPinkBg,
+                                  color: isDark
+                                      ? const Color(0xFF1E293B)
+                                      : lightPinkBg,
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
                                     color: primaryPink.withValues(alpha: 0.3),
@@ -447,8 +476,8 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                         // Deletion reason field
                         Text(
                           context.l10n.deleteAccountReasonHint,
-                          style: const TextStyle(
-                            color: textDark,
+                          style: TextStyle(
+                            color: primaryTextColor,
                             fontWeight: FontWeight.w900,
                             fontSize: 13,
                           ),
@@ -458,19 +487,28 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                           controller: _reasonController,
                           maxLines: 4,
                           cursorColor: primaryPink,
-                          style: const TextStyle(fontSize: 13, color: textDark),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: primaryTextColor,
+                          ),
                           decoration: InputDecoration(
                             hintText: context.l10n.deleteAccountReasonHint,
-                            hintStyle: const TextStyle(
-                              color: textGrey,
+                            hintStyle: TextStyle(
+                              color: secondaryTextColor,
                               fontSize: 12,
                             ),
                             filled: true,
-                            fillColor: lightPinkBg.withValues(alpha: 0.4),
+                            fillColor: isDark
+                                ? const Color(0xFF1E293B)
+                                : lightPinkBg.withValues(alpha: 0.4),
                             contentPadding: const EdgeInsets.all(16),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
-                              borderSide: const BorderSide(color: cardBorder),
+                              borderSide: BorderSide(
+                                color: isDark
+                                    ? const Color(0xFF334155)
+                                    : cardBorder,
+                              ),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
@@ -512,7 +550,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                                       style: TextStyle(
                                         color: _isConfirmed
                                             ? dangerRed
-                                            : textDark,
+                                            : primaryTextColor,
                                         fontWeight: FontWeight.w700,
                                         fontSize: 12,
                                         height: 1.4,

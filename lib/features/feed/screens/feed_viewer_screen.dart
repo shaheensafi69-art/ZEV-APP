@@ -515,10 +515,12 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
       text: post.content,
     );
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: surfaceWhite,
+      backgroundColor: isDark ? const Color(0xFF131926) : surfaceWhite,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
@@ -538,14 +540,17 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
               children: [
                 Text(
                   "${context.zevTr('editPost')} ✏️",
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
-                    color: textDark,
+                    color: isDark ? Colors.white : textDark,
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close, color: textGrey),
+                  icon: Icon(
+                    Icons.close,
+                    color: isDark ? Colors.white70 : textGrey,
+                  ),
                   onPressed: () => Navigator.pop(sheetContext),
                 ),
               ],
@@ -555,10 +560,10 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
               controller: titleController,
               cursorColor: primaryPink,
               decoration: _inputDecoration(context.zevTr('titleReq')),
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
-                color: textDark,
+                color: isDark ? Colors.white : textDark,
               ),
             ),
             const SizedBox(height: 12),
@@ -567,7 +572,10 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
               cursorColor: primaryPink,
               maxLines: 5,
               decoration: _inputDecoration(context.zevTr('contentReq')),
-              style: const TextStyle(fontSize: 14, color: textDark),
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark ? Colors.white : textDark,
+              ),
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -624,9 +632,11 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
   }
 
   void _showDeleteConfirmation(String postId) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E293B) : surfaceWhite,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Row(
           children: [
@@ -634,21 +644,27 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
             const SizedBox(width: 8),
             Text(
               context.zevTr('deletePost'),
-              style: const TextStyle(fontWeight: FontWeight.w900),
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                color: isDark ? Colors.white : textDark,
+              ),
             ),
           ],
         ),
         content: Text(
           context.zevTr('confirmDeletePost'),
-          style: const TextStyle(color: textGrey, height: 1.4),
+          style: TextStyle(
+            color: isDark ? Colors.white70 : textGrey,
+            height: 1.4,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
               context.zevTr('cancel'),
-              style: const TextStyle(
-                color: textDark,
+              style: TextStyle(
+                color: isDark ? Colors.white70 : textDark,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -679,15 +695,24 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
   }
 
   InputDecoration _inputDecoration(String hint) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: textGrey, fontSize: 13),
+      hintStyle: TextStyle(
+        color: isDark ? Colors.white54 : textGrey,
+        fontSize: 13,
+      ),
       filled: true,
-      fillColor: cardBorder.withValues(alpha: 0.5),
+      fillColor: isDark
+          ? const Color(0xFF1E293B)
+          : cardBorder.withValues(alpha: 0.5),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: cardBorder, width: 1.5),
+        borderSide: BorderSide(
+          color: isDark ? const Color(0xFF334155) : cardBorder,
+          width: 1.5,
+        ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -782,14 +807,19 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                 SizedBox(height: topPadding + 140),
                                 Center(
                                   child: Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                    ),
                                     child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         Container(
                                           padding: const EdgeInsets.all(20),
                                           decoration: BoxDecoration(
-                                            color: primaryPink.withValues(alpha: 0.1),
+                                            color: primaryPink.withValues(
+                                              alpha: 0.1,
+                                            ),
                                             shape: BoxShape.circle,
                                           ),
                                           child: const Icon(
@@ -814,14 +844,23 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                             _fetchFeedPosts();
                                             _fetchActiveFriendStories();
                                           },
-                                          icon: const Icon(Icons.refresh_rounded, size: 18),
-                                          label: Text(context.zevTr('tryAgain')),
+                                          icon: const Icon(
+                                            Icons.refresh_rounded,
+                                            size: 18,
+                                          ),
+                                          label: Text(
+                                            context.zevTr('tryAgain'),
+                                          ),
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: primaryPink,
                                             foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 24,
+                                              vertical: 12,
+                                            ),
                                             shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(14),
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
                                             ),
                                           ),
                                         ),
@@ -923,13 +962,19 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                               10,
                             ),
                             decoration: BoxDecoration(
-                              color: (isDark ? const Color(0xFF131926) : surfaceWhite).withValues(alpha: 0.94),
+                              color:
+                                  (isDark
+                                          ? const Color(0xFF131926)
+                                          : surfaceWhite)
+                                      .withValues(alpha: 0.94),
                               borderRadius: const BorderRadius.vertical(
                                 bottom: Radius.circular(24),
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.05),
+                                  color: Colors.black.withValues(
+                                    alpha: isDark ? 0.35 : 0.05,
+                                  ),
                                   blurRadius: 10,
                                   offset: const Offset(0, 4),
                                 ),
@@ -937,7 +982,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                               border: Border.all(
                                 color: isDark
                                     ? const Color(0xFF1E293B)
-                                    : const Color(0xFFF3F4F6).withValues(alpha: 0.8),
+                                    : const Color(
+                                        0xFFF3F4F6,
+                                      ).withValues(alpha: 0.8),
                                 width: 1,
                               ),
                             ),
@@ -969,7 +1016,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                           Text(
                                             "Feed",
                                             style: TextStyle(
-                                              color: isDark ? Colors.white : textDark,
+                                              color: isDark
+                                                  ? Colors.white
+                                                  : textDark,
                                               fontSize: context.respFont(
                                                 phone: 22.0,
                                                 tablet: 28.0,
@@ -1124,7 +1173,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                                     ),
                                                 child: Icon(
                                                   Icons.favorite_border_rounded,
-                                                  color: isDark ? const Color(0xFF94A3B8) : textDark,
+                                                  color: isDark
+                                                      ? const Color(0xFF94A3B8)
+                                                      : textDark,
                                                   size: context.respIcon(
                                                     phone: 26.0,
                                                     tablet: 30.0,
@@ -1163,7 +1214,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                                     ),
                                                 child: Icon(
                                                   Icons.send_outlined,
-                                                  color: isDark ? const Color(0xFF94A3B8) : textDark,
+                                                  color: isDark
+                                                      ? const Color(0xFF94A3B8)
+                                                      : textDark,
                                                   size: context.respIcon(
                                                     phone: 23.0,
                                                     tablet: 28.0,
@@ -1227,7 +1280,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                                     desktop: 15.0,
                                                   ),
                                                   fontWeight: FontWeight.w600,
-                                                  color: isDark ? Colors.white : textDark,
+                                                  color: isDark
+                                                      ? Colors.white
+                                                      : textDark,
                                                 ),
                                                 decoration: InputDecoration(
                                                   hintText: context.zevTr(
@@ -1445,7 +1500,10 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                   fallbackText: story.userName.isNotEmpty
                       ? story.userName[0]
                       : 'U',
-                  backgroundColor: surfaceWhite,
+                  backgroundColor:
+                      Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF131926)
+                      : surfaceWhite,
                   textColor: primaryPink,
                 ),
               ),

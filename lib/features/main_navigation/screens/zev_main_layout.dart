@@ -742,19 +742,6 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                       isDesktop: isDesktop,
                     ),
                     _buildSideNavItem(
-                      icon: isDark
-                          ? Icons.light_mode_rounded
-                          : Icons.dark_mode_rounded,
-                      label: isDark ? "Light Mode" : "Dark Mode",
-                      index: 99,
-                      isDark: isDark,
-                      isDesktop: isDesktop,
-                      customTap: () async {
-                        await AppThemeService.instance.toggleTheme();
-                        if (mounted) setState(() {});
-                      },
-                    ),
-                    _buildSideNavItem(
                       icon: Icons.settings_outlined,
                       label: context.zevTr('settings'),
                       index: 8,
@@ -920,6 +907,34 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                               ],
                             ),
                           ),
+                          Tooltip(
+                            message: isDark
+                                ? "Switch to Light Mode"
+                                : "Switch to Dark Mode",
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () async {
+                                  await AppThemeService.instance.toggleTheme();
+                                  if (mounted) setState(() {});
+                                },
+                                borderRadius: BorderRadius.circular(10),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(6),
+                                  child: Icon(
+                                    isDark
+                                        ? Icons.light_mode_rounded
+                                        : Icons.dark_mode_rounded,
+                                    size: 19,
+                                    color: isDark
+                                        ? const Color(0xFFFBBF24)
+                                        : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
                           Theme(
                             data: Theme.of(context).copyWith(
                               hoverColor: isDark
@@ -929,14 +944,21 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                             child: PopupMenuButton<String>(
                               tooltip: 'Options',
                               color: isDark
-                                  ? const Color(0xFF1E293B)
+                                  ? const Color(0xFF131926)
                                   : Colors.white,
-                              elevation: 8,
-                              padding: EdgeInsets.zero,
+                              elevation: 18,
+                              shadowColor: Colors.black.withValues(
+                                alpha: isDark ? 0.6 : 0.12,
+                              ),
+                              offset: const Offset(0, -10),
+                              padding: const EdgeInsets.symmetric(vertical: 6),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(22),
                                 side: BorderSide(
-                                  color: isDark ? Colors.white12 : cardBorder,
+                                  color: isDark
+                                      ? const Color(0xFF232D42)
+                                      : cardBorder,
+                                  width: 1.5,
                                 ),
                               ),
                               icon: Icon(
@@ -961,7 +983,12 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                                           ? const Color(0xFF1E293B)
                                           : Colors.white,
                                       shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(20),
+                                        borderRadius: BorderRadius.circular(22),
+                                        side: BorderSide(
+                                          color: isDark
+                                              ? const Color(0xFF334155)
+                                              : cardBorder,
+                                        ),
                                       ),
                                       title: Text(
                                         context.zevTr('logOut'),
@@ -1031,17 +1058,27 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                                   value: 'profile',
                                   child: Row(
                                     children: [
-                                      const Icon(
-                                        Icons.person_outline_rounded,
-                                        size: 18,
-                                        color: primaryPink,
+                                      Container(
+                                        padding: const EdgeInsets.all(7),
+                                        decoration: BoxDecoration(
+                                          color: primaryPink.withValues(
+                                            alpha: 0.12,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                        child: const Icon(
+                                          Icons.person_outline_rounded,
+                                          size: 17,
+                                          color: primaryPink,
+                                        ),
                                       ),
-                                      const SizedBox(width: 10),
+                                      const SizedBox(width: 12),
                                       Text(
                                         context.zevTr('myProfile'),
                                         style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w700,
                                           color: isDark
                                               ? Colors.white
                                               : textDark,
@@ -1054,17 +1091,26 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                                   value: 'settings',
                                   child: Row(
                                     children: [
-                                      const Icon(
-                                        Icons.settings_outlined,
-                                        size: 18,
-                                        color: primaryPink,
+                                      Container(
+                                        padding: const EdgeInsets.all(7),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF6366F1)
+                                              .withValues(alpha: 0.12),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                        child: const Icon(
+                                          Icons.settings_outlined,
+                                          size: 17,
+                                          color: Color(0xFF6366F1),
+                                        ),
                                       ),
-                                      const SizedBox(width: 10),
+                                      const SizedBox(width: 12),
                                       Text(
                                         context.zevTr('settings'),
                                         style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w700,
                                           color: isDark
                                               ? Colors.white
                                               : textDark,
@@ -1077,17 +1123,26 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                                   value: 'studio',
                                   child: Row(
                                     children: [
-                                      const Icon(
-                                        Icons.edit_note_rounded,
-                                        size: 18,
-                                        color: primaryPink,
+                                      Container(
+                                        padding: const EdgeInsets.all(7),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEC4899)
+                                              .withValues(alpha: 0.12),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                        child: const Icon(
+                                          Icons.edit_note_rounded,
+                                          size: 17,
+                                          color: Color(0xFFEC4899),
+                                        ),
                                       ),
-                                      const SizedBox(width: 10),
+                                      const SizedBox(width: 12),
                                       Text(
                                         context.zevTr('creatorStudio'),
                                         style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w700,
                                           color: isDark
                                               ? Colors.white
                                               : textDark,
@@ -1096,22 +1151,34 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                                     ],
                                   ),
                                 ),
-                                const PopupMenuDivider(),
+                                PopupMenuDivider(
+                                  height: 1,
+                                ),
                                 PopupMenuItem(
                                   value: 'logout',
                                   child: Row(
                                     children: [
-                                      const Icon(
-                                        Icons.logout_rounded,
-                                        size: 18,
-                                        color: Colors.redAccent,
+                                      Container(
+                                        padding: const EdgeInsets.all(7),
+                                        decoration: BoxDecoration(
+                                          color: Colors.redAccent.withValues(
+                                            alpha: 0.12,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                        child: const Icon(
+                                          Icons.logout_rounded,
+                                          size: 17,
+                                          color: Colors.redAccent,
+                                        ),
                                       ),
-                                      const SizedBox(width: 10),
+                                      const SizedBox(width: 12),
                                       Text(
                                         context.zevTr('logOut'),
                                         style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w800,
                                           color: Colors.redAccent,
                                         ),
                                       ),
@@ -1127,6 +1194,27 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                   ),
                 ),
               ),
+            ],
+            if (!isDesktop) ...[
+              Tooltip(
+                message: isDark
+                    ? "Switch to Light Mode"
+                    : "Switch to Dark Mode",
+                child: IconButton(
+                  icon: Icon(
+                    isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                    color: isDark
+                        ? const Color(0xFFFBBF24)
+                        : const Color(0xFF64748B),
+                    size: 22,
+                  ),
+                  onPressed: () async {
+                    await AppThemeService.instance.toggleTheme();
+                    if (mounted) setState(() {});
+                  },
+                ),
+              ),
+              const SizedBox(height: 6),
             ],
             const SizedBox(height: 8),
           ],
@@ -1165,12 +1253,12 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
             decoration: BoxDecoration(
               gradient: isSelected
                   ? (isDark
-                      ? const LinearGradient(
-                          colors: [Color(0xFF381D45), Color(0xFF221733)],
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                        )
-                      : null)
+                        ? const LinearGradient(
+                            colors: [Color(0xFF381D45), Color(0xFF221733)],
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                          )
+                        : null)
                   : null,
               color: isSelected
                   ? (isDark ? null : const Color(0xFFFFF0F3))
@@ -1179,8 +1267,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
               border: Border.all(
                 color: isSelected
                     ? (isDark
-                        ? const Color(0xFF5B2363)
-                        : primaryPink.withValues(alpha: 0.22))
+                          ? const Color(0xFF5B2363)
+                          : primaryPink.withValues(alpha: 0.22))
                     : Colors.transparent,
                 width: 1,
               ),
@@ -1194,8 +1282,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                         color: isSelected
                             ? (isDark ? const Color(0xFFF494AC) : primaryPink)
                             : (isDark
-                                ? const Color(0xFF94A3B8)
-                                : const Color(0xFF64748B)),
+                                  ? const Color(0xFF94A3B8)
+                                  : const Color(0xFF64748B)),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -1210,8 +1298,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                             color: isSelected
                                 ? (isDark ? Colors.white : primaryPink)
                                 : (isDark
-                                    ? const Color(0xFF94A3B8)
-                                    : const Color(0xFF334155)),
+                                      ? const Color(0xFF94A3B8)
+                                      : const Color(0xFF334155)),
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -1225,7 +1313,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                             borderRadius: BorderRadius.circular(3),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFFFC466B).withValues(alpha: 0.8),
+                                color: const Color(
+                                  0xFFFC466B,
+                                ).withValues(alpha: 0.8),
                                 blurRadius: 8,
                               ),
                             ],
@@ -1242,8 +1332,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                         color: isSelected
                             ? (isDark ? const Color(0xFFF494AC) : primaryPink)
                             : (isDark
-                                ? const Color(0xFF94A3B8)
-                                : const Color(0xFF64748B)),
+                                  ? const Color(0xFF94A3B8)
+                                  : const Color(0xFF64748B)),
                       ),
                       const SizedBox(height: 3),
                       Text(
@@ -1256,8 +1346,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                           color: isSelected
                               ? primaryPink
                               : (isDark
-                                  ? const Color(0xFF94A3B8)
-                                  : const Color(0xFF334155)),
+                                    ? const Color(0xFF94A3B8)
+                                    : const Color(0xFF334155)),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -1337,20 +1427,19 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   /// High-end Right Rail for Desktop Screens (Pixel-perfect matching screenshot)
   Widget _buildDesktopRightRail({required bool isDark}) {
     final cardBg = isDark ? const Color(0xFF131926) : Colors.white;
-    final cardBorder = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
+    final cardBorder = isDark
+        ? const Color(0xFF1E293B)
+        : const Color(0xFFE2E8F0);
     final headerColor = isDark ? Colors.white : const Color(0xFF0F172A);
-    final mutedColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final mutedColor = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF64748B);
 
     return Container(
       width: 320,
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF0B0F19) : const Color(0xFFF8FAFC),
-        border: Border(
-          left: BorderSide(
-            color: cardBorder,
-            width: 1,
-          ),
-        ),
+        border: Border(left: BorderSide(color: cardBorder, width: 1)),
       ),
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
@@ -1401,7 +1490,10 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                   spacing: 8,
                   runSpacing: 8,
                   children: _trendingHashtags.isNotEmpty
-                      ? _trendingHashtags.take(6).map((h) => _buildHashtagChip('#${h.tag}', isDark)).toList()
+                      ? _trendingHashtags
+                            .take(6)
+                            .map((h) => _buildHashtagChip('#${h.tag}', isDark))
+                            .toList()
                       : [
                           _buildHashtagChip("#Sunset", isDark),
                           _buildHashtagChip("#DigitalArt", isDark),
@@ -1473,20 +1565,47 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                 // 2x2 Contacts Grid
                 Builder(
                   builder: (context) {
-                    final c1 = _suggestedUsers.isNotEmpty ? (_suggestedUsers[0]["first_name"] ?? "Maria").toString() : "Maria";
-                    final a1 = _suggestedUsers.isNotEmpty && (_suggestedUsers[0]["avatar_url"] ?? "").toString().isNotEmpty
+                    final c1 = _suggestedUsers.isNotEmpty
+                        ? (_suggestedUsers[0]["first_name"] ?? "Maria")
+                              .toString()
+                        : "Maria";
+                    final a1 =
+                        _suggestedUsers.isNotEmpty &&
+                            (_suggestedUsers[0]["avatar_url"] ?? "")
+                                .toString()
+                                .isNotEmpty
                         ? _suggestedUsers[0]["avatar_url"].toString()
                         : "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120";
-                    final c2 = _suggestedUsers.length > 1 ? (_suggestedUsers[1]["first_name"] ?? "Chloe").toString() : "Chloe";
-                    final a2 = _suggestedUsers.length > 1 && (_suggestedUsers[1]["avatar_url"] ?? "").toString().isNotEmpty
+                    final c2 = _suggestedUsers.length > 1
+                        ? (_suggestedUsers[1]["first_name"] ?? "Chloe")
+                              .toString()
+                        : "Chloe";
+                    final a2 =
+                        _suggestedUsers.length > 1 &&
+                            (_suggestedUsers[1]["avatar_url"] ?? "")
+                                .toString()
+                                .isNotEmpty
                         ? _suggestedUsers[1]["avatar_url"].toString()
                         : "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120";
-                    final c3 = _suggestedUsers.length > 2 ? (_suggestedUsers[2]["first_name"] ?? "David").toString() : "David";
-                    final a3 = _suggestedUsers.length > 2 && (_suggestedUsers[2]["avatar_url"] ?? "").toString().isNotEmpty
+                    final c3 = _suggestedUsers.length > 2
+                        ? (_suggestedUsers[2]["first_name"] ?? "David")
+                              .toString()
+                        : "David";
+                    final a3 =
+                        _suggestedUsers.length > 2 &&
+                            (_suggestedUsers[2]["avatar_url"] ?? "")
+                                .toString()
+                                .isNotEmpty
                         ? _suggestedUsers[2]["avatar_url"].toString()
                         : "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120";
-                    final c4 = _suggestedUsers.length > 3 ? (_suggestedUsers[3]["first_name"] ?? "Ben").toString() : "Ben";
-                    final a4 = _suggestedUsers.length > 3 && (_suggestedUsers[3]["avatar_url"] ?? "").toString().isNotEmpty
+                    final c4 = _suggestedUsers.length > 3
+                        ? (_suggestedUsers[3]["first_name"] ?? "Ben").toString()
+                        : "Ben";
+                    final a4 =
+                        _suggestedUsers.length > 3 &&
+                            (_suggestedUsers[3]["avatar_url"] ?? "")
+                                .toString()
+                                .isNotEmpty
                         ? _suggestedUsers[3]["avatar_url"].toString()
                         : "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120";
 
@@ -1546,11 +1665,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                         letterSpacing: -0.2,
                       ),
                     ),
-                    Icon(
-                      Icons.more_horiz_rounded,
-                      color: mutedColor,
-                      size: 20,
-                    ),
+                    Icon(Icons.more_horiz_rounded, color: mutedColor, size: 20),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -1561,13 +1676,15 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     children: [
                       _buildSponsoredProductCard(
                         title: "Sleek watch",
-                        imageUrl: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=280",
+                        imageUrl:
+                            "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=280",
                         isDark: isDark,
                       ),
                       const SizedBox(width: 10),
                       _buildSponsoredProductCard(
                         title: "Tech gadget promo",
-                        imageUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=280",
+                        imageUrl:
+                            "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=280",
                         isDark: isDark,
                       ),
                     ],
@@ -1691,7 +1808,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
               children: [
                 CircleAvatar(
                   radius: 17,
-                  backgroundColor: const Color(0xFFFC466B).withValues(alpha: 0.15),
+                  backgroundColor: const Color(
+                    0xFFFC466B,
+                  ).withValues(alpha: 0.15),
                   backgroundImage: NetworkImage(avatarUrl),
                 ),
                 Positioned(
@@ -1760,7 +1879,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
               errorBuilder: (ctx, err, stack) => Container(
                 height: 76,
                 width: 114,
-                color: isDark ? const Color(0xFF243048) : const Color(0xFFE2E8F0),
+                color: isDark
+                    ? const Color(0xFF243048)
+                    : const Color(0xFFE2E8F0),
                 child: const Icon(Icons.watch_rounded, color: primaryPink),
               ),
             ),
@@ -1788,7 +1909,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF243048) : const Color(0xFFE2E8F0),
+                color: isDark
+                    ? const Color(0xFF243048)
+                    : const Color(0xFFE2E8F0),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(

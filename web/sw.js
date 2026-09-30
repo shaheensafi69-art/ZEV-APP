@@ -102,7 +102,7 @@ self.addEventListener("fetch", (event) => {
                 cache.put(event.request, networkResponse);
               });
             }
-          }).catch(() => {});
+          }).catch(() => { });
           return cachedResponse;
         }
         return fetch(event.request);

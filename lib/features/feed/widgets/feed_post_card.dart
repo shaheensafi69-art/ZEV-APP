@@ -120,6 +120,8 @@ class _FeedPostCardState extends State<FeedPostCard> {
   bool isReposted = false;
   int repostsCount = 0;
   bool _isContentExpanded = false;
+  bool isAuthorFollowed = false;
+  bool isFollowLoading = false;
 
   @override
   void initState() {
@@ -128,6 +130,65 @@ class _FeedPostCardState extends State<FeedPostCard> {
     isSaved = widget.post.isSavedByMe;
     likesCount = widget.post.likesCount;
     _checkRepostState();
+    _checkFollowState();
+  }
+
+  Future<void> _checkFollowState() async {
+    final user = supabase.auth.currentUser;
+    if (user == null || user.id == widget.post.studentId) return;
+    try {
+      final res = await supabase
+          .from('user_follows')
+          .select('id')
+          .eq('follower_id', user.id)
+          .eq('following_id', widget.post.studentId)
+          .maybeSingle();
+      if (mounted) {
+        setState(() {
+          isAuthorFollowed = res != null;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _toggleFollow() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      AuthRequiredModal.show(context, actionName: "follow this user");
+      return;
+    }
+    if (isFollowLoading) return;
+    final willFollow = !isAuthorFollowed;
+    setState(() {
+      isAuthorFollowed = willFollow;
+      isFollowLoading = true;
+    });
+
+    try {
+      if (willFollow) {
+        await supabase.from('user_follows').insert({
+          'follower_id': user.id,
+          'following_id': widget.post.studentId,
+        });
+      } else {
+        await supabase.from('user_follows').delete().match({
+          'follower_id': user.id,
+          'following_id': widget.post.studentId,
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          isAuthorFollowed = !willFollow; // rollback
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          isFollowLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _checkRepostState() async {
@@ -247,10 +308,7 @@ class _FeedPostCardState extends State<FeedPostCard> {
               maxScale: 4.0,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: FastCachedImage(
-                  imageUrl: imageUrl,
-                  fit: BoxFit.contain,
-                ),
+                child: FastCachedImage(imageUrl: imageUrl, fit: BoxFit.contain),
               ),
             ),
             Positioned(
@@ -498,7 +556,9 @@ class _FeedPostCardState extends State<FeedPostCard> {
     final cardBorderColor = isDark ? const Color(0xFF1E293B) : cardBorder;
     final authorTextColor = isDark ? Colors.white : textDark;
     final primaryTextColor = isDark ? Colors.white : textDark;
-    final bodyTextColor = isDark ? const Color(0xFFF1F5F9) : const Color(0xFF374151);
+    final bodyTextColor = isDark
+        ? const Color(0xFFF1F5F9)
+        : const Color(0xFF374151);
     final secondaryTextColor = isDark ? const Color(0xFF94A3B8) : textGrey;
     final iconColor = isDark ? const Color(0xFF94A3B8) : textDark;
 
@@ -667,34 +727,63 @@ class _FeedPostCardState extends State<FeedPostCard> {
                 ),
                 if (currentUserId != null &&
                     currentUserId != post.studentId) ...[
-                  Container(
-                    margin: const EdgeInsets.only(right: 6),
-                    padding: EdgeInsets.symmetric(
-                      horizontal: context.respSpacing(
-                        phone: 14.0,
-                        tablet: 18.0,
-                        desktop: 20.0,
+                  InkWell(
+                    onTap: isFollowLoading ? null : _toggleFollow,
+                    borderRadius: BorderRadius.circular(16),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.only(right: 6),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: context.respSpacing(
+                          phone: 12.0,
+                          tablet: 16.0,
+                          desktop: 18.0,
+                        ),
+                        vertical: context.respSpacing(
+                          phone: 5.0,
+                          tablet: 6.0,
+                          desktop: 7.0,
+                        ),
                       ),
-                      vertical: context.respSpacing(
-                        phone: 5.0,
-                        tablet: 7.0,
-                        desktop: 8.0,
+                      decoration: BoxDecoration(
+                        color: isAuthorFollowed
+                            ? (isDark
+                                  ? const Color(0xFF1E293B)
+                                  : const Color(0xFFF1F5F9))
+                            : primaryPink.withValues(
+                                alpha: isDark ? 0.22 : 0.12,
+                              ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isAuthorFollowed
+                              ? (isDark
+                                    ? Colors.white.withValues(alpha: 0.1)
+                                    : const Color(0xFFE2E8F0))
+                              : primaryPink.withValues(alpha: 0.4),
+                          width: 1,
+                        ),
                       ),
-                    ),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(16),
-                      border: isDark
-                          ? Border.all(color: Colors.white.withValues(alpha: 0.08))
-                          : null,
-                    ),
-                    child: Text(
-                      "Follow",
-                      style: TextStyle(
-                        color: authorTextColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: metaFontSize + 1,
-                      ),
+                      child: isFollowLoading
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: primaryPink,
+                              ),
+                            )
+                          : Text(
+                              isAuthorFollowed
+                                  ? context.zevTr('following')
+                                  : context.zevTr('follow'),
+                              style: TextStyle(
+                                color: isAuthorFollowed
+                                    ? secondaryTextColor
+                                    : primaryPink,
+                                fontWeight: FontWeight.bold,
+                                fontSize: metaFontSize + 1,
+                              ),
+                            ),
                     ),
                   ),
                 ],
@@ -799,7 +888,8 @@ class _FeedPostCardState extends State<FeedPostCard> {
                           height: 1.6,
                         ),
                       ),
-                      if (post.content.length > 50 || post.content.contains('\n'))
+                      if (post.content.length > 50 ||
+                          post.content.contains('\n'))
                         GestureDetector(
                           onTap: () {
                             setState(() {
@@ -836,7 +926,11 @@ class _FeedPostCardState extends State<FeedPostCard> {
                 onTap: () => _openFullScreenImage(context, post.imageUrl!),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(
-                    context.responsive(phone: 18.0, tablet: 22.0, desktop: 24.0),
+                    context.responsive(
+                      phone: 18.0,
+                      tablet: 22.0,
+                      desktop: 24.0,
+                    ),
                   ),
                   child: Container(
                     constraints: BoxConstraints(
@@ -853,7 +947,11 @@ class _FeedPostCardState extends State<FeedPostCard> {
                           ? const Color(0xFF0F172A).withValues(alpha: 0.3)
                           : const Color(0xFF0F172A).withValues(alpha: 0.03),
                       borderRadius: BorderRadius.circular(
-                        context.responsive(phone: 18.0, tablet: 22.0, desktop: 24.0),
+                        context.responsive(
+                          phone: 18.0,
+                          tablet: 22.0,
+                          desktop: 24.0,
+                        ),
                       ),
                       border: Border.all(
                         color: isDark

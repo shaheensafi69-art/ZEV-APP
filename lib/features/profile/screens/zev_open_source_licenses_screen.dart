@@ -77,25 +77,34 @@ class ZevOpenSourceLicensesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBg = isDark ? const Color(0xFF0B0F19) : surfaceWhite;
+    final appbarBg = isDark ? const Color(0xFF131926) : surfaceWhite;
+    final cardBg = isDark ? const Color(0xFF131926) : surfaceWhite;
+    final cardBorderColor = isDark ? const Color(0xFF1E293B) : cardBorder;
+    final primaryTextColor = isDark ? Colors.white : textDark;
+    final secondaryTextColor = isDark ? Colors.white70 : textGrey;
+    final chipBg = isDark ? const Color(0xFF1E293B) : lightPinkBg;
+
     return Scaffold(
-      backgroundColor: surfaceWhite,
+      backgroundColor: scaffoldBg,
       appBar: AppBar(
-        backgroundColor: surfaceWhite,
+        backgroundColor: appbarBg,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.arrow_back_ios_new_rounded,
-            color: textDark,
+            color: primaryTextColor,
             size: 20,
           ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           "Open Source Licenses",
           style: TextStyle(
-            color: textDark,
+            color: primaryTextColor,
             fontSize: 18,
             fontWeight: FontWeight.w800,
           ),
@@ -106,18 +115,22 @@ class ZevOpenSourceLicensesScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           children: [
-            const Text(
+            Text(
               "Built With Open Source",
               style: TextStyle(
-                color: textDark,
+                color: primaryTextColor,
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               "ZEV is powered by premier open-source software libraries. We gratefully acknowledge the creators and contributors:",
-              style: TextStyle(color: textGrey, fontSize: 13.5, height: 1.5),
+              style: TextStyle(
+                color: secondaryTextColor,
+                fontSize: 13.5,
+                height: 1.5,
+              ),
             ),
             const SizedBox(height: 20),
 
@@ -126,9 +139,9 @@ class ZevOpenSourceLicensesScreen extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: surfaceWhite,
+                  color: cardBg,
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: cardBorder),
+                  border: Border.all(color: cardBorderColor),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,8 +152,8 @@ class ZevOpenSourceLicensesScreen extends StatelessWidget {
                         Expanded(
                           child: Text(
                             p["name"]!,
-                            style: const TextStyle(
-                              color: textDark,
+                            style: TextStyle(
+                              color: primaryTextColor,
                               fontSize: 15,
                               fontWeight: FontWeight.w800,
                             ),
@@ -152,7 +165,7 @@ class ZevOpenSourceLicensesScreen extends StatelessWidget {
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: lightPinkBg,
+                            color: chipBg,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -169,13 +182,15 @@ class ZevOpenSourceLicensesScreen extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       "Author: ${p["author"]} • ${p["version"]}",
-                      style: const TextStyle(color: textGrey, fontSize: 12),
+                      style: TextStyle(color: secondaryTextColor, fontSize: 12),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       p["description"]!,
-                      style: const TextStyle(
-                        color: textDark,
+                      style: TextStyle(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.85)
+                            : textDark,
                         fontSize: 13,
                         height: 1.4,
                       ),

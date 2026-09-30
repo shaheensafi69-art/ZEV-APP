@@ -42,6 +42,7 @@ class FeedStoriesTray extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     // Responsive metrics per device class
     final double trayHeight = context.responsive(
       phone: 105.0,
@@ -124,7 +125,9 @@ class FeedStoriesTray extends StatelessWidget {
                         width: addCircleSize,
                         height: addCircleSize,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFAF4F6),
+                          color: isDark
+                              ? const Color(0xFF1E293B)
+                              : const Color(0xFFFAF4F6),
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: primaryPink,
@@ -143,7 +146,8 @@ class FeedStoriesTray extends StatelessWidget {
                           ],
                         ),
                         child: ClipOval(
-                          child: (currentUserAvatar != null &&
+                          child:
+                              (currentUserAvatar != null &&
                                   currentUserAvatar!.trim().isNotEmpty)
                               ? FastCachedImage(
                                   imageUrl: currentUserAvatar!.trim(),
@@ -151,7 +155,9 @@ class FeedStoriesTray extends StatelessWidget {
                                   height: addCircleSize,
                                   fit: BoxFit.cover,
                                   errorWidget: Container(
-                                    color: const Color(0xFFFAF4F6),
+                                    color: isDark
+                                        ? const Color(0xFF1E293B)
+                                        : const Color(0xFFFAF4F6),
                                     child: Icon(
                                       Icons.person_rounded,
                                       color: primaryPink,
@@ -160,7 +166,9 @@ class FeedStoriesTray extends StatelessWidget {
                                   ),
                                 )
                               : Container(
-                                  color: const Color(0xFFFAF4F6),
+                                  color: isDark
+                                      ? const Color(0xFF1E293B)
+                                      : const Color(0xFFFAF4F6),
                                   child: Icon(
                                     Icons.person_rounded,
                                     color: primaryPink,
@@ -193,7 +201,7 @@ class FeedStoriesTray extends StatelessWidget {
                     style: TextStyle(
                       fontSize: labelFontSize,
                       fontWeight: FontWeight.w700,
-                      color: textDark,
+                      color: isDark ? Colors.white : textDark,
                     ),
                   ),
                 ],
@@ -280,7 +288,9 @@ class FeedStoriesTray extends StatelessWidget {
                         fallbackText: story.userName.isNotEmpty
                             ? story.userName[0]
                             : 'U',
-                        backgroundColor: surfaceWhite,
+                        backgroundColor: isDark
+                            ? const Color(0xFF131926)
+                            : surfaceWhite,
                         textColor: primaryPink,
                       ),
                     ),
@@ -293,7 +303,7 @@ class FeedStoriesTray extends StatelessWidget {
                         style: TextStyle(
                           fontSize: labelFontSize,
                           fontWeight: FontWeight.w600,
-                          color: textDark,
+                          color: isDark ? Colors.white : textDark,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

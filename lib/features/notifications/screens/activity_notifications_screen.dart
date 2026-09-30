@@ -257,17 +257,19 @@ class _ActivityNotificationsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: surfaceWhite,
+      backgroundColor: isDark ? const Color(0xFF0B0F19) : surfaceWhite,
       appBar: AppBar(
-        backgroundColor: surfaceWhite,
+        backgroundColor: isDark ? const Color(0xFF131926) : surfaceWhite,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: Navigator.canPop(context)
             ? IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.arrow_back_ios_new_rounded,
-                  color: textDark,
+                  color: isDark ? Colors.white : textDark,
                   size: 20,
                 ),
                 onPressed: () => Navigator.pop(context),
@@ -279,8 +281,8 @@ class _ActivityNotificationsScreenState
             const SizedBox(width: 8),
             Text(
               context.l10n.activityAndNotifications,
-              style: const TextStyle(
-                color: textDark,
+              style: TextStyle(
+                color: isDark ? Colors.white : textDark,
                 fontSize: 16,
                 fontWeight: FontWeight.w900,
               ),
@@ -308,12 +310,16 @@ class _ActivityNotificationsScreenState
                     label: Text(label),
                     selected: isSel,
                     selectedColor: primaryPink,
-                    backgroundColor: const Color(0xFFF3F4F6),
+                    backgroundColor: isDark
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFFF3F4F6),
                     side: BorderSide.none,
                     showCheckmark: isSel,
                     checkmarkColor: Colors.white,
                     labelStyle: TextStyle(
-                      color: isSel ? Colors.white : textDark,
+                      color: isSel
+                          ? Colors.white
+                          : (isDark ? Colors.white70 : textDark),
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),

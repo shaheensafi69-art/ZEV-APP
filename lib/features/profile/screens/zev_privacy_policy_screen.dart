@@ -13,25 +13,27 @@ class ZevPrivacyPolicyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: surfaceWhite,
+      backgroundColor: isDark ? const Color(0xFF0B0F19) : surfaceWhite,
       appBar: AppBar(
-        backgroundColor: surfaceWhite,
+        backgroundColor: isDark ? const Color(0xFF131926) : surfaceWhite,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.arrow_back_ios_new_rounded,
-            color: textDark,
+            color: isDark ? Colors.white : textDark,
             size: 20,
           ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           "Privacy Policy",
           style: TextStyle(
-            color: textDark,
+            color: isDark ? Colors.white : textDark,
             fontSize: 18,
             fontWeight: FontWeight.w800,
           ),
@@ -77,18 +79,22 @@ class ZevPrivacyPolicyScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            const Text(
+            Text(
               "Your Privacy Matters to ZEV",
               style: TextStyle(
-                color: textDark,
+                color: isDark ? Colors.white : textDark,
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
+            Text(
               "At ZEV (zevapp.com), we are committed to safeguarding your personal data and ensuring transparent privacy practices. This policy outlines how your information is collected, encrypted, and utilized.",
-              style: TextStyle(color: textGrey, fontSize: 14, height: 1.6),
+              style: TextStyle(
+                color: isDark ? Colors.white70 : textGrey,
+                fontSize: 14,
+                height: 1.6,
+              ),
             ),
             const SizedBox(height: 24),
 
@@ -97,6 +103,7 @@ class ZevPrivacyPolicyScreen extends StatelessWidget {
               title: "1. Data Encryption & Storage",
               content:
                   "All direct messages, passwords, and personal credentials are encrypted in transit using industry-standard TLS 1.3 and at rest with AES-256 encryption. We never store plain text passwords.",
+              isDark: isDark,
             ),
             const SizedBox(height: 16),
 
@@ -105,6 +112,7 @@ class ZevPrivacyPolicyScreen extends StatelessWidget {
               title: "2. Information We Collect",
               content:
                   "We collect your account details (username, email, optional phone number), profile bio, and content you post on feeds and reels. Usage analytics and device information are collected strictly to protect against unauthorized logins.",
+              isDark: isDark,
             ),
             const SizedBox(height: 16),
 
@@ -113,6 +121,7 @@ class ZevPrivacyPolicyScreen extends StatelessWidget {
               title: "3. Third-Party Sharing",
               content:
                   "ZEV does NOT sell your personal data to data brokers or third-party advertisers. Information is only shared when legally required or with authorized cloud service providers strictly to deliver our services.",
+              isDark: isDark,
             ),
             const SizedBox(height: 16),
 
@@ -121,6 +130,7 @@ class ZevPrivacyPolicyScreen extends StatelessWidget {
               title: "4. Biometric & Security Data",
               content:
                   "Biometric records (Fingerprint / Face ID) are securely processed on your local device hardware using the operating system's secure enclave and are NEVER transmitted to or stored on ZEV remote servers.",
+              isDark: isDark,
             ),
             const SizedBox(height: 16),
 
@@ -129,28 +139,32 @@ class ZevPrivacyPolicyScreen extends StatelessWidget {
               title: "5. Account Deletion & Rights",
               content:
                   "You have the right to export your data or permanently delete your ZEV account and all associated media directly from the settings menu at any time.",
+              isDark: isDark,
             ),
             const SizedBox(height: 32),
 
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: cardBorder,
+                color: isDark ? const Color(0xFF131926) : cardBorder,
                 borderRadius: BorderRadius.circular(16),
+                border: isDark
+                    ? Border.all(color: const Color(0xFF1E293B))
+                    : null,
               ),
-              child: const Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     "Have questions regarding privacy?",
                     style: TextStyle(
-                      color: textDark,
+                      color: isDark ? Colors.white : textDark,
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  SizedBox(height: 4),
-                  Text(
+                  const SizedBox(height: 4),
+                  const Text(
                     "Contact our Data Protection Officer at privacy@zevapp.com",
                     style: TextStyle(
                       color: primaryPink,
@@ -172,13 +186,16 @@ class ZevPrivacyPolicyScreen extends StatelessWidget {
     required IconData icon,
     required String title,
     required String content,
+    required bool isDark,
   }) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: surfaceWhite,
+        color: isDark ? const Color(0xFF131926) : surfaceWhite,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: cardBorder),
+        border: Border.all(
+          color: isDark ? const Color(0xFF1E293B) : cardBorder,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -195,7 +212,7 @@ class ZevPrivacyPolicyScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: lightPinkBg,
+                  color: isDark ? const Color(0xFF1E293B) : lightPinkBg,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(icon, color: primaryPink, size: 20),
@@ -204,8 +221,8 @@ class ZevPrivacyPolicyScreen extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    color: textDark,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : textDark,
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                   ),
@@ -216,8 +233,8 @@ class ZevPrivacyPolicyScreen extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             content,
-            style: const TextStyle(
-              color: textGrey,
+            style: TextStyle(
+              color: isDark ? Colors.white70 : textGrey,
               fontSize: 13.5,
               height: 1.55,
             ),

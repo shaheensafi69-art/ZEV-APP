@@ -50,9 +50,21 @@ class AppTheme {
     fontFamily: 'Inter',
     fontFamilyFallback: const ['Segoe UI', 'Roboto', 'Arial', 'sans-serif'],
     textTheme: const TextTheme(
-      headlineLarge: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: textLight),
-      headlineMedium: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textLight),
-      titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: textLight),
+      headlineLarge: TextStyle(
+        fontSize: 28,
+        fontWeight: FontWeight.bold,
+        color: textLight,
+      ),
+      headlineMedium: TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.bold,
+        color: textLight,
+      ),
+      titleLarge: TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.w600,
+        color: textLight,
+      ),
       bodyLarge: TextStyle(fontSize: 16, color: textLight),
       bodyMedium: TextStyle(fontSize: 14, color: textMutedDark),
     ),
@@ -85,6 +97,44 @@ class AppTheme {
         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
       ),
     ),
+    dialogTheme: const DialogThemeData(
+      backgroundColor: Color(0xFF131926),
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(24)),
+        side: BorderSide(color: Color(0xFF232D42), width: 1.2),
+      ),
+    ),
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: Color(0xFF131926),
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      elevation: 20,
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: const Color(0xFF131926),
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: Color(0xFF232D42), width: 1.2),
+      ),
+      elevation: 16,
+      shadowColor: Colors.black.withValues(alpha: 0.6),
+      textStyle: const TextStyle(
+        color: Colors.white,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+    drawerTheme: const DrawerThemeData(
+      backgroundColor: Color(0xFF111827),
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(24)),
+      ),
+    ),
   );
 
   static ThemeData lightTheme = ThemeData(
@@ -108,11 +158,61 @@ class AppTheme {
     fontFamily: 'Inter',
     fontFamilyFallback: const ['Segoe UI', 'Roboto', 'Arial', 'sans-serif'],
     textTheme: const TextTheme(
-      headlineLarge: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: textDark),
-      headlineMedium: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textDark),
-      titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: textDark),
+      headlineLarge: TextStyle(
+        fontSize: 28,
+        fontWeight: FontWeight.bold,
+        color: textDark,
+      ),
+      headlineMedium: TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.bold,
+        color: textDark,
+      ),
+      titleLarge: TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.w600,
+        color: textDark,
+      ),
       bodyLarge: TextStyle(fontSize: 16, color: textDark),
       bodyMedium: TextStyle(fontSize: 14, color: textMuted),
+    ),
+    dialogTheme: const DialogThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(24)),
+        side: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+      ),
+    ),
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      elevation: 16,
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+      ),
+      elevation: 12,
+      shadowColor: Colors.black.withValues(alpha: 0.08),
+      textStyle: const TextStyle(
+        color: Color(0xFF0F172A),
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+    drawerTheme: const DrawerThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(24)),
+      ),
     ),
   );
 }

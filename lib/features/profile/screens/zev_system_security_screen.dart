@@ -166,18 +166,19 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
 
   /// Show dialog to set or update 4-digit PIN
   void _showSetPinDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final controller = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: surfaceWhite,
+        backgroundColor: isDark ? const Color(0xFF1E293B) : surfaceWhite,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(
-                color: lightPinkBg,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF334155) : lightPinkBg,
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -189,8 +190,8 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
             const SizedBox(width: 10),
             Text(
               _hasPin ? context.zevTr('changePin') : context.zevTr('setPin'),
-              style: const TextStyle(
-                color: textDark,
+              style: TextStyle(
+                color: isDark ? Colors.white : textDark,
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
               ),
@@ -201,9 +202,12 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               "Enter a 4-digit security PIN to lock and protect your ZEV account.",
-              style: TextStyle(color: textGrey, fontSize: 13),
+              style: TextStyle(
+                color: isDark ? Colors.white70 : textGrey,
+                fontSize: 13,
+              ),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -213,16 +217,16 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
               obscureText: true,
               textAlign: TextAlign.center,
               autofocus: true,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 14,
-                color: textDark,
+                color: isDark ? Colors.white : textDark,
               ),
               decoration: InputDecoration(
                 counterText: "",
                 filled: true,
-                fillColor: cardBorder,
+                fillColor: isDark ? const Color(0xFF0F172A) : cardBorder,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                   borderSide: BorderSide.none,
@@ -240,7 +244,7 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
             onPressed: () => Navigator.pop(ctx),
             child: Text(
               context.zevTr('cancel'),
-              style: const TextStyle(color: textGrey),
+              style: TextStyle(color: isDark ? Colors.white60 : textGrey),
             ),
           ),
           ElevatedButton(
@@ -288,19 +292,20 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
 
   /// Turn off and disable PIN completely
   void _confirmDisablePin() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: surfaceWhite,
+        backgroundColor: isDark ? const Color(0xFF1E293B) : surfaceWhite,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.lock_open_rounded, color: primaryPink, size: 24),
-            SizedBox(width: 8),
+            const Icon(Icons.lock_open_rounded, color: primaryPink, size: 24),
+            const SizedBox(width: 8),
             Text(
               "Disable PIN Lock",
               style: TextStyle(
-                color: textDark,
+                color: isDark ? Colors.white : textDark,
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
               ),
@@ -309,14 +314,18 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
         ),
         content: Text(
           context.zevTr('disablePinConfirm'),
-          style: const TextStyle(color: textGrey, fontSize: 13.5, height: 1.5),
+          style: TextStyle(
+            color: isDark ? Colors.white70 : textGrey,
+            fontSize: 13.5,
+            height: 1.5,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text(
               context.zevTr('cancel'),
-              style: const TextStyle(color: textGrey),
+              style: TextStyle(color: isDark ? Colors.white60 : textGrey),
             ),
           ),
           ElevatedButton(
@@ -386,6 +395,7 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
   }
 
   void _showLanguageSelector() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -393,9 +403,9 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
       builder: (ctx) {
         return Container(
           height: MediaQuery.of(context).size.height * 0.78,
-          decoration: const BoxDecoration(
-            color: surfaceWhite,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF131926) : surfaceWhite,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           ),
           child: Column(
             children: [
@@ -404,7 +414,7 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: cardBorder,
+                  color: isDark ? const Color(0xFF334155) : cardBorder,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -416,26 +426,35 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                   children: [
                     Text(
                       context.zevTr('language'),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: textDark,
+                        color: isDark ? Colors.white : textDark,
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close_rounded, color: textGrey),
+                      icon: Icon(
+                        Icons.close_rounded,
+                        color: isDark ? Colors.white70 : textGrey,
+                      ),
                       onPressed: () => Navigator.pop(ctx),
                     ),
                   ],
                 ),
               ),
-              const Divider(color: cardBorder, height: 1),
+              Divider(
+                color: isDark ? const Color(0xFF1E293B) : cardBorder,
+                height: 1,
+              ),
               Expanded(
                 child: ListView.separated(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   itemCount: LanguageService.supportedLanguages.length,
-                  separatorBuilder: (_, _) =>
-                      const Divider(color: cardBorder, height: 1, indent: 64),
+                  separatorBuilder: (_, _) => Divider(
+                    color: isDark ? const Color(0xFF1E293B) : cardBorder,
+                    height: 1,
+                    indent: 64,
+                  ),
                   itemBuilder: (context, index) {
                     final lang = LanguageService.supportedLanguages[index];
                     final isSelected =
@@ -458,12 +477,17 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                           fontWeight: isSelected
                               ? FontWeight.w800
                               : FontWeight.w600,
-                          color: isSelected ? primaryPink : textDark,
+                          color: isSelected
+                              ? primaryPink
+                              : (isDark ? Colors.white : textDark),
                         ),
                       ),
                       subtitle: Text(
                         lang.englishName,
-                        style: const TextStyle(fontSize: 12, color: textGrey),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? Colors.white60 : textGrey,
+                        ),
                       ),
                       trailing: isSelected
                           ? const Icon(
@@ -495,27 +519,36 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
         final currentLang = LanguageService.instance.currentLanguage;
         final isRtl = LanguageService.isRtl(activeLocale.languageCode);
 
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final scaffoldBg = isDark ? const Color(0xFF0B0F19) : surfaceWhite;
+        final appbarBg = isDark ? const Color(0xFF131926) : surfaceWhite;
+        final cardBg = isDark ? const Color(0xFF131926) : surfaceWhite;
+        final cardBorderColor = isDark ? const Color(0xFF1E293B) : cardBorder;
+        final primaryTextColor = isDark ? Colors.white : textDark;
+        final secondaryTextColor = isDark ? Colors.white70 : textGrey;
+        final iconBg = isDark ? const Color(0xFF1E293B) : lightPinkBg;
+
         return Directionality(
           textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
           child: Scaffold(
-            backgroundColor: surfaceWhite,
+            backgroundColor: scaffoldBg,
             appBar: AppBar(
-              backgroundColor: surfaceWhite,
+              backgroundColor: appbarBg,
               elevation: 0,
               scrolledUnderElevation: 0,
               centerTitle: true,
               leading: IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.arrow_back_ios_new_rounded,
-                  color: textDark,
+                  color: primaryTextColor,
                   size: 20,
                 ),
                 onPressed: () => Navigator.pop(context),
               ),
               title: Text(
                 context.zevTr('systemSecurity'),
-                style: const TextStyle(
-                  color: textDark,
+                style: TextStyle(
+                  color: primaryTextColor,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),
@@ -537,23 +570,26 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                       ),
                       children: [
                         // --- BIOMETRICS & PIN ---
-                        _buildSectionHeader(context.zevTr('authAndAccess')),
+                        _buildSectionHeader(
+                          context.zevTr('authAndAccess'),
+                          isDark: isDark,
+                        ),
                         const SizedBox(height: 10),
 
                         // Biometric Toggle Card
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: surfaceWhite,
+                            color: cardBg,
                             borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: cardBorder),
+                            border: Border.all(color: cardBorderColor),
                           ),
                           child: Row(
                             children: [
                               Container(
                                 padding: const EdgeInsets.all(10),
-                                decoration: const BoxDecoration(
-                                  color: lightPinkBg,
+                                decoration: BoxDecoration(
+                                  color: iconBg,
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(
@@ -569,10 +605,10 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                                   children: [
                                     Text(
                                       context.zevTr('biometricLogin'),
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 15,
                                         fontWeight: FontWeight.w700,
-                                        color: textDark,
+                                        color: primaryTextColor,
                                       ),
                                     ),
                                     const SizedBox(height: 2),
@@ -585,8 +621,8 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: _canCheckBiometrics
-                                            ? textGrey
-                                            : Colors.orange.shade700,
+                                            ? secondaryTextColor
+                                            : Colors.orange.shade400,
                                       ),
                                     ),
                                   ],
@@ -609,16 +645,16 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: surfaceWhite,
+                            color: cardBg,
                             borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: cardBorder),
+                            border: Border.all(color: cardBorderColor),
                           ),
                           child: Row(
                             children: [
                               Container(
                                 padding: const EdgeInsets.all(10),
-                                decoration: const BoxDecoration(
-                                  color: lightPinkBg,
+                                decoration: BoxDecoration(
+                                  color: iconBg,
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(
@@ -639,10 +675,10 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                                     children: [
                                       Text(
                                         context.zevTr('appPinCode'),
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 15,
                                           fontWeight: FontWeight.w700,
-                                          color: textDark,
+                                          color: primaryTextColor,
                                         ),
                                       ),
                                       const SizedBox(height: 2),
@@ -654,7 +690,7 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                                           fontSize: 12,
                                           color: _hasPin
                                               ? const Color(0xFF10B981)
-                                              : textGrey,
+                                              : secondaryTextColor,
                                           fontWeight: _hasPin
                                               ? FontWeight.w700
                                               : FontWeight.normal,
@@ -682,7 +718,10 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                         const SizedBox(height: 28),
 
                         // --- DEVICE ACTIVITY BUTTON ---
-                        _buildSectionHeader(context.zevTr('sessionsActivity')),
+                        _buildSectionHeader(
+                          context.zevTr('sessionsActivity'),
+                          isDark: isDark,
+                        ),
                         const SizedBox(height: 10),
 
                         InkWell(
@@ -699,16 +738,16 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: surfaceWhite,
+                              color: cardBg,
                               borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: cardBorder),
+                              border: Border.all(color: cardBorderColor),
                             ),
                             child: Row(
                               children: [
                                 Container(
                                   padding: const EdgeInsets.all(10),
-                                  decoration: const BoxDecoration(
-                                    color: lightPinkBg,
+                                  decoration: BoxDecoration(
+                                    color: iconBg,
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(
@@ -725,26 +764,26 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                                     children: [
                                       Text(
                                         context.zevTr('deviceActivity'),
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 15,
                                           fontWeight: FontWeight.w700,
-                                          color: textDark,
+                                          color: primaryTextColor,
                                         ),
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
                                         context.zevTr('deviceActivitySub'),
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 12,
-                                          color: textGrey,
+                                          color: secondaryTextColor,
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
-                                const Icon(
+                                Icon(
                                   Icons.arrow_forward_ios_rounded,
-                                  color: textGrey,
+                                  color: secondaryTextColor,
                                   size: 16,
                                 ),
                               ],
@@ -754,7 +793,10 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                         const SizedBox(height: 28),
 
                         // --- LANGUAGE PREFERENCES ---
-                        _buildSectionHeader(context.zevTr('langPreferences')),
+                        _buildSectionHeader(
+                          context.zevTr('langPreferences'),
+                          isDark: isDark,
+                        ),
                         const SizedBox(height: 10),
 
                         InkWell(
@@ -763,9 +805,9 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: surfaceWhite,
+                              color: cardBg,
                               borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: cardBorder),
+                              border: Border.all(color: cardBorderColor),
                             ),
                             child: Row(
                               children: [
@@ -781,10 +823,10 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                                     children: [
                                       Text(
                                         context.zevTr('language'),
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 15,
                                           fontWeight: FontWeight.w700,
-                                          color: textDark,
+                                          color: primaryTextColor,
                                         ),
                                       ),
                                       const SizedBox(height: 2),
@@ -799,9 +841,9 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                                     ],
                                   ),
                                 ),
-                                const Icon(
+                                Icon(
                                   Icons.arrow_forward_ios_rounded,
-                                  color: textGrey,
+                                  color: secondaryTextColor,
                                   size: 16,
                                 ),
                               ],
@@ -813,15 +855,16 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                         // --- PASSWORD MANAGEMENT ---
                         _buildSectionHeader(
                           context.zevTr('passwordManagement'),
+                          isDark: isDark,
                         ),
                         const SizedBox(height: 10),
 
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: surfaceWhite,
+                            color: cardBg,
                             borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: cardBorder),
+                            border: Border.all(color: cardBorderColor),
                           ),
                           child: Column(
                             children: [
@@ -832,6 +875,7 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                                 onToggle: () => setState(
                                   () => _obscureCurrent = !_obscureCurrent,
                                 ),
+                                isDark: isDark,
                               ),
                               const SizedBox(height: 12),
                               _buildPasswordField(
@@ -840,6 +884,7 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                                 obscure: _obscureNew,
                                 onToggle: () =>
                                     setState(() => _obscureNew = !_obscureNew),
+                                isDark: isDark,
                               ),
                               const SizedBox(height: 12),
                               _buildPasswordField(
@@ -849,6 +894,7 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
                                 onToggle: () => setState(
                                   () => _obscureConfirm = !_obscureConfirm,
                                 ),
+                                isDark: isDark,
                               ),
                               const SizedBox(height: 16),
                               SizedBox(
@@ -897,13 +943,13 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(String title, {bool isDark = false}) {
     return Text(
       title,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w800,
-        color: textGrey,
+        color: isDark ? Colors.white70 : textGrey,
         letterSpacing: 0.8,
       ),
     );
@@ -914,19 +960,23 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
     required String hint,
     required bool obscure,
     required VoidCallback onToggle,
+    bool isDark = false,
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: cardBorder,
+        color: isDark ? const Color(0xFF1E293B) : cardBorder,
         borderRadius: BorderRadius.circular(14),
       ),
       child: TextField(
         controller: controller,
         obscureText: obscure,
-        style: const TextStyle(fontSize: 14, color: textDark),
+        style: TextStyle(fontSize: 14, color: isDark ? Colors.white : textDark),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(fontSize: 13, color: textGrey),
+          hintStyle: TextStyle(
+            fontSize: 13,
+            color: isDark ? Colors.white38 : textGrey,
+          ),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 14,
@@ -937,7 +987,7 @@ class _ZevSystemSecurityScreenState extends State<ZevSystemSecurityScreen> {
               obscure
                   ? Icons.visibility_off_outlined
                   : Icons.visibility_outlined,
-              color: textGrey,
+              color: isDark ? Colors.white54 : textGrey,
               size: 20,
             ),
             onPressed: onToggle,

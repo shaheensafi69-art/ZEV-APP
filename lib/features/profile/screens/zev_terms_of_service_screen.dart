@@ -13,25 +13,27 @@ class ZevTermsOfServiceScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: surfaceWhite,
+      backgroundColor: isDark ? const Color(0xFF0B0F19) : surfaceWhite,
       appBar: AppBar(
-        backgroundColor: surfaceWhite,
+        backgroundColor: isDark ? const Color(0xFF131926) : surfaceWhite,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.arrow_back_ios_new_rounded,
-            color: textDark,
+            color: isDark ? Colors.white : textDark,
             size: 20,
           ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           "Terms of Service",
           style: TextStyle(
-            color: textDark,
+            color: isDark ? Colors.white : textDark,
             fontSize: 18,
             fontWeight: FontWeight.w800,
           ),
@@ -72,18 +74,22 @@ class ZevTermsOfServiceScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            const Text(
+            Text(
               "ZEV Community Terms & Guidelines",
               style: TextStyle(
-                color: textDark,
+                color: isDark ? Colors.white : textDark,
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
+            Text(
               "Welcome to ZEV (zevapp.com). By downloading, creating an account, or accessing our platform, you agree to comply with and be bound by the following Terms of Service.",
-              style: TextStyle(color: textGrey, fontSize: 14, height: 1.6),
+              style: TextStyle(
+                color: isDark ? Colors.white70 : textGrey,
+                fontSize: 14,
+                height: 1.6,
+              ),
             ),
             const SizedBox(height: 24),
 
@@ -92,6 +98,7 @@ class ZevTermsOfServiceScreen extends StatelessWidget {
               title: "1. Eligibility & Accounts",
               content:
                   "You must be at least 13 years old to use ZEV. You are responsible for keeping your password and 4-digit PIN confidential and for all activities occurring under your account.",
+              isDark: isDark,
             ),
             const SizedBox(height: 16),
 
@@ -100,6 +107,7 @@ class ZevTermsOfServiceScreen extends StatelessWidget {
               title: "2. Content Ownership & Rights",
               content:
                   "You retain full ownership of photos, videos, reels, and stories you post on ZEV. By sharing content, you grant ZEV a non-exclusive, worldwide license to host, display, and distribute it strictly within the application ecosystem.",
+              isDark: isDark,
             ),
             const SizedBox(height: 16),
 
@@ -108,6 +116,7 @@ class ZevTermsOfServiceScreen extends StatelessWidget {
               title: "3. Prohibited Conduct",
               content:
                   "Users must not post hate speech, harassment, sexually explicit materials, copyright infringement, or deceptive content. Automated scraping or botting without written permission is strictly prohibited.",
+              isDark: isDark,
             ),
             const SizedBox(height: 16),
 
@@ -116,6 +125,7 @@ class ZevTermsOfServiceScreen extends StatelessWidget {
               title: "4. Moderation & Suspension",
               content:
                   "ZEV reserves the right to remove any content that violates these terms and suspend or permanently terminate accounts involved in repeated offenses.",
+              isDark: isDark,
             ),
             const SizedBox(height: 16),
 
@@ -124,28 +134,32 @@ class ZevTermsOfServiceScreen extends StatelessWidget {
               title: "5. Modifications to Service",
               content:
                   "We continuously improve ZEV. Features may be updated, modified, or discontinued with reasonable notice. Continued use following changes represents agreement to updated terms.",
+              isDark: isDark,
             ),
             const SizedBox(height: 32),
 
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: cardBorder,
+                color: isDark ? const Color(0xFF131926) : cardBorder,
                 borderRadius: BorderRadius.circular(16),
+                border: isDark
+                    ? Border.all(color: const Color(0xFF1E293B))
+                    : null,
               ),
-              child: const Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     "Legal Inquiries",
                     style: TextStyle(
-                      color: textDark,
+                      color: isDark ? Colors.white : textDark,
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  SizedBox(height: 4),
-                  Text(
+                  const SizedBox(height: 4),
+                  const Text(
                     "For terms or legal questions, email legal@zevapp.com",
                     style: TextStyle(
                       color: primaryPink,
@@ -167,13 +181,16 @@ class ZevTermsOfServiceScreen extends StatelessWidget {
     required IconData icon,
     required String title,
     required String content,
+    required bool isDark,
   }) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: surfaceWhite,
+        color: isDark ? const Color(0xFF131926) : surfaceWhite,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: cardBorder),
+        border: Border.all(
+          color: isDark ? const Color(0xFF1E293B) : cardBorder,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -183,7 +200,7 @@ class ZevTermsOfServiceScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: lightPinkBg,
+                  color: isDark ? const Color(0xFF1E293B) : lightPinkBg,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(icon, color: primaryPink, size: 20),
@@ -192,8 +209,8 @@ class ZevTermsOfServiceScreen extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    color: textDark,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : textDark,
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                   ),
@@ -204,8 +221,8 @@ class ZevTermsOfServiceScreen extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             content,
-            style: const TextStyle(
-              color: textGrey,
+            style: TextStyle(
+              color: isDark ? Colors.white70 : textGrey,
               fontSize: 13.5,
               height: 1.55,
             ),

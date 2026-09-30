@@ -386,19 +386,27 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
       return fullName.contains(q) || email.contains(q) || country.contains(q);
     }).toList();
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return ZevLoadingOverlay(
       isLoading: isLoading,
       message: "SYNCING COMMUNITY...",
       child: Scaffold(
-        backgroundColor: surfaceWhite,
+        backgroundColor: isDark ? const Color(0xFF0B0F19) : surfaceWhite,
         body: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [
-                const Color(0xFFFFF0F5),
-                surfaceWhite,
-                lightPinkBg.withOpacity(0.3),
-              ],
+              colors: isDark
+                  ? [
+                      const Color(0xFF0B0F19),
+                      const Color(0xFF131926),
+                      const Color(0xFF0B0F19),
+                    ]
+                  : [
+                      const Color(0xFFFFF0F5),
+                      surfaceWhite,
+                      lightPinkBg.withOpacity(0.3),
+                    ],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
@@ -420,7 +428,12 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
                       ),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [surfaceWhite, lightPinkBg.withOpacity(0.6)],
+                          colors: isDark
+                              ? [
+                                  const Color(0xFF131926),
+                                  const Color(0xFF1E293B),
+                                ]
+                              : [surfaceWhite, lightPinkBg.withOpacity(0.6)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -467,12 +480,12 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   "Discover & Connect",
                                   style: TextStyle(
                                     fontSize: 19,
                                     fontWeight: FontWeight.w900,
-                                    color: textDark,
+                                    color: isDark ? Colors.white : textDark,
                                     letterSpacing: -0.5,
                                   ),
                                 ),
@@ -626,10 +639,14 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
                               return Container(
                                 padding: const EdgeInsets.all(14),
                                 decoration: BoxDecoration(
-                                  color: surfaceWhite,
+                                  color: isDark
+                                      ? const Color(0xFF131926)
+                                      : surfaceWhite,
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: cardBorder,
+                                    color: isDark
+                                        ? const Color(0xFF1E293B)
+                                        : cardBorder,
                                     width: 1.5,
                                   ),
                                   boxShadow: [
@@ -667,7 +684,9 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
                                         ),
                                         child: CircleAvatar(
                                           radius: 25,
-                                          backgroundColor: surfaceWhite,
+                                          backgroundColor: isDark
+                                              ? const Color(0xFF131926)
+                                              : surfaceWhite,
                                           child: CircleAvatar(
                                             radius: 23,
                                             backgroundColor: lightPinkBg,
@@ -714,8 +733,10 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
                                                     name.isNotEmpty
                                                         ? name
                                                         : 'ZEV User',
-                                                    style: const TextStyle(
-                                                      color: textDark,
+                                                    style: TextStyle(
+                                                      color: isDark
+                                                          ? Colors.white
+                                                          : textDark,
                                                       fontWeight:
                                                           FontWeight.w900,
                                                       fontSize: 14.5,
@@ -990,13 +1011,18 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
     bool isBadge = false,
   }) {
     final isSelected = activeTab == tabKey;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: () => setState(() => activeTab = tabKey),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? primaryPink : cardBorder.withOpacity(0.8),
+          color: isSelected
+              ? primaryPink
+              : (isDark
+                    ? const Color(0xFF1E293B)
+                    : cardBorder.withOpacity(0.8)),
           borderRadius: BorderRadius.circular(16),
           boxShadow: isSelected
               ? [
@@ -1011,12 +1037,20 @@ class _FriendsViewerScreenState extends State<FriendsViewerScreen> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: isSelected ? Colors.white : textGrey),
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected
+                  ? Colors.white
+                  : (isDark ? Colors.white60 : textGrey),
+            ),
             const SizedBox(width: 6),
             Text(
               "$label ($count)",
               style: TextStyle(
-                color: isSelected ? Colors.white : textDark,
+                color: isSelected
+                    ? Colors.white
+                    : (isDark ? Colors.white70 : textDark),
                 fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
                 fontSize: 12.5,
               ),

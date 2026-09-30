@@ -44,8 +44,18 @@
             "action": "/?source=file_handler",
             "name": "ZEV Media Files",
             "accept": {
-                "image/*": [".jpg", ".jpeg", ".png", ".webp", ".gif"],
-                "video/*": [".mp4", ".mov", ".webm"]
+                "image/*": [
+                    ".jpg",
+                    ".jpeg",
+                    ".png",
+                    ".webp",
+                    ".gif"
+                ],
+                "video/*": [
+                    ".mp4",
+                    ".mov",
+                    ".webm"
+                ]
             }
         }
     ],

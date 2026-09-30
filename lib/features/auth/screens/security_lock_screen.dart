@@ -15,7 +15,7 @@ class _SecurityLockScreenState extends State<SecurityLockScreen> {
   // Direct package usage without interference
   final LocalAuthentication auth = LocalAuthentication();
   final supabase = Supabase.instance.client;
-  
+
   bool _isAuthenticating = false;
   String _pinInput = "";
 
@@ -39,9 +39,10 @@ class _SecurityLockScreenState extends State<SecurityLockScreen> {
       if (!canAuth) return;
 
       setState(() => _isAuthenticating = true);
-      
+
       bool authenticated = await auth.authenticate(
-        localizedReason: 'Please authenticate with Face ID or Fingerprint to access ZEV',
+        localizedReason:
+            'Please authenticate with Face ID or Fingerprint to access ZEV',
         biometricOnly: true,
         persistAcrossBackgrounding: true,
       );
@@ -78,7 +79,10 @@ class _SecurityLockScreenState extends State<SecurityLockScreen> {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(context.l10n.incorrectPin), backgroundColor: Colors.red),
+            SnackBar(
+              content: Text(context.l10n.incorrectPin),
+              backgroundColor: Colors.red,
+            ),
           );
           setState(() => _pinInput = "");
         }
@@ -91,8 +95,14 @@ class _SecurityLockScreenState extends State<SecurityLockScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBg = isDark ? const Color(0xFF0B0F19) : surfaceWhite;
+    final primaryTextColor = isDark ? Colors.white : textDark;
+    final secondaryTextColor = isDark ? Colors.white70 : textGrey;
+    final keyButtonBg = isDark ? const Color(0xFF1E293B) : cardBorder;
+
     return Scaffold(
-      backgroundColor: surfaceWhite,
+      backgroundColor: scaffoldBg,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
@@ -102,16 +112,39 @@ class _SecurityLockScreenState extends State<SecurityLockScreen> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: lightPinkBg,
+                  color: isDark ? const Color(0xFF1E293B) : lightPinkBg,
                   shape: BoxShape.circle,
-                  border: Border.all(color: primaryPink.withValues(alpha: 0.3), width: 1.5),
+                  border: Border.all(
+                    color: isDark
+                        ? const Color(0xFF334155)
+                        : primaryPink.withValues(alpha: 0.3),
+                    width: 1.5,
+                  ),
                 ),
-                child: const Icon(Icons.lock_rounded, size: 36, color: primaryPink),
+                child: const Icon(
+                  Icons.lock_rounded,
+                  size: 36,
+                  color: primaryPink,
+                ),
               ),
               const SizedBox(height: 16),
-              Text(context.l10n.securityVerification, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: textDark)),
+              Text(
+                context.l10n.securityVerification,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: primaryTextColor,
+                ),
+              ),
               const SizedBox(height: 4),
-              Text(context.l10n.enter4DigitPin, style: const TextStyle(fontSize: 11, color: textGrey, fontWeight: FontWeight.w500)),
+              Text(
+                context.l10n.enter4DigitPin,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: secondaryTextColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
               const SizedBox(height: 30),
 
               // PIN code dots
@@ -126,9 +159,15 @@ class _SecurityLockScreenState extends State<SecurityLockScreen> {
                     height: filled ? 18 : 14,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: filled ? primaryPink : cardBorder,
+                      color: filled
+                          ? primaryPink
+                          : (isDark ? const Color(0xFF1E293B) : cardBorder),
                       border: Border.all(
-                        color: filled ? primaryPink : Colors.grey.shade300,
+                        color: filled
+                            ? primaryPink
+                            : (isDark
+                                  ? const Color(0xFF334155)
+                                  : Colors.grey.shade300),
                         width: 1.5,
                       ),
                     ),
@@ -138,13 +177,19 @@ class _SecurityLockScreenState extends State<SecurityLockScreen> {
               const SizedBox(height: 40),
 
               // Keypad number dialer
-              for (var row in [['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9'], ['', '0', 'del']])
+              for (var row in [
+                ['1', '2', '3'],
+                ['4', '5', '6'],
+                ['7', '8', '9'],
+                ['', '0', 'del'],
+              ])
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: row.map((val) {
-                      if (val.isEmpty) return const SizedBox(width: 70, height: 70);
+                      if (val.isEmpty)
+                        return const SizedBox(width: 70, height: 70);
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12.0),
                         child: SizedBox(
@@ -153,22 +198,38 @@ class _SecurityLockScreenState extends State<SecurityLockScreen> {
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               shape: const CircleBorder(),
-                              backgroundColor: cardBorder,
-                              foregroundColor: textDark,
+                              backgroundColor: keyButtonBg,
+                              foregroundColor: primaryTextColor,
                               elevation: 0,
                             ),
                             onPressed: () {
                               if (val == 'del') {
                                 if (_pinInput.isNotEmpty) {
-                                  setState(() => _pinInput = _pinInput.substring(0, _pinInput.length - 1));
+                                  setState(
+                                    () => _pinInput = _pinInput.substring(
+                                      0,
+                                      _pinInput.length - 1,
+                                    ),
+                                  );
                                 }
                               } else {
                                 _onNumberPressed(val);
                               }
                             },
                             child: val == 'del'
-                                ? const Icon(Icons.backspace_rounded, color: textDark, size: 20)
-                                : Text(val, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: textDark)),
+                                ? Icon(
+                                    Icons.backspace_rounded,
+                                    color: primaryTextColor,
+                                    size: 20,
+                                  )
+                                : Text(
+                                    val,
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w900,
+                                      color: primaryTextColor,
+                                    ),
+                                  ),
                           ),
                         ),
                       );
@@ -180,7 +241,14 @@ class _SecurityLockScreenState extends State<SecurityLockScreen> {
               TextButton.icon(
                 onPressed: _authenticateWithBiometrics,
                 icon: const Icon(Icons.fingerprint_rounded, color: primaryPink),
-                label: const Text("Use Fingerprint / FaceID", style: TextStyle(color: primaryPink, fontWeight: FontWeight.bold, fontSize: 12)),
+                label: const Text(
+                  "Use Fingerprint / FaceID",
+                  style: TextStyle(
+                    color: primaryPink,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
               ),
             ],
           ),

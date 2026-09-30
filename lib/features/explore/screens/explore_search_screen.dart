@@ -580,15 +580,283 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
   }
 
   Widget _buildPeopleMobileList(List<Map<String, dynamic>> list, bool isDark) {
-    return ListView.builder(
+    return ListView.separated(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       itemCount: list.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: _buildPeopleCard(list[index], index, isDark, isMobile: true),
-        );
+        return _buildPeopleMobileItem(list[index], index, isDark);
       },
+    );
+  }
+
+  Widget _buildPeopleMobileItem(
+    Map<String, dynamic> user,
+    int index,
+    bool isDark,
+  ) {
+    final uid = user['id']?.toString() ?? '';
+    final name = "${user['first_name'] ?? ''} ${user['last_name'] ?? ''}"
+        .trim();
+    final displayName = name.isNotEmpty ? name : (user['username'] ?? 'User');
+    final avatar = user['avatar_url']?.toString() ?? '';
+    final username = user['username']?.toString() ?? '';
+    final bio = user['bio']?.toString() ?? '';
+    final role = user['role']?.toString() ?? 'student';
+    final isFollowing = _followingUserIds.contains(uid);
+
+    final isAdmin = role == 'admin' || role == 'super_admin';
+    final isTeacher = role == 'teacher';
+    final roleColor = isAdmin
+        ? Colors.deepPurple
+        : (isTeacher ? Colors.blueAccent : primaryPink);
+    final String? roleBadge = isAdmin
+        ? "OFFICIAL 🛡️"
+        : (isTeacher ? "TEACHER 🎓" : null);
+
+    final bool isOnline =
+        user['is_online'] == true ||
+        (user['last_seen'] != null &&
+            DateTime.tryParse(user['last_seen'].toString()) != null &&
+            DateTime.now()
+                    .difference(DateTime.parse(user['last_seen'].toString()))
+                    .inMinutes <
+                5);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => UserProfileScreen(userId: uid)),
+          );
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF131926) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : const Color(0xFFE2E8F0),
+              width: 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Avatar with online badge
+              Stack(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: isOnline
+                          ? const LinearGradient(
+                              colors: [primaryPink, Color(0xFF10B981)],
+                            )
+                          : null,
+                      border: !isOnline
+                          ? Border.all(
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.12)
+                                  : const Color(0xFFE2E8F0),
+                              width: 1.5,
+                            )
+                          : null,
+                    ),
+                    child: CircleAvatar(
+                      radius: 23,
+                      backgroundColor: isDark
+                          ? const Color(0xFF1E293B)
+                          : const Color(0xFFFAF4F6),
+                      backgroundImage: avatar.isNotEmpty
+                          ? NetworkImage(avatar)
+                          : null,
+                      child: avatar.isEmpty
+                          ? Text(
+                              displayName.isNotEmpty
+                                  ? displayName[0].toUpperCase()
+                                  : 'U',
+                              style: const TextStyle(
+                                color: primaryPink,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
+                  if (isOnline)
+                    Positioned(
+                      right: 1,
+                      bottom: 1,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isDark
+                                ? const Color(0xFF131926)
+                                : Colors.white,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 12),
+              // User info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            displayName,
+                            style: TextStyle(
+                              color: isDark
+                                  ? Colors.white
+                                  : const Color(0xFF0F172A),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (roleBadge != null) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: roleColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              roleBadge,
+                              style: TextStyle(
+                                color: roleColor,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "@$username",
+                      style: TextStyle(
+                        color: isDark
+                            ? const Color(0xFF94A3B8)
+                            : const Color(0xFF64748B),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (bio.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        bio,
+                        style: TextStyle(
+                          color: isDark
+                              ? Colors.white70
+                              : const Color(0xFF475569),
+                          fontSize: 11,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Compact Follow/Following button
+              InkWell(
+                onTap: () => _toggleFollow(uid),
+                borderRadius: BorderRadius.circular(14),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isFollowing
+                        ? (isDark
+                              ? const Color(0xFF1E293B)
+                              : const Color(0xFFF1F5F9))
+                        : null,
+                    gradient: !isFollowing
+                        ? const LinearGradient(
+                            colors: [primaryPink, Color(0xFFFF5277)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    borderRadius: BorderRadius.circular(14),
+                    border: isFollowing
+                        ? Border.all(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.12)
+                                : const Color(0xFFCBD5E1),
+                            width: 1,
+                          )
+                        : null,
+                    boxShadow: !isFollowing
+                        ? [
+                            BoxShadow(
+                              color: primaryPink.withValues(alpha: 0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Text(
+                    isFollowing
+                        ? context.zevTr('following')
+                        : context.zevTr('follow'),
+                    style: TextStyle(
+                      color: isFollowing
+                          ? (isDark
+                                ? const Color(0xFF94A3B8)
+                                : const Color(0xFF64748B))
+                          : Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

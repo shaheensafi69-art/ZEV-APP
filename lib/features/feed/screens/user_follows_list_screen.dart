@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/localization/zev_localizations.dart';
 import 'user_profile_screen.dart';
 import '../../chat/screens/direct_chat_screen.dart';
 
@@ -27,7 +28,8 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
   bool isLoading = true;
   List<Map<String, dynamic>> followers = [];
   List<Map<String, dynamic>> following = [];
-  Set<String> myFollowingIds = {}; // IDs that the current logged in user follows
+  Set<String> myFollowingIds =
+      {}; // IDs that the current logged in user follows
 
   String searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
@@ -92,13 +94,17 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
         final fRes = await supabase
             .from('student_friends')
             .select('sender_id, receiver_id')
-            .or('sender_id.eq.${widget.targetUserId},receiver_id.eq.${widget.targetUserId}')
+            .or(
+              'sender_id.eq.${widget.targetUserId},receiver_id.eq.${widget.targetUserId}',
+            )
             .eq('status', 'accepted');
         for (var f in (fRes as List)) {
           final sId = f['sender_id']?.toString();
           final rId = f['receiver_id']?.toString();
           final other = (sId == widget.targetUserId) ? rId : sId;
-          if (other != null && other.isNotEmpty && !followerIds.contains(other)) {
+          if (other != null &&
+              other.isNotEmpty &&
+              !followerIds.contains(other)) {
             followerIds.add(other);
           }
         }
@@ -120,13 +126,17 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
         final fRes = await supabase
             .from('student_friends')
             .select('sender_id, receiver_id')
-            .or('sender_id.eq.${widget.targetUserId},receiver_id.eq.${widget.targetUserId}')
+            .or(
+              'sender_id.eq.${widget.targetUserId},receiver_id.eq.${widget.targetUserId}',
+            )
             .eq('status', 'accepted');
         for (var f in (fRes as List)) {
           final sId = f['sender_id']?.toString();
           final rId = f['receiver_id']?.toString();
           final other = (sId == widget.targetUserId) ? rId : sId;
-          if (other != null && other.isNotEmpty && !followingIds.contains(other)) {
+          if (other != null &&
+              other.isNotEmpty &&
+              !followingIds.contains(other)) {
             followingIds.add(other);
           }
         }
@@ -209,21 +219,31 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: isDark
+          ? const Color(0xFF0B0F19)
+          : const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: surfaceWhite,
+        backgroundColor: isDark ? const Color(0xFF131926) : surfaceWhite,
         elevation: 0,
         scrolledUnderElevation: 1,
         titleSpacing: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: textDark, size: 20),
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: isDark ? Colors.white : textDark,
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          widget.targetUserName.isNotEmpty ? widget.targetUserName : "Connections",
-          style: const TextStyle(
-            color: textDark,
+          widget.targetUserName.isNotEmpty
+              ? widget.targetUserName
+              : context.zevTr('connections'),
+          style: TextStyle(
+            color: isDark ? Colors.white : textDark,
             fontSize: 17,
             fontWeight: FontWeight.w800,
           ),
@@ -233,20 +253,35 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: Container(
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: cardBorder, width: 1)),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: isDark ? const Color(0xFF1E293B) : cardBorder,
+                  width: 1,
+                ),
+              ),
             ),
             child: TabBar(
               controller: _tabController,
               indicatorColor: primaryPink,
               indicatorWeight: 3,
               labelColor: primaryPink,
-              unselectedLabelColor: textGrey,
-              labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              unselectedLabelColor: isDark ? Colors.white60 : textGrey,
+              labelStyle: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+              unselectedLabelStyle: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
               tabs: [
-                Tab(text: "Followers (${followers.length})"),
-                Tab(text: "Following (${following.length})"),
+                Tab(
+                  text: "${context.zevTr('followers')} (${followers.length})",
+                ),
+                Tab(
+                  text: "${context.zevTr('following')} (${following.length})",
+                ),
               ],
             ),
           ),
@@ -256,24 +291,42 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
         children: [
           // Search box
           Container(
-            color: surfaceWhite,
+            color: isDark ? const Color(0xFF131926) : surfaceWhite,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Container(
               height: 44,
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+                color: isDark
+                    ? const Color(0xFF1E293B)
+                    : const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: TextField(
                 controller: _searchController,
-                onChanged: (val) => setState(() => searchQuery = val.trim().toLowerCase()),
+                onChanged: (val) =>
+                    setState(() => searchQuery = val.trim().toLowerCase()),
+                style: TextStyle(
+                  color: isDark ? Colors.white : textDark,
+                  fontSize: 14,
+                ),
                 decoration: InputDecoration(
-                  hintText: "Search users...",
-                  hintStyle: const TextStyle(color: textGrey, fontSize: 13),
-                  prefixIcon: const Icon(Icons.search_rounded, color: textGrey, size: 20),
+                  hintText: "${context.zevTr('search')}...",
+                  hintStyle: TextStyle(
+                    color: isDark ? Colors.white38 : textGrey,
+                    fontSize: 13,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    color: isDark ? Colors.white60 : textGrey,
+                    size: 20,
+                  ),
                   suffixIcon: searchQuery.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear_rounded, color: textGrey, size: 18),
+                          icon: const Icon(
+                            Icons.clear_rounded,
+                            color: textGrey,
+                            size: 18,
+                          ),
                           onPressed: () {
                             _searchController.clear();
                             setState(() => searchQuery = '');
@@ -289,7 +342,9 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
 
           Expanded(
             child: isLoading
-                ? const Center(child: CircularProgressIndicator(color: primaryPink))
+                ? const Center(
+                    child: CircularProgressIndicator(color: primaryPink),
+                  )
                 : TabBarView(
                     controller: _tabController,
                     children: [
@@ -303,12 +358,17 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
     );
   }
 
-  Widget _buildUserList(List<Map<String, dynamic>> list, {required bool isFollowersTab}) {
+  Widget _buildUserList(
+    List<Map<String, dynamic>> list, {
+    required bool isFollowersTab,
+  }) {
     final currentUserId = supabase.auth.currentUser?.id;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final filtered = list.where((user) {
       if (searchQuery.isEmpty) return true;
-      final name = "${user['first_name'] ?? ''} ${user['last_name'] ?? ''}".toLowerCase();
+      final name = "${user['first_name'] ?? ''} ${user['last_name'] ?? ''}"
+          .toLowerCase();
       final role = (user['role'] ?? '').toString().toLowerCase();
       return name.contains(searchQuery) || role.contains(searchQuery);
     }).toList();
@@ -322,12 +382,14 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
             children: [
               Container(
                 padding: const EdgeInsets.all(20),
-                decoration: const BoxDecoration(
-                  color: lightPinkBg,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E293B) : lightPinkBg,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  isFollowersTab ? Icons.people_outline_rounded : Icons.person_search_rounded,
+                  isFollowersTab
+                      ? Icons.people_outline_rounded
+                      : Icons.person_search_rounded,
                   size: 48,
                   color: primaryPink,
                 ),
@@ -336,9 +398,11 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
               Text(
                 searchQuery.isNotEmpty
                     ? "No users found matching \"$searchQuery\""
-                    : (isFollowersTab ? "No followers yet" : "Not following anyone yet"),
-                style: const TextStyle(
-                  color: textDark,
+                    : (isFollowersTab
+                          ? "No followers yet"
+                          : "Not following anyone yet"),
+                style: TextStyle(
+                  color: isDark ? Colors.white : textDark,
                   fontWeight: FontWeight.bold,
                   fontSize: 15,
                 ),
@@ -349,7 +413,10 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
                 isFollowersTab
                     ? "When someone follows this profile, they will appear here."
                     : "Profiles followed by this user will be listed here.",
-                style: const TextStyle(color: textGrey, fontSize: 12),
+                style: TextStyle(
+                  color: isDark ? Colors.white60 : textGrey,
+                  fontSize: 12,
+                ),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -368,7 +435,8 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
         itemBuilder: (context, index) {
           final user = filtered[index];
           final uid = user['id']?.toString() ?? '';
-          final name = "${user['first_name'] ?? ''} ${user['last_name'] ?? ''}".trim();
+          final name = "${user['first_name'] ?? ''} ${user['last_name'] ?? ''}"
+              .trim();
           final avatarUrl = user['avatar_url']?.toString() ?? '';
           final role = (user['role'] ?? 'student').toString().toUpperCase();
           final isMe = uid == currentUserId;
@@ -377,9 +445,11 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
           return Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: surfaceWhite,
+              color: isDark ? const Color(0xFF131926) : surfaceWhite,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: cardBorder),
+              border: Border.all(
+                color: isDark ? const Color(0xFF1E293B) : cardBorder,
+              ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.02),
@@ -396,9 +466,15 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
                   child: CircleAvatar(
                     radius: 24,
                     backgroundColor: lightPinkBg,
-                    backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                    backgroundImage: avatarUrl.isNotEmpty
+                        ? NetworkImage(avatarUrl)
+                        : null,
                     child: avatarUrl.isEmpty
-                        ? const Icon(Icons.person_rounded, color: primaryPink, size: 26)
+                        ? const Icon(
+                            Icons.person_rounded,
+                            color: primaryPink,
+                            size: 26,
+                          )
                         : null,
                   ),
                 ),
@@ -414,8 +490,8 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
                       children: [
                         Text(
                           name.isNotEmpty ? name : "User",
-                          style: const TextStyle(
-                            color: textDark,
+                          style: TextStyle(
+                            color: isDark ? Colors.white : textDark,
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
                           ),
@@ -426,13 +502,16 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
                         Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: role == 'TEACHER'
                                     ? Colors.blue.withValues(alpha: 0.1)
                                     : (role == 'ADMIN'
-                                        ? Colors.purple.withValues(alpha: 0.1)
-                                        : lightPinkBg),
+                                          ? Colors.purple.withValues(alpha: 0.1)
+                                          : lightPinkBg),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
@@ -441,8 +520,8 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
                                   color: role == 'TEACHER'
                                       ? Colors.blue.shade700
                                       : (role == 'ADMIN'
-                                          ? Colors.purple.shade700
-                                          : primaryPink),
+                                            ? Colors.purple.shade700
+                                            : primaryPink),
                                   fontSize: 10,
                                   fontWeight: FontWeight.w800,
                                 ),
@@ -459,7 +538,11 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
                 if (!isMe && currentUserId != null) ...[
                   // Message shortcut
                   IconButton(
-                    icon: const Icon(Icons.chat_bubble_outline_rounded, color: textGrey, size: 20),
+                    icon: const Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      color: textGrey,
+                      size: 20,
+                    ),
                     onPressed: () {
                       Navigator.push(
                         context,
@@ -481,16 +564,33 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
                     onTap: () => _toggleFollow(uid),
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
-                        color: isFollowing ? const Color(0xFFF1F5F9) : primaryPink,
+                        color: isFollowing
+                            ? (isDark
+                                  ? const Color(0xFF1E293B)
+                                  : const Color(0xFFF1F5F9))
+                            : primaryPink,
                         borderRadius: BorderRadius.circular(12),
-                        border: isFollowing ? Border.all(color: const Color(0xFFCBD5E1)) : null,
+                        border: isFollowing
+                            ? Border.all(
+                                color: isDark
+                                    ? const Color(0xFF334155)
+                                    : const Color(0xFFCBD5E1),
+                              )
+                            : null,
                       ),
                       child: Text(
-                        isFollowing ? "Following" : "Follow",
+                        isFollowing
+                            ? context.zevTr('following')
+                            : context.zevTr('follow'),
                         style: TextStyle(
-                          color: isFollowing ? textDark : Colors.white,
+                          color: isFollowing
+                              ? (isDark ? Colors.white : textDark)
+                              : Colors.white,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -510,9 +610,7 @@ class _UserFollowsListScreenState extends State<UserFollowsListScreen>
     if (uid.isEmpty) return;
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => UserProfileScreen(userId: uid),
-      ),
+      MaterialPageRoute(builder: (_) => UserProfileScreen(userId: uid)),
     );
   }
 }

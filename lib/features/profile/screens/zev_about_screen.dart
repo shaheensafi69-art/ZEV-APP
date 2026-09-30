@@ -23,13 +23,14 @@ class ZevAboutScreen extends StatelessWidget {
       valueListenable: LanguageService.instance.localeNotifier,
       builder: (context, activeLocale, _) {
         final isRtl = LanguageService.isRtl(activeLocale.languageCode);
+        final isDark = Theme.of(context).brightness == Brightness.dark;
 
         return Directionality(
           textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
           child: Scaffold(
-            backgroundColor: surfaceWhite,
+            backgroundColor: isDark ? const Color(0xFF0B0F19) : surfaceWhite,
             appBar: AppBar(
-              backgroundColor: surfaceWhite,
+              backgroundColor: isDark ? const Color(0xFF131926) : surfaceWhite,
               elevation: 0,
               scrolledUnderElevation: 0,
               centerTitle: true,
@@ -38,15 +39,15 @@ class ZevAboutScreen extends StatelessWidget {
                   isRtl
                       ? Icons.arrow_forward_ios_rounded
                       : Icons.arrow_back_ios_new_rounded,
-                  color: textDark,
+                  color: isDark ? Colors.white : textDark,
                   size: 20,
                 ),
                 onPressed: () => Navigator.pop(context),
               ),
               title: Text(
                 context.zevTr('aboutZev'),
-                style: const TextStyle(
-                  color: textDark,
+                style: TextStyle(
+                  color: isDark ? Colors.white : textDark,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),
@@ -68,8 +69,13 @@ class ZevAboutScreen extends StatelessWidget {
                           width: 90,
                           height: 90,
                           decoration: BoxDecoration(
-                            color: surfaceWhite,
+                            color: isDark
+                                ? const Color(0xFF131926)
+                                : surfaceWhite,
                             borderRadius: BorderRadius.circular(24),
+                            border: isDark
+                                ? Border.all(color: const Color(0xFF1E293B))
+                                : null,
                             boxShadow: [
                               BoxShadow(
                                 color: primaryPink.withValues(alpha: 0.15),
@@ -103,10 +109,10 @@ class ZevAboutScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 14),
-                        const Row(
+                        Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
+                            const Text(
                               "ZEV",
                               style: TextStyle(
                                 fontSize: 26,
@@ -120,7 +126,7 @@ class ZevAboutScreen extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 26,
                                 fontWeight: FontWeight.w800,
-                                color: textDark,
+                                color: isDark ? Colors.white : textDark,
                                 letterSpacing: -0.5,
                               ),
                             ),
@@ -146,6 +152,7 @@ class ZevAboutScreen extends StatelessWidget {
                   const SizedBox(height: 32),
 
                   _buildTile(
+                    context,
                     icon: Icons.shield_outlined,
                     title: context.zevTr('privacyPolicy'),
                     subtitle: context.zevTr('privacyPolicySub'),
@@ -160,6 +167,7 @@ class ZevAboutScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   _buildTile(
+                    context,
                     icon: Icons.description_outlined,
                     title: context.zevTr('termsOfService'),
                     subtitle: context.zevTr('termsOfServiceSub'),
@@ -174,6 +182,7 @@ class ZevAboutScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   _buildTile(
+                    context,
                     icon: Icons.help_outline_rounded,
                     title: context.zevTr('supportAndHelp'),
                     subtitle: context.zevTr('supportAndHelpSub'),
@@ -188,6 +197,7 @@ class ZevAboutScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   _buildTile(
+                    context,
                     icon: Icons.code_rounded,
                     title: context.zevTr('openSourceLicenses'),
                     subtitle: context.zevTr('openSourceLicensesSub'),
@@ -222,44 +232,51 @@ class ZevAboutScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTile({
+  Widget _buildTile(
+    BuildContext context, {
     required IconData icon,
     required String title,
     required String subtitle,
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: surfaceWhite,
+        color: isDark ? const Color(0xFF131926) : surfaceWhite,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cardBorder),
+        border: Border.all(
+          color: isDark ? const Color(0xFF1E293B) : cardBorder,
+        ),
       ),
       child: ListTile(
         onTap: onTap,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: Container(
           padding: const EdgeInsets.all(8),
-          decoration: const BoxDecoration(
-            color: lightPinkBg,
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : lightPinkBg,
             shape: BoxShape.circle,
           ),
           child: Icon(icon, color: primaryPink, size: 20),
         ),
         title: Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: textDark,
+            color: isDark ? Colors.white : textDark,
           ),
         ),
         subtitle: Text(
           subtitle,
-          style: const TextStyle(fontSize: 12, color: textGrey),
+          style: TextStyle(
+            fontSize: 12,
+            color: isDark ? Colors.white60 : textGrey,
+          ),
         ),
-        trailing: const Icon(
+        trailing: Icon(
           Icons.arrow_forward_ios_rounded,
-          color: textGrey,
+          color: isDark ? Colors.white54 : textGrey,
           size: 14,
         ),
       ),

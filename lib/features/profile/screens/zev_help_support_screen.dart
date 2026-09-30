@@ -106,12 +106,21 @@ class _ZevHelpSupportScreenState extends State<ZevHelpSupportScreen> {
       builder: (context, locale, _) {
         final isRtl = LanguageService.instance.isCurrentRtl;
 
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final scaffoldBg = isDark ? const Color(0xFF0B0F19) : surfaceWhite;
+        final appbarBg = isDark ? const Color(0xFF131926) : surfaceWhite;
+        final cardBg = isDark ? const Color(0xFF131926) : surfaceWhite;
+        final inputBg = isDark ? const Color(0xFF1E293B) : surfaceWhite;
+        final cardBorderColor = isDark ? const Color(0xFF1E293B) : cardBorder;
+        final primaryTextColor = isDark ? Colors.white : textDark;
+        final secondaryTextColor = isDark ? Colors.white70 : textGrey;
+
         return Directionality(
           textDirection: LanguageService.instance.textDirection,
           child: Scaffold(
-            backgroundColor: surfaceWhite,
+            backgroundColor: scaffoldBg,
             appBar: AppBar(
-              backgroundColor: surfaceWhite,
+              backgroundColor: appbarBg,
               elevation: 0,
               scrolledUnderElevation: 0,
               centerTitle: true,
@@ -120,211 +129,229 @@ class _ZevHelpSupportScreenState extends State<ZevHelpSupportScreen> {
                   isRtl
                       ? Icons.arrow_forward_ios_rounded
                       : Icons.arrow_back_ios_new_rounded,
-                  color: textDark,
+                  color: primaryTextColor,
                   size: 20,
                 ),
                 onPressed: () => Navigator.pop(context),
               ),
               title: Text(
                 context.zevTr('supportAndHelp'),
-                style: const TextStyle(
-                  color: textDark,
+                style: TextStyle(
+                  color: primaryTextColor,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),
               ),
             ),
-      body: ResponsiveLayout.feedConstraint(
-        maxWidth: 700,
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          children: [
-            // Contact Header Card
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFC466B), Color(0xFFFF5E7E)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+            body: ResponsiveLayout.feedConstraint(
+              maxWidth: 700,
+              child: ListView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
                 ),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: primaryPink.withValues(alpha: 0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
-                    children: [
-                      Icon(
-                        Icons.headset_mic_rounded,
-                        color: Colors.white,
-                        size: 28,
+                  // Contact Header Card
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFC466B), Color(0xFFFF5E7E)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                      SizedBox(width: 10),
-                      Text(
-                        "ZEV 24/7 Support",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: primaryPink.withValues(alpha: 0.3),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(
+                              Icons.headset_mic_rounded,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                            SizedBox(width: 10),
+                            Text(
+                              "ZEV 24/7 Support",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          "Have an issue or inquiry? Our community operations team is here to assist you anytime.",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13.5,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: _openEmailSupport,
+                          icon: const Icon(
+                            Icons.mail_outline_rounded,
+                            size: 18,
+                          ),
+                          label: const Text("Email: support@zevapp.com"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isDark
+                                ? const Color(0xFF131926)
+                                : Colors.white,
+                            foregroundColor: primaryPink,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+
+                  // Quick Message Box
+                  Text(
+                    "Send Direct Inquiry",
+                    style: TextStyle(
+                      color: primaryTextColor,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    "Have an issue or inquiry? Our community operations team is here to assist you anytime.",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 13.5,
-                      height: 1.5,
+                  Container(
+                    decoration: BoxDecoration(
+                      color: inputBg,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: cardBorderColor),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: _openEmailSupport,
-                    icon: const Icon(Icons.mail_outline_rounded, size: 18),
-                    label: const Text("Email: support@zevapp.com"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: primaryPink,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                    child: TextField(
+                      controller: _feedbackController,
+                      maxLines: 4,
+                      style: TextStyle(color: primaryTextColor, fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText:
+                            "Describe your issue or feedback in detail...",
+                        hintStyle: TextStyle(
+                          color: secondaryTextColor,
+                          fontSize: 13,
+                        ),
+                        contentPadding: const EdgeInsets.all(16),
+                        border: InputBorder.none,
                       ),
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: ElevatedButton(
+                      onPressed: _isSubmitting ? null : _submitFeedback,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryPink,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              "Submit Ticket",
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // FAQs
+                  Text(
+                    "Frequently Asked Questions",
+                    style: TextStyle(
+                      color: primaryTextColor,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  for (var faq in _faqs)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: cardBorderColor),
+                      ),
+                      child: Theme(
+                        data: Theme.of(
+                          context,
+                        ).copyWith(dividerColor: Colors.transparent),
+                        child: ExpansionTile(
+                          tilePadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 4,
+                          ),
+                          childrenPadding: const EdgeInsets.fromLTRB(
+                            16,
+                            0,
+                            16,
+                            16,
+                          ),
+                          iconColor: primaryPink,
+                          collapsedIconColor: secondaryTextColor,
+                          title: Text(
+                            faq["q"]!,
+                            style: TextStyle(
+                              color: primaryTextColor,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          children: [
+                            Text(
+                              faq["a"]!,
+                              style: TextStyle(
+                                color: secondaryTextColor,
+                                fontSize: 13,
+                                height: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
-            const SizedBox(height: 28),
-
-            // Quick Message Box
-            const Text(
-              "Send Direct Inquiry",
-              style: TextStyle(
-                color: textDark,
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              decoration: BoxDecoration(
-                color: surfaceWhite,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: cardBorder),
-              ),
-              child: TextField(
-                controller: _feedbackController,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  hintText: "Describe your issue or feedback in detail...",
-                  hintStyle: TextStyle(color: textGrey, fontSize: 13),
-                  contentPadding: EdgeInsets.all(16),
-                  border: InputBorder.none,
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerRight,
-              child: ElevatedButton(
-                onPressed: _isSubmitting ? null : _submitFeedback,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryPink,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                child: _isSubmitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Text(
-                        "Submit Ticket",
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            // FAQs
-            const Text(
-              "Frequently Asked Questions",
-              style: TextStyle(
-                color: textDark,
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            for (var faq in _faqs)
-              Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                decoration: BoxDecoration(
-                  color: surfaceWhite,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: cardBorder),
-                ),
-                child: Theme(
-                  data: Theme.of(
-                    context,
-                  ).copyWith(dividerColor: Colors.transparent),
-                  child: ExpansionTile(
-                    tilePadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    iconColor: primaryPink,
-                    collapsedIconColor: textGrey,
-                    title: Text(
-                      faq["q"]!,
-                      style: const TextStyle(
-                        color: textDark,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    children: [
-                      Text(
-                        faq["a"]!,
-                        style: const TextStyle(
-                          color: textGrey,
-                          fontSize: 13,
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            const SizedBox(height: 40),
-          ],
-        ),
-      ),
-    ),
-  );
+          ),
+        );
       },
     );
   }

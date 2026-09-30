@@ -100,7 +100,9 @@ class LuxuryPalette {
           foregroundColor: Colors.white,
           elevation: isDark ? 4 : 2,
           shadowColor: primary.withValues(alpha: isDark ? 0.4 : 0.3),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
         ),
       ),
@@ -108,14 +110,19 @@ class LuxuryPalette {
         style: OutlinedButton.styleFrom(
           foregroundColor: primary,
           side: BorderSide(color: primary, width: 1.5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: isDark ? const Color(0xFF161D2E) : Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 16,
+        ),
         labelStyle: TextStyle(color: textSecondary, fontSize: 14),
         hintStyle: TextStyle(
           color: textSecondary.withValues(alpha: 0.6),

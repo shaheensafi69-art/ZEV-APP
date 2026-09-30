@@ -58,11 +58,16 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
 
   IconData _getDeviceIcon(String model, String os) {
     final lower = (model + os).toLowerCase();
-    if (lower.contains('iphone') || lower.contains('android') || lower.contains('samsung') || lower.contains('xiaomi')) {
+    if (lower.contains('iphone') ||
+        lower.contains('android') ||
+        lower.contains('samsung') ||
+        lower.contains('xiaomi')) {
       return Icons.phone_iphone_rounded;
     } else if (lower.contains('ipad') || lower.contains('tablet')) {
       return Icons.tablet_mac_rounded;
-    } else if (lower.contains('mac') || lower.contains('windows') || lower.contains('pc')) {
+    } else if (lower.contains('mac') ||
+        lower.contains('windows') ||
+        lower.contains('pc')) {
       return Icons.laptop_mac_rounded;
     }
     return Icons.devices_rounded;
@@ -73,24 +78,30 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
     final currentSession = _logs.where((l) => l.isCurrent).toList();
     final pastSessions = _logs.where((l) => !l.isCurrent).toList();
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBg = isDark ? const Color(0xFF0B0F19) : surfaceWhite;
+    final appbarBg = isDark ? const Color(0xFF131926) : surfaceWhite;
+    final primaryTextColor = isDark ? Colors.white : textDark;
+    final secondaryTextColor = isDark ? Colors.white70 : textGrey;
+
     return Scaffold(
-      backgroundColor: surfaceWhite,
+      backgroundColor: scaffoldBg,
       appBar: AppBar(
-        backgroundColor: surfaceWhite,
+        backgroundColor: appbarBg,
         elevation: 0,
         centerTitle: true,
         title: Text(
           context.l10n.activityLog,
-          style: const TextStyle(
-            color: textDark,
+          style: TextStyle(
+            color: primaryTextColor,
             fontSize: 16,
             fontWeight: FontWeight.w900,
           ),
         ),
-        iconTheme: const IconThemeData(color: textDark),
+        iconTheme: IconThemeData(color: primaryTextColor),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: textGrey),
+            icon: Icon(Icons.refresh_rounded, color: secondaryTextColor),
             tooltip: context.l10n.refresh,
             onPressed: () => _loadLogs(forceSync: true),
           ),
@@ -102,8 +113,13 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
               color: primaryPink,
               onRefresh: () => _loadLogs(forceSync: true),
               child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -111,20 +127,35 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: lightPinkBg,
+                        color: isDark ? const Color(0xFF1E293B) : lightPinkBg,
                         borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: primaryPink.withValues(alpha: 0.25), width: 1.5),
+                        border: Border.all(
+                          color: isDark
+                              ? const Color(0xFF334155)
+                              : primaryPink.withValues(alpha: 0.25),
+                          width: 1.5,
+                        ),
                       ),
                       child: Row(
                         children: [
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: surfaceWhite,
+                              color: isDark
+                                  ? const Color(0xFF0F172A)
+                                  : surfaceWhite,
                               shape: BoxShape.circle,
-                              border: Border.all(color: primaryPink.withValues(alpha: 0.3)),
+                              border: Border.all(
+                                color: isDark
+                                    ? const Color(0xFF334155)
+                                    : primaryPink.withValues(alpha: 0.3),
+                              ),
                             ),
-                            child: const Icon(Icons.security_rounded, color: primaryPink, size: 24),
+                            child: const Icon(
+                              Icons.security_rounded,
+                              color: primaryPink,
+                              size: 24,
+                            ),
                           ),
                           const SizedBox(width: 14),
                           Expanded(
@@ -133,8 +164,8 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                               children: [
                                 Text(
                                   context.l10n.loginActivity,
-                                  style: const TextStyle(
-                                    color: textDark,
+                                  style: TextStyle(
+                                    color: primaryTextColor,
                                     fontSize: 15,
                                     fontWeight: FontWeight.w900,
                                   ),
@@ -142,8 +173,8 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                                 const SizedBox(height: 4),
                                 Text(
                                   context.l10n.activeSessions,
-                                  style: const TextStyle(
-                                    color: textGrey,
+                                  style: TextStyle(
+                                    color: secondaryTextColor,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w500,
                                     height: 1.3,
@@ -171,8 +202,8 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                         const SizedBox(width: 6),
                         Text(
                           context.l10n.currentDevice,
-                          style: const TextStyle(
-                            color: textDark,
+                          style: TextStyle(
+                            color: primaryTextColor,
                             fontSize: 14,
                             fontWeight: FontWeight.w900,
                           ),
@@ -194,8 +225,8 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                       children: [
                         Text(
                           "${context.l10n.pastSessions} (${pastSessions.length})",
-                          style: const TextStyle(
-                            color: textDark,
+                          style: TextStyle(
+                            color: primaryTextColor,
                             fontSize: 14,
                             fontWeight: FontWeight.w900,
                           ),
@@ -205,7 +236,9 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                             onPressed: () async {
                               final user = supabase.auth.currentUser;
                               if (user != null) {
-                                await ActivityLogService.instance.clearLogs(user.id);
+                                await ActivityLogService.instance.clearLogs(
+                                  user.id,
+                                );
                                 _loadLogs();
                               }
                             },
@@ -227,13 +260,24 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                         padding: const EdgeInsets.all(24),
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: surfaceWhite,
+                          color: isDark
+                              ? const Color(0xFF131926)
+                              : surfaceWhite,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: cardBorder, width: 1.5),
+                          border: Border.all(
+                            color: isDark
+                                ? const Color(0xFF1E293B)
+                                : cardBorder,
+                            width: 1.5,
+                          ),
                         ),
                         child: Text(
                           context.l10n.noOtherActiveSessions,
-                          style: const TextStyle(color: textGrey, fontSize: 12, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: secondaryTextColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       )
                     else
@@ -242,7 +286,8 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: pastSessions.length,
                         separatorBuilder: (_, _) => const SizedBox(height: 10),
-                        itemBuilder: (context, index) => _buildSessionCard(pastSessions[index]),
+                        itemBuilder: (context, index) =>
+                            _buildSessionCard(pastSessions[index]),
                       ),
 
                     const SizedBox(height: 40),
@@ -254,24 +299,36 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
   }
 
   Widget _buildSessionCard(ActivityLogEntry entry, {bool isCurrent = false}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF131926) : surfaceWhite;
+    final cardBorderColor = isCurrent
+        ? primaryPink.withValues(alpha: 0.6)
+        : (isDark ? const Color(0xFF1E293B) : cardBorder);
+    final primaryTextColor = isDark ? Colors.white : textDark;
+    final secondaryTextColor = isDark ? Colors.white70 : textGrey;
+
     final icon = _getDeviceIcon(entry.deviceModel, entry.osName);
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: surfaceWhite,
+        color: cardBg,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isCurrent ? primaryPink.withValues(alpha: 0.4) : cardBorder,
+          color: cardBorderColor,
           width: isCurrent ? 1.5 : 1.2,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isCurrent ? 0.04 : 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: isDark
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(
+                    alpha: isCurrent ? 0.04 : 0.02,
+                  ),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -279,10 +336,18 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: isCurrent ? lightPinkBg : cardBorder,
+              color: isCurrent
+                  ? (isDark ? const Color(0xFF3B1E2B) : lightPinkBg)
+                  : (isDark ? const Color(0xFF1E293B) : cardBorder),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, color: isCurrent ? primaryPink : textGrey, size: 22),
+            child: Icon(
+              icon,
+              color: isCurrent
+                  ? primaryPink
+                  : (isDark ? Colors.white70 : textGrey),
+              size: 22,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -294,8 +359,8 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                     Expanded(
                       child: Text(
                         entry.deviceModel,
-                        style: const TextStyle(
-                          color: textDark,
+                        style: TextStyle(
+                          color: primaryTextColor,
                           fontSize: 14,
                           fontWeight: FontWeight.w900,
                         ),
@@ -303,11 +368,16 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                     ),
                     if (isCurrent)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.green.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                          border: Border.all(
+                            color: Colors.green.withValues(alpha: 0.3),
+                          ),
                         ),
                         child: Text(
                           context.l10n.activeNow,
@@ -323,22 +393,38 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Icon(Icons.location_on_outlined, color: textGrey, size: 12),
+                    Icon(
+                      Icons.location_on_outlined,
+                      color: secondaryTextColor,
+                      size: 12,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       entry.location,
-                      style: const TextStyle(color: textGrey, fontSize: 11, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: secondaryTextColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    const Icon(Icons.access_time_rounded, color: textGrey, size: 12),
+                    Icon(
+                      Icons.access_time_rounded,
+                      color: secondaryTextColor,
+                      size: 12,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       _formatDateTime(entry.timestamp),
-                      style: const TextStyle(color: textGrey, fontSize: 10, fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        color: secondaryTextColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
@@ -347,7 +433,11 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
           ),
           if (!isCurrent)
             IconButton(
-              icon: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
+              icon: const Icon(
+                Icons.logout_rounded,
+                color: Colors.redAccent,
+                size: 20,
+              ),
               tooltip: "Log out device",
               onPressed: () => _confirmRemoveSession(entry),
             ),
@@ -357,35 +447,49 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
   }
 
   Future<void> _confirmRemoveSession(ActivityLogEntry entry) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E293B) : surfaceWhite,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.logout_rounded, color: Colors.redAccent, size: 22),
-            SizedBox(width: 8),
+            const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 22),
+            const SizedBox(width: 8),
             Text(
               "Log Out Device",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : textDark,
+              ),
             ),
           ],
         ),
         content: Text(
           "Are you sure you want to log out from ${entry.deviceModel}?\nThis session will be revoked.",
-          style: const TextStyle(fontSize: 13, color: textGrey),
+          style: TextStyle(
+            fontSize: 13,
+            color: isDark ? Colors.white70 : textGrey,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(context.l10n.cancel, style: const TextStyle(color: textGrey)),
+            child: Text(
+              context.l10n.cancel,
+              style: TextStyle(color: isDark ? Colors.white60 : textGrey),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.redAccent,
               foregroundColor: Colors.white,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text("Log Out"),

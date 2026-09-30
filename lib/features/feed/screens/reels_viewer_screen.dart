@@ -875,10 +875,18 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
     bool isUploadingFile = false;
     String uploadCategory = 'Explore';
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final inputBg = isDark ? const Color(0xFF0F172A) : const Color(0xFFF3F4F6);
+    final primaryTextColor = isDark ? Colors.white : const Color(0xFF111827);
+    final secondaryTextColor = isDark
+        ? Colors.white70
+        : const Color(0xFF6B7280);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: sheetBg,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -894,17 +902,23 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Upload Educational Reel 🎬',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: primaryTextColor,
+                ),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: titleController,
+                style: TextStyle(color: primaryTextColor),
                 decoration: InputDecoration(
                   hintText: 'Reel Title',
+                  hintStyle: TextStyle(color: secondaryTextColor),
                   filled: true,
-                  fillColor: const Color(0xFFF3F4F6),
+                  fillColor: inputBg,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide.none,
@@ -915,9 +929,11 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
               // Select category
               DropdownButtonFormField<String>(
                 initialValue: uploadCategory,
+                dropdownColor: sheetBg,
+                style: TextStyle(color: primaryTextColor),
                 decoration: InputDecoration(
                   filled: true,
-                  fillColor: const Color(0xFFF3F4F6),
+                  fillColor: inputBg,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 12,
@@ -1040,10 +1056,12 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
               const SizedBox(height: 12),
               TextField(
                 controller: urlController,
+                style: TextStyle(color: primaryTextColor),
                 decoration: InputDecoration(
                   hintText: 'Video URL (or Cloudflare media link)',
+                  hintStyle: TextStyle(color: secondaryTextColor),
                   filled: true,
-                  fillColor: const Color(0xFFF3F4F6),
+                  fillColor: inputBg,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide.none,
@@ -1343,134 +1361,134 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-              // Friends tab button
-              GestureDetector(
-                onTap: () {
-                  final user = supabase.auth.currentUser;
-                  if (user == null) {
-                    AuthRequiredModal.show(
-                      context,
-                      actionName: "view friends' reels",
-                    );
-                    return;
-                  }
-                  if (selectedTab != 'friends') {
-                    setState(() {
-                      selectedTab = 'friends';
-                      activeIndex = 0;
-                      reels = allFriendsReels;
-                    });
-                    if (reels.isNotEmpty && widget.isActive) {
-                      _recordView(reels.first);
-                    }
-                  }
-                },
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      context.zevTr('friends'),
-                      style: TextStyle(
-                        color: selectedTab == 'friends'
-                            ? Colors.white
-                            : Colors.white60,
-                        fontSize: 16,
-                        fontWeight: selectedTab == 'friends'
-                            ? FontWeight.w900
-                            : FontWeight.w600,
-                        shadows: const [
-                          Shadow(color: Colors.black87, blurRadius: 4),
-                        ],
-                      ),
+                  // Friends tab button
+                  GestureDetector(
+                    onTap: () {
+                      final user = supabase.auth.currentUser;
+                      if (user == null) {
+                        AuthRequiredModal.show(
+                          context,
+                          actionName: "view friends' reels",
+                        );
+                        return;
+                      }
+                      if (selectedTab != 'friends') {
+                        setState(() {
+                          selectedTab = 'friends';
+                          activeIndex = 0;
+                          reels = allFriendsReels;
+                        });
+                        if (reels.isNotEmpty && widget.isActive) {
+                          _recordView(reels.first);
+                        }
+                      }
+                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          context.zevTr('friends'),
+                          style: TextStyle(
+                            color: selectedTab == 'friends'
+                                ? Colors.white
+                                : Colors.white60,
+                            fontSize: 16,
+                            fontWeight: selectedTab == 'friends'
+                                ? FontWeight.w900
+                                : FontWeight.w600,
+                            shadows: const [
+                              Shadow(color: Colors.black87, blurRadius: 4),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          width: 28,
+                          height: 2.5,
+                          decoration: BoxDecoration(
+                            color: selectedTab == 'friends'
+                                ? primaryPink
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Container(
-                      width: 28,
-                      height: 2.5,
-                      decoration: BoxDecoration(
-                        color: selectedTab == 'friends'
-                            ? primaryPink
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
+                  ),
+                  Container(
+                    height: 14,
+                    width: 1.5,
+                    margin: const EdgeInsets.symmetric(horizontal: 18),
+                    color: Colors.white24,
+                  ),
+                  // For You (Explore) tab button
+                  GestureDetector(
+                    onTap: () {
+                      if (selectedTab != 'for_you') {
+                        setState(() {
+                          selectedTab = 'for_you';
+                          activeIndex = 0;
+                          reels = allForYouReels;
+                        });
+                        if (reels.isNotEmpty && widget.isActive) {
+                          _recordView(reels.first);
+                        }
+                      } else {
+                        _fetchReels();
+                      }
+                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          context.zevTr('forYou'),
+                          style: TextStyle(
+                            color: selectedTab == 'for_you'
+                                ? Colors.white
+                                : Colors.white60,
+                            fontSize: 16,
+                            fontWeight: selectedTab == 'for_you'
+                                ? FontWeight.w900
+                                : FontWeight.w600,
+                            shadows: const [
+                              Shadow(color: Colors.black87, blurRadius: 4),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          width: 28,
+                          height: 2.5,
+                          decoration: BoxDecoration(
+                            color: selectedTab == 'for_you'
+                                ? primaryPink
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              Container(
-                height: 14,
-                width: 1.5,
-                margin: const EdgeInsets.symmetric(horizontal: 18),
-                color: Colors.white24,
-              ),
-              // For You (Explore) tab button
-              GestureDetector(
-                onTap: () {
-                  if (selectedTab != 'for_you') {
-                    setState(() {
-                      selectedTab = 'for_you';
-                      activeIndex = 0;
-                      reels = allForYouReels;
-                    });
-                    if (reels.isNotEmpty && widget.isActive) {
-                      _recordView(reels.first);
-                    }
-                  } else {
-                    _fetchReels();
-                  }
-                },
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      context.zevTr('forYou'),
-                      style: TextStyle(
-                        color: selectedTab == 'for_you'
-                            ? Colors.white
-                            : Colors.white60,
-                        fontSize: 16,
-                        fontWeight: selectedTab == 'for_you'
-                            ? FontWeight.w900
-                            : FontWeight.w600,
-                        shadows: const [
-                          Shadow(color: Colors.black87, blurRadius: 4),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      width: 28,
-                      height: 2.5,
-                      decoration: BoxDecoration(
-                        color: selectedTab == 'for_you'
-                            ? primaryPink
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ],
+              Positioned(
+                right: 16,
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.video_call_rounded,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                  tooltip: "Upload Reel",
+                  onPressed: _showUploadReelDialog,
                 ),
               ),
             ],
           ),
-          Positioned(
-            right: 16,
-            child: IconButton(
-              icon: const Icon(
-                Icons.video_call_rounded,
-                color: Colors.white,
-                size: 26,
-              ),
-              tooltip: "Upload Reel",
-              onPressed: _showUploadReelDialog,
-            ),
-          ),
-        ],
+        ),
       ),
-    ),
-  ),
-);
-}
+    );
+  }
 
   // Empty state for Friends tab
   Widget _buildEmptyFriendsState() {
@@ -1651,7 +1669,8 @@ class _StudentReelsScreenState extends State<StudentReelsScreen> {
               Builder(
                 builder: (context) {
                   final isExpanded = _expandedReelCaptions.contains(reel.id);
-                  final hasDescription = reel.description != null &&
+                  final hasDescription =
+                      reel.description != null &&
                       reel.description!.trim().isNotEmpty;
                   final hasMore = hasDescription || reel.title.length > 45;
 
@@ -3289,9 +3308,7 @@ class _ReelVideoPlayerWidgetState extends State<ReelVideoPlayerWidget> {
                   ),
                 ),
                 Positioned.fill(
-                  child: Container(
-                    color: Colors.black.withValues(alpha: 0.75),
-                  ),
+                  child: Container(color: Colors.black.withValues(alpha: 0.75)),
                 ),
                 // Foreground player: 100% visible, never zoomed or cropped at the edges
                 Center(

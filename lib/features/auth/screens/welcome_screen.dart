@@ -112,9 +112,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? const Color(0xFF0B0F19) : Colors.white,
       body: Stack(
         children: [
           // Background ambient gradient inspired by the squircle app icon
@@ -128,9 +129,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    primaryPink.withValues(alpha: 0.18),
-                    accentPink.withValues(alpha: 0.08),
-                    Colors.white.withValues(alpha: 0.0),
+                    primaryPink.withValues(alpha: isDark ? 0.12 : 0.18),
+                    accentPink.withValues(alpha: isDark ? 0.05 : 0.08),
+                    (isDark ? const Color(0xFF0B0F19) : Colors.white)
+                        .withValues(alpha: 0.0),
                   ],
                 ),
               ),
@@ -330,10 +332,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                             Text(
                               slide.title,
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.w700,
-                                color: darkText,
+                                color: isDark ? Colors.white : darkText,
                                 letterSpacing: -0.5,
                               ),
                             ),
@@ -362,7 +364,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                               style: TextStyle(
                                 fontSize: 14,
                                 height: 1.5,
-                                color: Colors.grey.shade600,
+                                color: isDark
+                                    ? Colors.white70
+                                    : Colors.grey.shade600,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -387,7 +391,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                       decoration: BoxDecoration(
                         color: _currentIndex == index
                             ? primaryPink
-                            : Colors.grey.shade300,
+                            : (isDark
+                                  ? const Color(0xFF334155)
+                                  : Colors.grey.shade300),
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -475,9 +481,13 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                             );
                           },
                           style: OutlinedButton.styleFrom(
-                            backgroundColor: Colors.white,
+                            backgroundColor: isDark
+                                ? const Color(0xFF131926)
+                                : Colors.white,
                             side: BorderSide(
-                              color: primaryPink.withValues(alpha: 0.3),
+                              color: isDark
+                                  ? const Color(0xFF1E293B)
+                                  : primaryPink.withValues(alpha: 0.3),
                               width: 1.5,
                             ),
                             shape: RoundedRectangleBorder(
@@ -485,10 +495,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                             ),
                             elevation: 0,
                           ),
-                          child: const Text(
+                          child: Text(
                             "Log In",
                             style: TextStyle(
-                              color: darkText,
+                              color: isDark ? Colors.white : darkText,
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
                             ),
@@ -501,7 +511,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                       TextButton(
                         onPressed: _navigateToGuestFeed,
                         style: TextButton.styleFrom(
-                          foregroundColor: Colors.grey.shade600,
+                          foregroundColor: isDark
+                              ? Colors.white70
+                              : Colors.grey.shade600,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 8,
@@ -514,7 +526,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                               "Explore ZEV without account",
                               style: TextStyle(
                                 fontSize: 13,
-                                color: Colors.grey.shade700,
+                                color: isDark
+                                    ? Colors.white70
+                                    : Colors.grey.shade700,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -522,7 +536,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                             Icon(
                               Icons.arrow_forward_ios_rounded,
                               size: 12,
-                              color: Colors.grey.shade700,
+                              color: isDark
+                                  ? Colors.white70
+                                  : Colors.grey.shade700,
                             ),
                           ],
                         ),

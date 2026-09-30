@@ -1594,10 +1594,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         ),
       );
     } else {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,
-        backgroundColor: surfaceWhite,
+        backgroundColor: isDark ? const Color(0xFF131926) : surfaceWhite,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
@@ -1799,18 +1800,22 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   void _showDeleteConfirmation(String postId) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: surfaceWhite,
+        backgroundColor: isDark ? const Color(0xFF1E293B) : surfaceWhite,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
+        title: Text(
           "Delete Post",
-          style: TextStyle(fontWeight: FontWeight.w900, color: textDark),
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            color: isDark ? Colors.white : textDark,
+          ),
         ),
-        content: const Text(
+        content: Text(
           "Are you sure you want to delete this post? This action cannot be undone.",
-          style: TextStyle(color: textGrey),
+          style: TextStyle(color: isDark ? Colors.white70 : textGrey),
         ),
         actions: [
           TextButton(
@@ -1872,18 +1877,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     Color roleColor = isAdmin ? Colors.deepPurple : primaryPink;
     String? roleLabel = isAdmin ? "OFFICIAL 🛡️" : null;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: surfaceWhite,
+      backgroundColor: isDark ? const Color(0xFF0B0F19) : surfaceWhite,
       appBar: AppBar(
-        backgroundColor: surfaceWhite,
+        backgroundColor: isDark ? const Color(0xFF131926) : surfaceWhite,
         elevation: 0,
-        iconTheme: const IconThemeData(color: textDark),
+        iconTheme: IconThemeData(color: isDark ? Colors.white : textDark),
         title: Text(
           isMyProfile
               ? context.zevTr('myProfile')
               : context.zevTr('zevProfile'),
-          style: const TextStyle(
-            color: textDark,
+          style: TextStyle(
+            color: isDark ? Colors.white : textDark,
             fontWeight: FontWeight.w900,
             fontSize: 16,
           ),
@@ -1892,9 +1899,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         actions: [
           if (isMyProfile)
             IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.settings_outlined,
-                color: textDark,
+                color: isDark ? Colors.white : textDark,
                 size: 24,
               ),
               onPressed: () {
@@ -1906,9 +1913,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             )
           else
             IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.more_vert_rounded,
-                color: textDark,
+                color: isDark ? Colors.white : textDark,
                 size: 24,
               ),
               onPressed: () {},
@@ -1919,11 +1926,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              const Color(0xFFFFF0F5),
-              surfaceWhite,
-              lightPinkBg.withValues(alpha: 0.2),
-            ],
+            colors: isDark
+                ? [
+                    const Color(0xFF0B0F19),
+                    const Color(0xFF0E131F),
+                    const Color(0xFF131926),
+                  ]
+                : [
+                    const Color(0xFFFFF0F5),
+                    surfaceWhite,
+                    lightPinkBg.withValues(alpha: 0.2),
+                  ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -1962,15 +1975,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           // Profile info card with cover and avatar
                           Container(
                             decoration: BoxDecoration(
-                              color: surfaceWhite,
+                              color: isDark
+                                  ? const Color(0xFF131926)
+                                  : surfaceWhite,
                               borderRadius: BorderRadius.circular(28),
                               border: Border.all(
-                                color: roleColor.withValues(alpha: 0.15),
+                                color: isDark
+                                    ? const Color(0xFF1E293B)
+                                    : roleColor.withValues(alpha: 0.15),
                                 width: 1.5,
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: roleColor.withValues(alpha: 0.08),
+                                  color: isDark
+                                      ? Colors.black.withValues(alpha: 0.25)
+                                      : roleColor.withValues(alpha: 0.08),
                                   blurRadius: 25,
                                   offset: const Offset(0, 10),
                                 ),
@@ -2197,7 +2216,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                                 decoration: BoxDecoration(
                                                   shape: BoxShape.circle,
                                                   border: Border.all(
-                                                    color: surfaceWhite,
+                                                    color: isDark ? const Color(0xFF131926) : surfaceWhite,
                                                     width: 4,
                                                   ),
                                                   boxShadow: [
@@ -2620,9 +2639,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             width: double.infinity,
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
-                              color: surfaceWhite,
+                              color: isDark ? const Color(0xFF131926) : surfaceWhite,
                               borderRadius: BorderRadius.circular(24),
-                              border: Border.all(color: cardBorder, width: 1.5),
+                              border: Border.all(color: isDark ? const Color(0xFF1E293B) : cardBorder, width: 1.5),
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withValues(alpha: 0.03),
@@ -3495,16 +3514,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     required IconData icon,
   }) {
     final isSelected = activeTab == index;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: () => setState(() => activeTab = index),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? primaryPink : Colors.transparent,
+          color: isSelected
+              ? primaryPink
+              : (isDark ? const Color(0xFF131926) : Colors.transparent),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? primaryPink : Colors.grey[300]!,
+            color: isSelected
+                ? primaryPink
+                : (isDark ? const Color(0xFF1E293B) : Colors.grey[300]!),
             width: 1.5,
           ),
           boxShadow: isSelected
@@ -3520,12 +3544,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 15, color: isSelected ? Colors.white : textGrey),
+            Icon(icon, size: 15, color: isSelected ? Colors.white : (isDark ? Colors.white60 : textGrey)),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : textGrey,
+                color: isSelected ? Colors.white : (isDark ? Colors.white70 : textGrey),
                 fontWeight: FontWeight.bold,
                 fontSize: 12,
               ),
@@ -3623,15 +3647,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
         final title = isFollowers
             ? "Followers ($followersCount)"
             : "Following ($followingCount)";
 
         return Container(
           height: MediaQuery.of(context).size.height * 0.75,
-          decoration: const BoxDecoration(
-            color: surfaceWhite,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF131926) : surfaceWhite,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           ),
           child: Column(
             children: [
@@ -3652,10 +3677,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
-                        color: textDark,
+                        color: isDark ? Colors.white : textDark,
                       ),
                     ),
                     IconButton(
@@ -3821,6 +3846,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
         final displayName =
             profileData?['full_name'] ??
             "${profileData?['first_name'] ?? ''} ${profileData?['last_name'] ?? ''}"
@@ -3828,9 +3854,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
         return Container(
           height: MediaQuery.of(context).size.height * 0.75,
-          decoration: const BoxDecoration(
-            color: surfaceWhite,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF131926) : surfaceWhite,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           ),
           child: Column(
             children: [
@@ -3851,10 +3877,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   children: [
                     Text(
                       "${displayName.isNotEmpty ? displayName : 'User'}'s Network ($friendsCount)",
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
-                        color: textDark,
+                        color: isDark ? Colors.white : textDark,
                       ),
                     ),
                     IconButton(
@@ -4049,12 +4075,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     VoidCallback? onCopy,
     bool isHidden = false,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: lightPinkBg.withValues(alpha: 0.5),
+        color: isDark ? const Color(0xFF1E293B) : lightPinkBg.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cardBorder, width: 1),
+        border: Border.all(color: isDark ? const Color(0xFF334155) : cardBorder, width: 1),
       ),
       child: Row(
         children: [
@@ -4107,8 +4134,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 const SizedBox(height: 2),
                 Text(
                   value,
-                  style: const TextStyle(
-                    color: textDark,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : textDark,
                     fontSize: 12.5,
                     fontWeight: FontWeight.bold,
                   ),
