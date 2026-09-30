@@ -1621,17 +1621,18 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
     int primaryUnread = 0,
     int requestsUnread = 0,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: Container(
         constraints: const BoxConstraints(maxWidth: 1200),
         margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? const Color(0xFF131926) : Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: cardBorder),
+          border: Border.all(color: isDark ? const Color(0xFF1E293B) : cardBorder),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.04),
               blurRadius: 16,
               offset: const Offset(0, 4),
             ),
@@ -1644,9 +1645,13 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
             SizedBox(
               width: 380,
               child: Container(
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF131926) : Colors.white,
                   border: Border(
-                    right: BorderSide(color: cardBorder, width: 1),
+                    right: BorderSide(
+                      color: isDark ? const Color(0xFF1E293B) : cardBorder,
+                      width: 1,
+                    ),
                   ),
                 ),
                 child: _buildChatListBody(
@@ -1678,7 +1683,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                         });
                       },
                     )
-                  : _buildDesktopEmptyChatPlaceholder(),
+                  : _buildDesktopEmptyChatPlaceholder(isDark),
             ),
           ],
         ),
@@ -1686,9 +1691,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
     );
   }
 
-  Widget _buildDesktopEmptyChatPlaceholder() {
+  Widget _buildDesktopEmptyChatPlaceholder(bool isDark) {
     return Container(
-      color: lightPinkBg.withOpacity(0.15),
+      color: isDark ? const Color(0xFF0F172A) : lightPinkBg.withValues(alpha: 0.15),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1696,12 +1701,14 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
             Container(
               padding: const EdgeInsets.all(28),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: isDark ? const Color(0xFF1E293B) : Colors.white,
                 shape: BoxShape.circle,
-                border: Border.all(color: cardBorder),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF334155) : cardBorder,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: primaryPink.withOpacity(0.08),
+                    color: primaryPink.withValues(alpha: isDark ? 0.15 : 0.08),
                     blurRadius: 20,
                     offset: const Offset(0, 6),
                   ),
@@ -1716,8 +1723,8 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
             const SizedBox(height: 20),
             Text(
               context.l10n.directMessages,
-              style: const TextStyle(
-                color: textDark,
+              style: TextStyle(
+                color: isDark ? Colors.white : textDark,
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
               ),
@@ -1726,8 +1733,8 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
             Text(
               context.zevTr('selectChatToMessage'),
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: textGrey,
+              style: TextStyle(
+                color: isDark ? const Color(0xFF94A3B8) : textGrey,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -1831,8 +1838,8 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                     children: [
                       Container(
                         padding: const EdgeInsets.all(24),
-                        decoration: const BoxDecoration(
-                          color: lightPinkBg,
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : lightPinkBg,
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
@@ -1846,8 +1853,8 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                         _searchController.text.trim().isNotEmpty
                             ? "${context.l10n.search}: '${_searchController.text}'"
                             : context.l10n.noConversationsYet,
-                        style: const TextStyle(
-                          color: textDark,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : textDark,
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
                         ),
@@ -1855,8 +1862,8 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                       const SizedBox(height: 6),
                       Text(
                         context.l10n.startLiveChatHint,
-                        style: const TextStyle(
-                          color: textGrey,
+                        style: TextStyle(
+                          color: isDark ? const Color(0xFF94A3B8) : textGrey,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
@@ -2170,7 +2177,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: isSelected ? lightPinkBg.withOpacity(0.7) : Colors.transparent,
+        color: isSelected
+            ? (isDark ? primaryPink.withValues(alpha: 0.15) : lightPinkBg.withValues(alpha: 0.7))
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(

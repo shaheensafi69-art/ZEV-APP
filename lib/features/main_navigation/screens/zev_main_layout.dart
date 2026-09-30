@@ -735,13 +735,6 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                       isDesktop: isDesktop,
                     ),
                     _buildSideNavItem(
-                      icon: Icons.person_outline_rounded,
-                      label: context.zevTr('profile'),
-                      index: 4,
-                      isDark: isDark,
-                      isDesktop: isDesktop,
-                    ),
-                    _buildSideNavItem(
                       icon: Icons.settings_outlined,
                       label: context.zevTr('settings'),
                       index: 8,
