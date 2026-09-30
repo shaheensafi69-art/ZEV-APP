@@ -62,7 +62,8 @@ class _FastCachedImageState extends State<FastCachedImage> {
         memCacheHeight: widget.memCacheHeight,
         fadeInDuration: const Duration(milliseconds: 180),
         fadeOutDuration: const Duration(milliseconds: 180),
-        placeholder: (context, url) => widget.placeholder ?? _buildShimmerPlaceholder(),
+        placeholder: (context, url) =>
+            widget.placeholder ?? _buildShimmerPlaceholder(),
         errorWidget: (context, url, error) =>
             widget.errorWidget ?? _buildErrorWidget(context, validUrl),
       );
@@ -76,10 +77,7 @@ class _FastCachedImageState extends State<FastCachedImage> {
     }
 
     if (widget.onTap != null) {
-      return GestureDetector(
-        onTap: widget.onTap,
-        child: imageContent,
-      );
+      return GestureDetector(onTap: widget.onTap, child: imageContent);
     }
 
     return imageContent;
@@ -296,17 +294,16 @@ class FastCircleAvatar extends StatelessWidget {
     );
 
     if (onTap != null) {
-      return GestureDetector(
-        onTap: onTap,
-        child: avatar,
-      );
+      return GestureDetector(onTap: onTap, child: avatar);
     }
 
     return avatar;
   }
 
   Widget _buildInitials() {
-    final initial = fallbackText.trim().isNotEmpty ? fallbackText.trim()[0] : 'U';
+    final initial = fallbackText.trim().isNotEmpty
+        ? fallbackText.trim()[0]
+        : 'U';
     return Center(
       child: Text(
         initial,

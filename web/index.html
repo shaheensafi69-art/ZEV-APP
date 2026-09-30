@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en" dir="auto">
 
 <head>
   <!--
@@ -19,14 +19,26 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="description"
     content="ZEV - The Next Generation Social Network. Connect, Share Reels, Stories & Chat (zevapp.com)">
 
-  <!-- iOS meta tags & icons -->
+  <!-- PWA Theme Color -->
+  <meta name="theme-color" content="#090D16">
+  <meta name="msapplication-navbutton-color" content="#090D16">
+
+  <!-- iOS Meta Tags & Icons -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="ZEV">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="icons/Icon-192.png">
+
+  <!-- Windows & Microsoft Store Meta Tags -->
+  <meta name="msapplication-TileColor" content="#090D16">
+  <meta name="msapplication-TileImage" content="icons/Icon-144.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png" />
@@ -36,6 +48,21 @@
 
   <!-- Google AdSense / AdMob for Web -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6551903544426492" crossorigin="anonymous"></script>
+
+  <!-- Service Worker Registration for PWABuilder & Offline Reliability -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+          .then(function (registration) {
+            console.log('ZEV ServiceWorker registration successful with scope:', registration.scope);
+          })
+          .catch(function (error) {
+            console.warn('ZEV ServiceWorker registration failed:', error);
+          });
+      });
+    }
+  </script>
 </head>
 
 <body>

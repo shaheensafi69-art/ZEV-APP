@@ -40,8 +40,7 @@ class MediaFramePreviewDialog extends StatefulWidget {
 }
 
 class _MediaFramePreviewDialogState extends State<MediaFramePreviewDialog> {
-  final TransformationController _transController =
-      TransformationController();
+  final TransformationController _transController = TransformationController();
   BoxFit _currentFit = BoxFit.contain;
   static const Color primaryPink = Color(0xFFFC466B);
 
@@ -120,7 +119,9 @@ class _MediaFramePreviewDialogState extends State<MediaFramePreviewDialog> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            color: isDark
+                                ? Colors.white
+                                : const Color(0xFF0F172A),
                           ),
                         ),
                         Text(
@@ -129,7 +130,9 @@ class _MediaFramePreviewDialogState extends State<MediaFramePreviewDialog> {
                               : 'Drag & zoom to fit your cover photo',
                           style: TextStyle(
                             fontSize: 12,
-                            color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                            color: isDark
+                                ? Colors.white54
+                                : const Color(0xFF64748B),
                           ),
                         ),
                       ],
@@ -163,10 +166,7 @@ class _MediaFramePreviewDialogState extends State<MediaFramePreviewDialog> {
                     maxScale: 4.0,
                     boundaryMargin: const EdgeInsets.all(100),
                     child: Center(
-                      child: Image.memory(
-                        widget.imageBytes,
-                        fit: _currentFit,
-                      ),
+                      child: Image.memory(widget.imageBytes, fit: _currentFit),
                     ),
                   ),
 
@@ -197,7 +197,11 @@ class _MediaFramePreviewDialogState extends State<MediaFramePreviewDialog> {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.refresh_rounded, color: Colors.white, size: 14),
+                            Icon(
+                              Icons.refresh_rounded,
+                              color: Colors.white,
+                              size: 14,
+                            ),
                             SizedBox(width: 4),
                             Text(
                               'Reset',
@@ -260,14 +264,18 @@ class _MediaFramePreviewDialogState extends State<MediaFramePreviewDialog> {
                           borderRadius: BorderRadius.circular(16),
                         ),
                         side: BorderSide(
-                          color: isDark ? Colors.white24 : const Color(0xFFCBD5E1),
+                          color: isDark
+                              ? Colors.white24
+                              : const Color(0xFFCBD5E1),
                         ),
                       ),
                       onPressed: () => Navigator.pop(context, false),
                       child: Text(
                         context.zevTr('cancel'),
                         style: TextStyle(
-                          color: isDark ? Colors.white70 : const Color(0xFF475569),
+                          color: isDark
+                              ? Colors.white70
+                              : const Color(0xFF475569),
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -430,17 +438,15 @@ class _MediaFramePreviewDialogState extends State<MediaFramePreviewDialog> {
               : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected ? primaryPink : Colors.grey.withValues(alpha: 0.3),
+            color: isSelected
+                ? primaryPink
+                : Colors.grey.withValues(alpha: 0.3),
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 14,
-              color: isSelected ? primaryPink : Colors.grey,
-            ),
+            Icon(icon, size: 14, color: isSelected ? primaryPink : Colors.grey),
             const SizedBox(width: 5),
             Text(
               label,

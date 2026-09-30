@@ -381,209 +381,200 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
           maxWidth: 780,
           child: ListView(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 20,
-              vertical: 16,
-            ),
-                children: [
-                  // Profile Identity Header Card
-                  _buildProfileIdentityCard(isDark),
-                  const SizedBox(height: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            children: [
+              // Profile Identity Header Card
+              _buildProfileIdentityCard(isDark),
+              const SizedBox(height: 24),
 
-                  // Section 1: Security & Devices
-                  _buildSectionHeader(
-                    context.zevTr('securityAndAccess'),
-                    Icons.security_rounded,
-                  ),
-                  _buildGroupCard(
-                    isDark: isDark,
-                    items: [
-                      _SettingsItem(
-                        icon: Icons.shield_outlined,
-                        iconColor: const Color(0xFF6366F1),
-                        title: context.zevTr('systemSecurity'),
-                        subtitle: context.zevTr('systemSecuritySub'),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ZevSystemSecurityScreen(),
-                          ),
-                        ),
-                      ),
-                      _SettingsItem(
-                        icon: Icons.devices_rounded,
-                        iconColor: const Color(0xFF06B6D4),
-                        title: context.zevTr('activeDevices'),
-                        subtitle: context.zevTr('activeDevicesSub'),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ZevDeviceActivitiesScreen(),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-
-                  // Section 2: Preferences
-                  _buildSectionHeader(
-                    context.zevTr('preferencesAndDisplay'),
-                    Icons.tune_rounded,
-                  ),
-                  _buildGroupCard(
-                    isDark: isDark,
-                    items: [
-                      _SettingsItem(
-                        icon: Icons.language_rounded,
-                        iconColor: primaryPink,
-                        title: context.zevTr('language'),
-                        subtitle:
-                            "${currentLang.name} (${currentLang.englishName})",
-                        customLeading: CircularCountryFlag(
-                          countryCode: currentLang.countryCode,
-                          size: 40,
-                          showBorder: true,
-                          borderColor: isDark
-                              ? Colors.white.withValues(alpha: 0.2)
-                              : Colors.black.withValues(alpha: 0.12),
-                        ),
-                        trailingBadge: currentLang.code.toUpperCase(),
-                        onTap: _showLanguageSelector,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-
-                  // Section 3: Legal & Privacy Policies
-                  _buildSectionHeader(
-                    context.zevTr('legalAndPolicies'),
-                    Icons.policy_rounded,
-                  ),
-                  _buildGroupCard(
-                    isDark: isDark,
-                    items: [
-                      _SettingsItem(
-                        icon: Icons.lock_outline_rounded,
-                        iconColor: const Color(0xFF10B981),
-                        title: context.zevTr('privacyPolicy'),
-                        subtitle: context.zevTr('privacyPolicySub'),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ZevPrivacyPolicyScreen(),
-                          ),
-                        ),
-                      ),
-                      _SettingsItem(
-                        icon: Icons.description_outlined,
-                        iconColor: const Color(0xFFF59E0B),
-                        title: context.zevTr('termsOfService'),
-                        subtitle: context.zevTr('termsOfServiceSub'),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ZevTermsOfServiceScreen(),
-                          ),
-                        ),
-                      ),
-                      _SettingsItem(
-                        icon: Icons.code_rounded,
-                        iconColor: const Color(0xFF8B5CF6),
-                        title: context.zevTr('openSourceLicenses'),
-                        subtitle: context.zevTr('openSourceLicensesSub'),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ZevOpenSourceLicensesScreen(),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-
-                  // Section 4: Support & About
-                  _buildSectionHeader(
-                    context.zevTr('aboutAndSupport'),
-                    Icons.info_outline_rounded,
-                  ),
-                  _buildGroupCard(
-                    isDark: isDark,
-                    items: [
-                      _SettingsItem(
-                        icon: Icons.help_outline_rounded,
-                        iconColor: const Color(0xFF3B82F6),
-                        title: context.zevTr('supportAndHelp'),
-                        subtitle: context.zevTr('supportAndHelpSub'),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ZevHelpSupportScreen(),
-                          ),
-                        ),
-                      ),
-                      _SettingsItem(
-                        icon: Icons.auto_awesome_rounded,
-                        iconColor: primaryPink,
-                        title: context.zevTr('aboutZev'),
-                        subtitle: context.zevTr('aboutZevSub'),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ZevAboutScreen(),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 28),
-
-                  // Log Out Button
-                  InkWell(
-                    onTap: _handleLogout,
-                    borderRadius: BorderRadius.circular(18),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withValues(
-                          alpha: isDark ? 0.12 : 0.08,
-                        ),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(
-                          color: Colors.red.withValues(
-                            alpha: isDark ? 0.3 : 0.2,
-                          ),
-                          width: 1.2,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.logout_rounded,
-                            color: Colors.redAccent,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            context.zevTr('logOut'),
-                            style: const TextStyle(
-                              color: Colors.redAccent,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
+              // Section 1: Security & Devices
+              _buildSectionHeader(
+                context.zevTr('securityAndAccess'),
+                Icons.security_rounded,
+              ),
+              _buildGroupCard(
+                isDark: isDark,
+                items: [
+                  _SettingsItem(
+                    icon: Icons.shield_outlined,
+                    iconColor: const Color(0xFF6366F1),
+                    title: context.zevTr('systemSecurity'),
+                    subtitle: context.zevTr('systemSecuritySub'),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ZevSystemSecurityScreen(),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 36),
+                  _SettingsItem(
+                    icon: Icons.devices_rounded,
+                    iconColor: const Color(0xFF06B6D4),
+                    title: context.zevTr('activeDevices'),
+                    subtitle: context.zevTr('activeDevicesSub'),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ZevDeviceActivitiesScreen(),
+                      ),
+                    ),
+                  ),
                 ],
               ),
-            ),
+              const SizedBox(height: 22),
+
+              // Section 2: Preferences
+              _buildSectionHeader(
+                context.zevTr('preferencesAndDisplay'),
+                Icons.tune_rounded,
+              ),
+              _buildGroupCard(
+                isDark: isDark,
+                items: [
+                  _SettingsItem(
+                    icon: Icons.language_rounded,
+                    iconColor: primaryPink,
+                    title: context.zevTr('language'),
+                    subtitle:
+                        "${currentLang.name} (${currentLang.englishName})",
+                    customLeading: CircularCountryFlag(
+                      countryCode: currentLang.countryCode,
+                      size: 40,
+                      showBorder: true,
+                      borderColor: isDark
+                          ? Colors.white.withValues(alpha: 0.2)
+                          : Colors.black.withValues(alpha: 0.12),
+                    ),
+                    trailingBadge: currentLang.code.toUpperCase(),
+                    onTap: _showLanguageSelector,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+
+              // Section 3: Legal & Privacy Policies
+              _buildSectionHeader(
+                context.zevTr('legalAndPolicies'),
+                Icons.policy_rounded,
+              ),
+              _buildGroupCard(
+                isDark: isDark,
+                items: [
+                  _SettingsItem(
+                    icon: Icons.lock_outline_rounded,
+                    iconColor: const Color(0xFF10B981),
+                    title: context.zevTr('privacyPolicy'),
+                    subtitle: context.zevTr('privacyPolicySub'),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ZevPrivacyPolicyScreen(),
+                      ),
+                    ),
+                  ),
+                  _SettingsItem(
+                    icon: Icons.description_outlined,
+                    iconColor: const Color(0xFFF59E0B),
+                    title: context.zevTr('termsOfService'),
+                    subtitle: context.zevTr('termsOfServiceSub'),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ZevTermsOfServiceScreen(),
+                      ),
+                    ),
+                  ),
+                  _SettingsItem(
+                    icon: Icons.code_rounded,
+                    iconColor: const Color(0xFF8B5CF6),
+                    title: context.zevTr('openSourceLicenses'),
+                    subtitle: context.zevTr('openSourceLicensesSub'),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ZevOpenSourceLicensesScreen(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+
+              // Section 4: Support & About
+              _buildSectionHeader(
+                context.zevTr('aboutAndSupport'),
+                Icons.info_outline_rounded,
+              ),
+              _buildGroupCard(
+                isDark: isDark,
+                items: [
+                  _SettingsItem(
+                    icon: Icons.help_outline_rounded,
+                    iconColor: const Color(0xFF3B82F6),
+                    title: context.zevTr('supportAndHelp'),
+                    subtitle: context.zevTr('supportAndHelpSub'),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ZevHelpSupportScreen(),
+                      ),
+                    ),
+                  ),
+                  _SettingsItem(
+                    icon: Icons.auto_awesome_rounded,
+                    iconColor: primaryPink,
+                    title: context.zevTr('aboutZev'),
+                    subtitle: context.zevTr('aboutZevSub'),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ZevAboutScreen()),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 28),
+
+              // Log Out Button
+              InkWell(
+                onTap: _handleLogout,
+                borderRadius: BorderRadius.circular(18),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: isDark ? 0.12 : 0.08),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: Colors.red.withValues(alpha: isDark ? 0.3 : 0.2),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.logout_rounded,
+                        color: Colors.redAccent,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        context.zevTr('logOut'),
+                        style: const TextStyle(
+                          color: Colors.redAccent,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 36),
+            ],
           ),
-        );
+        ),
+      ),
+    );
   }
 
   Widget _buildProfileIdentityCard(bool isDark) {
@@ -763,7 +754,11 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
                             ),
                             borderRadius: BorderRadius.circular(14),
                           ),
-                          child: Icon(item.icon, color: item.iconColor, size: 20),
+                          child: Icon(
+                            item.icon,
+                            color: item.iconColor,
+                            size: 20,
+                          ),
                         ),
                       const SizedBox(width: 14),
                       Expanded(

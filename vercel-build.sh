@@ -55,5 +55,11 @@ flutter pub get
 echo "🔨 Running flutter build web --release..."
 flutter build web --release
 
+echo "📋 Copying PWA assets (sw.js, manifest.json, offline.html, screenshots) to build/web..."
+cp -r web/screenshots build/web/ 2>/dev/null || true
+cp web/sw.js build/web/ 2>/dev/null || true
+cp web/offline.html build/web/ 2>/dev/null || true
+cp web/manifest.json build/web/ 2>/dev/null || true
 
 echo "✅ Build complete! Output ready in build/web"
+

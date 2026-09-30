@@ -88,18 +88,29 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
       if (res != null && mounted) {
         final fn = res['first_name'] ?? '';
         final ln = res['last_name'] ?? '';
-        String un = (res['username']?.toString() ?? '').trim().replaceFirst('@', '');
+        String un = (res['username']?.toString() ?? '').trim().replaceFirst(
+          '@',
+          '',
+        );
         final full = "$fn $ln".trim();
 
         // If username is empty, auto-generate unique handle and persist to DB
         if (un.isEmpty && user.id.isNotEmpty) {
           final cleanBase = full.isNotEmpty
               ? full.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '')
-              : (user.email?.split('@').first.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '') ?? 'user');
+              : (user.email
+                        ?.split('@')
+                        .first
+                        .toLowerCase()
+                        .replaceAll(RegExp(r'[^a-z0-9]'), '') ??
+                    'user');
           final randSuffix = (user.id.hashCode.abs() % 9000 + 1000).toString();
           un = "${cleanBase}_$randSuffix";
           try {
-            await supabase.from('profiles').update({'username': un}).eq('id', user.id);
+            await supabase
+                .from('profiles')
+                .update({'username': un})
+                .eq('id', user.id);
           } catch (_) {}
         }
 
@@ -898,207 +909,214 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                               ],
                             ),
                           ),
-                        Theme(
-                          data: Theme.of(context).copyWith(
-                            hoverColor: isDark
-                                ? Colors.white10
-                                : Colors.black12,
-                          ),
-                          child: PopupMenuButton<String>(
-                            tooltip: 'Options',
-                            color: isDark
-                                ? const Color(0xFF1E293B)
-                                : Colors.white,
-                            elevation: 8,
-                            padding: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              side: BorderSide(
-                                color: isDark ? Colors.white12 : cardBorder,
-                              ),
+                          Theme(
+                            data: Theme.of(context).copyWith(
+                              hoverColor: isDark
+                                  ? Colors.white10
+                                  : Colors.black12,
                             ),
-                            icon: Icon(
-                              Icons.more_horiz_rounded,
-                              size: 18,
+                            child: PopupMenuButton<String>(
+                              tooltip: 'Options',
                               color: isDark
-                                  ? Colors.white60
-                                  : const Color(0xFF94A3B8),
-                            ),
-                            onSelected: (val) async {
-                              if (val == 'profile') {
-                                _onTabTapped(4);
-                              } else if (val == 'settings') {
-                                _onTabTapped(8);
-                              } else if (val == 'studio') {
-                                _onTabTapped(2);
-                              } else if (val == 'logout') {
-                                final confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (dCtx) => AlertDialog(
-                                    backgroundColor: isDark
-                                        ? const Color(0xFF1E293B)
-                                        : Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    title: Text(
-                                      context.zevTr('logOut'),
-                                      style: TextStyle(
-                                        color: isDark ? Colors.white : textDark,
-                                        fontWeight: FontWeight.bold,
+                                  ? const Color(0xFF1E293B)
+                                  : Colors.white,
+                              elevation: 8,
+                              padding: EdgeInsets.zero,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                side: BorderSide(
+                                  color: isDark ? Colors.white12 : cardBorder,
+                                ),
+                              ),
+                              icon: Icon(
+                                Icons.more_horiz_rounded,
+                                size: 18,
+                                color: isDark
+                                    ? Colors.white60
+                                    : const Color(0xFF94A3B8),
+                              ),
+                              onSelected: (val) async {
+                                if (val == 'profile') {
+                                  _onTabTapped(4);
+                                } else if (val == 'settings') {
+                                  _onTabTapped(8);
+                                } else if (val == 'studio') {
+                                  _onTabTapped(2);
+                                } else if (val == 'logout') {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (dCtx) => AlertDialog(
+                                      backgroundColor: isDark
+                                          ? const Color(0xFF1E293B)
+                                          : Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
                                       ),
-                                    ),
-                                    content: Text(
-                                      context.zevTr('logOutConfirm'),
-                                      style: TextStyle(
-                                        color: isDark
-                                            ? Colors.white70
-                                            : textGrey,
-                                      ),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(dCtx, false),
-                                        child: Text(
-                                          context.zevTr('cancel'),
-                                          style: const TextStyle(
-                                            color: textGrey,
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                      title: Text(
+                                        context.zevTr('logOut'),
+                                        style: TextStyle(
+                                          color: isDark
+                                              ? Colors.white
+                                              : textDark,
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.redAccent,
-                                          foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              12,
+                                      content: Text(
+                                        context.zevTr('logOutConfirm'),
+                                        style: TextStyle(
+                                          color: isDark
+                                              ? Colors.white70
+                                              : textGrey,
+                                        ),
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(dCtx, false),
+                                          child: Text(
+                                            context.zevTr('cancel'),
+                                            style: const TextStyle(
+                                              color: textGrey,
+                                              fontWeight: FontWeight.bold,
                                             ),
                                           ),
                                         ),
-                                        onPressed: () =>
-                                            Navigator.pop(dCtx, true),
-                                        child: Text(
-                                          context.zevTr('logOut'),
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
+                                        ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.redAccent,
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
                                           ),
+                                          onPressed: () =>
+                                              Navigator.pop(dCtx, true),
+                                          child: Text(
+                                            context.zevTr('logOut'),
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirm == true) {
+                                    await supabase.auth.signOut();
+                                    if (mounted) {
+                                      Navigator.of(context).pushAndRemoveUntil(
+                                        MaterialPageRoute(
+                                          builder: (_) => const WelcomeScreen(),
+                                        ),
+                                        (r) => false,
+                                      );
+                                    }
+                                  }
+                                }
+                              },
+                              itemBuilder: (ctx) => [
+                                PopupMenuItem(
+                                  value: 'profile',
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.person_outline_rounded,
+                                        size: 18,
+                                        color: primaryPink,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        context.zevTr('myProfile'),
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: isDark
+                                              ? Colors.white
+                                              : textDark,
                                         ),
                                       ),
                                     ],
                                   ),
-                                );
-                                if (confirm == true) {
-                                  await supabase.auth.signOut();
-                                  if (mounted) {
-                                    Navigator.of(context).pushAndRemoveUntil(
-                                      MaterialPageRoute(
-                                        builder: (_) => const WelcomeScreen(),
-                                      ),
-                                      (r) => false,
-                                    );
-                                  }
-                                }
-                              }
-                            },
-                            itemBuilder: (ctx) => [
-                              PopupMenuItem(
-                                value: 'profile',
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.person_outline_rounded,
-                                      size: 18,
-                                      color: primaryPink,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Text(
-                                      context.zevTr('myProfile'),
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: isDark ? Colors.white : textDark,
-                                      ),
-                                    ),
-                                  ],
                                 ),
-                              ),
-                              PopupMenuItem(
-                                value: 'settings',
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.settings_outlined,
-                                      size: 18,
-                                      color: primaryPink,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Text(
-                                      context.zevTr('settings'),
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: isDark ? Colors.white : textDark,
+                                PopupMenuItem(
+                                  value: 'settings',
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.settings_outlined,
+                                        size: 18,
+                                        color: primaryPink,
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: 'studio',
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.edit_note_rounded,
-                                      size: 18,
-                                      color: primaryPink,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Text(
-                                      context.zevTr('creatorStudio'),
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: isDark ? Colors.white : textDark,
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        context.zevTr('settings'),
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: isDark
+                                              ? Colors.white
+                                              : textDark,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              const PopupMenuDivider(),
-                              PopupMenuItem(
-                                value: 'logout',
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.logout_rounded,
-                                      size: 18,
-                                      color: Colors.redAccent,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Text(
-                                      context.zevTr('logOut'),
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
+                                PopupMenuItem(
+                                  value: 'studio',
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.edit_note_rounded,
+                                        size: 18,
+                                        color: primaryPink,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        context.zevTr('creatorStudio'),
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: isDark
+                                              ? Colors.white
+                                              : textDark,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuDivider(),
+                                PopupMenuItem(
+                                  value: 'logout',
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.logout_rounded,
+                                        size: 18,
                                         color: Colors.redAccent,
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        context.zevTr('logOut'),
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.redAccent,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
             const SizedBox(height: 8),
           ],
         ),
@@ -1136,8 +1154,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
             decoration: BoxDecoration(
               color: isSelected
                   ? (isDark
-                      ? primaryPink.withValues(alpha: 0.12)
-                      : const Color(0xFFFFF0F3))
+                        ? primaryPink.withValues(alpha: 0.12)
+                        : const Color(0xFFFFF0F3))
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
@@ -1178,8 +1196,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                         color: isSelected
                             ? primaryPink
                             : (isDark
-                                ? const Color(0xFF94A3B8)
-                                : const Color(0xFF64748B)),
+                                  ? const Color(0xFF94A3B8)
+                                  : const Color(0xFF64748B)),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -1194,8 +1212,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                             color: isSelected
                                 ? (isDark ? Colors.white : primaryPink)
                                 : (isDark
-                                    ? const Color(0xFFCBD5E1)
-                                    : const Color(0xFF334155)),
+                                      ? const Color(0xFFCBD5E1)
+                                      : const Color(0xFF334155)),
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -1220,8 +1238,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                         color: isSelected
                             ? primaryPink
                             : (isDark
-                                ? const Color(0xFF94A3B8)
-                                : const Color(0xFF64748B)),
+                                  ? const Color(0xFF94A3B8)
+                                  : const Color(0xFF64748B)),
                       ),
                       const SizedBox(height: 3),
                       Text(
@@ -1234,8 +1252,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                           color: isSelected
                               ? primaryPink
                               : (isDark
-                                  ? const Color(0xFF94A3B8)
-                                  : const Color(0xFF64748B)),
+                                    ? const Color(0xFF94A3B8)
+                                    : const Color(0xFF64748B)),
                         ),
                         textAlign: TextAlign.center,
                         maxLines: 1,

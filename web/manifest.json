@@ -1,14 +1,111 @@
 {
+    "id": "/?source=pwa",
     "name": "ZEV Social Network",
     "short_name": "ZEV",
-    "start_url": ".",
+    "description": "ZEV - The Next Generation Social Network. Connect, Share Reels, Stories & Chat (zevapp.com)",
+    "start_url": "/?source=pwa",
+    "scope": "/",
     "display": "standalone",
+    "display_override": [
+        "window-controls-overlay",
+        "standalone",
+        "minimal-ui"
+    ],
     "background_color": "#090D16",
-    "theme_color": "#F494AC",
-    "description": "ZEV - The Next Generation Social Network (zevapp.com)",
-    "orientation": "portrait-primary",
+    "theme_color": "#090D16",
+    "orientation": "any",
+    "lang": "en",
+    "dir": "auto",
+    "categories": [
+        "social",
+        "entertainment",
+        "photo",
+        "lifestyle"
+    ],
     "prefer_related_applications": false,
+    "launch_handler": {
+        "client_mode": "focus-existing"
+    },
+    "edge_side_panel": {
+        "preferred_width": 400
+    },
+    "shortcuts": [
+        {
+            "name": "Feed",
+            "short_name": "Feed",
+            "description": "View latest posts and updates",
+            "url": "/?source=shortcut_feed",
+            "icons": [
+                {
+                    "src": "icons/Icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "Messages",
+            "short_name": "Chat",
+            "description": "Chat with your friends",
+            "url": "/?source=shortcut_chat",
+            "icons": [
+                {
+                    "src": "icons/Icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "Reels",
+            "short_name": "Reels",
+            "description": "Watch trending short videos",
+            "url": "/?source=shortcut_reels",
+            "icons": [
+                {
+                    "src": "icons/Icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "Shop",
+            "short_name": "Shop",
+            "description": "Explore marketplace and deals",
+            "url": "/?source=shortcut_shop",
+            "icons": [
+                {
+                    "src": "icons/Icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        }
+    ],
+    "screenshots": [
+        {
+            "src": "screenshots/desktop-wide.png",
+            "sizes": "1376x768",
+            "type": "image/png",
+            "form_factor": "wide",
+            "label": "ZEV on Desktop"
+        },
+        {
+            "src": "screenshots/mobile-narrow.png",
+            "sizes": "768x1376",
+            "type": "image/png",
+            "form_factor": "narrow",
+            "label": "ZEV on Mobile"
+        }
+    ],
     "icons": [
+        {
+            "src": "icons/Icon-96.png",
+            "sizes": "96x96",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-144.png",
+            "sizes": "144x144",
+            "type": "image/png"
+        },
         {
             "src": "icons/Icon-192.png",
             "sizes": "192x192",
@@ -30,6 +127,21 @@
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"
+        }
+    ],
+    "share_target": {
+        "action": "/?source=share_target",
+        "method": "GET",
+        "params": {
+            "title": "title",
+            "text": "text",
+            "url": "url"
+        }
+    },
+    "protocol_handlers": [
+        {
+            "protocol": "web+zev",
+            "url": "/?source=protocol&path=%s"
         }
     ]
 }

@@ -125,7 +125,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
         final rawUser = res['username']?.toString() ?? '';
         setState(() {
           _currentDisplayName = combined.isNotEmpty ? combined : 'ZEV User';
-          _currentUserName = rawUser.isNotEmpty ? rawUser : combined.toLowerCase().replaceAll(' ', '_');
+          _currentUserName = rawUser.isNotEmpty
+              ? rawUser
+              : combined.toLowerCase().replaceAll(' ', '_');
           _currentUserAvatar = res['avatar_url'] ?? '';
         });
       }
@@ -140,7 +142,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
 
       final res = await supabase
           .from("user_stories")
-          .select("id, user_id, caption, media_url, media_type, created_at, expires_at")
+          .select(
+            "id, user_id, caption, media_url, media_type, created_at, expires_at",
+          )
           .eq("media_type", "note")
           .gt("expires_at", nowStr)
           .order("created_at", ascending: false)
@@ -153,7 +157,10 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
       Set<String> seenUserIds = {};
 
       if (notesData.isNotEmpty) {
-        final userIds = notesData.map((e) => e['user_id'].toString()).toSet().toList();
+        final userIds = notesData
+            .map((e) => e['user_id'].toString())
+            .toSet()
+            .toList();
         final profilesRes = await supabase
             .from("profiles")
             .select("id, first_name, last_name, avatar_url, username")
@@ -169,7 +176,8 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
           if (seenUserIds.contains(uId)) continue;
           seenUserIds.add(uId);
 
-          final noteText = (item['caption'] ?? item['media_url'] ?? '').toString();
+          final noteText = (item['caption'] ?? item['media_url'] ?? '')
+              .toString();
           if (uId == user.id) {
             myNote = noteText;
           } else {
@@ -178,13 +186,15 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
             final lName = prof?['last_name'] ?? '';
             String name = "$fName $lName".trim();
             if (name.isEmpty) name = prof?['username'] ?? 'Friend';
-            loadedNotes.add(UserNoteItem(
-              userId: uId,
-              userName: name,
-              userAvatar: prof?['avatar_url'] ?? '',
-              noteText: noteText,
-              isCurrentUser: false,
-            ));
+            loadedNotes.add(
+              UserNoteItem(
+                userId: uId,
+                userName: name,
+                userAvatar: prof?['avatar_url'] ?? '',
+                noteText: noteText,
+                isCurrentUser: false,
+              ),
+            );
           }
         }
       }
@@ -370,7 +380,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
       final res = await supabase
           .from("profiles")
           .select("id, first_name, last_name, avatar_url, role, username")
-          .or("first_name.ilike.%$cleanQ%,last_name.ilike.%$cleanQ%,username.ilike.%$cleanQ%")
+          .or(
+            "first_name.ilike.%$cleanQ%,last_name.ilike.%$cleanQ%,username.ilike.%$cleanQ%",
+          )
           .limit(20);
 
       List<ChatThreadItem> found = [];
@@ -478,19 +490,25 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                       final user = supabase.auth.currentUser;
                       if (user != null && text.isNotEmpty) {
                         final now = DateTime.now();
-                        final expiresAt = now.add(const Duration(hours: 24)).toIso8601String();
-                        supabase.from("user_stories").insert({
-                          'user_id': user.id,
-                          'caption': text,
-                          'media_type': 'note',
-                          'media_url': '',
-                          'expires_at': expiresAt,
-                          'created_at': now.toIso8601String(),
-                        }).then((_) {
-                          _fetch24hNotes();
-                        }).catchError((e) {
-                          debugPrint("Error saving note: $e");
-                        });
+                        final expiresAt = now
+                            .add(const Duration(hours: 24))
+                            .toIso8601String();
+                        supabase
+                            .from("user_stories")
+                            .insert({
+                              'user_id': user.id,
+                              'caption': text,
+                              'media_type': 'note',
+                              'media_url': '',
+                              'expires_at': expiresAt,
+                              'created_at': now.toIso8601String(),
+                            })
+                            .then((_) {
+                              _fetch24hNotes();
+                            })
+                            .catchError((e) {
+                              debugPrint("Error saving note: $e");
+                            });
                       }
                       setState(() {
                         _myNote = text;
@@ -620,11 +638,11 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                       decoration: BoxDecoration(
                         color: isCurrent
                             ? (isDark
-                                ? primaryPink.withValues(alpha: 0.12)
-                                : const Color(0xFFFFF0F5))
+                                  ? primaryPink.withValues(alpha: 0.12)
+                                  : const Color(0xFFFFF0F5))
                             : (isDark
-                                ? const Color(0xFF1E293B)
-                                : const Color(0xFFF8FAFC)),
+                                  ? const Color(0xFF1E293B)
+                                  : const Color(0xFFF8FAFC)),
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(
                           color: isCurrent
@@ -632,8 +650,8 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                                   alpha: isDark ? 0.35 : 0.25,
                                 )
                               : (isDark
-                                  ? Colors.white.withValues(alpha: 0.05)
-                                  : const Color(0xFFE2E8F0)),
+                                    ? Colors.white.withValues(alpha: 0.05)
+                                    : const Color(0xFFE2E8F0)),
                           width: 1.2,
                         ),
                       ),

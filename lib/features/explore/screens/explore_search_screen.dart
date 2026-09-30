@@ -90,7 +90,9 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
       // 3. Fetch active users by default
       final activeUsersRes = await supabase
           .from('profiles')
-          .select('id, first_name, last_name, avatar_url, cover_image_url, bio, role, username')
+          .select(
+            'id, first_name, last_name, avatar_url, cover_image_url, bio, role, username',
+          )
           .order('created_at', ascending: false)
           .limit(30);
 
@@ -122,7 +124,9 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
     try {
       final usersRes = await supabase
           .from('profiles')
-          .select('id, first_name, last_name, avatar_url, cover_image_url, bio, role, username')
+          .select(
+            'id, first_name, last_name, avatar_url, cover_image_url, bio, role, username',
+          )
           .or(
             'first_name.ilike.%$cleanQuery%,last_name.ilike.%$cleanQuery%,username.ilike.%$cleanQuery%,bio.ilike.%$cleanQuery%',
           )
@@ -215,7 +219,9 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
                         onChanged: _performSearch,
                         style: TextStyle(
                           fontSize: 14,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF0F172A),
                         ),
                         decoration: InputDecoration(
                           hintText: context.zevTr('searchZevHint'),
@@ -234,7 +240,10 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
                           ),
                           suffixIcon: _searchQuery.isNotEmpty
                               ? IconButton(
-                                  icon: const Icon(Icons.close_rounded, size: 18),
+                                  icon: const Icon(
+                                    Icons.close_rounded,
+                                    size: 18,
+                                  ),
                                   onPressed: () {
                                     _searchController.clear();
                                     _performSearch('');
@@ -269,7 +278,9 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
                             onChanged: _performSearch,
                             style: TextStyle(
                               fontSize: 14,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              color: isDark
+                                  ? Colors.white
+                                  : const Color(0xFF0F172A),
                             ),
                             decoration: InputDecoration(
                               hintText: context.zevTr('searchZevHint'),
@@ -288,7 +299,10 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
                               ),
                               suffixIcon: _searchQuery.isNotEmpty
                                   ? IconButton(
-                                      icon: const Icon(Icons.close_rounded, size: 18),
+                                      icon: const Icon(
+                                        Icons.close_rounded,
+                                        size: 18,
+                                      ),
                                       onPressed: () {
                                         _searchController.clear();
                                         _performSearch('');
@@ -585,8 +599,8 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
     required bool isMobile,
   }) {
     final uid = user['id']?.toString() ?? '';
-    final name =
-        "${user['first_name'] ?? ''} ${user['last_name'] ?? ''}".trim();
+    final name = "${user['first_name'] ?? ''} ${user['last_name'] ?? ''}"
+        .trim();
     final avatar = user['avatar_url']?.toString() ?? '';
     final coverUrl = user['cover_image_url']?.toString() ?? '';
     final username = user['username']?.toString() ?? '';
@@ -620,9 +634,7 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (_) => UserProfileScreen(userId: uid),
-            ),
+            MaterialPageRoute(builder: (_) => UserProfileScreen(userId: uid)),
           );
         },
         child: Container(
@@ -661,15 +673,16 @@ class _ExploreSearchScreenState extends State<ExploreSearchScreen>
                               fit: BoxFit.cover,
                               width: double.infinity,
                               height: coverHeight,
-                              errorBuilder: (context, error, stackTrace) => Container(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: cardGradient,
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: cardGradient,
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
                             ),
                             Container(
                               decoration: BoxDecoration(

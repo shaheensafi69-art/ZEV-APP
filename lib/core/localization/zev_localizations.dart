@@ -243,7 +243,8 @@ class ZevStrings {
       "show": "Show",
       "tryAgain": "Try Again",
       "imageLoadFailed": "Failed to load image",
-      "failedToLoadPosts": "Could not load posts. Please check your internet connection.",
+      "failedToLoadPosts":
+          "Could not load posts. Please check your internet connection.",
       "privacyAndVisibility": "Privacy & Visibility",
     },
     "fa": {
@@ -488,7 +489,8 @@ class ZevStrings {
       "show": "آشکار کردن",
       "tryAgain": "تلاش مجدد",
       "imageLoadFailed": "بارگذاری تصویر ناموفق بود",
-      "failedToLoadPosts": "بارگذاری پست‌ها با خطا مواجه شد. لطفاً اتصال اینترنت را بررسی کنید.",
+      "failedToLoadPosts":
+          "بارگذاری پست‌ها با خطا مواجه شد. لطفاً اتصال اینترنت را بررسی کنید.",
       "privacyAndVisibility": "حریم خصوصی و نمایش",
     },
     "ps": {

@@ -56,7 +56,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   static const Color cardBorder = Color(0xFFF3F4F6);
 
   static final Map<String, Map<String, dynamic>> _profileMemoryCache = {};
-  static final Map<String, List<Map<String, dynamic>>> _userPostsMemoryCache = {};
+  static final Map<String, List<Map<String, dynamic>>> _userPostsMemoryCache =
+      {};
 
   @override
   void initState() {
@@ -533,23 +534,47 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         ? Map<String, dynamic>.from(profileData!['privacy_settings'])
         : <String, dynamic>{};
 
-    bool isPhoneHidden = profileData?['is_phone_hidden'] == true || privacyMap['hide_phone'] == true;
-    bool isDobHidden = profileData?['is_dob_hidden'] == true || privacyMap['hide_dob'] == true;
-    bool isFatherNameHidden = profileData?['is_father_name_hidden'] == true || privacyMap['hide_father_name'] == true;
-    bool isCountryHidden = profileData?['is_country_hidden'] == true || privacyMap['hide_country'] == true;
-    bool isEmailHidden = profileData?['is_email_hidden'] == true || privacyMap['hide_email'] == true;
-    bool isBioHidden = profileData?['is_bio_hidden'] == true || privacyMap['hide_bio'] == true;
-    bool isWalletHidden = profileData?['is_wallet_hidden'] == true || privacyMap['hide_wallet'] == true;
-    bool isScoreHidden = profileData?['is_score_hidden'] == true || privacyMap['hide_score'] == true;
-    bool isReferralHidden = profileData?['is_referral_hidden'] == true || privacyMap['hide_referral'] == true;
-    bool isLanguageHidden = profileData?['is_language_hidden'] == true || privacyMap['hide_language'] == true;
-    bool isRoleHidden = profileData?['is_role_hidden'] == true || privacyMap['hide_role'] == true;
+    bool isPhoneHidden =
+        profileData?['is_phone_hidden'] == true ||
+        privacyMap['hide_phone'] == true;
+    bool isDobHidden =
+        profileData?['is_dob_hidden'] == true || privacyMap['hide_dob'] == true;
+    bool isFatherNameHidden =
+        profileData?['is_father_name_hidden'] == true ||
+        privacyMap['hide_father_name'] == true;
+    bool isCountryHidden =
+        profileData?['is_country_hidden'] == true ||
+        privacyMap['hide_country'] == true;
+    bool isEmailHidden =
+        profileData?['is_email_hidden'] == true ||
+        privacyMap['hide_email'] == true;
+    bool isBioHidden =
+        profileData?['is_bio_hidden'] == true || privacyMap['hide_bio'] == true;
+    bool isWalletHidden =
+        profileData?['is_wallet_hidden'] == true ||
+        privacyMap['hide_wallet'] == true;
+    bool isScoreHidden =
+        profileData?['is_score_hidden'] == true ||
+        privacyMap['hide_score'] == true;
+    bool isReferralHidden =
+        profileData?['is_referral_hidden'] == true ||
+        privacyMap['hide_referral'] == true;
+    bool isLanguageHidden =
+        profileData?['is_language_hidden'] == true ||
+        privacyMap['hide_language'] == true;
+    bool isRoleHidden =
+        profileData?['is_role_hidden'] == true ||
+        privacyMap['hide_role'] == true;
     bool isLastNameHidden = privacyMap['hide_lastname'] == true;
 
     bool isSavingProfile = false;
     int selectedTab = 0; // 0: Personal Info, 1: Privacy & Visibility
 
-    Widget buildModalContent(BuildContext modalContext, StateSetter setModalState, bool isDesktop) {
+    Widget buildModalContent(
+      BuildContext modalContext,
+      StateSetter setModalState,
+      bool isDesktop,
+    ) {
       Widget buildPrivacyToggleTile({
         required IconData icon,
         required String title,
@@ -603,10 +628,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: textGrey,
-                      ),
+                      style: const TextStyle(fontSize: 11, color: textGrey),
                     ),
                   ],
                 ),
@@ -616,7 +638,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 onTap: onToggle,
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: isHidden
                         ? Colors.redAccent.withValues(alpha: 0.15)
@@ -627,13 +652,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        isHidden ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                        isHidden
+                            ? Icons.visibility_off_rounded
+                            : Icons.visibility_rounded,
                         size: 14,
                         color: isHidden ? Colors.redAccent : Colors.teal,
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        isHidden ? modalContext.zevTr('hide') : modalContext.zevTr('show'),
+                        isHidden
+                            ? modalContext.zevTr('hide')
+                            : modalContext.zevTr('show'),
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
@@ -675,7 +704,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         color: primaryPink.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.edit_rounded, color: primaryPink, size: 20),
+                      child: const Icon(
+                        Icons.edit_rounded,
+                        color: primaryPink,
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Text(
@@ -712,7 +745,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 9),
                         decoration: BoxDecoration(
-                          color: selectedTab == 0 ? surfaceWhite : Colors.transparent,
+                          color: selectedTab == 0
+                              ? surfaceWhite
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: selectedTab == 0
                               ? [
@@ -739,7 +774,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 fontWeight: selectedTab == 0
                                     ? FontWeight.w800
                                     : FontWeight.w600,
-                                color: selectedTab == 0 ? primaryPink : textGrey,
+                                color: selectedTab == 0
+                                    ? primaryPink
+                                    : textGrey,
                               ),
                             ),
                           ],
@@ -755,7 +792,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 9),
                         decoration: BoxDecoration(
-                          color: selectedTab == 1 ? surfaceWhite : Colors.transparent,
+                          color: selectedTab == 1
+                              ? surfaceWhite
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: selectedTab == 1
                               ? [
@@ -782,7 +821,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 fontWeight: selectedTab == 1
                                     ? FontWeight.w800
                                     : FontWeight.w600,
-                                color: selectedTab == 1 ? primaryPink : textGrey,
+                                color: selectedTab == 1
+                                    ? primaryPink
+                                    : textGrey,
                               ),
                             ),
                           ],
@@ -822,7 +863,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                     },
                                     borderRadius: BorderRadius.circular(14),
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: surfaceWhite,
                                         borderRadius: BorderRadius.circular(14),
@@ -832,19 +875,27 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                         children: [
                                           CircleAvatar(
                                             radius: 26,
-                                            backgroundColor: primaryPink.withValues(alpha: 0.1),
-                                            backgroundImage: profileData?['avatar_url'] != null &&
-                                                    profileData!['avatar_url'].toString().isNotEmpty
-                                                ? NetworkImage(profileData!['avatar_url'])
+                                            backgroundColor: primaryPink
+                                                .withValues(alpha: 0.1),
+                                            backgroundImage:
+                                                profileData?['avatar_url'] !=
+                                                        null &&
+                                                    profileData!['avatar_url']
+                                                        .toString()
+                                                        .isNotEmpty
+                                                ? NetworkImage(
+                                                    profileData!['avatar_url'],
+                                                  )
                                                 : null,
                                             child: isAvatarUploading
                                                 ? const SizedBox(
                                                     width: 18,
                                                     height: 18,
-                                                    child: CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                      color: primaryPink,
-                                                    ),
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          color: primaryPink,
+                                                        ),
                                                   )
                                                 : const Icon(
                                                     Icons.camera_alt_rounded,
@@ -875,7 +926,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                     },
                                     borderRadius: BorderRadius.circular(14),
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: surfaceWhite,
                                         borderRadius: BorderRadius.circular(14),
@@ -887,9 +940,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                             width: 52,
                                             height: 52,
                                             decoration: BoxDecoration(
-                                              borderRadius: BorderRadius.circular(12),
-                                              color: Colors.purple.withValues(alpha: 0.1),
-                                              image: (profileData?['cover_image_url'] ??
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              color: Colors.purple.withValues(
+                                                alpha: 0.1,
+                                              ),
+                                              image:
+                                                  (profileData?['cover_image_url'] ??
                                                               profileData?['cover_url']) !=
                                                           null &&
                                                       (profileData!['cover_image_url'] ??
@@ -911,10 +968,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                                     child: SizedBox(
                                                       width: 18,
                                                       height: 18,
-                                                      child: CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                        color: Colors.purple,
-                                                      ),
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                            color:
+                                                                Colors.purple,
+                                                          ),
                                                     ),
                                                   )
                                                 : const Center(
@@ -980,22 +1039,35 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           TextField(
                             controller: usernameController,
                             cursorColor: primaryPink,
-                            decoration: _inputDecoration("Username (e.g. zev_star)").copyWith(
-                              prefixIcon: const Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                child: Text(
-                                  "@",
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: primaryPink,
+                            decoration:
+                                _inputDecoration(
+                                  "Username (e.g. zev_star)",
+                                ).copyWith(
+                                  prefixIcon: const Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 12,
+                                    ),
+                                    child: Text(
+                                      "@",
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: primaryPink,
+                                      ),
+                                    ),
+                                  ),
+                                  prefixIconConstraints: const BoxConstraints(
+                                    minWidth: 0,
+                                    minHeight: 0,
+                                  ),
+                                  helperText:
+                                      "Unique username (3-30 letters, numbers, or _)",
+                                  helperStyle: const TextStyle(
+                                    fontSize: 11,
+                                    color: textGrey,
                                   ),
                                 ),
-                              ),
-                              prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-                              helperText: "Unique username (3-30 letters, numbers, or _)",
-                              helperStyle: const TextStyle(fontSize: 11, color: textGrey),
-                            ),
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
@@ -1008,12 +1080,24 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           TextField(
                             controller: emailController,
                             readOnly: true,
-                            decoration: _inputDecoration("Email Address").copyWith(
-                              prefixIcon: const Icon(Icons.email_outlined, color: textGrey, size: 20),
-                              suffixIcon: const Icon(Icons.lock_rounded, color: textGrey, size: 18),
-                              helperText: "Account email address is locked",
-                              helperStyle: const TextStyle(fontSize: 11, color: textGrey),
-                            ),
+                            decoration: _inputDecoration("Email Address")
+                                .copyWith(
+                                  prefixIcon: const Icon(
+                                    Icons.email_outlined,
+                                    color: textGrey,
+                                    size: 20,
+                                  ),
+                                  suffixIcon: const Icon(
+                                    Icons.lock_rounded,
+                                    color: textGrey,
+                                    size: 18,
+                                  ),
+                                  helperText: "Account email address is locked",
+                                  helperStyle: const TextStyle(
+                                    fontSize: 11,
+                                    color: textGrey,
+                                  ),
+                                ),
                             style: const TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 13,
@@ -1029,10 +1113,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 child: TextField(
                                   controller: fatherNameController,
                                   cursorColor: primaryPink,
-                                  decoration: _inputDecoration("Father's Name").copyWith(
-                                    prefixIcon: const Icon(Icons.badge_outlined, color: textGrey, size: 20),
+                                  decoration: _inputDecoration("Father's Name")
+                                      .copyWith(
+                                        prefixIcon: const Icon(
+                                          Icons.badge_outlined,
+                                          color: textGrey,
+                                          size: 20,
+                                        ),
+                                      ),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: textDark,
                                   ),
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: textDark),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -1041,10 +1134,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                   controller: phoneController,
                                   keyboardType: TextInputType.phone,
                                   cursorColor: primaryPink,
-                                  decoration: _inputDecoration("Phone Number (+...)").copyWith(
-                                    prefixIcon: const Icon(Icons.phone_outlined, color: textGrey, size: 20),
+                                  decoration:
+                                      _inputDecoration(
+                                        "Phone Number (+...)",
+                                      ).copyWith(
+                                        prefixIcon: const Icon(
+                                          Icons.phone_outlined,
+                                          color: textGrey,
+                                          size: 20,
+                                        ),
+                                      ),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: textDark,
                                   ),
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: textDark),
                                 ),
                               ),
                             ],
@@ -1057,10 +1161,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 child: TextField(
                                   controller: countryController,
                                   cursorColor: primaryPink,
-                                  decoration: _inputDecoration("Country / Location").copyWith(
-                                    prefixIcon: const Icon(Icons.public_rounded, color: textGrey, size: 20),
+                                  decoration:
+                                      _inputDecoration(
+                                        "Country / Location",
+                                      ).copyWith(
+                                        prefixIcon: const Icon(
+                                          Icons.public_rounded,
+                                          color: textGrey,
+                                          size: 20,
+                                        ),
+                                      ),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: textDark,
                                   ),
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: textDark),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -1068,10 +1183,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 child: TextField(
                                   controller: dobController,
                                   cursorColor: primaryPink,
-                                  decoration: _inputDecoration("Date of Birth (YYYY-MM-DD)").copyWith(
-                                    prefixIcon: const Icon(Icons.cake_outlined, color: textGrey, size: 20),
+                                  decoration:
+                                      _inputDecoration(
+                                        "Date of Birth (YYYY-MM-DD)",
+                                      ).copyWith(
+                                        prefixIcon: const Icon(
+                                          Icons.cake_outlined,
+                                          color: textGrey,
+                                          size: 20,
+                                        ),
+                                      ),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: textDark,
                                   ),
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: textDark),
                                 ),
                               ),
                             ],
@@ -1083,8 +1209,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             controller: bioController,
                             cursorColor: primaryPink,
                             maxLines: 3,
-                            decoration: _inputDecoration("Biography / About Me"),
-                            style: const TextStyle(fontSize: 14, color: textDark),
+                            decoration: _inputDecoration(
+                              "Biography / About Me",
+                            ),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: textDark,
+                            ),
                           ),
                           const SizedBox(height: 16),
                         ],
@@ -1098,16 +1229,26 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             decoration: BoxDecoration(
                               color: lightPinkBg,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: primaryPink.withValues(alpha: 0.2)),
+                              border: Border.all(
+                                color: primaryPink.withValues(alpha: 0.2),
+                              ),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.info_outline_rounded, color: primaryPink, size: 18),
+                                const Icon(
+                                  Icons.info_outline_rounded,
+                                  color: primaryPink,
+                                  size: 18,
+                                ),
                                 const SizedBox(width: 10),
                                 const Expanded(
                                   child: Text(
                                     "Choose which information is visible to other users on your profile.",
-                                    style: TextStyle(fontSize: 12, color: textDark, fontWeight: FontWeight.w600),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: textDark,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1116,86 +1257,112 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                           buildPrivacyToggleTile(
                             icon: Icons.phone_outlined,
                             title: "Phone Number",
-                            subtitle: "Show or hide your phone number on your profile",
+                            subtitle:
+                                "Show or hide your phone number on your profile",
                             isHidden: isPhoneHidden,
-                            onToggle: () => setModalState(() => isPhoneHidden = !isPhoneHidden),
+                            onToggle: () => setModalState(
+                              () => isPhoneHidden = !isPhoneHidden,
+                            ),
                           ),
                           buildPrivacyToggleTile(
                             icon: Icons.cake_outlined,
                             title: "Date of Birth",
                             subtitle: "Show or hide your date of birth",
                             isHidden: isDobHidden,
-                            onToggle: () => setModalState(() => isDobHidden = !isDobHidden),
+                            onToggle: () =>
+                                setModalState(() => isDobHidden = !isDobHidden),
                           ),
                           buildPrivacyToggleTile(
                             icon: Icons.public_rounded,
                             title: "Country & Location",
                             subtitle: "Show or hide your geographic location",
                             isHidden: isCountryHidden,
-                            onToggle: () => setModalState(() => isCountryHidden = !isCountryHidden),
+                            onToggle: () => setModalState(
+                              () => isCountryHidden = !isCountryHidden,
+                            ),
                           ),
                           buildPrivacyToggleTile(
                             icon: Icons.badge_outlined,
                             title: "Father's Name",
                             subtitle: "Show or hide father's name",
                             isHidden: isFatherNameHidden,
-                            onToggle: () => setModalState(() => isFatherNameHidden = !isFatherNameHidden),
+                            onToggle: () => setModalState(
+                              () => isFatherNameHidden = !isFatherNameHidden,
+                            ),
                           ),
                           buildPrivacyToggleTile(
                             icon: Icons.email_outlined,
                             title: "Email Address",
-                            subtitle: "Show or hide your email address publicly",
+                            subtitle:
+                                "Show or hide your email address publicly",
                             isHidden: isEmailHidden,
-                            onToggle: () => setModalState(() => isEmailHidden = !isEmailHidden),
+                            onToggle: () => setModalState(
+                              () => isEmailHidden = !isEmailHidden,
+                            ),
                           ),
                           buildPrivacyToggleTile(
                             icon: Icons.notes_rounded,
                             title: "Biography",
                             subtitle: "Show or hide your bio section",
                             isHidden: isBioHidden,
-                            onToggle: () => setModalState(() => isBioHidden = !isBioHidden),
+                            onToggle: () =>
+                                setModalState(() => isBioHidden = !isBioHidden),
                           ),
                           buildPrivacyToggleTile(
                             icon: Icons.bolt_rounded,
                             title: "ZEV Points / XP",
-                            subtitle: "Show or hide total earned points and level",
+                            subtitle:
+                                "Show or hide total earned points and level",
                             isHidden: isScoreHidden,
-                            onToggle: () => setModalState(() => isScoreHidden = !isScoreHidden),
+                            onToggle: () => setModalState(
+                              () => isScoreHidden = !isScoreHidden,
+                            ),
                           ),
                           buildPrivacyToggleTile(
                             icon: Icons.account_balance_wallet_outlined,
                             title: "Wallet Balance",
                             subtitle: "Show or hide your wallet balance",
                             isHidden: isWalletHidden,
-                            onToggle: () => setModalState(() => isWalletHidden = !isWalletHidden),
+                            onToggle: () => setModalState(
+                              () => isWalletHidden = !isWalletHidden,
+                            ),
                           ),
                           buildPrivacyToggleTile(
                             icon: Icons.share_rounded,
                             title: "Referral Code",
                             subtitle: "Show or hide your invitation code",
                             isHidden: isReferralHidden,
-                            onToggle: () => setModalState(() => isReferralHidden = !isReferralHidden),
+                            onToggle: () => setModalState(
+                              () => isReferralHidden = !isReferralHidden,
+                            ),
                           ),
                           buildPrivacyToggleTile(
                             icon: Icons.person_outline_rounded,
                             title: "Last Name",
                             subtitle: "Show full last name or only first name",
                             isHidden: isLastNameHidden,
-                            onToggle: () => setModalState(() => isLastNameHidden = !isLastNameHidden),
+                            onToggle: () => setModalState(
+                              () => isLastNameHidden = !isLastNameHidden,
+                            ),
                           ),
                           buildPrivacyToggleTile(
                             icon: Icons.language_rounded,
                             title: "Preferred Language",
                             subtitle: "Show or hide your selected language",
                             isHidden: isLanguageHidden,
-                            onToggle: () => setModalState(() => isLanguageHidden = !isLanguageHidden),
+                            onToggle: () => setModalState(
+                              () => isLanguageHidden = !isLanguageHidden,
+                            ),
                           ),
                           buildPrivacyToggleTile(
                             icon: Icons.verified_user_outlined,
                             title: "Account Role",
-                            subtitle: "Show or hide your role badge (User/Creator/Admin)",
+                            subtitle:
+                                "Show or hide your role badge (User/Creator/Admin)",
                             isHidden: isRoleHidden,
-                            onToggle: () => setModalState(() => isRoleHidden = !isRoleHidden),
+                            onToggle: () => setModalState(
+                              () => isRoleHidden = !isRoleHidden,
+                            ),
                           ),
                         ],
                       ),
@@ -1211,13 +1378,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   child: OutlinedButton(
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       side: BorderSide(color: cardBorder),
                     ),
                     onPressed: () => Navigator.pop(modalContext),
                     child: Text(
                       modalContext.zevTr('close'),
-                      style: const TextStyle(fontWeight: FontWeight.w700, color: textGrey),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: textGrey,
+                      ),
                     ),
                   ),
                 ),
@@ -1230,7 +1402,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       foregroundColor: Colors.white,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                     onPressed: isSavingProfile
                         ? null
@@ -1292,7 +1466,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                 'father_name': fatherNameController.text.trim(),
                                 'phone_number': phoneController.text.trim(),
                                 'country': countryController.text.trim(),
-                                'date_of_birth': dobController.text.trim().isEmpty
+                                'date_of_birth':
+                                    dobController.text.trim().isEmpty
                                     ? null
                                     : dobController.text.trim(),
                                 'bio': bioController.text.trim(),
@@ -1345,7 +1520,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text("Profile updated successfully!"),
+                                  content: Text(
+                                    "Profile updated successfully!",
+                                  ),
                                   backgroundColor: Colors.green,
                                 ),
                               );
@@ -1364,11 +1541,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
                         : Text(
                             modalContext.zevTr('save'),
-                            style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                   ),
                 ),
@@ -1386,7 +1569,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         context: context,
         builder: (dialogContext) => Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
+          ),
           child: Container(
             width: 620,
             decoration: BoxDecoration(
@@ -1845,36 +2031,36 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                                     child: Container(
                                                       color: Colors.black
                                                           .withValues(
-                                                        alpha: 0.28,
-                                                      ),
+                                                            alpha: 0.28,
+                                                          ),
                                                     ),
                                                   ),
                                                 ),
                                                 // Smart foreground - 100% of cover photo fitted without cropping
                                                 Center(
                                                   child: Image.network(
-                                                    (profileData![
-                                                                'cover_image_url'] ??
-                                                            profileData![
-                                                                'cover_url'])
+                                                    (profileData!['cover_image_url'] ??
+                                                            profileData!['cover_url'])
                                                         .toString(),
                                                     width: double.infinity,
                                                     height: double.infinity,
                                                     fit: BoxFit.contain,
-                                                    errorBuilder: (
-                                                      context,
-                                                      error,
-                                                      stackTrace,
-                                                    ) => Center(
-                                                      child: Icon(
-                                                        Icons.landscape_rounded,
-                                                        size: 48,
-                                                        color: Colors.white
-                                                            .withValues(
-                                                          alpha: 0.4,
+                                                    errorBuilder:
+                                                        (
+                                                          context,
+                                                          error,
+                                                          stackTrace,
+                                                        ) => Center(
+                                                          child: Icon(
+                                                            Icons
+                                                                .landscape_rounded,
+                                                            size: 48,
+                                                            color: Colors.white
+                                                                .withValues(
+                                                                  alpha: 0.4,
+                                                                ),
+                                                          ),
                                                         ),
-                                                      ),
-                                                    ),
                                                   ),
                                                 ),
                                               ],
@@ -2147,8 +2333,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                                 letterSpacing: -0.3,
                                               ),
                                             ),
-                                            if (profileData?['username'] != null &&
-                                                profileData!['username'].toString().trim().isNotEmpty) ...[
+                                            if (profileData?['username'] !=
+                                                    null &&
+                                                profileData!['username']
+                                                    .toString()
+                                                    .trim()
+                                                    .isNotEmpty) ...[
                                               const SizedBox(height: 3),
                                               Text(
                                                 "@${profileData!['username'].toString().trim().replaceFirst('@', '')}",
@@ -2523,30 +2713,46 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                         : null,
                                   ),
                                   if (profileData!['father_name'] != null &&
-                                      profileData!['father_name'].toString().trim().isNotEmpty &&
-                                      (isMyProfile || profileData!['is_father_name_hidden'] != true)) ...[
+                                      profileData!['father_name']
+                                          .toString()
+                                          .trim()
+                                          .isNotEmpty &&
+                                      (isMyProfile ||
+                                          profileData!['is_father_name_hidden'] !=
+                                              true)) ...[
                                     const SizedBox(height: 10),
                                     _buildInfoRow(
                                       Icons.person_outline_rounded,
                                       "Father's Name",
                                       profileData!['father_name'],
                                       roleColor,
-                                      isHidden: profileData!['is_father_name_hidden'] == true,
+                                      isHidden:
+                                          profileData!['is_father_name_hidden'] ==
+                                          true,
                                     ),
                                   ],
                                   if (profileData!['phone_number'] != null &&
-                                      profileData!['phone_number'].toString().trim().isNotEmpty &&
-                                      (isMyProfile || profileData!['is_phone_hidden'] != true)) ...[
+                                      profileData!['phone_number']
+                                          .toString()
+                                          .trim()
+                                          .isNotEmpty &&
+                                      (isMyProfile ||
+                                          profileData!['is_phone_hidden'] !=
+                                              true)) ...[
                                     const SizedBox(height: 10),
                                     _buildInfoRow(
                                       Icons.phone_outlined,
                                       "Phone Number",
                                       profileData!['phone_number'],
                                       roleColor,
-                                      isHidden: profileData!['is_phone_hidden'] == true,
+                                      isHidden:
+                                          profileData!['is_phone_hidden'] ==
+                                          true,
                                     ),
                                   ],
-                                  if (isMyProfile || profileData!['is_dob_hidden'] != true) ...[
+                                  if (isMyProfile ||
+                                      profileData!['is_dob_hidden'] !=
+                                          true) ...[
                                     const SizedBox(height: 10),
                                     _buildInfoRow(
                                       Icons.cake_rounded,
@@ -2554,17 +2760,22 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                       profileData!['date_of_birth'] ??
                                           'Not specified',
                                       roleColor,
-                                      isHidden: profileData!['is_dob_hidden'] == true,
+                                      isHidden:
+                                          profileData!['is_dob_hidden'] == true,
                                     ),
                                   ],
-                                  if (isMyProfile || profileData!['is_country_hidden'] != true) ...[
+                                  if (isMyProfile ||
+                                      profileData!['is_country_hidden'] !=
+                                          true) ...[
                                     const SizedBox(height: 10),
                                     _buildInfoRow(
                                       Icons.public_rounded,
                                       "Country",
                                       profileData!['country'] ?? 'Global',
                                       roleColor,
-                                      isHidden: profileData!['is_country_hidden'] == true,
+                                      isHidden:
+                                          profileData!['is_country_hidden'] ==
+                                          true,
                                     ),
                                   ],
                                   const SizedBox(height: 10),
@@ -4566,14 +4777,28 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         ? Map<String, dynamic>.from(profileData!['privacy_settings'])
         : <String, dynamic>{};
 
-    final isBioHidden = profileData?['is_bio_hidden'] == true || privacyMap['hide_bio'] == true;
-    final isCountryHidden = profileData?['is_country_hidden'] == true || privacyMap['hide_country'] == true;
-    final isEmailHidden = profileData?['is_email_hidden'] == true || privacyMap['hide_email'] == true;
-    final isDobHidden = profileData?['is_dob_hidden'] == true || privacyMap['hide_dob'] == true;
-    final isWalletHidden = profileData?['is_wallet_hidden'] == true || privacyMap['hide_wallet'] == true;
-    final isReferralHidden = profileData?['is_referral_hidden'] == true || privacyMap['hide_referral'] == true;
-    final isPhoneHidden = profileData?['is_phone_hidden'] == true || privacyMap['hide_phone'] == true;
-    final isFatherNameHidden = profileData?['is_father_name_hidden'] == true || privacyMap['hide_father_name'] == true;
+    final isBioHidden =
+        profileData?['is_bio_hidden'] == true || privacyMap['hide_bio'] == true;
+    final isCountryHidden =
+        profileData?['is_country_hidden'] == true ||
+        privacyMap['hide_country'] == true;
+    final isEmailHidden =
+        profileData?['is_email_hidden'] == true ||
+        privacyMap['hide_email'] == true;
+    final isDobHidden =
+        profileData?['is_dob_hidden'] == true || privacyMap['hide_dob'] == true;
+    final isWalletHidden =
+        profileData?['is_wallet_hidden'] == true ||
+        privacyMap['hide_wallet'] == true;
+    final isReferralHidden =
+        profileData?['is_referral_hidden'] == true ||
+        privacyMap['hide_referral'] == true;
+    final isPhoneHidden =
+        profileData?['is_phone_hidden'] == true ||
+        privacyMap['hide_phone'] == true;
+    final isFatherNameHidden =
+        profileData?['is_father_name_hidden'] == true ||
+        privacyMap['hide_father_name'] == true;
 
     final phoneVal = (profileData?['phone_number'] ?? '').toString().trim();
     final fatherVal = (profileData?['father_name'] ?? '').toString().trim();
@@ -4590,7 +4815,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               borderRadius: BorderRadius.circular(16),
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 16),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 13,
+                  horizontal: 16,
+                ),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFFFC466B), Color(0xFFFF5E7E)],
@@ -4607,7 +4835,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.tune_rounded, color: Colors.white, size: 18),
+                    const Icon(
+                      Icons.tune_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       context.zevTr('editProfile'),
@@ -4646,16 +4878,25 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 if (isBioHidden && isMyProfile) ...[
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.redAccent.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                      border: Border.all(
+                        color: Colors.redAccent.withOpacity(0.3),
+                      ),
                     ),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.lock_rounded, size: 10, color: Colors.redAccent),
+                        Icon(
+                          Icons.lock_rounded,
+                          size: 10,
+                          color: Colors.redAccent,
+                        ),
                         SizedBox(width: 3),
                         Text(
                           'PRIVATE',
@@ -4818,8 +5059,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           color: isPrivate
               ? Colors.redAccent.withOpacity(0.3)
               : (isDark
-                  ? Colors.white.withOpacity(0.06)
-                  : Colors.black.withOpacity(0.06)),
+                    ? Colors.white.withOpacity(0.06)
+                    : Colors.black.withOpacity(0.06)),
         ),
         boxShadow: isDark
             ? null
@@ -4855,7 +5096,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     ),
                     if (isPrivate) ...[
                       const SizedBox(width: 5),
-                      const Icon(Icons.lock_rounded, size: 10, color: Colors.redAccent),
+                      const Icon(
+                        Icons.lock_rounded,
+                        size: 10,
+                        color: Colors.redAccent,
+                      ),
                     ],
                   ],
                 ),

@@ -167,225 +167,213 @@ class _ShopScreenState extends State<ShopScreen> {
         final isRtl = LanguageService.isRtl(activeLocale.languageCode);
 
         final Widget mainContent = RefreshIndicator(
-              color: palette.primary,
-              onRefresh: _fetchProducts,
-              child: ResponsiveLayout.pageConstraint(
-                maxWidth: 1200,
-                child: CustomScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(
-                    parent: BouncingScrollPhysics(),
-                  ),
-                  slivers: [
-                    // Search Bar & Subtitle
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                        child: Column(
-                          crossAxisAlignment: isRtl
-                              ? CrossAxisAlignment.end
-                              : CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _t('subtitle'),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: textSecondary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-
-                            // Search box
-                            Container(
-                              decoration: BoxDecoration(
-                                color: palette.surface,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: palette.cardBorder),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(
-                                      alpha: isDark ? 0.2 : 0.04,
-                                    ),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                              child: TextField(
-                                onChanged: (val) =>
-                                    setState(() => _searchQuery = val),
-                                style: TextStyle(
-                                  color: textPrimary,
-                                  fontSize: 14,
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: _t('search_hint'),
-                                  hintStyle: TextStyle(
-                                    color: textSecondary.withValues(alpha: 0.7),
-                                    fontSize: 13,
-                                  ),
-                                  prefixIcon: Icon(
-                                    Icons.search_rounded,
-                                    color: palette.primary,
-                                  ),
-                                  border: InputBorder.none,
-                                  enabledBorder: InputBorder.none,
-                                  focusedBorder: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 14,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-
-                            // Categories List
-                            SizedBox(
-                              height: 38,
-                              child: ListView.separated(
-                                scrollDirection: Axis.horizontal,
-                                physics: const BouncingScrollPhysics(),
-                                itemCount: _categories.length,
-                                separatorBuilder: (context, index) =>
-                                    const SizedBox(width: 8),
-                                itemBuilder: (ctx, i) {
-                                  final cat = _categories[i];
-                                  final isSelected = cat == _selectedCategory;
-                                  final label = cat == 'All' ? _t('all') : cat;
-
-                                  return InkWell(
-                                    onTap: () =>
-                                        setState(() => _selectedCategory = cat),
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: AnimatedContainer(
-                                      duration: const Duration(
-                                        milliseconds: 200,
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 14,
-                                        vertical: 8,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: isSelected
-                                            ? palette.primary
-                                            : palette.surface,
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: isSelected
-                                              ? palette.primary
-                                              : palette.cardBorder,
-                                        ),
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          label,
-                                          style: TextStyle(
-                                            color: isSelected
-                                                ? Colors.white
-                                                : textSecondary,
-                                            fontSize: 12.5,
-                                            fontWeight: isSelected
-                                                ? FontWeight.bold
-                                                : FontWeight.normal,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // Google AdMob Shop Banner
-                    const SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        child: ShopAdBanner(),
-                      ),
-                    ),
-
-                    // Products Grid / List
-                    if (_isLoading)
-                      SliverToBoxAdapter(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 80),
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              color: palette.primary,
-                            ),
+          color: palette.primary,
+          onRefresh: _fetchProducts,
+          child: ResponsiveLayout.pageConstraint(
+            maxWidth: 1200,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              slivers: [
+                // Search Bar & Subtitle
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: Column(
+                      crossAxisAlignment: isRtl
+                          ? CrossAxisAlignment.end
+                          : CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _t('subtitle'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: textSecondary,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                      )
-                    else if (_filteredProducts.isEmpty)
-                      SliverToBoxAdapter(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 80),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.search_off_rounded,
-                                size: 60,
-                                color: textSecondary.withValues(alpha: 0.4),
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                _t('no_products'),
-                                style: TextStyle(
-                                  color: textSecondary,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
+                        const SizedBox(height: 10),
+
+                        // Search box
+                        Container(
+                          decoration: BoxDecoration(
+                            color: palette.surface,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: palette.cardBorder),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(
+                                  alpha: isDark ? 0.2 : 0.04,
                                 ),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
                               ),
                             ],
                           ),
-                        ),
-                      )
-                    else if (ResponsiveLayout.isPhone(context))
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate((
-                            context,
-                            index,
-                          ) {
-                            final product = _filteredProducts[index];
-                            return _buildProductCard(product, palette, isRtl);
-                          }, childCount: _filteredProducts.length),
-                        ),
-                      )
-                    else
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
-                        sliver: SliverGrid(
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount:
-                                    ResponsiveLayout.isTablet(context) ? 2 : (MediaQuery.of(context).size.width >= 1200 ? 3 : 2),
-                                crossAxisSpacing: 18,
-                                mainAxisSpacing: 18,
-                                childAspectRatio: 0.69,
+                          child: TextField(
+                            onChanged: (val) =>
+                                setState(() => _searchQuery = val),
+                            style: TextStyle(color: textPrimary, fontSize: 14),
+                            decoration: InputDecoration(
+                              hintText: _t('search_hint'),
+                              hintStyle: TextStyle(
+                                color: textSecondary.withValues(alpha: 0.7),
+                                fontSize: 13,
                               ),
-                          delegate: SliverChildBuilderDelegate((
-                            context,
-                            index,
-                          ) {
-                            final product = _filteredProducts[index];
-                            return _buildProductCard(product, palette, isRtl);
-                          }, childCount: _filteredProducts.length),
+                              prefixIcon: Icon(
+                                Icons.search_rounded,
+                                color: palette.primary,
+                              ),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Categories List
+                        SizedBox(
+                          height: 38,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: _categories.length,
+                            separatorBuilder: (context, index) =>
+                                const SizedBox(width: 8),
+                            itemBuilder: (ctx, i) {
+                              final cat = _categories[i];
+                              final isSelected = cat == _selectedCategory;
+                              final label = cat == 'All' ? _t('all') : cat;
+
+                              return InkWell(
+                                onTap: () =>
+                                    setState(() => _selectedCategory = cat),
+                                borderRadius: BorderRadius.circular(12),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? palette.primary
+                                        : palette.surface,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? palette.primary
+                                          : palette.cardBorder,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      label,
+                                      style: TextStyle(
+                                        color: isSelected
+                                            ? Colors.white
+                                            : textSecondary,
+                                        fontSize: 12.5,
+                                        fontWeight: isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Google AdMob Shop Banner
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: ShopAdBanner(),
+                  ),
+                ),
+
+                // Products Grid / List
+                if (_isLoading)
+                  SliverToBoxAdapter(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 80),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: palette.primary,
                         ),
                       ),
-                  ],
-                ),
-              ),
-            );
+                    ),
+                  )
+                else if (_filteredProducts.isEmpty)
+                  SliverToBoxAdapter(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 80),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.search_off_rounded,
+                            size: 60,
+                            color: textSecondary.withValues(alpha: 0.4),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            _t('no_products'),
+                            style: TextStyle(
+                              color: textSecondary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else if (ResponsiveLayout.isPhone(context))
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final product = _filteredProducts[index];
+                        return _buildProductCard(product, palette, isRtl);
+                      }, childCount: _filteredProducts.length),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+                    sliver: SliverGrid(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: ResponsiveLayout.isTablet(context)
+                            ? 2
+                            : (MediaQuery.of(context).size.width >= 1200
+                                  ? 3
+                                  : 2),
+                        crossAxisSpacing: 18,
+                        mainAxisSpacing: 18,
+                        childAspectRatio: 0.69,
+                      ),
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final product = _filteredProducts[index];
+                        return _buildProductCard(product, palette, isRtl);
+                      }, childCount: _filteredProducts.length),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
 
         if (MediaQuery.of(context).size.width >= 1050) {
           return Directionality(
@@ -397,7 +385,8 @@ class _ShopScreenState extends State<ShopScreen> {
                 elevation: 0,
                 surfaceTintColor: Colors.transparent,
                 centerTitle: false,
-                leading: (Navigator.of(context).canPop() || widget.onBack != null)
+                leading:
+                    (Navigator.of(context).canPop() || widget.onBack != null)
                     ? IconButton(
                         icon: Icon(
                           isRtl
@@ -487,7 +476,10 @@ class _ShopScreenState extends State<ShopScreen> {
                 ],
               ),
               body: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -621,7 +613,9 @@ class _ShopScreenState extends State<ShopScreen> {
         [const Color(0xFF6366F1), const Color(0xFF8B5CF6)],
         Icons.smart_toy_rounded,
       );
-    } else if (c.contains('signal') || c.contains('forex') || c.contains('gold')) {
+    } else if (c.contains('signal') ||
+        c.contains('forex') ||
+        c.contains('gold')) {
       return (
         [const Color(0xFFF59E0B), const Color(0xFFEF4444)],
         Icons.trending_up_rounded,
@@ -631,7 +625,9 @@ class _ShopScreenState extends State<ShopScreen> {
         [const Color(0xFF06B6D4), const Color(0xFF3B82F6)],
         Icons.dns_rounded,
       );
-    } else if (c.contains('account') || c.contains('key') || c.contains('license')) {
+    } else if (c.contains('account') ||
+        c.contains('key') ||
+        c.contains('license')) {
       return (
         [const Color(0xFF10B981), const Color(0xFF059669)],
         Icons.vpn_key_rounded,
@@ -663,7 +659,9 @@ class _ShopScreenState extends State<ShopScreen> {
     );
 
     final (catGradient, catIcon) = _getCategoryStyle(cat);
-    final simulatedOriginalPrice = sellingPrice > 0 ? (sellingPrice * 1.35).toStringAsFixed(2) : '';
+    final simulatedOriginalPrice = sellingPrice > 0
+        ? (sellingPrice * 1.35).toStringAsFixed(2)
+        : '';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
@@ -697,7 +695,10 @@ class _ShopScreenState extends State<ShopScreen> {
                 Container(
                   height: 72,
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: catGradient,
@@ -745,14 +746,19 @@ class _ShopScreenState extends State<ShopScreen> {
                       ),
                       // In-stock badge
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: inStock
                               ? Colors.greenAccent.withValues(alpha: 0.25)
                               : Colors.redAccent.withValues(alpha: 0.25),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: inStock ? Colors.greenAccent : Colors.redAccent,
+                            color: inStock
+                                ? Colors.greenAccent
+                                : Colors.redAccent,
                             width: 0.8,
                           ),
                         ),
@@ -761,7 +767,9 @@ class _ShopScreenState extends State<ShopScreen> {
                           children: [
                             CircleAvatar(
                               radius: 3,
-                              backgroundColor: inStock ? Colors.greenAccent : Colors.redAccent,
+                              backgroundColor: inStock
+                                  ? Colors.greenAccent
+                                  : Colors.redAccent,
                             ),
                             const SizedBox(width: 4),
                             Text(
@@ -783,7 +791,9 @@ class _ShopScreenState extends State<ShopScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
                   child: Column(
-                    crossAxisAlignment: isRtl ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                    crossAxisAlignment: isRtl
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
                     children: [
                       Text(
                         name,
@@ -803,9 +813,21 @@ class _ShopScreenState extends State<ShopScreen> {
                         spacing: 6,
                         runSpacing: 4,
                         children: [
-                          _buildTagPill("Verified 🛡️", palette.primary, isDark),
-                          _buildTagPill("⭐ 4.9 Rated", Colors.amber[700]!, isDark),
-                          _buildTagPill("Auto Setup", Colors.blueAccent, isDark),
+                          _buildTagPill(
+                            "Verified 🛡️",
+                            palette.primary,
+                            isDark,
+                          ),
+                          _buildTagPill(
+                            "⭐ 4.9 Rated",
+                            Colors.amber[700]!,
+                            isDark,
+                          ),
+                          _buildTagPill(
+                            "Auto Setup",
+                            Colors.blueAccent,
+                            isDark,
+                          ),
                         ],
                       ),
 
@@ -830,7 +852,10 @@ class _ShopScreenState extends State<ShopScreen> {
 
                 // 3. Price & Action Button Footer
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: isDark
                         ? Colors.white.withValues(alpha: 0.02)
@@ -847,7 +872,9 @@ class _ShopScreenState extends State<ShopScreen> {
                     children: [
                       Expanded(
                         child: Column(
-                          crossAxisAlignment: isRtl ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                          crossAxisAlignment: isRtl
+                              ? CrossAxisAlignment.end
+                              : CrossAxisAlignment.start,
                           children: [
                             Row(
                               mainAxisSize: MainAxisSize.min,
@@ -904,13 +931,19 @@ class _ShopScreenState extends State<ShopScreen> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 9,
+                          ),
                         ),
                         onPressed: () => _openProductCheckout(product),
                         icon: const Icon(Icons.arrow_forward_rounded, size: 14),
                         label: Text(
                           _t('details_order'),
-                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                     ],
@@ -970,7 +1003,10 @@ class _ShopScreenState extends State<ShopScreen> {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.25),
                       borderRadius: BorderRadius.circular(8),
@@ -986,7 +1022,11 @@ class _ShopScreenState extends State<ShopScreen> {
                     ),
                   ),
                   const Spacer(),
-                  const Icon(Icons.bolt_rounded, color: Colors.amberAccent, size: 20),
+                  const Icon(
+                    Icons.bolt_rounded,
+                    color: Colors.amberAccent,
+                    size: 20,
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -1017,7 +1057,9 @@ class _ShopScreenState extends State<ShopScreen> {
                     backgroundColor: Colors.white,
                     foregroundColor: const Color(0xFF2575FC),
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   onPressed: () {
                     setState(() => _selectedCategory = 'Trading Bots');
@@ -1041,7 +1083,9 @@ class _ShopScreenState extends State<ShopScreen> {
             color: palette.surface,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : const Color(0xFFE2E8F0),
               width: 1.2,
             ),
             boxShadow: [
@@ -1057,7 +1101,11 @@ class _ShopScreenState extends State<ShopScreen> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.verified_user_rounded, color: palette.primary, size: 20),
+                  Icon(
+                    Icons.verified_user_rounded,
+                    color: palette.primary,
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     "ZEV Buyer Guarantee",
@@ -1070,13 +1118,33 @@ class _ShopScreenState extends State<ShopScreen> {
                 ],
               ),
               const SizedBox(height: 14),
-              _buildTrustItem(Icons.flash_on_rounded, "Instant Auto-Delivery", "Licenses and logins dispatched instantly", palette),
+              _buildTrustItem(
+                Icons.flash_on_rounded,
+                "Instant Auto-Delivery",
+                "Licenses and logins dispatched instantly",
+                palette,
+              ),
               const SizedBox(height: 12),
-              _buildTrustItem(Icons.security_rounded, "100% Escrow Protection", "Funds held safely until full verification", palette),
+              _buildTrustItem(
+                Icons.security_rounded,
+                "100% Escrow Protection",
+                "Funds held safely until full verification",
+                palette,
+              ),
               const SizedBox(height: 12),
-              _buildTrustItem(Icons.support_agent_rounded, "24/7 Priority Support", "Dedicated dispute & activation team", palette),
+              _buildTrustItem(
+                Icons.support_agent_rounded,
+                "24/7 Priority Support",
+                "Dedicated dispute & activation team",
+                palette,
+              ),
               const SizedBox(height: 12),
-              _buildTrustItem(Icons.replay_rounded, "Warranty & Replacement", "30-day official replacement coverage", palette),
+              _buildTrustItem(
+                Icons.replay_rounded,
+                "Warranty & Replacement",
+                "30-day official replacement coverage",
+                palette,
+              ),
             ],
           ),
         ),
@@ -1105,7 +1173,11 @@ class _ShopScreenState extends State<ShopScreen> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.storefront_rounded, color: palette.primary, size: 20),
+                  Icon(
+                    Icons.storefront_rounded,
+                    color: palette.primary,
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     "Sell On ZEV Shop",
@@ -1133,12 +1205,16 @@ class _ShopScreenState extends State<ShopScreen> {
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(color: palette.primary),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text("Reseller program application: Contact support@zevapp.com"),
+                        content: Text(
+                          "Reseller program application: Contact support@zevapp.com",
+                        ),
                         backgroundColor: Colors.blueAccent,
                       ),
                     );
@@ -1160,7 +1236,12 @@ class _ShopScreenState extends State<ShopScreen> {
     );
   }
 
-  Widget _buildTrustItem(IconData icon, String title, String sub, LuxuryPalette palette) {
+  Widget _buildTrustItem(
+    IconData icon,
+    String title,
+    String sub,
+    LuxuryPalette palette,
+  ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
