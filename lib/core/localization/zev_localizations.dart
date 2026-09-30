@@ -243,11 +243,7 @@ class ZevStrings {
       "show": "Show",
       "tryAgain": "Try Again",
       "failedToLoadPosts": "Could not load posts. Please check your internet connection.",
-      "shareThought": "Share a thought...",
-      "shareNote": "Share Note",
-      "yourNote": "Your note",
       "privacyAndVisibility": "Privacy & Visibility",
-      "editProfile": "Edit Profile",
     },
     "fa": {
       "feed": "فید",
@@ -491,11 +487,7 @@ class ZevStrings {
       "show": "آشکار کردن",
       "tryAgain": "تلاش مجدد",
       "failedToLoadPosts": "بارگذاری پست‌ها با خطا مواجه شد. لطفاً اتصال اینترنت را بررسی کنید.",
-      "shareThought": "یک یادداشت بنویسید...",
-      "shareNote": "اشتراک یادداشت",
-      "yourNote": "یادداشت شما",
       "privacyAndVisibility": "حریم خصوصی و نمایش",
-      "editProfile": "ویرایش پروفایل",
     },
     "ps": {
       "feed": "فید",
