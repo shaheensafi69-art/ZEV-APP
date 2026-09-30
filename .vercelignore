@@ -1,16 +1,6 @@
 build/
-node_modules/
 .dart_tool/
-android/
-ios/
-macos/
-windows/
-linux/
-electron/
-dist/
-.git/
+node_modules/
 .idea/
 .vscode/
 flutter-sdk/
-packages/**/android/
-packages/**/ios/
