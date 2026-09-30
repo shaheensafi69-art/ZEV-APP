@@ -8,11 +8,12 @@
     "display": "standalone",
     "display_override": [
         "window-controls-overlay",
+        "tabbed",
         "standalone",
         "minimal-ui"
     ],
-    "background_color": "#090D16",
-    "theme_color": "#090D16",
+    "background_color": "#0B0F19",
+    "theme_color": "#0B0F19",
     "orientation": "any",
     "lang": "en",
     "dir": "auto",
@@ -22,7 +23,60 @@
         "photo",
         "lifestyle"
     ],
+    "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
     "prefer_related_applications": false,
+    "related_applications": [
+        {
+            "platform": "webapp",
+            "url": "https://web.zevapp.com/manifest.json"
+        }
+    ],
+    "scope_extensions": [
+        {
+            "origin": "https://zevapp.com"
+        },
+        {
+            "origin": "https://web.zevapp.com"
+        }
+    ],
+    "file_handlers": [
+        {
+            "action": "/?source=file_handler",
+            "name": "ZEV Media Files",
+            "accept": {
+                "image/*": [".jpg", ".jpeg", ".png", ".webp", ".gif"],
+                "video/*": [".mp4", ".mov", ".webm"]
+            }
+        }
+    ],
+    "note_taking": {
+        "new_note_url": "/?source=new_post"
+    },
+    "widgets": [
+        {
+            "name": "ZEV Feed Updates",
+            "short_name": "Feed",
+            "description": "Latest updates from your network",
+            "tag": "zev-feed-widget",
+            "template": "widget-template",
+            "ms_ac_template": "widgets/feed.json",
+            "data": "widgets/feed-data.json",
+            "type": "application/json",
+            "screenshots": [
+                {
+                    "src": "screenshots/desktop-wide.png",
+                    "sizes": "1376x768",
+                    "label": "ZEV Widget Preview"
+                }
+            ],
+            "icons": [
+                {
+                    "src": "icons/Icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        }
+    ],
     "launch_handler": {
         "client_mode": "focus-existing"
     },

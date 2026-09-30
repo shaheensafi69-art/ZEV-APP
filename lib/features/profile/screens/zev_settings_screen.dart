@@ -4,6 +4,7 @@ import '../../../core/localization/zev_localizations.dart';
 import '../../../core/services/language_service.dart';
 import '../../../core/widgets/responsive_layout.dart';
 import '../../../core/widgets/circular_country_flag.dart';
+import '../../../core/theme/app_theme_service.dart';
 import '../../auth/screens/welcome_screen.dart';
 import 'zev_about_screen.dart';
 import 'zev_system_security_screen.dart';
@@ -431,6 +432,19 @@ class _ZevSettingsScreenState extends State<ZevSettingsScreen> {
               _buildGroupCard(
                 isDark: isDark,
                 items: [
+                  _SettingsItem(
+                    icon: isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                    iconColor: const Color(0xFF8B5CF6),
+                    title: isDark ? "Dark Theme (ZEV Midnight)" : "Light Theme (ZEV Pink & White)",
+                    subtitle: isDark
+                        ? "Deep midnight & glowing pink (Active)"
+                        : "Luxury white & soft pink (Active)",
+                    trailingBadge: isDark ? "DARK" : "LIGHT",
+                    onTap: () async {
+                      await AppThemeService.instance.toggleTheme();
+                      if (mounted) setState(() {});
+                    },
+                  ),
                   _SettingsItem(
                     icon: Icons.language_rounded,
                     iconColor: primaryPink,

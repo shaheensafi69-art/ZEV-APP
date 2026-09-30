@@ -726,23 +726,31 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
         final double listTopPadding =
             topPadding + topRowHeight + storiesAndSearchHeight + 6.0;
 
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
         return Directionality(
           textDirection: LanguageService.instance.isCurrentRtl
               ? TextDirection.rtl
               : TextDirection.ltr,
           child: Scaffold(
-            backgroundColor: surfaceWhite,
+            backgroundColor: isDark ? const Color(0xFF0B0F19) : surfaceWhite,
             body: Container(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFFFFF0F5),
-                    surfaceWhite,
-                    lightPinkBg.withValues(alpha: 0.2),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
+                gradient: isDark
+                    ? const LinearGradient(
+                        colors: [Color(0xFF0B0F19), Color(0xFF0D1220)],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      )
+                    : LinearGradient(
+                        colors: [
+                          const Color(0xFFFFF0F5),
+                          surfaceWhite,
+                          lightPinkBg.withValues(alpha: 0.2),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
               ),
               child: ResponsiveLayout.feedConstraint(
                 maxWidth: context.responsive(
@@ -915,21 +923,21 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                               10,
                             ),
                             decoration: BoxDecoration(
-                              color: surfaceWhite.withValues(alpha: 0.90),
+                              color: (isDark ? const Color(0xFF131926) : surfaceWhite).withValues(alpha: 0.94),
                               borderRadius: const BorderRadius.vertical(
                                 bottom: Radius.circular(24),
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.05),
+                                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.05),
                                   blurRadius: 10,
                                   offset: const Offset(0, 4),
                                 ),
                               ],
                               border: Border.all(
-                                color: const Color(
-                                  0xFFF3F4F6,
-                                ).withValues(alpha: 0.8),
+                                color: isDark
+                                    ? const Color(0xFF1E293B)
+                                    : const Color(0xFFF3F4F6).withValues(alpha: 0.8),
                                 width: 1,
                               ),
                             ),
@@ -961,7 +969,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                           Text(
                                             "Feed",
                                             style: TextStyle(
-                                              color: textDark,
+                                              color: isDark ? Colors.white : textDark,
                                               fontSize: context.respFont(
                                                 phone: 22.0,
                                                 tablet: 28.0,
@@ -1116,7 +1124,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                                     ),
                                                 child: Icon(
                                                   Icons.favorite_border_rounded,
-                                                  color: textDark,
+                                                  color: isDark ? const Color(0xFF94A3B8) : textDark,
                                                   size: context.respIcon(
                                                     phone: 26.0,
                                                     tablet: 30.0,
@@ -1155,7 +1163,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                                     ),
                                                 child: Icon(
                                                   Icons.send_outlined,
-                                                  color: textDark,
+                                                  color: isDark ? const Color(0xFF94A3B8) : textDark,
                                                   size: context.respIcon(
                                                     phone: 23.0,
                                                     tablet: 28.0,
@@ -1219,7 +1227,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                                     desktop: 15.0,
                                                   ),
                                                   fontWeight: FontWeight.w600,
-                                                  color: textDark,
+                                                  color: isDark ? Colors.white : textDark,
                                                 ),
                                                 decoration: InputDecoration(
                                                   hintText: context.zevTr(
@@ -1266,9 +1274,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                                         )
                                                       : null,
                                                   filled: true,
-                                                  fillColor: const Color(
-                                                    0xFFF3F4F6,
-                                                  ),
+                                                  fillColor: isDark
+                                                      ? const Color(0xFF131926)
+                                                      : const Color(0xFFF3F4F6),
                                                   contentPadding:
                                                       const EdgeInsets.symmetric(
                                                         vertical: 0,

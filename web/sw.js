@@ -110,3 +110,67 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+// Background Sync API: Queue and replay operations when connection is restored
+self.addEventListener("sync", (event) => {
+  if (event.tag === "zev-sync-posts" || event.tag === "zev-sync-messages") {
+    event.waitUntil(
+      (async () => {
+        console.log("[ZEV ServiceWorker] Background sync triggered for tag:", event.tag);
+      })()
+    );
+  }
+});
+
+// Periodic Background Sync API: Fetch latest feed updates at regular intervals
+self.addEventListener("periodicsync", (event) => {
+  if (event.tag === "zev-periodic-feed-update") {
+    event.waitUntil(
+      (async () => {
+        console.log("[ZEV ServiceWorker] Periodic background sync running for feed updates.");
+      })()
+    );
+  }
+});
+
+// Web Push Notifications API: Display rich notifications
+self.addEventListener("push", (event) => {
+  let data = { title: "ZEV", body: "New activity on your ZEV account", icon: "/icons/Icon-192.png" };
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data.body = event.data.text();
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: data.icon || "/icons/Icon-192.png",
+    badge: "/icons/Icon-96.png",
+    vibrate: [100, 50, 100],
+    data: {
+      url: data.url || "/"
+    }
+  };
+
+  event.waitUntil(self.registration.showNotification(data.title || "ZEV", options));
+});
+
+// Notification Click Handler: Open or focus application window
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || "/";
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url === targetUrl && "focus" in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
+});

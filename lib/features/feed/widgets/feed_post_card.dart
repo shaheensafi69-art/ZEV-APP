@@ -492,6 +492,15 @@ class _FeedPostCardState extends State<FeedPostCard> {
   Widget build(BuildContext context) {
     final post = widget.post;
     final currentUserId = supabase.auth.currentUser?.id;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final cardBg = isDark ? const Color(0xFF131926) : surfaceWhite;
+    final cardBorderColor = isDark ? const Color(0xFF1E293B) : cardBorder;
+    final authorTextColor = isDark ? Colors.white : textDark;
+    final primaryTextColor = isDark ? Colors.white : textDark;
+    final bodyTextColor = isDark ? const Color(0xFFF1F5F9) : const Color(0xFF374151);
+    final secondaryTextColor = isDark ? const Color(0xFF94A3B8) : textGrey;
+    final iconColor = isDark ? const Color(0xFF94A3B8) : textDark;
 
     // Responsive dimensions
     final double cardPadding = context.respSpacing(
@@ -570,14 +579,16 @@ class _FeedPostCardState extends State<FeedPostCard> {
     return Container(
       margin: EdgeInsets.zero,
       decoration: BoxDecoration(
-        color: surfaceWhite,
+        color: cardBg,
         borderRadius: BorderRadius.circular(
           context.responsive(phone: 24.0, tablet: 28.0, desktop: 30.0),
         ),
-        border: Border.all(color: cardBorder, width: 1.5),
+        border: Border.all(color: cardBorderColor, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.3)
+                : Colors.black.withValues(alpha: 0.03),
             blurRadius: 15,
             offset: const Offset(0, 6),
           ),
@@ -624,7 +635,7 @@ class _FeedPostCardState extends State<FeedPostCard> {
                         Text(
                           post.authorName,
                           style: TextStyle(
-                            color: textDark,
+                            color: authorTextColor,
                             fontWeight: FontWeight.w900,
                             fontSize: authorNameSize,
                           ),
@@ -634,7 +645,7 @@ class _FeedPostCardState extends State<FeedPostCard> {
                           children: [
                             Icon(
                               Icons.public,
-                              color: textGrey,
+                              color: secondaryTextColor,
                               size: metaFontSize + 1,
                             ),
                             const SizedBox(width: 4),
@@ -643,7 +654,7 @@ class _FeedPostCardState extends State<FeedPostCard> {
                                   ? post.createdAt.split('T')[0]
                                   : '',
                               style: TextStyle(
-                                color: textGrey,
+                                color: secondaryTextColor,
                                 fontSize: metaFontSize,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -671,13 +682,16 @@ class _FeedPostCardState extends State<FeedPostCard> {
                       ),
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
+                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(16),
+                      border: isDark
+                          ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                          : null,
                     ),
                     child: Text(
                       "Follow",
                       style: TextStyle(
-                        color: textDark,
+                        color: authorTextColor,
                         fontWeight: FontWeight.bold,
                         fontSize: metaFontSize + 1,
                       ),
@@ -687,7 +701,7 @@ class _FeedPostCardState extends State<FeedPostCard> {
                 IconButton(
                   icon: Icon(
                     Icons.more_horiz_rounded,
-                    color: textDark,
+                    color: iconColor,
                     size: context.respIcon(
                       phone: 22.0,
                       tablet: 26.0,
@@ -717,13 +731,16 @@ class _FeedPostCardState extends State<FeedPostCard> {
                 ),
               ),
               decoration: BoxDecoration(
-                color: lightPinkBg,
+                color: isDark ? const Color(0xFF2E1B38) : lightPinkBg,
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: primaryPink.withValues(alpha: isDark ? 0.35 : 0.15),
+                ),
               ),
               child: Text(
                 post.moodTag,
                 style: TextStyle(
-                  color: primaryPink,
+                  color: isDark ? const Color(0xFFF494AC) : primaryPink,
                   fontSize: moodTagFontSize,
                   fontWeight: FontWeight.w900,
                 ),
@@ -749,7 +766,7 @@ class _FeedPostCardState extends State<FeedPostCard> {
                           ? TextAlign.right
                           : TextAlign.left,
                       style: TextStyle(
-                        color: textDark,
+                        color: primaryTextColor,
                         fontWeight: FontWeight.w900,
                         fontSize: titleFontSize,
                         height: 1.35,
@@ -777,7 +794,7 @@ class _FeedPostCardState extends State<FeedPostCard> {
                             ? TextAlign.right
                             : TextAlign.left,
                         style: TextStyle(
-                          color: const Color(0xFF374151),
+                          color: bodyTextColor,
                           fontSize: contentFontSize,
                           height: 1.6,
                         ),
@@ -832,12 +849,16 @@ class _FeedPostCardState extends State<FeedPostCard> {
                     ),
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                      color: isDark
+                          ? const Color(0xFF0F172A).withValues(alpha: 0.3)
+                          : const Color(0xFF0F172A).withValues(alpha: 0.03),
                       borderRadius: BorderRadius.circular(
                         context.responsive(phone: 18.0, tablet: 22.0, desktop: 24.0),
                       ),
                       border: Border.all(
-                        color: const Color(0xFFE2E8F0).withValues(alpha: 0.8),
+                        color: isDark
+                            ? const Color(0xFF1E293B)
+                            : const Color(0xFFE2E8F0).withValues(alpha: 0.8),
                         width: 1,
                       ),
                     ),
@@ -871,7 +892,7 @@ class _FeedPostCardState extends State<FeedPostCard> {
                         isLiked
                             ? Icons.favorite_rounded
                             : Icons.favorite_border_rounded,
-                        color: isLiked ? primaryPink : textDark,
+                        color: isLiked ? primaryPink : iconColor,
                         size: heartIconSize,
                       ),
                       if (likesCount > 0) ...[
@@ -881,7 +902,7 @@ class _FeedPostCardState extends State<FeedPostCard> {
                               ? "${(likesCount / 1000).toStringAsFixed(1)}K"
                               : "$likesCount",
                           style: TextStyle(
-                            color: textDark,
+                            color: isLiked ? primaryPink : authorTextColor,
                             fontWeight: FontWeight.w800,
                             fontSize: actionTextSize,
                           ),
@@ -901,7 +922,7 @@ class _FeedPostCardState extends State<FeedPostCard> {
                     children: [
                       Icon(
                         Icons.chat_bubble_outline_rounded,
-                        color: textDark,
+                        color: iconColor,
                         size: commentIconSize,
                       ),
                       if (post.commentsCount > 0) ...[
@@ -911,7 +932,7 @@ class _FeedPostCardState extends State<FeedPostCard> {
                               ? "${(post.commentsCount / 1000).toStringAsFixed(1)}K"
                               : "${post.commentsCount}",
                           style: TextStyle(
-                            color: textDark,
+                            color: authorTextColor,
                             fontWeight: FontWeight.w800,
                             fontSize: actionTextSize,
                           ),
@@ -930,7 +951,7 @@ class _FeedPostCardState extends State<FeedPostCard> {
                     children: [
                       Icon(
                         Icons.repeat_rounded,
-                        color: isReposted ? primaryPink : textDark,
+                        color: isReposted ? primaryPink : iconColor,
                         size: repostIconSize,
                       ),
                       if (repostsCount > 0) ...[
@@ -938,7 +959,7 @@ class _FeedPostCardState extends State<FeedPostCard> {
                         Text(
                           "$repostsCount",
                           style: TextStyle(
-                            color: isReposted ? primaryPink : textDark,
+                            color: isReposted ? primaryPink : authorTextColor,
                             fontWeight: FontWeight.w800,
                             fontSize: actionTextSize,
                           ),
@@ -955,7 +976,7 @@ class _FeedPostCardState extends State<FeedPostCard> {
                   behavior: HitTestBehavior.opaque,
                   child: Icon(
                     Icons.send_outlined,
-                    color: textDark,
+                    color: iconColor,
                     size: sendIconSize,
                   ),
                 ),
@@ -970,7 +991,7 @@ class _FeedPostCardState extends State<FeedPostCard> {
                     isSaved
                         ? Icons.bookmark_rounded
                         : Icons.bookmark_border_rounded,
-                    color: isSaved ? primaryPink : textDark,
+                    color: isSaved ? primaryPink : iconColor,
                     size: bookmarkIconSize,
                   ),
                 ),
