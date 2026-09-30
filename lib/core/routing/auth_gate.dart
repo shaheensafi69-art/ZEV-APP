@@ -6,6 +6,7 @@ import '../services/activity_log_service.dart';
 import '../services/auth_helper.dart';
 import '../services/notification_service.dart';
 import '../services/security_service.dart';
+import '../services/web_navigation_service.dart';
 import '../../features/auth/screens/welcome_screen.dart';
 import '../../features/main_navigation/screens/zev_main_layout.dart';
 
@@ -85,7 +86,9 @@ class _AuthGateState extends State<AuthGate> {
 
         if (mounted) {
           setState(() {
-            _targetScreen = const ZevMainLayout();
+            _targetScreen = ZevMainLayout(
+              initialIndex: WebNavigationService.instance.getInitialTabIndex(),
+            );
             _isLoading = false;
           });
         }
@@ -145,7 +148,9 @@ class _AuthGateState extends State<AuthGate> {
       if ((user != null || isUserLoggedIn) && !isExplicit) {
         if (mounted) {
           setState(() {
-            _targetScreen = const ZevMainLayout();
+            _targetScreen = ZevMainLayout(
+              initialIndex: WebNavigationService.instance.getInitialTabIndex(),
+            );
             _isLoading = false;
           });
         }
@@ -176,7 +181,10 @@ class _AuthGateState extends State<AuthGate> {
         } else {
           if (mounted) {
             setState(() {
-              _targetScreen = const ZevMainLayout();
+              _targetScreen = ZevMainLayout(
+                initialIndex: WebNavigationService.instance
+                    .getInitialTabIndex(),
+              );
               _isLoading = false;
             });
           }
@@ -189,7 +197,9 @@ class _AuthGateState extends State<AuthGate> {
 
       if (!mounted) return;
 
-      Widget destination = const ZevMainLayout();
+      Widget destination = ZevMainLayout(
+        initialIndex: WebNavigationService.instance.getInitialTabIndex(),
+      );
 
       try {
         NotificationService().saveFCMTokenToDatabase();
@@ -215,7 +225,9 @@ class _AuthGateState extends State<AuthGate> {
         final user = session?.user ?? supabase.auth.currentUser;
         if (user != null) {
           setState(() {
-            _targetScreen = const ZevMainLayout();
+            _targetScreen = ZevMainLayout(
+              initialIndex: WebNavigationService.instance.getInitialTabIndex(),
+            );
             _isLoading = false;
           });
         } else {

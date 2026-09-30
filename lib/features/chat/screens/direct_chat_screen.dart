@@ -1,7 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/localization/zev_localizations.dart';
 import '../../../core/services/language_service.dart';
+import '../../../core/services/chat_pin_service.dart';
+import '../../../core/services/chat_block_report_service.dart';
 import '../../feed/screens/reels_viewer_screen.dart';
 
 enum MessageStatus { sending, sent, delivered, read }
@@ -67,7 +71,16 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
   static const Color textGrey = Color(0xFF6B7280);
   static const Color cardBorder = Color(0xFFF3F4F6);
 
-  final List<String> quickEmojis = ["❤️", "🔥", "👍", "🚀", "😍", "🎯", "👏", "💡"];
+  final List<String> quickEmojis = [
+    "❤️",
+    "🔥",
+    "👍",
+    "🚀",
+    "😍",
+    "🎯",
+    "👏",
+    "💡",
+  ];
 
   Timer? _pollTimer;
 
@@ -141,7 +154,9 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
         final fRes = await supabase
             .from("user_follows")
             .select("follower_id, following_id")
-            .or("and(follower_id.eq.$currentUserId,following_id.eq.${widget.peerId}),and(follower_id.eq.${widget.peerId},following_id.eq.$currentUserId)");
+            .or(
+              "and(follower_id.eq.$currentUserId,following_id.eq.${widget.peerId}),and(follower_id.eq.${widget.peerId},following_id.eq.$currentUserId)",
+            );
 
         bool iFollow = false;
         bool peerFollows = false;
@@ -207,16 +222,18 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
             status = MessageStatus.sent; // Single grey check
           }
 
-          loadedMessages.add(DirectChatMessage(
-            id: m['id']?.toString() ?? '',
-            senderId: senderId,
-            text: m['message_text'] ?? '',
-            attachmentUrl: m['attachment_url'],
-            attachmentType: m['attachment_type']?.toString(),
-            createdAt: m['created_at'] ?? DateTime.now().toIso8601String(),
-            isMe: senderId == currentUserId,
-            status: status,
-          ));
+          loadedMessages.add(
+            DirectChatMessage(
+              id: m['id']?.toString() ?? '',
+              senderId: senderId,
+              text: m['message_text'] ?? '',
+              attachmentUrl: m['attachment_url'],
+              attachmentType: m['attachment_type']?.toString(),
+              createdAt: m['created_at'] ?? DateTime.now().toIso8601String(),
+              isMe: senderId == currentUserId,
+              status: status,
+            ),
+          );
         }
       }
 
@@ -284,9 +301,9 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.l10n.friendRequestSent)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(context.l10n.friendRequestSent)));
       }
     } catch (e) {
       if (mounted) {
@@ -303,11 +320,15 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
 
     String textToSend = rawText;
     if (replyingToMessage != null) {
-      final replyAuthor = replyingToMessage!.isMe ? context.l10n.yourself : widget.peerName;
+      final replyAuthor = replyingToMessage!.isMe
+          ? context.l10n.yourself
+          : widget.peerName;
       final preview = replyingToMessage!.text.replaceAll('\n', ' ');
-      final shortPreview =
-          preview.length > 35 ? '${preview.substring(0, 35)}...' : preview;
-      textToSend = "↩️ ${context.l10n.replyingTo} $replyAuthor: \"$shortPreview\"\n$rawText";
+      final shortPreview = preview.length > 35
+          ? '${preview.substring(0, 35)}...'
+          : preview;
+      textToSend =
+          "↩️ ${context.l10n.replyingTo} $replyAuthor: \"$shortPreview\"\n$rawText";
     }
 
     _messageController.clear();
@@ -359,16 +380,18 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
       if (mounted) {
         setState(() {
           messages.removeWhere((m) => m.id == tempMsg.id);
-          messages.add(DirectChatMessage(
-            id: inserted['id'].toString(),
-            senderId: user.id,
-            text: inserted['message_text'],
-            attachmentUrl: inserted['attachment_url'],
-            attachmentType: inserted['attachment_type']?.toString(),
-            createdAt: inserted['created_at'],
-            isMe: true,
-            status: MessageStatus.sent, // Single grey check
-          ));
+          messages.add(
+            DirectChatMessage(
+              id: inserted['id'].toString(),
+              senderId: user.id,
+              text: inserted['message_text'],
+              attachmentUrl: inserted['attachment_url'],
+              attachmentType: inserted['attachment_type']?.toString(),
+              createdAt: inserted['created_at'],
+              isMe: true,
+              status: MessageStatus.sent, // Single grey check
+            ),
+          );
           isSending = false;
         });
         _scrollToBottom();
@@ -412,7 +435,11 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
         leading: widget.isEmbedded
             ? null
             : IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: textDark, size: 20),
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: textDark,
+                  size: 20,
+                ),
                 onPressed: () => Navigator.pop(context),
               ),
         title: Row(
@@ -422,9 +449,17 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                 CircleAvatar(
                   radius: 18,
                   backgroundColor: lightPinkBg,
-                  backgroundImage: widget.peerAvatar.isNotEmpty ? NetworkImage(widget.peerAvatar) : null,
+                  backgroundImage: widget.peerAvatar.isNotEmpty
+                      ? NetworkImage(widget.peerAvatar)
+                      : null,
                   child: widget.peerAvatar.isEmpty
-                      ? Text(widget.peerName.isNotEmpty ? widget.peerName[0] : 'U', style: const TextStyle(color: primaryPink, fontWeight: FontWeight.bold))
+                      ? Text(
+                          widget.peerName.isNotEmpty ? widget.peerName[0] : 'U',
+                          style: const TextStyle(
+                            color: primaryPink,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
                       : null,
                 ),
                 Positioned(
@@ -446,33 +481,140 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.peerName, style: const TextStyle(color: textDark, fontSize: 14, fontWeight: FontWeight.w900)),
-                Text(context.l10n.onlineNow, style: const TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
+                Text(
+                  widget.peerName,
+                  style: const TextStyle(
+                    color: textDark,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(
+                  context.l10n.onlineNow,
+                  style: const TextStyle(
+                    color: Colors.green,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
           ],
         ),
         actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(
+              Icons.more_vert_rounded,
+              color: textDark,
+              size: 22,
+            ),
+            onSelected: (val) {
+              if (val == 'delete_chat') {
+                _deleteConversation();
+              } else if (val == 'block') {
+                _toggleBlockUser();
+              } else if (val == 'report') {
+                _showReportUserDialog();
+              }
+            },
+            itemBuilder: (ctx) {
+              final isBlocked = ChatBlockReportService.instance.isBlocked(
+                widget.peerId,
+              );
+              return [
+                PopupMenuItem(
+                  value: 'delete_chat',
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.delete_outline_rounded,
+                        color: Colors.red,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        context.zevTr('deleteChat'),
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'block',
+                  child: Row(
+                    children: [
+                      Icon(
+                        isBlocked
+                            ? Icons.check_circle_outline_rounded
+                            : Icons.block_flipped,
+                        color: Colors.orange.shade800,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        isBlocked
+                            ? context.zevTr('unblockUser')
+                            : context.zevTr('blockUser'),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'report',
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.report_problem_outlined,
+                        color: Colors.amber,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(context.zevTr('reportUser')),
+                    ],
+                  ),
+                ),
+              ];
+            },
+          ),
           if (widget.isEmbedded && widget.onEmbeddedClose != null)
             IconButton(
               icon: const Icon(Icons.close_rounded, color: textDark, size: 22),
               tooltip: "Close",
               onPressed: widget.onEmbeddedClose,
             ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
         ],
       ),
       body: Column(
         children: [
           const Divider(color: cardBorder, height: 1),
 
+          // ================= Pinned Message Banner =================
+          Builder(
+            builder: (_) {
+              final pinned = ChatPinService.instance.getPinnedMessageForPeer(
+                widget.peerId,
+              );
+              if (pinned != null) return _buildPinnedMessageBanner(pinned);
+              return const SizedBox.shrink();
+            },
+          ),
+
           // ================= Messages List =================
           Expanded(
             child: isLoading
-                ? const Center(child: CircularProgressIndicator(color: primaryPink, strokeWidth: 2.5))
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: primaryPink,
+                      strokeWidth: 2.5,
+                    ),
+                  )
                 : ListView.builder(
                     controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
                     itemCount: messages.length,
                     itemBuilder: (context, index) {
                       final msg = messages[index];
@@ -537,39 +679,58 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                           replyingToMessage!.text,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: textDark,
-                            fontSize: 12,
-                          ),
+                          style: const TextStyle(color: textDark, fontSize: 12),
                         ),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, size: 18, color: textGrey),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: textGrey,
+                    ),
                     onPressed: () => setState(() => replyingToMessage = null),
                   ),
                 ],
               ),
             ),
 
-          // ================= Message Input or Follow Status Request =================
+          // ================= Message Input or Blocked Banner =================
           SafeArea(
             top: false,
             child: Builder(
               builder: (context) {
+                final isBlocked = ChatBlockReportService.instance.isBlocked(
+                  widget.peerId,
+                );
+                if (isBlocked) {
+                  return _buildBlockedUserBanner();
+                }
+
                 final bool hasPeerReplied = messages.any((m) => !m.isMe);
                 final int mySentCount = messages.where((m) => m.isMe).length;
-                final bool isUnlocked = isMutualFollow || hasPeerReplied || isRequestAccepted;
-                final bool isRecipientWithRequest = !isUnlocked && messages.isNotEmpty && !messages.first.isMe && mySentCount == 0;
-                final bool isSenderWaitingApproval = !isUnlocked && mySentCount >= 1;
+                final bool isUnlocked =
+                    isMutualFollow || hasPeerReplied || isRequestAccepted;
+                final bool isRecipientWithRequest =
+                    !isUnlocked &&
+                    messages.isNotEmpty &&
+                    !messages.first.isMe &&
+                    mySentCount == 0;
+                final bool isSenderWaitingApproval =
+                    !isUnlocked && mySentCount >= 1;
 
                 if (isRecipientWithRequest) {
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                     decoration: BoxDecoration(
                       color: surfaceWhite,
-                      border: Border(top: BorderSide(color: cardBorder, width: 1.5)),
+                      border: Border(
+                        top: BorderSide(color: cardBorder, width: 1.5),
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.03),
@@ -583,7 +744,11 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                       children: [
                         Text(
                           "${widget.peerName} sent you a message request.",
-                          style: const TextStyle(color: textDark, fontSize: 13, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            color: textDark,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         const Text(
@@ -597,12 +762,25 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                             Expanded(
                               child: OutlinedButton(
                                 style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                  side: const BorderSide(color: Color(0xFFCBD5E1)),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                  ),
+                                  side: const BorderSide(
+                                    color: Color(0xFFCBD5E1),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
                                 onPressed: _declineMessageRequest,
-                                child: const Text("Decline", style: TextStyle(color: textGrey, fontWeight: FontWeight.bold, fontSize: 12)),
+                                child: const Text(
+                                  "Decline",
+                                  style: TextStyle(
+                                    color: textGrey,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -612,11 +790,21 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                                   backgroundColor: primaryPink,
                                   foregroundColor: Colors.white,
                                   elevation: 0,
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
                                 onPressed: _acceptMessageRequest,
-                                child: const Text("Accept", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                child: const Text(
+                                  "Accept",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
                               ),
                             ),
                           ],
@@ -629,10 +817,15 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                 if (isSenderWaitingApproval) {
                   return Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
                     decoration: const BoxDecoration(
                       color: Color(0xFFF8FAFC),
-                      border: Border(top: BorderSide(color: cardBorder, width: 1.5)),
+                      border: Border(
+                        top: BorderSide(color: cardBorder, width: 1.5),
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -642,7 +835,11 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                             color: lightPinkBg,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.hourglass_top_rounded, color: primaryPink, size: 18),
+                          child: const Icon(
+                            Icons.hourglass_top_rounded,
+                            color: primaryPink,
+                            size: 18,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -667,7 +864,10 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                     if (!isUnlocked && mySentCount == 0)
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 6,
+                        ),
                         color: lightPinkBg,
                         child: const Text(
                           "ℹ️ You don't mutually follow each other. You can send 1 message request.",
@@ -683,27 +883,63 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: surfaceWhite,
-                        border: Border(top: BorderSide(color: cardBorder, width: 1.5)),
+                        border: Border(
+                          top: BorderSide(color: cardBorder, width: 1.5),
+                        ),
                       ),
                       child: Row(
                         children: [
                           IconButton(
-                            icon: Icon(showEmojiPicker ? Icons.keyboard_rounded : Icons.emoji_emotions_outlined, color: textGrey, size: 22),
-                            onPressed: () => setState(() => showEmojiPicker = !showEmojiPicker),
+                            icon: Icon(
+                              showEmojiPicker
+                                  ? Icons.keyboard_rounded
+                                  : Icons.emoji_emotions_outlined,
+                              color: textGrey,
+                              size: 22,
+                            ),
+                            onPressed: () => setState(
+                              () => showEmojiPicker = !showEmojiPicker,
+                            ),
                           ),
                           Expanded(
                             child: TextField(
                               controller: _messageController,
-                              style: const TextStyle(color: textDark, fontSize: 13, fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                color: textDark,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
                               decoration: InputDecoration(
                                 hintText: context.l10n.chatInputHint,
-                                hintStyle: const TextStyle(color: textGrey, fontSize: 12),
+                                hintStyle: const TextStyle(
+                                  color: textGrey,
+                                  fontSize: 12,
+                                ),
                                 filled: true,
                                 fillColor: cardBorder.withValues(alpha: 0.5),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: const BorderSide(color: cardBorder)),
-                                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: const BorderSide(color: cardBorder)),
-                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: const BorderSide(color: primaryPink, width: 1.5)),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                  borderSide: const BorderSide(
+                                    color: cardBorder,
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                  borderSide: const BorderSide(
+                                    color: cardBorder,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                  borderSide: const BorderSide(
+                                    color: primaryPink,
+                                    width: 1.5,
+                                  ),
+                                ),
                               ),
                               onSubmitted: (_) => _sendMessage(),
                             ),
@@ -713,8 +949,15 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                             onTap: _sendMessage,
                             child: Container(
                               padding: const EdgeInsets.all(12),
-                              decoration: const BoxDecoration(color: primaryPink, shape: BoxShape.circle),
-                              child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                              decoration: const BoxDecoration(
+                                color: primaryPink,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.send_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
                             ),
                           ),
                         ],
@@ -737,23 +980,40 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
     Widget statusIcon;
     switch (msg.status) {
       case MessageStatus.sending:
-        statusIcon = const Icon(Icons.access_time_rounded, color: Colors.white70, size: 12);
+        statusIcon = const Icon(
+          Icons.access_time_rounded,
+          color: Colors.white70,
+          size: 12,
+        );
         break;
       case MessageStatus.sent:
         // Single grey check (sent to server)
-        statusIcon = const Icon(Icons.check_rounded, color: Colors.white70, size: 13);
+        statusIcon = const Icon(
+          Icons.check_rounded,
+          color: Colors.white70,
+          size: 13,
+        );
         break;
       case MessageStatus.delivered:
         // Double grey check (delivered to recipient device)
-        statusIcon = const Icon(Icons.done_all_rounded, color: Colors.white70, size: 14);
+        statusIcon = const Icon(
+          Icons.done_all_rounded,
+          color: Colors.white70,
+          size: 14,
+        );
         break;
       case MessageStatus.read:
         // Double blue check (read by recipient)
-        statusIcon = const Icon(Icons.done_all_rounded, color: Color(0xFF80DEEA), size: 14);
+        statusIcon = const Icon(
+          Icons.done_all_rounded,
+          color: Color(0xFF80DEEA),
+          size: 14,
+        );
         break;
     }
 
-    final bool isReel = msg.attachmentType == 'reel' ||
+    final bool isReel =
+        msg.attachmentType == 'reel' ||
         msg.text.contains("safiacademy.org/en/feed/reels") ||
         msg.text.contains("safiacademy.org/reel/") ||
         msg.text.contains("media.safiacademy.org/reel/") ||
@@ -761,13 +1021,18 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
 
     String? reelId;
     if (isReel) {
-      final queryMatch = RegExp(r'[?&]id=([a-zA-Z0-9_-]+)').firstMatch(msg.text);
-      final pathMatch = RegExp(r'safiacademy\.org/reel/([a-zA-Z0-9_-]+)').firstMatch(msg.text);
+      final queryMatch = RegExp(
+        r'[?&]id=([a-zA-Z0-9_-]+)',
+      ).firstMatch(msg.text);
+      final pathMatch = RegExp(
+        r'safiacademy\.org/reel/([a-zA-Z0-9_-]+)',
+      ).firstMatch(msg.text);
       if (queryMatch != null && queryMatch.groupCount >= 1) {
         reelId = queryMatch.group(1);
       } else if (pathMatch != null && pathMatch.groupCount >= 1) {
         reelId = pathMatch.group(1);
-      } else if (msg.attachmentUrl != null && msg.attachmentUrl!.contains('/reels/')) {
+      } else if (msg.attachmentUrl != null &&
+          msg.attachmentUrl!.contains('/reels/')) {
         final segments = Uri.tryParse(msg.attachmentUrl!)?.pathSegments;
         if (segments != null && segments.isNotEmpty) {
           reelId = segments.last.replaceAll('.mp4', '');
@@ -812,14 +1077,23 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
             children: [
               // Reels card top bar
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: primaryPink.withValues(alpha: 0.15),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(18),
+                  ),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.video_collection_rounded, color: primaryPink, size: 16),
+                    const Icon(
+                      Icons.video_collection_rounded,
+                      color: primaryPink,
+                      size: 16,
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       context.l10n.educationalReel,
@@ -838,8 +1112,13 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      msg.text.replaceAll(RegExp(r'https?://\S+'), '').trim().isNotEmpty
-                          ? msg.text.replaceAll(RegExp(r'https?://\S+'), '').trim()
+                      msg.text
+                              .replaceAll(RegExp(r'https?://\S+'), '')
+                              .trim()
+                              .isNotEmpty
+                          ? msg.text
+                                .replaceAll(RegExp(r'https?://\S+'), '')
+                                .trim()
                           : context.l10n.checkOutReel,
                       style: const TextStyle(
                         color: Colors.white,
@@ -865,11 +1144,15 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => StudentReelsScreen(targetReelId: reelId),
+                              builder: (_) =>
+                                  StudentReelsScreen(targetReelId: reelId),
                             ),
                           );
                         },
-                        icon: const Icon(Icons.play_circle_fill_rounded, size: 18),
+                        icon: const Icon(
+                          Icons.play_circle_fill_rounded,
+                          size: 18,
+                        ),
                         label: Text(
                           context.l10n.watchReel,
                           style: const TextStyle(
@@ -881,45 +1164,17 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                     ),
                     const SizedBox(height: 6),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              replyingToMessage = msg;
-                            });
-                          },
-                          child: Row(
-                            children: [
-                              const Icon(Icons.reply_rounded, color: Colors.white60, size: 14),
-                              const SizedBox(width: 4),
-                              Text(
-                                context.l10n.reply,
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
+                        Text(
+                          _formatTime(msg.createdAt),
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.6),
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Row(
-                          children: [
-                            Text(
-                              _formatTime(msg.createdAt),
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.6),
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            if (isMe) ...[
-                              const SizedBox(width: 4),
-                              statusIcon,
-                            ],
-                          ],
-                        ),
+                        if (isMe) ...[const SizedBox(width: 4), statusIcon],
                       ],
                     ),
                   ],
@@ -934,7 +1189,8 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: GestureDetector(
-        onLongPress: () {
+        onLongPress: () => _showMessageActionsModal(msg),
+        onDoubleTap: () {
           setState(() {
             replyingToMessage = msg;
           });
@@ -942,7 +1198,9 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
         child: Container(
           margin: const EdgeInsets.symmetric(vertical: 4),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.75,
+          ),
           decoration: BoxDecoration(
             color: isMe ? primaryPink : lightPinkBg,
             borderRadius: BorderRadius.only(
@@ -956,7 +1214,7 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                 color: Colors.black.withValues(alpha: 0.03),
                 blurRadius: 6,
                 offset: const Offset(0, 2),
-              )
+              ),
             ],
           ),
           child: Column(
@@ -974,57 +1232,661 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
               const SizedBox(height: 4),
               Row(
                 mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        replyingToMessage = msg;
-                      });
-                    },
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.reply_rounded,
-                          color: isMe ? Colors.white60 : textGrey,
-                          size: 13,
-                        ),
-                        const SizedBox(width: 2),
-                        Text(
-                          context.l10n.reply,
-                          style: TextStyle(
-                            color: isMe ? Colors.white70 : textGrey,
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
+                  Text(
+                    _formatTime(msg.createdAt),
+                    style: TextStyle(
+                      color: isMe
+                          ? Colors.white.withValues(alpha: 0.8)
+                          : textGrey,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _formatTime(msg.createdAt),
-                        style: TextStyle(
-                          color: isMe ? Colors.white.withValues(alpha: 0.8) : textGrey,
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (isMe) ...[
-                        const SizedBox(width: 4),
-                        statusIcon,
-                      ],
-                    ],
-                  ),
+                  if (isMe) ...[const SizedBox(width: 4), statusIcon],
                 ],
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // ================= Clean Message Text (Only pure text, no author or timestamp) =================
+  String _getCleanMessageText(String raw) {
+    String text = raw;
+    if (text.startsWith('↩️ Replying to') || text.startsWith('↩️')) {
+      final firstNewline = text.indexOf('\n');
+      if (firstNewline != -1 && firstNewline + 1 < text.length) {
+        text = text.substring(firstNewline + 1).trim();
+      }
+    }
+    return text.trim();
+  }
+
+  // ================= Message Options Modal =================
+  void _showMessageActionsModal(DirectChatMessage msg) {
+    final cleanText = _getCleanMessageText(msg.text);
+    final isPinned = ChatPinService.instance.isMessagePinned(msg.id);
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.reply_rounded, color: primaryPink),
+                title: Text(
+                  context.l10n.reply,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  setState(() => replyingToMessage = msg);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.copy_rounded, color: textDark),
+                title: Text(
+                  context.zevTr('copyMessage'),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text(
+                  cleanText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: textGrey, fontSize: 11),
+                ),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await Clipboard.setData(ClipboardData(text: cleanText));
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(context.zevTr('copiedToClipboard')),
+                      ),
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  isPinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
+                  color: primaryPink,
+                ),
+                title: Text(
+                  isPinned
+                      ? context.zevTr('unpinChat')
+                      : context.zevTr('pinChat'),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  if (isPinned) {
+                    await ChatPinService.instance.unpinMessage(msg.id);
+                    setState(() {});
+                  } else {
+                    _showPinMessageDurationPicker(msg);
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.forward_to_inbox_rounded,
+                  color: Colors.blue,
+                ),
+                title: Text(
+                  context.zevTr('forwardMessage'),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showForwardMessageDialog(cleanText);
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.red,
+                ),
+                title: Text(
+                  context.zevTr('deleteMessage'),
+                  style: const TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _deleteSingleMessage(msg);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ================= Pin Message Duration Picker (24h, 7d, 30d) =================
+  void _showPinMessageDurationPicker(DirectChatMessage msg) {
+    final cleanText = _getCleanMessageText(msg.text);
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                context.zevTr('pinDurationTitle'),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.timer_outlined, color: primaryPink),
+                title: Text(context.zevTr('pin24h')),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await ChatPinService.instance.pinMessage(
+                    peerId: widget.peerId,
+                    messageId: msg.id,
+                    messageText: cleanText,
+                    duration: PinDuration.hours24,
+                  );
+                  setState(() {});
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.calendar_today_outlined,
+                  color: primaryPink,
+                ),
+                title: Text(context.zevTr('pin7d')),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await ChatPinService.instance.pinMessage(
+                    peerId: widget.peerId,
+                    messageId: msg.id,
+                    messageText: cleanText,
+                    duration: PinDuration.days7,
+                  );
+                  setState(() {});
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.date_range_outlined,
+                  color: primaryPink,
+                ),
+                title: Text(context.zevTr('pin30d')),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await ChatPinService.instance.pinMessage(
+                    peerId: widget.peerId,
+                    messageId: msg.id,
+                    messageText: cleanText,
+                    duration: PinDuration.days30,
+                  );
+                  setState(() {});
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ================= Forward Message Dialog =================
+  Future<void> _showForwardMessageDialog(String textToForward) async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+
+      final res = await supabase
+          .from('profiles')
+          .select('id, first_name, last_name, avatar_url')
+          .neq('id', user.id)
+          .limit(20);
+
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(context.zevTr('forwardMessage')),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 320,
+            child: ListView.separated(
+              itemCount: (res as List).length,
+              separatorBuilder: (_, _) =>
+                  const Divider(color: cardBorder, height: 1),
+              itemBuilder: (context, index) {
+                final p = res[index];
+                final pId = p['id'].toString();
+                final fName = p['first_name'] ?? '';
+                final lName = p['last_name'] ?? '';
+                final name = "$fName $lName".trim().isEmpty
+                    ? "ZEV User"
+                    : "$fName $lName".trim();
+                final avatar = p['avatar_url'] ?? '';
+
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
+                  leading: CircleAvatar(
+                    backgroundColor: lightPinkBg,
+                    backgroundImage: avatar.isNotEmpty
+                        ? NetworkImage(avatar)
+                        : null,
+                    child: avatar.isEmpty
+                        ? Text(
+                            name.isNotEmpty ? name[0] : 'U',
+                            style: const TextStyle(color: primaryPink),
+                          )
+                        : null,
+                  ),
+                  title: Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  trailing: const Icon(
+                    Icons.send_rounded,
+                    color: primaryPink,
+                    size: 20,
+                  ),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    await _sendForwardedMessage(
+                      targetPeerId: pId,
+                      text: textToForward,
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(context.l10n.cancel),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      debugPrint("Error loading forward recipients: $e");
+    }
+  }
+
+  Future<void> _sendForwardedMessage({
+    required String targetPeerId,
+    required String text,
+  }) async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+      await supabase.from('direct_messages').insert({
+        'sender_id': user.id,
+        'receiver_id': targetPeerId,
+        'message_text': text,
+        'is_read': false,
+        'is_delivered': false,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.zevTr('messageForwarded'))),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error forwarding message: $e");
+    }
+  }
+
+  // ================= Delete Single Message =================
+  Future<void> _deleteSingleMessage(DirectChatMessage msg) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(context.zevTr('deleteMessage')),
+        content: Text(context.zevTr('deleteMessageConfirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(context.l10n.cancel),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              context.zevTr('delete'),
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await supabase.from('direct_messages').delete().eq('id', msg.id);
+      setState(() {
+        messages.removeWhere((m) => m.id == msg.id);
+      });
+      await ChatPinService.instance.unpinMessage(msg.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.zevTr('messageDeleted'))),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error deleting message: $e");
+    }
+  }
+
+  // ================= Delete / Clear Entire Conversation =================
+  Future<void> _deleteConversation() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(context.zevTr('deleteChat')),
+        content: Text(context.zevTr('deleteChatConfirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(context.l10n.cancel),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              context.zevTr('delete'),
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+      await supabase
+          .from("direct_messages")
+          .delete()
+          .or(
+            "and(sender_id.eq.${user.id},receiver_id.eq.${widget.peerId}),and(sender_id.eq.${widget.peerId},receiver_id.eq.${user.id})",
+          );
+
+      setState(() {
+        messages.clear();
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(context.zevTr('chatDeleted'))));
+        if (!widget.isEmbedded && Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+      }
+    } catch (e) {
+      debugPrint("Error deleting conversation: $e");
+    }
+  }
+
+  // ================= Block / Unblock User =================
+  Future<void> _toggleBlockUser() async {
+    final isBlocked = ChatBlockReportService.instance.isBlocked(widget.peerId);
+    await ChatBlockReportService.instance.toggleBlock(
+      widget.peerId,
+      peerName: widget.peerName,
+    );
+    setState(() {});
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isBlocked
+                ? context.zevTr('unblockedSuccessfully')
+                : context.zevTr('blockedSuccessfully'),
+          ),
+        ),
+      );
+    }
+  }
+
+  // ================= Report User Dialog =================
+  void _showReportUserDialog() {
+    final reasons = [
+      {'key': 'spam', 'label': context.zevTr('reportReasonSpam')},
+      {'key': 'harassment', 'label': context.zevTr('reportReasonHarassment')},
+      {
+        'key': 'inappropriate',
+        'label': context.zevTr('reportReasonInappropriate'),
+      },
+      {'key': 'scam', 'label': context.zevTr('reportReasonScam')},
+      {'key': 'other', 'label': context.zevTr('reportReasonOther')},
+    ];
+    String selectedReason = 'spam';
+    final descController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text("${context.zevTr('reportUser')}: ${widget.peerName}"),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.zevTr('selectReportReason'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                for (var r in reasons)
+                  RadioListTile<String>(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: Text(r['label']!),
+                    value: r['key']!,
+                    groupValue: selectedReason,
+                    onChanged: (val) {
+                      if (val != null) setDlgState(() => selectedReason = val);
+                    },
+                  ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: descController,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    hintText: context.zevTr('reportDetailsOptional'),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    contentPadding: const EdgeInsets.all(10),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(context.l10n.cancel),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: primaryPink),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final success = await ChatBlockReportService.instance
+                    .reportUser(
+                      reportedUserId: widget.peerId,
+                      reason: selectedReason,
+                      details: descController.text.trim(),
+                    );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        success
+                            ? context.zevTr('reportSubmitted')
+                            : context.zevTr('errorOccurred'),
+                      ),
+                    ),
+                  );
+                }
+              },
+              child: Text(
+                context.zevTr('submit'),
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ================= Pinned Message Banner Widget =================
+  Widget _buildPinnedMessageBanner(PinnedItem pin) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: lightPinkBg,
+        border: Border(bottom: BorderSide(color: primaryPink.withOpacity(0.2))),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.push_pin_rounded, color: primaryPink, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  context.zevTr('pinnedMessage'),
+                  style: const TextStyle(
+                    color: primaryPink,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  pin.messageText ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: textDark, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, size: 16, color: textGrey),
+            tooltip: context.zevTr('unpinChat'),
+            onPressed: () async {
+              if (pin.messageId != null) {
+                await ChatPinService.instance.unpinMessage(pin.messageId!);
+              }
+              setState(() {});
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================= Blocked User Banner =================
+  Widget _buildBlockedUserBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEE2E2),
+        border: Border(top: BorderSide(color: Colors.red.shade200)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.block_rounded, color: Colors.red, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              context.zevTr('userIsBlockedNotice'),
+              style: const TextStyle(
+                color: Colors.red,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: () async {
+              await ChatBlockReportService.instance.unblockUser(widget.peerId);
+              setState(() {});
+            },
+            child: Text(
+              context.zevTr('unblockUser'),
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
     );
   }

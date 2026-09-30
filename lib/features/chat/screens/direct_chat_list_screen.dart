@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/localization/zev_localizations.dart';
 import '../../../core/services/language_service.dart';
 import '../../../core/services/multi_account_service.dart';
+import '../../../core/services/chat_pin_service.dart';
+import '../../../core/services/chat_block_report_service.dart';
 import '../../../core/widgets/responsive_layout.dart';
 import '../../auth/screens/welcome_screen.dart';
 import 'direct_chat_screen.dart';
@@ -69,7 +71,7 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
   String _currentUserName = "zev_member";
   String _currentUserAvatar = "";
   String _myNote = "";
-  String _selectedFilter = "Primary"; // "Primary", "General", "Requests"
+  String _selectedFilter = "All"; // "All", "Primary", "Requests"
   String _activeSecondaryFilter = "all"; // "all", "unread"
   String? _activeDesktopPeerId;
   String? _activeDesktopPeerName;
@@ -255,6 +257,10 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
       }
 
       loadedThreads.sort((a, b) {
+        final aPinned = ChatPinService.instance.isThreadPinned(a.peerId);
+        final bPinned = ChatPinService.instance.isThreadPinned(b.peerId);
+        if (aPinned && !bPinned) return -1;
+        if (!aPinned && bPinned) return 1;
         if (a.lastMessageTime == null) return 1;
         if (b.lastMessageTime == null) return -1;
         return b.lastMessageTime!.compareTo(a.lastMessageTime!);
@@ -1041,83 +1047,6 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
     );
   }
 
-  void _showFiltersBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: const BoxDecoration(
-          color: surfaceWhite,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cardBorder,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              "Filter Conversations",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: textDark,
-              ),
-            ),
-            const SizedBox(height: 12),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(
-                Icons.mark_chat_unread_outlined,
-                color: primaryPink,
-              ),
-              title: const Text(
-                "Unread Messages Only",
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              trailing: _activeSecondaryFilter == "unread"
-                  ? const Icon(Icons.check_rounded, color: primaryPink)
-                  : null,
-              onTap: () {
-                setState(
-                  () => _activeSecondaryFilter =
-                      _activeSecondaryFilter == "unread" ? "all" : "unread",
-                );
-                Navigator.pop(ctx);
-              },
-            ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.all_inbox_rounded, color: textDark),
-              title: const Text(
-                "Show All",
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              trailing: _activeSecondaryFilter == "all"
-                  ? const Icon(Icons.check_rounded, color: primaryPink)
-                  : null,
-              onTap: () {
-                setState(() => _activeSecondaryFilter = "all");
-                Navigator.pop(ctx);
-              },
-            ),
-            const SizedBox(height: 12),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _acceptRequest(ChatThreadItem item) async {
     final user = supabase.auth.currentUser;
     if (user == null) return;
@@ -1172,18 +1101,30 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
         ? searchResults
         : threads;
 
+    int allUnread = 0;
+    int primaryUnread = 0;
+    int requestsUnread = 0;
+    for (var t in threads) {
+      if (t.unreadCount > 0) {
+        allUnread += t.unreadCount;
+        if (t.isRequest) {
+          requestsUnread += t.unreadCount;
+        } else {
+          primaryUnread += t.unreadCount;
+        }
+      }
+    }
+
     List<ChatThreadItem> displayList;
     if (_searchController.text.trim().isNotEmpty) {
       displayList = baseList;
     } else if (_selectedFilter == "Requests") {
       displayList = baseList.where((t) => t.isRequest).toList();
-    } else if (_selectedFilter == "General") {
-      displayList = baseList
-          .where((t) => !t.isRequest && t.unreadCount == 0)
-          .toList();
-    } else {
-      // Primary
+    } else if (_selectedFilter == "Primary") {
       displayList = baseList.where((t) => !t.isRequest).toList();
+    } else {
+      // All
+      displayList = baseList;
     }
 
     if (_activeSecondaryFilter == "unread") {
@@ -1260,6 +1201,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
               displayList,
               isLoading,
               isSearchingLive,
+              allUnread: allUnread,
+              primaryUnread: primaryUnread,
+              requestsUnread: requestsUnread,
             );
           }
           return ResponsiveLayout.feedConstraint(
@@ -1269,6 +1213,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
               isLoading,
               isSearchingLive,
               isDesktop: false,
+              allUnread: allUnread,
+              primaryUnread: primaryUnread,
+              requestsUnread: requestsUnread,
             ),
           );
         },
@@ -1279,8 +1226,11 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
   Widget _buildDesktopMessengerLayout(
     List<ChatThreadItem> displayList,
     bool isLoading,
-    bool isSearchingLive,
-  ) {
+    bool isSearchingLive, {
+    int allUnread = 0,
+    int primaryUnread = 0,
+    int requestsUnread = 0,
+  }) {
     return Center(
       child: Container(
         constraints: const BoxConstraints(maxWidth: 1200),
@@ -1314,6 +1264,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                   isLoading,
                   isSearchingLive,
                   isDesktop: true,
+                  allUnread: allUnread,
+                  primaryUnread: primaryUnread,
+                  requestsUnread: requestsUnread,
                 ),
               ),
             ),
@@ -1400,6 +1353,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
     bool isLoading,
     bool isSearchingLive, {
     bool isDesktop = false,
+    int allUnread = 0,
+    int primaryUnread = 0,
+    int requestsUnread = 0,
   }) {
     return Column(
       children: [
@@ -1453,8 +1409,13 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
         // Instagram Notes Tray (Screenshot 4)
         if (!isSearchingLive) _buildNotesTray(),
 
-        // Filter Pills Row (Screenshot 4)
-        if (!isSearchingLive) _buildFilterPills(),
+        // Filter Pills Row (All, Primary, Requests with unread counts)
+        if (!isSearchingLive)
+          _buildFilterPills(
+            allUnread: allUnread,
+            primaryUnread: primaryUnread,
+            requestsUnread: requestsUnread,
+          ),
 
         // Chat Conversations List
         Expanded(
@@ -1697,89 +1658,92 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
     );
   }
 
-  /// Filter Pills Row matching Screenshot 4
-  Widget _buildFilterPills() {
-    final filterKeys = [
-      {'key': 'primary', 'val': 'Primary'},
-      {'key': 'requests', 'val': 'Requests'},
-      {'key': 'general', 'val': 'General'},
+  /// Filter Pills Row (All, Primary, Requests with unread counts)
+  Widget _buildFilterPills({
+    int allUnread = 0,
+    int primaryUnread = 0,
+    int requestsUnread = 0,
+  }) {
+    final pills = [
+      {'key': 'all', 'val': 'All', 'count': allUnread},
+      {'key': 'primary', 'val': 'Primary', 'count': primaryUnread},
+      {'key': 'requests', 'val': 'Requests', 'count': requestsUnread},
     ];
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Row(
         children: [
-          // Filter Icon pill
-          GestureDetector(
-            onTap: _showFiltersBottomSheet,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: _activeSecondaryFilter != 'all'
-                    ? primaryPink.withOpacity(0.12)
-                    : cardBorder,
-                borderRadius: BorderRadius.circular(16),
-                border: _activeSecondaryFilter != 'all'
-                    ? Border.all(color: primaryPink)
-                    : null,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.tune_rounded,
-                    size: 14,
-                    color: _activeSecondaryFilter != 'all'
-                        ? primaryPink
-                        : textDark,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    _activeSecondaryFilter == 'unread'
-                        ? context.zevTr('unread')
-                        : context.zevTr('filters'),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: _activeSecondaryFilter != 'all'
-                          ? primaryPink
-                          : textDark,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Category pills
-          for (var f in filterKeys)
+          for (var p in pills) ...[
             Padding(
-              padding: const EdgeInsets.only(right: 6),
+              padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
-                onTap: () => setState(() => _selectedFilter = f['val']!),
+                onTap: () =>
+                    setState(() => _selectedFilter = p['val'] as String),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
-                    vertical: 6,
+                    vertical: 7,
                   ),
                   decoration: BoxDecoration(
-                    color: _selectedFilter == f['val']
+                    color: _selectedFilter == p['val']
                         ? primaryPink
                         : cardBorder,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: _selectedFilter == p['val']
+                        ? [
+                            BoxShadow(
+                              color: primaryPink.withOpacity(0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
                   ),
-                  child: Text(
-                    context.zevTr(f['key']!),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: _selectedFilter == f['val']
-                          ? Colors.white
-                          : textDark,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        context.zevTr(p['key'] as String),
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.bold,
+                          color: _selectedFilter == p['val']
+                              ? Colors.white
+                              : textDark,
+                        ),
+                      ),
+                      if ((p['count'] as int) > 0) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 1.5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _selectedFilter == p['val']
+                                ? Colors.white
+                                : primaryPink,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            "${p['count']}",
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: _selectedFilter == p['val']
+                                  ? primaryPink
+                                  : Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),
             ),
+          ],
         ],
       ),
     );
@@ -1787,6 +1751,8 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
 
   Widget _buildThreadItem(ChatThreadItem item, {bool isDesktop = false}) {
     final isSelected = isDesktop && item.peerId == _activeDesktopPeerId;
+    final isPinned = ChatPinService.instance.isThreadPinned(item.peerId);
+
     return Container(
       decoration: BoxDecoration(
         color: isSelected ? lightPinkBg.withOpacity(0.7) : Colors.transparent,
@@ -1813,8 +1779,9 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
               ),
             ),
           );
-          _fetchExistingChatThreads();
+          _fetchExistingChatThreads(showLoading: false);
         },
+        onLongPress: () => _showThreadOptionsModal(item),
         leading: Stack(
           children: [
             CircleAvatar(
@@ -1850,13 +1817,25 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
               ),
           ],
         ),
-        title: Text(
-          item.peerName,
-          style: const TextStyle(
-            color: textDark,
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-          ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                item.peerName,
+                style: const TextStyle(
+                  color: textDark,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (isPinned) ...[
+              const SizedBox(width: 4),
+              const Icon(Icons.push_pin_rounded, size: 14, color: primaryPink),
+            ],
+          ],
         ),
         subtitle: Row(
           children: [
@@ -1948,43 +1927,384 @@ class _DirectChatListScreenState extends State<DirectChatListScreen> {
                 children: [
                   if (item.unreadCount > 0)
                     Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
+                      margin: const EdgeInsets.only(right: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
                         color: primaryPink,
-                        shape: BoxShape.circle,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        "${item.unreadCount}",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   IconButton(
                     icon: const Icon(
-                      Icons.camera_alt_outlined,
+                      Icons.more_vert_rounded,
                       color: textGrey,
-                      size: 22,
+                      size: 20,
                     ),
-                    onPressed: () {
-                      if (isDesktop) {
-                        setState(() {
-                          _activeDesktopPeerId = item.peerId;
-                          _activeDesktopPeerName = item.peerName;
-                          _activeDesktopPeerAvatar = item.peerAvatar;
-                        });
-                        return;
-                      }
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => DirectChatScreen(
-                            peerId: item.peerId,
-                            peerName: item.peerName,
-                            peerAvatar: item.peerAvatar,
-                          ),
-                        ),
-                      );
-                    },
+                    onPressed: () => _showThreadOptionsModal(item),
                   ),
                 ],
               ),
+      ),
+    );
+  }
+
+  void _showThreadOptionsModal(ChatThreadItem item) {
+    final isPinned = ChatPinService.instance.isThreadPinned(item.peerId);
+    final isBlocked = ChatBlockReportService.instance.isBlocked(item.peerId);
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Text(
+                item.peerName,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: textDark,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: Icon(
+                  isPinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
+                  color: primaryPink,
+                ),
+                title: Text(
+                  isPinned
+                      ? context.zevTr('unpinChat')
+                      : context.zevTr('pinChat'),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  if (isPinned) {
+                    await ChatPinService.instance.unpinThread(item.peerId);
+                    _fetchExistingChatThreads(showLoading: false);
+                  } else {
+                    _showPinDurationPicker(item);
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.red,
+                ),
+                title: Text(
+                  context.zevTr('deleteChat'),
+                  style: const TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _deleteChatConversation(item.peerId);
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  isBlocked
+                      ? Icons.check_circle_outline_rounded
+                      : Icons.block_flipped,
+                  color: Colors.orange.shade800,
+                ),
+                title: Text(
+                  isBlocked
+                      ? context.zevTr('unblockUser')
+                      : context.zevTr('blockUser'),
+                  style: TextStyle(
+                    color: Colors.orange.shade800,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await ChatBlockReportService.instance.toggleBlock(
+                    item.peerId,
+                    peerName: item.peerName,
+                  );
+                  setState(() {});
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          isBlocked
+                              ? context.zevTr('unblockedSuccessfully')
+                              : context.zevTr('blockedSuccessfully'),
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.report_problem_outlined,
+                  color: Colors.amber,
+                ),
+                title: Text(
+                  context.zevTr('reportUser'),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showReportUserDialog(item.peerId, item.peerName);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showPinDurationPicker(ChatThreadItem item) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                context.zevTr('pinDurationTitle'),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.timer_outlined, color: primaryPink),
+                title: Text(context.zevTr('pin24h')),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await ChatPinService.instance.pinThread(
+                    peerId: item.peerId,
+                    duration: PinDuration.hours24,
+                  );
+                  _fetchExistingChatThreads(showLoading: false);
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.calendar_today_outlined,
+                  color: primaryPink,
+                ),
+                title: Text(context.zevTr('pin7d')),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await ChatPinService.instance.pinThread(
+                    peerId: item.peerId,
+                    duration: PinDuration.days7,
+                  );
+                  _fetchExistingChatThreads(showLoading: false);
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.date_range_outlined,
+                  color: primaryPink,
+                ),
+                title: Text(context.zevTr('pin30d')),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await ChatPinService.instance.pinThread(
+                    peerId: item.peerId,
+                    duration: PinDuration.days30,
+                  );
+                  _fetchExistingChatThreads(showLoading: false);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteChatConversation(String peerId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(context.zevTr('deleteChat')),
+        content: Text(context.zevTr('deleteChatConfirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(context.l10n.cancel),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              context.zevTr('delete'),
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+      await supabase
+          .from("direct_messages")
+          .delete()
+          .or(
+            "and(sender_id.eq.${user.id},receiver_id.eq.$peerId),and(sender_id.eq.$peerId,receiver_id.eq.${user.id})",
+          );
+
+      setState(() {
+        threads.removeWhere((t) => t.peerId == peerId);
+        if (_activeDesktopPeerId == peerId) {
+          _activeDesktopPeerId = null;
+          _activeDesktopPeerName = null;
+          _activeDesktopPeerAvatar = null;
+        }
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(context.zevTr('chatDeleted'))));
+      }
+    } catch (e) {
+      debugPrint("Error deleting chat: $e");
+    }
+  }
+
+  void _showReportUserDialog(String peerId, String peerName) {
+    final reasons = [
+      {'key': 'spam', 'label': context.zevTr('reportReasonSpam')},
+      {'key': 'harassment', 'label': context.zevTr('reportReasonHarassment')},
+      {
+        'key': 'inappropriate',
+        'label': context.zevTr('reportReasonInappropriate'),
+      },
+      {'key': 'scam', 'label': context.zevTr('reportReasonScam')},
+      {'key': 'other', 'label': context.zevTr('reportReasonOther')},
+    ];
+    String selectedReason = 'spam';
+    final descController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text("${context.zevTr('reportUser')}: $peerName"),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.zevTr('selectReportReason'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                for (var r in reasons)
+                  RadioListTile<String>(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: Text(r['label']!),
+                    value: r['key']!,
+                    groupValue: selectedReason,
+                    onChanged: (val) {
+                      if (val != null) setDlgState(() => selectedReason = val);
+                    },
+                  ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: descController,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    hintText: context.zevTr('reportDetailsOptional'),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    contentPadding: const EdgeInsets.all(10),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(context.l10n.cancel),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: primaryPink),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final success = await ChatBlockReportService.instance
+                    .reportUser(
+                      reportedUserId: peerId,
+                      reason: selectedReason,
+                      details: descController.text.trim(),
+                    );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        success
+                            ? context.zevTr('reportSubmitted')
+                            : context.zevTr('errorOccurred'),
+                      ),
+                    ),
+                  );
+                }
+              },
+              child: Text(
+                context.zevTr('submit'),
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

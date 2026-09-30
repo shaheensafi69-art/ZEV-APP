@@ -17,11 +17,7 @@ class ZevCreatorStudioScreen extends StatefulWidget {
   final int initialTab;
   final VoidCallback? onBack;
 
-  const ZevCreatorStudioScreen({
-    super.key,
-    this.initialTab = 0,
-    this.onBack,
-  });
+  const ZevCreatorStudioScreen({super.key, this.initialTab = 0, this.onBack});
 
   @override
   State<ZevCreatorStudioScreen> createState() => _ZevCreatorStudioScreenState();
@@ -158,8 +154,9 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
         setState(() {
           _showHashtagDropdown = true;
           _hashtagSuggestions = _trendingHashtags
-              .where((item) =>
-                  item.tag.toLowerCase().contains(tagSub.toLowerCase()))
+              .where(
+                (item) => item.tag.toLowerCase().contains(tagSub.toLowerCase()),
+              )
               .toList();
         });
         return;
@@ -175,23 +172,29 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
     final cleanTag = tag.replaceAll('#', '').trim();
     final text = _contentController.text;
     final sel = _contentController.selection;
-    final beforeCursor =
-        sel.baseOffset >= 0 ? text.substring(0, sel.baseOffset) : text;
-    final afterCursor =
-        sel.baseOffset >= 0 ? text.substring(sel.baseOffset) : '';
+    final beforeCursor = sel.baseOffset >= 0
+        ? text.substring(0, sel.baseOffset)
+        : text;
+    final afterCursor = sel.baseOffset >= 0
+        ? text.substring(sel.baseOffset)
+        : '';
     final lastHashIndex = beforeCursor.lastIndexOf('#');
 
-    final isCurrentlyTypingTag = lastHashIndex != -1 &&
+    final isCurrentlyTypingTag =
+        lastHashIndex != -1 &&
         !beforeCursor.substring(lastHashIndex).contains(' ') &&
         !beforeCursor.substring(lastHashIndex).contains('\n');
 
-    final currentTagsCount =
-        RegExp(r'#[a-zA-Z0-9_\u0600-\u06FF]+').allMatches(text).length;
+    final currentTagsCount = RegExp(
+      r'#[a-zA-Z0-9_\u0600-\u06FF]+',
+    ).allMatches(text).length;
 
     if (!isCurrentlyTypingTag && currentTagsCount >= _maxHashtags) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Maximum $_maxHashtags hashtags allowed for this mode."),
+          content: Text(
+            "Maximum $_maxHashtags hashtags allowed for this mode.",
+          ),
           backgroundColor: Colors.orangeAccent,
         ),
       );
@@ -206,7 +209,8 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
           "${beforeCursor.substring(0, lastHashIndex)}#$cleanTag $afterCursor";
       newCursorPos = lastHashIndex + cleanTag.length + 2;
     } else {
-      final prefix = (beforeCursor.isNotEmpty &&
+      final prefix =
+          (beforeCursor.isNotEmpty &&
               !beforeCursor.endsWith(' ') &&
               !beforeCursor.endsWith('\n'))
           ? ' '
@@ -251,14 +255,16 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
       if (kIsWeb) {
         final mime = media.mimeType.isNotEmpty ? media.mimeType : 'video/mp4';
         _blobVideoUrl = createBlobUrlFromBytes(media.bytes, mimeType: mime);
-        _videoPreviewController =
-            VideoPlayerController.networkUrl(Uri.parse(_blobVideoUrl!));
+        _videoPreviewController = VideoPlayerController.networkUrl(
+          Uri.parse(_blobVideoUrl!),
+        );
       } else {
         if (media.file != null && media.file!.existsSync()) {
           _videoPreviewController = VideoPlayerController.file(media.file!);
         } else if (media.path != null && media.path!.isNotEmpty) {
-          _videoPreviewController =
-              VideoPlayerController.file(io.File(media.path!));
+          _videoPreviewController = VideoPlayerController.file(
+            io.File(media.path!),
+          );
         } else {
           final tempDir = await getTemporaryDirectory();
           final tempFile = io.File(
@@ -355,8 +361,10 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
         if (res != null) {
           final newPostId = res['id']?.toString();
           if (newPostId != null) {
-            HashtagService.instance
-                .syncPostHashtags(newPostId, "$title $content");
+            HashtagService.instance.syncPostHashtags(
+              newPostId,
+              "$title $content",
+            );
           }
         }
 
@@ -421,24 +429,30 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
           throw Exception("Video upload failed.");
         }
 
-        final reelRes = await supabase.from("reels").insert({
-          'user_id': user.id,
-          'title': title,
-          'description': content,
-          'video_url': publicUrl,
-          'category': _selectedCategory,
-          'is_published': true,
-          'views_count': 0,
-          'likes_count': 0,
-          'comments_count': 0,
-          'created_at': DateTime.now().toIso8601String(),
-        }).select('id').maybeSingle();
+        final reelRes = await supabase
+            .from("reels")
+            .insert({
+              'user_id': user.id,
+              'title': title,
+              'description': content,
+              'video_url': publicUrl,
+              'category': _selectedCategory,
+              'is_published': true,
+              'views_count': 0,
+              'likes_count': 0,
+              'comments_count': 0,
+              'created_at': DateTime.now().toIso8601String(),
+            })
+            .select('id')
+            .maybeSingle();
 
         if (reelRes != null) {
           final newReelId = reelRes['id']?.toString();
           if (newReelId != null) {
-            HashtagService.instance
-                .syncReelHashtags(newReelId, "$title $content");
+            HashtagService.instance.syncReelHashtags(
+              newReelId,
+              "$title $content",
+            );
           }
         }
 
@@ -554,8 +568,9 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
 
     final bgColor = isDark ? const Color(0xFF0B0E14) : const Color(0xFFF8FAFC);
     final cardBg = isDark ? const Color(0xFF131722) : Colors.white;
-    final borderColor =
-        isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : const Color(0xFFE2E8F0);
 
     return StudioLoadingOverlay(
       isLoading: _isPublishing,
@@ -580,7 +595,10 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                             child: SingleChildScrollView(
                               padding: const EdgeInsets.all(28),
                               child: _buildEditorForm(
-                                  isDark, cardBg, borderColor),
+                                isDark,
+                                cardBg,
+                                borderColor,
+                              ),
                             ),
                           ),
 
@@ -597,7 +615,10 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                             child: SingleChildScrollView(
                               padding: const EdgeInsets.all(28),
                               child: _buildLiveSimulatorPanel(
-                                  isDark, cardBg, borderColor),
+                                isDark,
+                                cardBg,
+                                borderColor,
+                              ),
                             ),
                           ),
                         ],
@@ -607,7 +628,9 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                           // Mobile Sub-Tab Bar (Editor vs Live Preview)
                           Container(
                             margin: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
                             padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
                               color: isDark
@@ -624,7 +647,8 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                                     borderRadius: BorderRadius.circular(10),
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
-                                          vertical: 8),
+                                        vertical: 8,
+                                      ),
                                       alignment: Alignment.center,
                                       decoration: BoxDecoration(
                                         color: _mobileSubTab == 0
@@ -638,8 +662,8 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                                           color: _mobileSubTab == 0
                                               ? Colors.white
                                               : (isDark
-                                                  ? Colors.white70
-                                                  : Colors.black87),
+                                                    ? Colors.white70
+                                                    : Colors.black87),
                                           fontWeight: FontWeight.bold,
                                           fontSize: 13,
                                         ),
@@ -654,7 +678,8 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                                     borderRadius: BorderRadius.circular(10),
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
-                                          vertical: 8),
+                                        vertical: 8,
+                                      ),
                                       alignment: Alignment.center,
                                       decoration: BoxDecoration(
                                         color: _mobileSubTab == 1
@@ -668,8 +693,8 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                                           color: _mobileSubTab == 1
                                               ? Colors.white
                                               : (isDark
-                                                  ? Colors.white70
-                                                  : Colors.black87),
+                                                    ? Colors.white70
+                                                    : Colors.black87),
                                           fontWeight: FontWeight.bold,
                                           fontSize: 13,
                                         ),
@@ -685,9 +710,15 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                               padding: const EdgeInsets.all(16),
                               child: _mobileSubTab == 0
                                   ? _buildEditorForm(
-                                      isDark, cardBg, borderColor)
+                                      isDark,
+                                      cardBg,
+                                      borderColor,
+                                    )
                                   : _buildLiveSimulatorPanel(
-                                      isDark, cardBg, borderColor),
+                                      isDark,
+                                      cardBg,
+                                      borderColor,
+                                    ),
                             ),
                           ),
                         ],
@@ -780,8 +811,8 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
           _activeTab == 0
               ? context.zevTr('publishPost')
               : (_activeTab == 1
-                  ? context.zevTr('publishReel')
-                  : context.zevTr('publishStory')),
+                    ? context.zevTr('publishReel')
+                    : context.zevTr('publishStory')),
           style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
         ),
         style: ElevatedButton.styleFrom(
@@ -987,8 +1018,8 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
             ),
           ],
         ),
-      ),
-    );
+      ), // بستن AnimatedContainer
+    ); // بستن InkWell
   }
 
   // =========================================================================
@@ -1029,8 +1060,9 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                       color: isSelected
                           ? primaryPink
                           : (isDark ? Colors.white70 : const Color(0xFF475569)),
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.w500,
                       fontSize: 12,
                     ),
                     shape: RoundedRectangleBorder(
@@ -1070,8 +1102,9 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                       color: isSelected
                           ? primaryPink
                           : (isDark ? Colors.white70 : const Color(0xFF475569)),
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.w500,
                       fontSize: 12,
                     ),
                     shape: RoundedRectangleBorder(
@@ -1109,8 +1142,10 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
               ),
               filled: true,
               fillColor: cardBg,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: 14,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide(color: borderColor),
@@ -1129,11 +1164,13 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
         ],
 
         // 4. Content / Caption Field
-        _buildLabel(_activeTab == 0
-            ? "CONTENT & HASHTAGS 📝"
-            : (_activeTab == 1
-                ? "REEL DESCRIPTION & TAGS 💬"
-                : "STORY CAPTION 📸")),
+        _buildLabel(
+          _activeTab == 0
+              ? "CONTENT & HASHTAGS 📝"
+              : (_activeTab == 1
+                    ? "REEL DESCRIPTION & TAGS 💬"
+                    : "STORY CAPTION 📸"),
+        ),
         const SizedBox(height: 8),
         Stack(
           children: [
@@ -1185,8 +1222,9 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                     constraints: const BoxConstraints(maxHeight: 180),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
-                      border:
-                          Border.all(color: primaryPink.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: primaryPink.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: ListView.builder(
                       shrinkWrap: true,
@@ -1232,9 +1270,9 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
         Builder(
           builder: (context) {
             final textLen = _contentController.text.length;
-            final currentTagsCount = RegExp(r'#[a-zA-Z0-9_\u0600-\u06FF]+')
-                .allMatches(_contentController.text)
-                .length;
+            final currentTagsCount = RegExp(
+              r'#[a-zA-Z0-9_\u0600-\u06FF]+',
+            ).allMatches(_contentController.text).length;
             final isNearLenLimit = textLen > _maxContentLength * 0.9;
             final isOverLenLimit = textLen > _maxContentLength;
 
@@ -1242,9 +1280,14 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E2433) : const Color(0xFFF1F5F9),
+                    color: isDark
+                        ? const Color(0xFF1E2433)
+                        : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: isDark
@@ -1254,7 +1297,11 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.tag_rounded, size: 13, color: primaryPink),
+                      const Icon(
+                        Icons.tag_rounded,
+                        size: 13,
+                        color: primaryPink,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         "Hashtags: $currentTagsCount/$_maxHashtags",
@@ -1263,7 +1310,9 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                           fontWeight: FontWeight.bold,
                           color: currentTagsCount >= _maxHashtags
                               ? Colors.orangeAccent
-                              : (isDark ? Colors.white70 : const Color(0xFF64748B)),
+                              : (isDark
+                                    ? Colors.white70
+                                    : const Color(0xFF64748B)),
                         ),
                       ),
                     ],
@@ -1277,8 +1326,10 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                     color: isOverLenLimit
                         ? Colors.redAccent
                         : (isNearLenLimit
-                            ? Colors.orangeAccent
-                            : (isDark ? Colors.white38 : const Color(0xFF94A3B8))),
+                              ? Colors.orangeAccent
+                              : (isDark
+                                    ? Colors.white38
+                                    : const Color(0xFF94A3B8))),
                   ),
                 ),
               ],
@@ -1370,10 +1421,13 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
             OutlinedButton(
               onPressed: _resetStudio,
               style: OutlinedButton.styleFrom(
-                foregroundColor:
-                    isDark ? Colors.white70 : const Color(0xFF64748B),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                foregroundColor: isDark
+                    ? Colors.white70
+                    : const Color(0xFF64748B),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 side: BorderSide(color: borderColor),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
@@ -1403,8 +1457,10 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(18),
-          border:
-              Border.all(color: primaryPink.withValues(alpha: 0.4), width: 1.5),
+          border: Border.all(
+            color: primaryPink.withValues(alpha: 0.4),
+            width: 1.5,
+          ),
         ),
         child: Row(
           children: [
@@ -1414,26 +1470,29 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
               child: Container(
                 width: 70,
                 height: 70,
-                color:
-                    isDark ? const Color(0xFF1E2433) : const Color(0xFFF1F5F9),
+                color: isDark
+                    ? const Color(0xFF1E2433)
+                    : const Color(0xFFF1F5F9),
                 child: isVideo
                     ? (_videoPreviewController != null &&
-                            _videoPreviewController!.value.isInitialized
-                        ? _buildVideoPlayerWidget(
-                            height: 70,
-                            fit: BoxFit.cover,
-                            showControls: false,
-                          )
-                        : const Center(
-                            child: Icon(Icons.videocam_rounded,
-                                color: primaryPink, size: 32)))
+                              _videoPreviewController!.value.isInitialized
+                          ? _buildVideoPlayerWidget(
+                              height: 70,
+                              fit: BoxFit.cover,
+                              showControls: false,
+                            )
+                          : const Center(
+                              child: Icon(
+                                Icons.videocam_rounded,
+                                color: primaryPink,
+                                size: 32,
+                              ),
+                            ))
                     : Image.memory(
                         _pickedMedia!.bytes,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => const Icon(
-                          Icons.image_rounded,
-                          color: primaryPink,
-                        ),
+                        errorBuilder: (_, _, _) =>
+                            const Icon(Icons.image_rounded, color: primaryPink),
                       ),
               ),
             ),
@@ -1466,8 +1525,9 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                       Text(
                         sizeStr,
                         style: TextStyle(
-                          color:
-                              isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                          color: isDark
+                              ? Colors.white38
+                              : const Color(0xFF94A3B8),
                           fontSize: 11,
                         ),
                       ),
@@ -1487,8 +1547,10 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.delete_outline_rounded,
-                  color: Colors.redAccent),
+              icon: const Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.redAccent,
+              ),
               tooltip: "Remove file",
               onPressed: _clearMedia,
             ),
@@ -1506,10 +1568,7 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: borderColor,
-            width: 1.5,
-          ),
+          border: Border.all(color: borderColor, width: 1.5),
         ),
         child: Column(
           children: [
@@ -1644,9 +1703,7 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                     }
                   });
                 },
-                child: Container(
-                  color: Colors.transparent,
-                ),
+                child: Container(color: Colors.transparent),
               ),
             ),
             // Play icon overlay when paused
@@ -1687,7 +1744,7 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: Colors.black54,
+                    color: Colors.black,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(
@@ -1710,7 +1767,10 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
   // RIGHT PANEL: LIVE INTERACTIVE SIMULATOR / PREVIEW
   // =========================================================================
   Widget _buildLiveSimulatorPanel(
-      bool isDark, Color cardBg, Color borderColor) {
+    bool isDark,
+    Color cardBg,
+    Color borderColor,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1750,9 +1810,7 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
         // Device Frame / Mockup
         Center(
           child: Container(
-            constraints: BoxConstraints(
-              maxWidth: _activeTab == 0 ? 520 : 360,
-            ),
+            constraints: BoxConstraints(maxWidth: _activeTab == 0 ? 520 : 360),
             decoration: BoxDecoration(
               color: cardBg,
               borderRadius: BorderRadius.circular(24),
@@ -1769,8 +1827,8 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
             child: _activeTab == 0
                 ? _buildPostSimulator(isDark)
                 : (_activeTab == 1
-                    ? _buildReelSimulator(isDark)
-                    : _buildStorySimulator(isDark)),
+                      ? _buildReelSimulator(isDark)
+                      : _buildStorySimulator(isDark)),
           ),
         ),
       ],
@@ -1797,8 +1855,9 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
               CircleAvatar(
                 radius: 20,
                 backgroundColor: primaryPink.withValues(alpha: 0.2),
-                backgroundImage:
-                    avatar.isNotEmpty ? NetworkImage(avatar) : null,
+                backgroundImage: avatar.isNotEmpty
+                    ? NetworkImage(avatar)
+                    : null,
                 child: avatar.isEmpty
                     ? Text(
                         name.isNotEmpty ? name[0] : 'Z',
@@ -1994,8 +2053,11 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.remove_red_eye_rounded,
-                      color: Colors.white, size: 12),
+                  Icon(
+                    Icons.remove_red_eye_rounded,
+                    color: Colors.white,
+                    size: 12,
+                  ),
                   SizedBox(width: 4),
                   Text(
                     "0 views",
@@ -2046,10 +2108,7 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                   title.isNotEmpty ? title : "Reel title and caption...",
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
               ],
             ),
@@ -2085,8 +2144,11 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                 ),
               ),
               child: const Center(
-                child: Icon(Icons.camera_alt_rounded,
-                    color: Colors.white54, size: 54),
+                child: Icon(
+                  Icons.camera_alt_rounded,
+                  color: Colors.white54,
+                  size: 54,
+                ),
               ),
             ),
 
@@ -2110,14 +2172,20 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
                     CircleAvatar(
                       radius: 14,
                       backgroundColor: Colors.white24,
-                      backgroundImage: (_userProfile?['avatar_url'] != null &&
-                              (_userProfile!['avatar_url'] as String).isNotEmpty)
+                      backgroundImage:
+                          (_userProfile?['avatar_url'] != null &&
+                              (_userProfile!['avatar_url'] as String)
+                                  .isNotEmpty)
                           ? NetworkImage(_userProfile!['avatar_url'])
                           : null,
-                      child: (_userProfile?['avatar_url'] == null ||
+                      child:
+                          (_userProfile?['avatar_url'] == null ||
                               (_userProfile!['avatar_url'] as String).isEmpty)
-                          ? const Icon(Icons.person,
-                              color: Colors.white, size: 16)
+                          ? const Icon(
+                              Icons.person,
+                              color: Colors.white,
+                              size: 16,
+                            )
                           : null,
                     ),
                     const SizedBox(width: 8),
@@ -2147,8 +2215,10 @@ class _ZevCreatorStudioScreenState extends State<ZevCreatorStudioScreen> {
               right: 14,
               bottom: 24,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.black54,
                   borderRadius: BorderRadius.circular(14),

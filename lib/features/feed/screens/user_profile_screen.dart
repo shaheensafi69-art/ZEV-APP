@@ -471,6 +471,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final TextEditingController lastNameController = TextEditingController(
       text: profileData?['last_name'] ?? '',
     );
+    final TextEditingController usernameController = TextEditingController(
+      text: (profileData?['username'] ?? '').toString().replaceFirst('@', ''),
+    );
+    final TextEditingController emailController = TextEditingController(
+      text: profileData?['email'] ?? supabase.auth.currentUser?.email ?? '',
+    );
     final TextEditingController fatherNameController = TextEditingController(
       text: profileData?['father_name'] ?? '',
     );
@@ -486,6 +492,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     final TextEditingController bioController = TextEditingController(
       text: profileData?['bio'] ?? '',
     );
+
+    // Privacy toggles (hide / show from public profile)
+    bool isPhoneHidden = profileData?['is_phone_hidden'] == true;
+    bool isDobHidden = profileData?['is_dob_hidden'] == true;
+    bool isFatherNameHidden = profileData?['is_father_name_hidden'] == true;
+    bool isCountryHidden = profileData?['is_country_hidden'] == true;
+    bool isSavingProfile = false;
 
     showModalBottomSheet(
       context: context,
@@ -674,6 +687,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ),
                 const SizedBox(height: 18),
 
+                // Name fields
                 Row(
                   children: [
                     Expanded(
@@ -704,10 +718,38 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
+
+                // Username field (customizable, unique)
                 TextField(
-                  controller: fatherNameController,
+                  controller: usernameController,
                   cursorColor: primaryPink,
-                  decoration: _inputDecoration("Father's Name"),
+                  decoration: _inputDecoration("Username (e.g. zev_star)")
+                      .copyWith(
+                        prefixIcon: const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          child: Text(
+                            "@",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: primaryPink,
+                            ),
+                          ),
+                        ),
+                        prefixIconConstraints: const BoxConstraints(
+                          minWidth: 0,
+                          minHeight: 0,
+                        ),
+                        helperText:
+                            "Unique username (3-30 letters, numbers, or _)",
+                        helperStyle: const TextStyle(
+                          fontSize: 11,
+                          color: textGrey,
+                        ),
+                      ),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
@@ -715,11 +757,153 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
+
+                // Email field (Read-only / Non-editable as requested)
+                TextField(
+                  controller: emailController,
+                  readOnly: true,
+                  decoration: _inputDecoration("Email Address").copyWith(
+                    prefixIcon: const Icon(
+                      Icons.email_outlined,
+                      color: textGrey,
+                      size: 20,
+                    ),
+                    suffixIcon: const Tooltip(
+                      message: "Email cannot be changed (غیر قابل تغییر)",
+                      child: Icon(
+                        Icons.lock_rounded,
+                        color: textGrey,
+                        size: 18,
+                      ),
+                    ),
+                    helperText:
+                        "Email cannot be changed (ایمیل ثابت و غیر قابل تغییر است)",
+                    helperStyle: const TextStyle(fontSize: 11, color: textGrey),
+                  ),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: textGrey,
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Privacy info banner
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.blueGrey.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.blueGrey.withValues(alpha: 0.15),
+                    ),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 16,
+                        color: textGrey,
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Tap the 👁️ eye icon on any field below to hide (🔒) or show it on your public profile.",
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            color: textGrey,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Father's Name with privacy toggle
+                TextField(
+                  controller: fatherNameController,
+                  cursorColor: primaryPink,
+                  decoration: _inputDecoration("Father's Name").copyWith(
+                    prefixIcon: const Icon(
+                      Icons.person_outline_rounded,
+                      color: textGrey,
+                      size: 20,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        isFatherNameHidden
+                            ? Icons.visibility_off_rounded
+                            : Icons.visibility_rounded,
+                        color: isFatherNameHidden
+                            ? Colors.redAccent
+                            : Colors.teal,
+                        size: 20,
+                      ),
+                      tooltip: isFatherNameHidden
+                          ? "Hidden from public (پنهان)"
+                          : "Visible to public (نمایان)",
+                      onPressed: () => setModalState(
+                        () => isFatherNameHidden = !isFatherNameHidden,
+                      ),
+                    ),
+                    helperText: isFatherNameHidden
+                        ? "🔒 Hidden from others (پنهان)"
+                        : "👁️ Visible to public (نمایان)",
+                    helperStyle: TextStyle(
+                      fontSize: 11,
+                      color: isFatherNameHidden
+                          ? Colors.redAccent
+                          : Colors.teal,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: textDark,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Phone with privacy toggle
                 TextField(
                   controller: phoneController,
                   keyboardType: TextInputType.phone,
                   cursorColor: primaryPink,
-                  decoration: _inputDecoration("Phone Number (+...)"),
+                  decoration: _inputDecoration("Phone Number (+...)").copyWith(
+                    prefixIcon: const Icon(
+                      Icons.phone_outlined,
+                      color: textGrey,
+                      size: 20,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        isPhoneHidden
+                            ? Icons.visibility_off_rounded
+                            : Icons.visibility_rounded,
+                        color: isPhoneHidden ? Colors.redAccent : Colors.teal,
+                        size: 20,
+                      ),
+                      tooltip: isPhoneHidden
+                          ? "Hidden from public (پنهان)"
+                          : "Visible to public (نمایان)",
+                      onPressed: () =>
+                          setModalState(() => isPhoneHidden = !isPhoneHidden),
+                    ),
+                    helperText: isPhoneHidden
+                        ? "🔒 Hidden from others (پنهان)"
+                        : "👁️ Visible to public (نمایان)",
+                    helperStyle: TextStyle(
+                      fontSize: 11,
+                      color: isPhoneHidden ? Colors.redAccent : Colors.teal,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
@@ -727,10 +911,41 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
+
+                // Country with privacy toggle
                 TextField(
                   controller: countryController,
                   cursorColor: primaryPink,
-                  decoration: _inputDecoration("Country / Location"),
+                  decoration: _inputDecoration("Country / Location").copyWith(
+                    prefixIcon: const Icon(
+                      Icons.public_rounded,
+                      color: textGrey,
+                      size: 20,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        isCountryHidden
+                            ? Icons.visibility_off_rounded
+                            : Icons.visibility_rounded,
+                        color: isCountryHidden ? Colors.redAccent : Colors.teal,
+                        size: 20,
+                      ),
+                      tooltip: isCountryHidden
+                          ? "Hidden from public (پنهان)"
+                          : "Visible to public (نمایان)",
+                      onPressed: () => setModalState(
+                        () => isCountryHidden = !isCountryHidden,
+                      ),
+                    ),
+                    helperText: isCountryHidden
+                        ? "🔒 Hidden from others (پنهان)"
+                        : "👁️ Visible to public (نمایان)",
+                    helperStyle: TextStyle(
+                      fontSize: 11,
+                      color: isCountryHidden ? Colors.redAccent : Colors.teal,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
@@ -738,10 +953,41 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
+
+                // Date of birth with privacy toggle
                 TextField(
                   controller: dobController,
                   cursorColor: primaryPink,
-                  decoration: _inputDecoration("Date of Birth (YYYY-MM-DD)"),
+                  decoration: _inputDecoration("Date of Birth (YYYY-MM-DD)")
+                      .copyWith(
+                        prefixIcon: const Icon(
+                          Icons.cake_outlined,
+                          color: textGrey,
+                          size: 20,
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            isDobHidden
+                                ? Icons.visibility_off_rounded
+                                : Icons.visibility_rounded,
+                            color: isDobHidden ? Colors.redAccent : Colors.teal,
+                            size: 20,
+                          ),
+                          tooltip: isDobHidden
+                              ? "Hidden from public (پنهان)"
+                              : "Visible to public (نمایان)",
+                          onPressed: () =>
+                              setModalState(() => isDobHidden = !isDobHidden),
+                        ),
+                        helperText: isDobHidden
+                            ? "🔒 Hidden from others (پنهان)"
+                            : "👁️ Visible to public (نمایان)",
+                        helperStyle: TextStyle(
+                          fontSize: 11,
+                          color: isDobHidden ? Colors.redAccent : Colors.teal,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
@@ -749,6 +995,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
+
+                // Bio
                 TextField(
                   controller: bioController,
                   cursorColor: primaryPink,
@@ -757,6 +1005,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   style: const TextStyle(fontSize: 14, color: textDark),
                 ),
                 const SizedBox(height: 22),
+
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -769,53 +1018,124 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    onPressed: () async {
-                      try {
-                        final user = supabase.auth.currentUser;
-                        if (user == null) return;
+                    onPressed: isSavingProfile
+                        ? null
+                        : () async {
+                            final user = supabase.auth.currentUser;
+                            if (user == null) return;
 
-                        await supabase
-                            .from("profiles")
-                            .update({
-                              'first_name': firstNameController.text.trim(),
-                              'last_name': lastNameController.text.trim(),
-                              'father_name': fatherNameController.text.trim(),
-                              'phone_number': phoneController.text.trim(),
-                              'country': countryController.text.trim(),
-                              'date_of_birth': dobController.text.trim().isEmpty
-                                  ? null
-                                  : dobController.text.trim(),
-                              'bio': bioController.text.trim(),
-                            })
-                            .eq("id", user.id);
+                            final rawUsername = usernameController.text
+                                .trim()
+                                .toLowerCase()
+                                .replaceAll('@', '');
+                            if (rawUsername.isNotEmpty) {
+                              final validRegex = RegExp(r'^[a-z0-9_]{3,30}$');
+                              if (!validRegex.hasMatch(rawUsername)) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      "Username must be 3-30 letters, numbers, or underscores (نام کاربری باید ۳ تا ۳۰ کاراکتر انگلیسی و بدون فاصله باشد)",
+                                    ),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                                return;
+                              }
 
-                        if (!mounted) return;
-                        Navigator.pop(sheetContext);
-                        await _fetchProfileAndPosts();
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text("Profile updated successfully! ✅"),
-                            backgroundColor: Colors.green,
+                              setModalState(() => isSavingProfile = true);
+                              try {
+                                final existing = await supabase
+                                    .from("profiles")
+                                    .select("id")
+                                    .eq("username", rawUsername)
+                                    .neq("id", user.id)
+                                    .maybeSingle();
+
+                                if (existing != null) {
+                                  setModalState(() => isSavingProfile = false);
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        "This username is already taken! این نام کاربری قبلاً انتخاب شده است",
+                                      ),
+                                      backgroundColor: Colors.redAccent,
+                                    ),
+                                  );
+                                  return;
+                                }
+                              } catch (e) {
+                                debugPrint("Check username error: $e");
+                              }
+                            } else {
+                              setModalState(() => isSavingProfile = true);
+                            }
+
+                            try {
+                              final updatePayload = <String, dynamic>{
+                                'first_name': firstNameController.text.trim(),
+                                'last_name': lastNameController.text.trim(),
+                                'father_name': fatherNameController.text.trim(),
+                                'phone_number': phoneController.text.trim(),
+                                'country': countryController.text.trim(),
+                                'date_of_birth':
+                                    dobController.text.trim().isEmpty
+                                    ? null
+                                    : dobController.text.trim(),
+                                'bio': bioController.text.trim(),
+                                'is_phone_hidden': isPhoneHidden,
+                                'is_dob_hidden': isDobHidden,
+                                'is_father_name_hidden': isFatherNameHidden,
+                                'is_country_hidden': isCountryHidden,
+                              };
+                              if (rawUsername.isNotEmpty) {
+                                updatePayload['username'] = rawUsername;
+                              }
+
+                              await supabase
+                                  .from("profiles")
+                                  .update(updatePayload)
+                                  .eq("id", user.id);
+
+                              if (!mounted) return;
+                              Navigator.pop(sheetContext);
+                              await _fetchProfileAndPosts();
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    "Profile updated successfully! ✅",
+                                  ),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            } catch (e) {
+                              setModalState(() => isSavingProfile = false);
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text("Error updating profile: $e"),
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                              );
+                            }
+                          },
+                    child: isSavingProfile
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            "SAVE CHANGES",
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                            ),
                           ),
-                        );
-                      } catch (e) {
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text("Error updating profile: $e"),
-                            backgroundColor: Colors.redAccent,
-                          ),
-                        );
-                      }
-                    },
-                    child: const Text(
-                      "SAVE CHANGES",
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
                   ),
                 ),
               ],
@@ -1516,6 +1836,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                                 letterSpacing: -0.3,
                                               ),
                                             ),
+                                            if (profileData?['username'] != null &&
+                                                profileData!['username'].toString().trim().isNotEmpty) ...[
+                                              const SizedBox(height: 3),
+                                              Text(
+                                                "@${profileData!['username'].toString().trim().replaceFirst('@', '')}",
+                                                textAlign: TextAlign.center,
+                                                style: const TextStyle(
+                                                  color: primaryPink,
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 13,
+                                                  letterSpacing: 0.2,
+                                                ),
+                                              ),
+                                            ],
                                             if (roleLabel != null) ...[
                                               const SizedBox(height: 6),
                                               Container(
@@ -1877,21 +2211,51 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                           }
                                         : null,
                                   ),
-                                  const SizedBox(height: 10),
-                                  _buildInfoRow(
-                                    Icons.cake_rounded,
-                                    "Date of Birth",
-                                    profileData!['date_of_birth'] ??
-                                        'Not specified',
-                                    roleColor,
-                                  ),
-                                  const SizedBox(height: 10),
-                                  _buildInfoRow(
-                                    Icons.public_rounded,
-                                    "Country",
-                                    profileData!['country'] ?? 'Global',
-                                    roleColor,
-                                  ),
+                                  if (profileData!['father_name'] != null &&
+                                      profileData!['father_name'].toString().trim().isNotEmpty &&
+                                      (isMyProfile || profileData!['is_father_name_hidden'] != true)) ...[
+                                    const SizedBox(height: 10),
+                                    _buildInfoRow(
+                                      Icons.person_outline_rounded,
+                                      "Father's Name",
+                                      profileData!['father_name'],
+                                      roleColor,
+                                      isHidden: profileData!['is_father_name_hidden'] == true,
+                                    ),
+                                  ],
+                                  if (profileData!['phone_number'] != null &&
+                                      profileData!['phone_number'].toString().trim().isNotEmpty &&
+                                      (isMyProfile || profileData!['is_phone_hidden'] != true)) ...[
+                                    const SizedBox(height: 10),
+                                    _buildInfoRow(
+                                      Icons.phone_outlined,
+                                      "Phone Number",
+                                      profileData!['phone_number'],
+                                      roleColor,
+                                      isHidden: profileData!['is_phone_hidden'] == true,
+                                    ),
+                                  ],
+                                  if (isMyProfile || profileData!['is_dob_hidden'] != true) ...[
+                                    const SizedBox(height: 10),
+                                    _buildInfoRow(
+                                      Icons.cake_rounded,
+                                      "Date of Birth",
+                                      profileData!['date_of_birth'] ??
+                                          'Not specified',
+                                      roleColor,
+                                      isHidden: profileData!['is_dob_hidden'] == true,
+                                    ),
+                                  ],
+                                  if (isMyProfile || profileData!['is_country_hidden'] != true) ...[
+                                    const SizedBox(height: 10),
+                                    _buildInfoRow(
+                                      Icons.public_rounded,
+                                      "Country",
+                                      profileData!['country'] ?? 'Global',
+                                      roleColor,
+                                      isHidden: profileData!['is_country_hidden'] == true,
+                                    ),
+                                  ],
                                   const SizedBox(height: 10),
                                   _buildInfoRow(
                                     Icons.bolt_rounded,
@@ -2334,8 +2698,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                         context,
                                         MaterialPageRoute(
                                           builder: (_) => StudentReelsScreen(
-                                            targetReelId:
-                                                reel['id']?.toString(),
+                                            targetReelId: reel['id']
+                                                ?.toString(),
                                           ),
                                         ),
                                       );
@@ -2375,8 +2739,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                                         context,
                                         MaterialPageRoute(
                                           builder: (_) => StudentReelsScreen(
-                                            targetReelId:
-                                                reel['id']?.toString(),
+                                            targetReelId: reel['id']
+                                                ?.toString(),
                                           ),
                                         ),
                                       );
@@ -3161,6 +3525,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     String value,
     Color color, {
     VoidCallback? onCopy,
+    bool isHidden = false,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -3184,13 +3549,38 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: textGrey,
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        color: textGrey,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (isHidden) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          "Hidden 🔒",
+                          style: TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -3501,7 +3891,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             ),
                           const SizedBox(width: 6),
                           Text(
-                            isCoverUploading ? context.zevTr('uploading') : context.zevTr('changeCover'),
+                            isCoverUploading
+                                ? context.zevTr('uploading')
+                                : context.zevTr('changeCover'),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,

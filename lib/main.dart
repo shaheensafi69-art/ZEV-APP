@@ -10,15 +10,21 @@ import 'core/services/deep_link_service.dart';
 import 'core/services/language_service.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/security_service.dart';
+import 'core/services/chat_pin_service.dart';
+import 'core/services/chat_block_report_service.dart';
+import 'core/services/web_navigation_service.dart';
+import 'core/services/url_strategy_stub.dart'
+    if (dart.library.html) 'core/services/url_strategy_web.dart';
 import 'core/theme/app_theme_service.dart';
 import 'core/utils/system_ui_helper.dart';
 import 'l10n/generated/app_localizations.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  configureUrlStrategy();
+  WebNavigationService.instance.init();
 
   if (!kIsWeb) {
     try {
@@ -75,6 +81,14 @@ Future<void> main() async {
 
     try {
       await AppThemeService.instance.initialize();
+    } catch (_) {}
+
+    try {
+      await ChatPinService.instance.init();
+    } catch (_) {}
+
+    try {
+      await ChatBlockReportService.instance.init();
     } catch (_) {}
   }
 

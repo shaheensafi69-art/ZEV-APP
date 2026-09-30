@@ -19,6 +19,8 @@ import '../../../core/widgets/responsive_layout.dart';
 import '../../../core/localization/zev_localizations.dart';
 import '../../../core/services/language_service.dart';
 import '../../../core/services/hashtag_service.dart';
+import '../../../core/services/web_navigation_service.dart';
+import '../../auth/screens/welcome_screen.dart';
 
 class ZevMainLayout extends StatefulWidget {
   final int initialIndex;
@@ -35,6 +37,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   // Vibrant Pink matching the official ZEV app icon
   static const Color primaryPink = Color(0xFFFC466B);
   static const Color lightPinkAccent = Color(0xFFFF5E8A);
+  static const Color cardBorder = Color(0xFFE2E8F0);
+  static const Color textDark = Color(0xFF0F172A);
+  static const Color textGrey = Color(0xFF64748B);
 
   String _currentUserName = "ZEV User";
   String _currentUserAvatar = "";
@@ -47,8 +52,27 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    WebNavigationService.instance.updateUrlForTab(_currentIndex);
+    WebNavigationService.instance.activeTabNotifier.addListener(
+      _onWebNavPopState,
+    );
     _loadUserProfile();
     _loadRightRailSuggestedUsers();
+  }
+
+  @override
+  void dispose() {
+    WebNavigationService.instance.activeTabNotifier.removeListener(
+      _onWebNavPopState,
+    );
+    super.dispose();
+  }
+
+  void _onWebNavPopState() {
+    final newTab = WebNavigationService.instance.activeTabNotifier.value;
+    if (newTab != _currentIndex && mounted) {
+      setState(() => _currentIndex = newTab);
+    }
   }
 
   Future<void> _loadUserProfile() async {
@@ -57,18 +81,21 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     try {
       final res = await supabase
           .from('profiles')
-          .select('first_name, last_name, avatar_url')
+          .select('first_name, last_name, avatar_url, username')
           .eq('id', user.id)
           .maybeSingle();
 
       if (res != null && mounted) {
         final fn = res['first_name'] ?? '';
         final ln = res['last_name'] ?? '';
+        final un = res['username']?.toString() ?? '';
         final full = "$fn $ln".trim();
         setState(() {
           if (full.isNotEmpty) _currentUserName = full;
           _currentUserAvatar = res['avatar_url'] ?? '';
-          _currentUserHandle = user.email?.split('@').first ?? 'user';
+          _currentUserHandle = un.isNotEmpty
+              ? un
+              : (user.email?.split('@').first ?? 'user');
         });
       }
     } catch (_) {}
@@ -109,6 +136,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
 
       if (!ResponsiveLayout.isPhone(context)) {
         HapticFeedback.lightImpact();
+        WebNavigationService.instance.updateUrlForTab(2);
         setState(() {
           _currentIndex = 2;
         });
@@ -120,6 +148,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     }
 
     HapticFeedback.lightImpact();
+    WebNavigationService.instance.updateUrlForTab(index);
     setState(() {
       _currentIndex = index;
     });
@@ -389,15 +418,15 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                 color: isReels
                     ? const Color(0xFF0A0A0A).withValues(alpha: 0.95)
                     : (isDark
-                        ? const Color(0xFF111827).withValues(alpha: 0.88)
-                        : Colors.white.withValues(alpha: 0.94)),
+                          ? const Color(0xFF111827).withValues(alpha: 0.88)
+                          : Colors.white.withValues(alpha: 0.94)),
                 borderRadius: BorderRadius.circular(32),
                 border: Border.all(
                   color: isReels
                       ? Colors.white.withValues(alpha: 0.16)
                       : (isDark
-                          ? Colors.white.withValues(alpha: 0.12)
-                          : primaryPink.withValues(alpha: 0.2)),
+                            ? Colors.white.withValues(alpha: 0.12)
+                            : primaryPink.withValues(alpha: 0.2)),
                   width: 1.2,
                 ),
                 boxShadow: [
@@ -410,7 +439,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                   ),
                   if (!isReels)
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.08),
+                      color: Colors.black.withValues(
+                        alpha: isDark ? 0.5 : 0.08,
+                      ),
                       blurRadius: 16,
                       offset: const Offset(0, 4),
                     ),
@@ -665,8 +696,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                       isDesktop: isDesktop,
                     ),
                     _buildSideNavItem(
-                      icon: Icons.favorite_border_rounded,
-                      label: context.zevTr('likesAndComments'),
+                      icon: Icons.notifications_none_rounded,
+                      label: context.zevTr('notifications'),
                       index: 7,
                       isDark: isDark,
                       isDesktop: isDesktop,
@@ -806,8 +837,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                             ]
                           : [
                               BoxShadow(
-                                color: const Color(0xFFCBD5E1)
-                                    .withValues(alpha: 0.8),
+                                color: const Color(
+                                  0xFFCBD5E1,
+                                ).withValues(alpha: 0.8),
                                 offset: const Offset(2, 2),
                                 blurRadius: 5,
                               ),
@@ -866,12 +898,199 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                             ],
                           ),
                         ),
-                        Icon(
-                          Icons.more_horiz_rounded,
-                          size: 18,
-                          color: isDark
-                              ? Colors.white38
-                              : const Color(0xFF94A3B8),
+                        Theme(
+                          data: Theme.of(context).copyWith(
+                            hoverColor: isDark
+                                ? Colors.white10
+                                : Colors.black12,
+                          ),
+                          child: PopupMenuButton<String>(
+                            tooltip: 'Options',
+                            color: isDark
+                                ? const Color(0xFF1E293B)
+                                : Colors.white,
+                            elevation: 8,
+                            padding: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: BorderSide(
+                                color: isDark ? Colors.white12 : cardBorder,
+                              ),
+                            ),
+                            icon: Icon(
+                              Icons.more_horiz_rounded,
+                              size: 18,
+                              color: isDark
+                                  ? Colors.white60
+                                  : const Color(0xFF94A3B8),
+                            ),
+                            onSelected: (val) async {
+                              if (val == 'profile') {
+                                _onTabTapped(4);
+                              } else if (val == 'settings') {
+                                _onTabTapped(8);
+                              } else if (val == 'studio') {
+                                _onTabTapped(2);
+                              } else if (val == 'logout') {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (dCtx) => AlertDialog(
+                                    backgroundColor: isDark
+                                        ? const Color(0xFF1E293B)
+                                        : Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    title: Text(
+                                      context.zevTr('logOut'),
+                                      style: TextStyle(
+                                        color: isDark ? Colors.white : textDark,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    content: Text(
+                                      context.zevTr('logOutConfirm'),
+                                      style: TextStyle(
+                                        color: isDark
+                                            ? Colors.white70
+                                            : textGrey,
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(dCtx, false),
+                                        child: Text(
+                                          context.zevTr('cancel'),
+                                          style: const TextStyle(
+                                            color: textGrey,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.redAccent,
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                        ),
+                                        onPressed: () =>
+                                            Navigator.pop(dCtx, true),
+                                        child: Text(
+                                          context.zevTr('logOut'),
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirm == true) {
+                                  await supabase.auth.signOut();
+                                  if (mounted) {
+                                    Navigator.of(context).pushAndRemoveUntil(
+                                      MaterialPageRoute(
+                                        builder: (_) => const WelcomeScreen(),
+                                      ),
+                                      (r) => false,
+                                    );
+                                  }
+                                }
+                              }
+                            },
+                            itemBuilder: (ctx) => [
+                              PopupMenuItem(
+                                value: 'profile',
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.person_outline_rounded,
+                                      size: 18,
+                                      color: primaryPink,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      context.zevTr('myProfile'),
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark ? Colors.white : textDark,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: 'settings',
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.settings_outlined,
+                                      size: 18,
+                                      color: primaryPink,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      context.zevTr('settings'),
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark ? Colors.white : textDark,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: 'studio',
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.edit_note_rounded,
+                                      size: 18,
+                                      color: primaryPink,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      context.zevTr('creatorStudio'),
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark ? Colors.white : textDark,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuDivider(),
+                              PopupMenuItem(
+                                value: 'logout',
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.logout_rounded,
+                                      size: 18,
+                                      color: Colors.redAccent,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      context.zevTr('logOut'),
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.redAccent,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -910,77 +1129,77 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
           ),
           decoration: BoxDecoration(
             color: isSelected
-                ? (isDark
-                    ? const Color(0xFF162033)
-                    : const Color(0xFFECEFF5))
-                : (isDark
-                    ? const Color(0xFF0F172A)
-                    : const Color(0xFFF8FAFC)),
+                ? (isDark ? const Color(0xFF162033) : const Color(0xFFECEFF5))
+                : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isSelected
                   ? primaryPink.withValues(alpha: 0.5)
                   : (isDark
-                      ? Colors.white.withValues(alpha: 0.04)
-                      : Colors.white),
+                        ? Colors.white.withValues(alpha: 0.04)
+                        : Colors.white),
               width: 1.2,
             ),
             boxShadow: isSelected
                 ? (isDark
-                    ? [
-                        BoxShadow(
-                          color: primaryPink.withValues(alpha: 0.2),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.4),
-                          offset: const Offset(2, 2),
-                          blurRadius: 4,
-                        ),
-                      ]
-                    : [
-                        BoxShadow(
-                          color: primaryPink.withValues(alpha: 0.15),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                        BoxShadow(
-                          color: const Color(0xFFCBD5E1).withValues(alpha: 0.7),
-                          offset: const Offset(2, 2),
-                          blurRadius: 4,
-                        ),
-                        const BoxShadow(
-                          color: Colors.white,
-                          offset: Offset(-2, -2),
-                          blurRadius: 4,
-                        ),
-                      ])
+                      ? [
+                          BoxShadow(
+                            color: primaryPink.withValues(alpha: 0.2),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.4),
+                            offset: const Offset(2, 2),
+                            blurRadius: 4,
+                          ),
+                        ]
+                      : [
+                          BoxShadow(
+                            color: primaryPink.withValues(alpha: 0.15),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                          BoxShadow(
+                            color: const Color(
+                              0xFFCBD5E1,
+                            ).withValues(alpha: 0.7),
+                            offset: const Offset(2, 2),
+                            blurRadius: 4,
+                          ),
+                          const BoxShadow(
+                            color: Colors.white,
+                            offset: Offset(-2, -2),
+                            blurRadius: 4,
+                          ),
+                        ])
                 : (isDark
-                    ? [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.25),
-                          offset: const Offset(2, 2),
-                          blurRadius: 4,
-                        ),
-                        BoxShadow(
-                          color: Colors.white.withValues(alpha: 0.02),
-                          offset: const Offset(-1, -1),
-                          blurRadius: 3,
-                        ),
-                      ]
-                    : [
-                        BoxShadow(
-                          color: const Color(0xFFE2E8F0).withValues(alpha: 0.7),
-                          offset: const Offset(2, 2),
-                          blurRadius: 4,
-                        ),
-                        const BoxShadow(
-                          color: Colors.white,
-                          offset: Offset(-2, -2),
-                          blurRadius: 4,
-                        ),
-                      ]),
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.25),
+                            offset: const Offset(2, 2),
+                            blurRadius: 4,
+                          ),
+                          BoxShadow(
+                            color: Colors.white.withValues(alpha: 0.02),
+                            offset: const Offset(-1, -1),
+                            blurRadius: 3,
+                          ),
+                        ]
+                      : [
+                          BoxShadow(
+                            color: const Color(
+                              0xFFE2E8F0,
+                            ).withValues(alpha: 0.7),
+                            offset: const Offset(2, 2),
+                            blurRadius: 4,
+                          ),
+                          const BoxShadow(
+                            color: Colors.white,
+                            offset: Offset(-2, -2),
+                            blurRadius: 4,
+                          ),
+                        ]),
           ),
           child: isDesktop
               ? Row(
@@ -1077,8 +1296,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
               decoration: BoxDecoration(
                 color: isSelected
                     ? (isReels
-                        ? primaryPink.withValues(alpha: 0.28)
-                        : primaryPink.withValues(alpha: isDark ? 0.22 : 0.12))
+                          ? primaryPink.withValues(alpha: 0.28)
+                          : primaryPink.withValues(alpha: isDark ? 0.22 : 0.12))
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -1088,8 +1307,10 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                 color: isSelected
                     ? (isReels ? Colors.white : primaryPink)
                     : (isReels
-                        ? Colors.white70
-                        : (isDark ? Colors.white54 : const Color(0xFF64748B))),
+                          ? Colors.white70
+                          : (isDark
+                                ? Colors.white54
+                                : const Color(0xFF64748B))),
               ),
             ),
             const SizedBox(height: 1),
@@ -1101,8 +1322,10 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                 color: isSelected
                     ? (isReels ? Colors.white : primaryPink)
                     : (isReels
-                        ? Colors.white54
-                        : (isDark ? Colors.white38 : const Color(0xFF94A3B8))),
+                          ? Colors.white54
+                          : (isDark
+                                ? Colors.white38
+                                : const Color(0xFF94A3B8))),
               ),
             ),
           ],
@@ -1169,11 +1392,15 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                 ),
                 const SizedBox(height: 14),
                 if (_trendingHashtags.isNotEmpty)
-                  ..._trendingHashtags.take(6).map((h) => _buildTrendingItem(
-                        "#${h.tag}",
-                        "${h.postsCount + h.reelsCount > 999 ? '${((h.postsCount + h.reelsCount) / 1000).toStringAsFixed(1)}K' : '${h.postsCount + h.reelsCount}'} posts",
-                        isDark,
-                      ))
+                  ..._trendingHashtags
+                      .take(6)
+                      .map(
+                        (h) => _buildTrendingItem(
+                          "#${h.tag}",
+                          "${h.postsCount + h.reelsCount > 999 ? '${((h.postsCount + h.reelsCount) / 1000).toStringAsFixed(1)}K' : '${h.postsCount + h.reelsCount}'} posts",
+                          isDark,
+                        ),
+                      )
                 else ...[
                   _buildTrendingItem("#Technology", "14.2K posts", isDark),
                   _buildTrendingItem("#Photography", "8.5K posts", isDark),
@@ -1428,13 +1655,18 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w900,
-                            color: isDark ? Colors.white70 : const Color(0xFF475569),
+                            color: isDark
+                                ? Colors.white70
+                                : const Color(0xFF475569),
                           ),
                         ),
                       ],
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF22C55E).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(8),
@@ -1488,7 +1720,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w800,
-                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                color: isDark
+                                    ? Colors.white
+                                    : const Color(0xFF0F172A),
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -1496,7 +1730,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                               "Share posts & grow your reach",
                               style: TextStyle(
                                 fontSize: 10,
-                                color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                color: isDark
+                                    ? Colors.white60
+                                    : const Color(0xFF64748B),
                               ),
                             ),
                           ],
