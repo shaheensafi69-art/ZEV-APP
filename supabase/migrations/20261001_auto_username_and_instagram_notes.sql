@@ -126,24 +126,25 @@ USING (auth.uid() = user_id);
 -- Security Fix 2: Secure Admin Policy on public.profiles (Resolves Critical Alert)
 -- Replaces insecure user_metadata reference with app_metadata or profiles.role check
 -- =========================================================================
+CREATE OR REPLACE FUNCTION public.is_app_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN COALESCE(
+        (auth.jwt() -> 'app_metadata' ->> 'role') ILIKE 'admin'
+        OR (auth.jwt() -> 'app_metadata' ->> 'is_admin')::boolean = true
+        OR EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = auth.uid() AND role ILIKE 'admin'
+        ),
+        false
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+
 DROP POLICY IF EXISTS "Allow admin full update access" ON public.profiles;
 
 CREATE POLICY "Allow admin full update access"
 ON public.profiles FOR UPDATE
 TO authenticated
-USING (
-    (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
-    OR (auth.jwt() -> 'app_metadata' ->> 'is_admin')::boolean = true
-    OR EXISTS (
-        SELECT 1 FROM public.profiles
-        WHERE id = auth.uid() AND (role = 'admin' OR is_admin = true)
-    )
-)
-WITH CHECK (
-    (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
-    OR (auth.jwt() -> 'app_metadata' ->> 'is_admin')::boolean = true
-    OR EXISTS (
-        SELECT 1 FROM public.profiles
-        WHERE id = auth.uid() AND (role = 'admin' OR is_admin = true)
-    )
-);
+USING (public.is_app_admin())
+WITH CHECK (public.is_app_admin());
