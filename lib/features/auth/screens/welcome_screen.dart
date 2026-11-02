@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_logo.dart';
+import 'login_screen.dart';
+import 'register_screen.dart';
 
 /// Next-Generation Welcome Screen for ZEV.
 /// Perfectly crafted from the official ZEV Brand Identity:
@@ -61,10 +63,11 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     HapticFeedback.mediumImpact();
     if (widget.onRegisterTap != null) {
       widget.onRegisterTap!();
-    } else if (widget.onGuestTap != null) {
-      widget.onGuestTap!();
     } else {
-      _showNotice("Explore ZEV");
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const RegisterScreen()),
+      );
     }
   }
 
@@ -73,20 +76,11 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     if (widget.onLoginTap != null) {
       widget.onLoginTap!();
     } else {
-      _showNotice("Log In");
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
     }
-  }
-
-  void _showNotice(String action) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("$action is ready for the next screen connection."),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        duration: const Duration(seconds: 2),
-      ),
-    );
   }
 
   @override
