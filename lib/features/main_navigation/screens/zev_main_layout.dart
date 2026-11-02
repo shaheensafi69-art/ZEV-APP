@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/auth_helper.dart';
 import '../../../core/theme/zev_theme.dart';
+import '../../feed/screens/create_post_screen.dart';
 import '../../feed/screens/feed_viewer_screen.dart';
 import '../../reels/screens/reels_viewer_screen.dart';
 
@@ -191,7 +192,12 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
               ),
               onTap: () {
                 Navigator.pop(context);
-                setState(() => _currentIndex = 0);
+                CreatePostScreen.open(
+                  context,
+                  onPostCreated: () {
+                    setState(() => _currentIndex = 0);
+                  },
+                );
               },
             ),
             const SizedBox(height: 10),

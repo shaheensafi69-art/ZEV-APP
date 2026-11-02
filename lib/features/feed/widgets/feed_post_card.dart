@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -486,35 +487,54 @@ class _FeedPostCardState extends State<FeedPostCard>
                       maxHeight: 580,
                     ),
                     color: ZevColors.softSurface,
-                    child: Image.network(
-                      post.imageUrl,
-                      fit: BoxFit.contain, // Full un-cropped display
-                      width: double.infinity,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Container(
-                          height: 320,
-                          color: ZevColors.softSurface,
-                          child: const Center(
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: ZevColors.primaryBlue,
+                    child: post.imageUrl.startsWith('http')
+                        ? Image.network(
+                            post.imageUrl,
+                            fit: BoxFit.contain, // Full un-cropped display
+                            width: double.infinity,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Container(
+                                height: 320,
+                                color: ZevColors.softSurface,
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: ZevColors.primaryBlue,
+                                  ),
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                              height: 220,
+                              color: ZevColors.softSurface,
+                              child: const Center(
+                                child: Icon(
+                                  Icons.broken_image_rounded,
+                                  size: 48,
+                                  color: ZevColors.textMuted,
+                                ),
+                              ),
+                            ),
+                          )
+                        : Image.file(
+                            File(post.imageUrl),
+                            fit: BoxFit.contain,
+                            width: double.infinity,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                              height: 220,
+                              color: ZevColors.softSurface,
+                              child: const Center(
+                                child: Icon(
+                                  Icons.broken_image_rounded,
+                                  size: 48,
+                                  color: ZevColors.textMuted,
+                                ),
+                              ),
                             ),
                           ),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        height: 220,
-                        color: ZevColors.softSurface,
-                        child: const Center(
-                          child: Icon(
-                            Icons.broken_image_rounded,
-                            size: 48,
-                            color: ZevColors.textMuted,
-                          ),
-                        ),
-                      ),
-                    ),
                   ),
 
                   // Floating Heart Pop
