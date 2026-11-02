@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/cloudflare_storage_service.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_text_field.dart';
 import '../models/feed_post_item.dart';
@@ -36,6 +37,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
   String? _errorMsg;
   List<FeedPostItem> _posts = [];
   List<ActiveFriendStory> _stories = [];
+  List<Map<String, dynamic>> _suggestedUsers = [];
+  final Set<String> _followedSuggestedIds = {};
+  bool _dismissSuggestedCarousel = false;
   String _myAvatarUrl = '';
 
   @override
@@ -66,11 +70,42 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
       await Future.wait([
         _fetchStories(),
         _fetchPosts(),
+        _fetchSuggestedUsers(),
       ]);
     } catch (e) {
       debugPrint("Feed data fetch warning: $e");
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fetchSuggestedUsers() async {
+    final currentUserId = supabase.auth.currentUser?.id;
+    try {
+      final res = await supabase
+          .from('profiles')
+          .select('id, username, first_name, last_name, avatar_url, is_verified')
+          .neq('id', currentUserId ?? '')
+          .limit(8);
+
+      final list = (res as List).map((p) {
+        final fn = p['first_name'] ?? '';
+        final ln = p['last_name'] ?? '';
+        final full = "$fn $ln".trim();
+        return {
+          'id': p['id'].toString(),
+          'username': p['username'] ?? (full.isNotEmpty ? full : 'user'),
+          'name': full.isNotEmpty ? full : (p['username'] ?? 'User'),
+          'avatar_url': p['avatar_url'] ?? '',
+          'is_verified': p['is_verified'] == true,
+        };
+      }).toList();
+
+      if (mounted) {
+        setState(() => _suggestedUsers = list);
+      }
+    } catch (e) {
+      debugPrint("Suggested users warning: $e");
     }
   }
 
@@ -282,6 +317,280 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
     );
   }
 
+  Future<void> _toggleFollowSuggestedUser(String targetUserId, String name) async {
+    HapticFeedback.lightImpact();
+    final currentUserId = supabase.auth.currentUser?.id;
+    if (currentUserId == null) {
+      _showNotice("Please sign in to follow users.");
+      return;
+    }
+
+    final isCurrentlyFollowed = _followedSuggestedIds.contains(targetUserId);
+
+    setState(() {
+      if (isCurrentlyFollowed) {
+        _followedSuggestedIds.remove(targetUserId);
+      } else {
+        _followedSuggestedIds.add(targetUserId);
+      }
+    });
+
+    try {
+      if (isCurrentlyFollowed) {
+        await supabase
+            .from('student_friends')
+            .delete()
+            .match({'user_id': currentUserId, 'friend_id': targetUserId});
+        _showNotice("Unfollowed $name");
+      } else {
+        await supabase.from('student_friends').upsert({
+          'user_id': currentUserId,
+          'friend_id': targetUserId,
+          'status': 'accepted',
+          'created_at': DateTime.now().toIso8601String(),
+        });
+        _showNotice("Following $name");
+
+        // Record notification
+        unawaited(NotificationService().sendNotificationToUser(
+          targetUserId: targetUserId,
+          title: "New Follower",
+          message: "Started following your profile on ZEV",
+          notificationType: "follow",
+          senderId: currentUserId,
+        ));
+      }
+    } catch (e) {
+      debugPrint("Follow suggestion error: $e");
+    }
+  }
+
+  Widget _buildSuggestedCarousel() {
+    if (_dismissSuggestedCarousel || _suggestedUsers.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8, bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header: "Suggested for you" + "See all"
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "Suggested for you",
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    color: ZevColors.deepNavy,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    _showNotice("Discovering more creators on ZEV");
+                  },
+                  child: const Text(
+                    "See all",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: ZevColors.secondaryBlue,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Horizontal Carousel
+          SizedBox(
+            height: 226,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              itemCount: _suggestedUsers.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 10),
+              itemBuilder: (context, i) {
+                final user = _suggestedUsers[i];
+                final id = user['id'] as String;
+                final isFollowed = _followedSuggestedIds.contains(id);
+                final avatarUrl = user['avatar_url'] as String? ?? '';
+                final name = user['name'] as String? ?? 'User';
+
+                return Container(
+                  width: 156,
+                  decoration: BoxDecoration(
+                    color: ZevColors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: ZevColors.border,
+                      width: 1.0,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.02),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    children: [
+                      // Dismiss '✕' button
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: GestureDetector(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            setState(() {
+                              _suggestedUsers.removeAt(i);
+                              if (_suggestedUsers.isEmpty) {
+                                _dismissSuggestedCarousel = true;
+                              }
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.transparent,
+                            ),
+                            child: const Icon(
+                              Icons.close_rounded,
+                              size: 16,
+                              color: ZevColors.textMuted,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Card body
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 14,
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Circular Avatar
+                            Container(
+                              width: 72,
+                              height: 72,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: ZevColors.border,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: ClipOval(
+                                child: avatarUrl.isNotEmpty
+                                    ? Image.network(
+                                        avatarUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) =>
+                                            const Icon(
+                                          Icons.person,
+                                          size: 38,
+                                          color: ZevColors.textMuted,
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.person,
+                                        size: 38,
+                                        color: ZevColors.textMuted,
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+
+                            // Display Name
+                            Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: ZevColors.deepNavy,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+
+                            // Subtitle
+                            const Text(
+                              "Suggested for you",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: ZevColors.textMuted,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Blue Follow / Following Button
+                            SizedBox(
+                              width: double.infinity,
+                              height: 32,
+                              child: ElevatedButton(
+                                onPressed: () =>
+                                    _toggleFollowSuggestedUser(id, name),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isFollowed
+                                      ? ZevColors.softSurface
+                                      : const Color(0xFF0095F6),
+                                  foregroundColor: isFollowed
+                                      ? ZevColors.deepNavy
+                                      : Colors.white,
+                                  elevation: 0,
+                                  padding: EdgeInsets.zero,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    side: isFollowed
+                                        ? const BorderSide(
+                                            color: ZevColors.border,
+                                          )
+                                        : BorderSide.none,
+                                  ),
+                                ),
+                                child: Text(
+                                  isFollowed ? "Following" : "Follow",
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: isFollowed
+                                        ? ZevColors.deepNavy
+                                        : Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1, thickness: 0.8, color: ZevColors.border),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -305,6 +614,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                 elevation: 0,
                 centerTitle: false,
                 title: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Image.asset(
                       'assets/icon/icon-192x192.png',
@@ -320,11 +630,17 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                     const Text(
                       "ZEV",
                       style: TextStyle(
-                        fontSize: 22,
+                        fontSize: 23,
                         fontWeight: FontWeight.w900,
                         color: ZevColors.deepNavy,
                         letterSpacing: -0.5,
                       ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 20,
+                      color: ZevColors.deepNavy,
                     ),
                   ],
                 ),
@@ -339,23 +655,40 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                     tooltip: "Create Post",
                     onPressed: _openCreatePostModal,
                   ),
-                  // Heart / Activity Button
-                  IconButton(
-                    icon: const Icon(
-                      Icons.favorite_border_rounded,
-                      color: ZevColors.deepNavy,
-                      size: 25,
-                    ),
-                    tooltip: "Notifications",
-                    onPressed: widget.onOpenNotifications ??
-                        () => _showNotice("No new notifications."),
+                  // Heart / Activity Button with notification dot
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.favorite_border_rounded,
+                          color: ZevColors.deepNavy,
+                          size: 26,
+                        ),
+                        tooltip: "Notifications",
+                        onPressed: widget.onOpenNotifications ??
+                            () => _showNotice("No new notifications."),
+                      ),
+                      Positioned(
+                        top: 12,
+                        right: 12,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFFF3040),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   // Direct Messages (Paper Plane / Chat)
                   IconButton(
                     icon: const Icon(
-                      Icons.chat_bubble_outline_rounded,
+                      Icons.send_rounded,
                       color: ZevColors.deepNavy,
-                      size: 24,
+                      size: 23,
                     ),
                     tooltip: "Messages",
                     onPressed: widget.onOpenMessages ??
@@ -499,11 +832,26 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final post = _posts[index];
-                      return FeedPostCard(
+                      final card = FeedPostCard(
                         key: ValueKey(post.id),
                         post: post,
                         onCommentsUpdated: _fetchPosts,
                       );
+
+                      // Render "Suggested for you" carousel directly below the first post
+                      if (index == 0 &&
+                          _suggestedUsers.isNotEmpty &&
+                          !_dismissSuggestedCarousel) {
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            card,
+                            _buildSuggestedCarousel(),
+                          ],
+                        );
+                      }
+
+                      return card;
                     },
                     childCount: _posts.length,
                   ),

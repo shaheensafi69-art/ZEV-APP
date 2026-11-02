@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'core/services/notification_service.dart';
 import 'core/theme/zev_theme.dart';
 import 'core/utils/system_ui_helper.dart';
 import 'features/auth/screens/welcome_screen.dart';
@@ -44,7 +46,10 @@ Future<void> main() async {
     }
   }
 
-  // 4. Check existing session
+  // 4. Initialize Push Notifications & Firebase
+  unawaited(NotificationService().initPushNotifications());
+
+  // 5. Check existing session
   final session = Supabase.instance.client.auth.currentSession;
   final initialHome =
       session != null ? const ZevMainLayout() : const WelcomeScreen();

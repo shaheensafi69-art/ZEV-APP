@@ -7,9 +7,12 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../models/feed_post_item.dart';
 
-/// Next-Generation Instagram/TikTok-Grade Share Sheet for ZEV.
-/// Features a real-time friends search bar, one-tap direct friend sends,
-/// one-tap app shortcuts (WhatsApp, Telegram, X, Facebook), and native "More" system share sheet.
+/// Serene, Instagram-Grade Share Sheet for ZEV.
+/// Modeled 1:1 from the official Instagram share sheet:
+/// - Disclaimer telemetry notice at top
+/// - Rounded pill search bar with Create Group icon
+/// - Large circular friend avatars with direct send feedback
+/// - Signature circular app pills (Add to story, Copy link, WhatsApp, Share, WhatsApp Status, More)
 class FeedShareSheet extends StatefulWidget {
   final FeedPostItem post;
 
@@ -68,12 +71,11 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
   Future<void> _fetchFriends() async {
     final user = supabase.auth.currentUser;
     try {
-      // Query profiles for interactive friends
       final res = await supabase
           .from('profiles')
-          .select('id, username, first_name, last_name, avatar_url')
+          .select('id, username, first_name, last_name, avatar_url, is_verified')
           .neq('id', user?.id ?? '')
-          .limit(15);
+          .limit(20);
 
       final list = (res as List).map((p) {
         final fn = p['first_name'] ?? '';
@@ -84,6 +86,7 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
           'username': p['username'] ?? (full.isNotEmpty ? full : 'user'),
           'name': full.isNotEmpty ? full : (p['username'] ?? 'User'),
           'avatar_url': p['avatar_url'] ?? '',
+          'is_verified': p['is_verified'] == true,
         };
       }).toList();
 
@@ -118,7 +121,8 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
 
   String get _shareText {
     final title = widget.post.title.isNotEmpty ? "${widget.post.title}\n" : "";
-    final content = widget.post.content.isNotEmpty ? "${widget.post.content}\n\n" : "";
+    final content =
+        widget.post.content.isNotEmpty ? "${widget.post.content}\n\n" : "";
     return "Check out @${widget.post.authorUsername}'s post on ZEV:\n$title$content${widget.post.imageUrl}";
   }
 
@@ -140,22 +144,10 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
 
   void _shareViaWhatsApp() {
     final text = Uri.encodeComponent(_shareText);
-    _launchExternalApp("whatsapp://send?text=$text", "https://api.whatsapp.com/send?text=$text");
-  }
-
-  void _shareViaTelegram() {
-    final text = Uri.encodeComponent(_shareText);
-    _launchExternalApp("tg://msg?text=$text", "https://t.me/share/url?url=$text");
-  }
-
-  void _shareViaTwitter() {
-    final text = Uri.encodeComponent(_shareText);
-    _launchExternalApp("twitter://post?message=$text", "https://twitter.com/intent/tweet?text=$text");
-  }
-
-  void _shareViaFacebook() {
-    final url = Uri.encodeComponent(widget.post.imageUrl.isNotEmpty ? widget.post.imageUrl : "https://zevapp.com");
-    _launchExternalApp("fb://facewebmodal/f?href=$url", "https://www.facebook.com/sharer/sharer.php?u=$url");
+    _launchExternalApp(
+      "whatsapp://send?text=$text",
+      "https://api.whatsapp.com/send?text=$text",
+    );
   }
 
   void _copyPostLink() {
@@ -164,7 +156,7 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text("Post link copied to clipboard!"),
+        content: const Text("Link copied to clipboard"),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: const Duration(seconds: 2),
@@ -183,9 +175,9 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
     final mediaQuery = MediaQuery.of(context);
 
     return Container(
-      height: mediaQuery.size.height * 0.70,
+      height: mediaQuery.size.height * 0.72,
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: Color(0xFF1E232B), // Serene Midnight Surface matching Instagram screenshot
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
@@ -193,56 +185,95 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
           // Drag Handle
           const SizedBox(height: 12),
           Container(
-            width: 40,
+            width: 38,
             height: 4.5,
             decoration: BoxDecoration(
-              color: ZevColors.border,
+              color: Colors.white24,
               borderRadius: BorderRadius.circular(3),
             ),
           ),
           const SizedBox(height: 14),
 
-          // Header
-          const Text(
-            "Share",
-            style: TextStyle(
-              fontSize: 16.5,
-              fontWeight: FontWeight.w800,
-              color: ZevColors.deepNavy,
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Search Friends Bar
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Container(
-              height: 42,
-              decoration: BoxDecoration(
-                color: ZevColors.softSurface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: ZevColors.border),
-              ),
-              child: TextField(
-                controller: _searchCtrl,
-                style: const TextStyle(fontSize: 14, color: ZevColors.deepNavy),
-                decoration: const InputDecoration(
-                  hintText: "Search friends...",
-                  hintStyle: TextStyle(fontSize: 13.5, color: ZevColors.textMuted),
-                  prefixIcon: Icon(Icons.search_rounded, size: 20, color: ZevColors.textMuted),
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(vertical: 11),
-                ),
+          // 1. Instagram Disclaimer Notice (Exact Text from Screenshot)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              "Links you share are unique to you and may be used to improve suggestions and ads you see. Learn more",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11.5,
+                color: Colors.white54,
+                height: 1.35,
               ),
             ),
           ),
-
           const SizedBox(height: 14),
 
-          // 1. Friends Horizontal Carousel (Send directly)
-          SizedBox(
-            height: 104,
+          // 2. Search Bar + Create Group Button (Exact Layout from Screenshot)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2B313D),
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: TextField(
+                      controller: _searchCtrl,
+                      style: const TextStyle(fontSize: 14, color: Colors.white),
+                      decoration: const InputDecoration(
+                        hintText: "Search",
+                        hintStyle: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white54,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search_rounded,
+                          size: 20,
+                          color: Colors.white54,
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF2B313D),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.group_add_outlined,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Create Group Chat coming up!")),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // 3. Friends Avatars Grid/Row (Screenshot 1)
+          Expanded(
             child: _isLoadingFriends
                 ? const Center(
                     child: CircularProgressIndicator(
@@ -253,79 +284,102 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                 : _filteredFriends.isEmpty
                     ? const Center(
                         child: Text(
-                          "No contacts found",
-                          style: TextStyle(fontSize: 13, color: ZevColors.textMuted),
+                          "No accounts found",
+                          style: TextStyle(fontSize: 13, color: Colors.white54),
                         ),
                       )
-                    : ListView.separated(
+                    : GridView.builder(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        scrollDirection: Axis.horizontal,
                         physics: const BouncingScrollPhysics(),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          childAspectRatio: 0.85,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                        ),
                         itemCount: _filteredFriends.length,
-                        separatorBuilder: (context, index) => const SizedBox(width: 14),
                         itemBuilder: (context, index) {
                           final friend = _filteredFriends[index];
                           final id = friend['id'] as String;
                           final username = friend['username'] as String;
                           final avatar = friend['avatar_url'] as String;
+                          final isVerified = friend['is_verified'] == true;
                           final isSent = _sentFriendIds.contains(id);
 
-                          return SizedBox(
-                            width: 68,
+                          return GestureDetector(
+                            onTap: () => _sendToFriend(id, username),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                CircleAvatar(
-                                  radius: 25,
-                                  backgroundColor: ZevColors.softSurface,
-                                  backgroundImage: avatar.isNotEmpty
-                                      ? NetworkImage(avatar)
-                                      : null,
-                                  child: avatar.isEmpty
-                                      ? const Icon(
-                                          Icons.person_rounded,
-                                          size: 26,
-                                          color: ZevColors.textMuted,
-                                        )
-                                      : null,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  username,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: ZevColors.deepNavy,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 4),
-                                GestureDetector(
-                                  onTap: isSent
-                                      ? null
-                                      : () => _sendToFriend(id, username),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 2,
+                                Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 36,
+                                      backgroundColor: const Color(0xFF2B313D),
+                                      backgroundImage: avatar.isNotEmpty
+                                          ? NetworkImage(avatar)
+                                          : null,
+                                      child: avatar.isEmpty
+                                          ? const Icon(
+                                              Icons.person_rounded,
+                                              size: 36,
+                                              color: Colors.white54,
+                                            )
+                                          : null,
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: isSent
-                                          ? ZevColors.softSurface
-                                          : ZevColors.primaryBlue,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Text(
-                                      isSent ? "Sent" : "Send",
-                                      style: TextStyle(
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w800,
-                                        color: isSent
-                                            ? ZevColors.textMuted
-                                            : ZevColors.deepNavy,
+                                    if (isSent)
+                                      Positioned.fill(
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.black54,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.check_rounded,
+                                            color: Color(0xFF10B981),
+                                            size: 28,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        username,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
+                                    if (isVerified) ...[
+                                      const SizedBox(width: 3),
+                                      const Icon(
+                                        Icons.verified_rounded,
+                                        size: 13,
+                                        color: ZevColors.primaryBlue,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  isSent ? "Sent" : "Send",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: isSent
+                                        ? const Color(0xFF10B981)
+                                        : ZevColors.primaryBlue,
                                   ),
                                 ),
                               ],
@@ -335,109 +389,123 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                       ),
           ),
 
-          const Divider(height: 24, color: ZevColors.border),
+          const Divider(height: 1, color: Color(0xFF2B313D)),
 
-          // 2. Quick App Sharing Row (WhatsApp, Telegram, X, Facebook, More...)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                // WhatsApp
-                _buildAppIcon(
-                  label: "WhatsApp",
-                  bgColor: const Color(0xFF25D366),
-                  icon: Icons.chat_rounded,
-                  onTap: _shareViaWhatsApp,
-                ),
-                // Telegram
-                _buildAppIcon(
-                  label: "Telegram",
-                  bgColor: const Color(0xFF229ED9),
-                  icon: Icons.near_me_rounded,
-                  onTap: _shareViaTelegram,
-                ),
-                // X (Twitter)
-                _buildAppIcon(
-                  label: "X",
-                  bgColor: Colors.black,
-                  icon: Icons.close_rounded,
-                  onTap: _shareViaTwitter,
-                ),
-                // Facebook
-                _buildAppIcon(
-                  label: "Facebook",
-                  bgColor: const Color(0xFF1877F2),
-                  icon: Icons.facebook_rounded,
-                  onTap: _shareViaFacebook,
-                ),
-                // Copy Link
-                _buildAppIcon(
-                  label: "Copy Link",
-                  bgColor: ZevColors.softSurface,
-                  iconColor: ZevColors.deepNavy,
-                  icon: Icons.link_rounded,
-                  onTap: _copyPostLink,
-                ),
-                // More Native System Apps
-                _buildAppIcon(
-                  label: "More",
-                  bgColor: ZevColors.border,
-                  iconColor: ZevColors.deepNavy,
-                  icon: Icons.more_horiz_rounded,
-                  onTap: _openSystemNativeShare,
-                ),
-              ],
+          // 4. Bottom Circular Action Pills (Exact Order from Screenshot 1)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  // Add to Story
+                  _buildCircleAction(
+                    icon: Icons.add_circle_outline_rounded,
+                    label: "Add to story",
+                    bgColor: const Color(0xFF2B313D),
+                    onTap: () {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Added to story preview.")),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 16),
+
+                  // Copy Link
+                  _buildCircleAction(
+                    icon: Icons.link_rounded,
+                    label: "Copy link",
+                    bgColor: const Color(0xFF2B313D),
+                    onTap: _copyPostLink,
+                  ),
+                  const SizedBox(width: 16),
+
+                  // WhatsApp
+                  _buildCircleAction(
+                    icon: Icons.chat_rounded,
+                    label: "WhatsApp",
+                    bgColor: const Color(0xFF25D366),
+                    onTap: _shareViaWhatsApp,
+                  ),
+                  const SizedBox(width: 16),
+
+                  // Share (System)
+                  _buildCircleAction(
+                    icon: Icons.share_rounded,
+                    label: "Share",
+                    bgColor: const Color(0xFF2B313D),
+                    onTap: _openSystemNativeShare,
+                  ),
+                  const SizedBox(width: 16),
+
+                  // WhatsApp Status
+                  _buildCircleAction(
+                    icon: Icons.adjust_rounded,
+                    label: "WhatsApp Status",
+                    bgColor: const Color(0xFF25D366),
+                    onTap: _shareViaWhatsApp,
+                  ),
+                  const SizedBox(width: 16),
+
+                  // More (Native Device Installed Apps)
+                  _buildCircleAction(
+                    icon: Icons.more_horiz_rounded,
+                    label: "More",
+                    bgColor: const Color(0xFF2B313D),
+                    onTap: _openSystemNativeShare,
+                  ),
+                ],
+              ),
             ),
           ),
-
-          const SizedBox(height: 18),
         ],
       ),
     );
   }
 
-  Widget _buildAppIcon({
+  Widget _buildCircleAction({
+    required IconData icon,
     required String label,
     required Color bgColor,
     Color iconColor = Colors.white,
-    required IconData icon,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: bgColor,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
+      child: SizedBox(
+        width: 72,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: bgColor,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Icon(icon, color: iconColor, size: 24),
+              ),
             ),
-            child: Center(
-              child: Icon(icon, color: iconColor, size: 24),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 11,
+                color: Colors.white70,
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: ZevColors.deepNavy,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

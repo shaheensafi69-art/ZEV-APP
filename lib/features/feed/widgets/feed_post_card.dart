@@ -10,10 +10,14 @@ import '../screens/fullscreen_media_viewer.dart';
 import 'feed_comments_sheet.dart';
 import 'feed_share_sheet.dart';
 
-/// Next-Generation Instagram-Grade Post Card for ZEV Feed.
-/// Built with 120 FPS fluid interaction, double-tap heart pop animation,
-/// fullscreen Facebook-style lightbox on tap, category badges, and complete
-/// Like, Comment, Repost, Share, and Save toolbars.
+/// Serene, Instagram-Grade Post Card for ZEV Feed.
+/// Modeled directly from the official Instagram app:
+/// - Crisp typography with serene breathing room
+/// - Subtitle topic under author username (e.g. "AI content", "Analysis")
+/// - Integrated "Follow" pill button in post header
+/// - Single-line action metrics: [♡ 1,514] [💬 13] [🔁 47] [✈️ 1,692] ... [🔖]
+/// - Full adaptive media canvas without cropping + Facebook fullscreen lightbox on tap
+/// - "October 22 • See translation" subtle metadata
 class FeedPostCard extends StatefulWidget {
   final FeedPostItem post;
   final VoidCallback? onCommentsUpdated;
@@ -36,8 +40,10 @@ class _FeedPostCardState extends State<FeedPostCard>
   late int _likesCount;
   late bool _isReposted;
   late int _repostsCount;
+  bool _isFollowing = false;
   bool _isSaved = false;
   bool _isExpanded = false;
+  bool _showTranslation = false;
 
   // Double-tap heart animation
   late final AnimationController _heartAnimCtrl;
@@ -60,12 +66,12 @@ class _FeedPostCardState extends State<FeedPostCard>
 
     _heartScaleAnim = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 0.0, end: 1.3)
+        tween: Tween<double>(begin: 0.0, end: 1.35)
             .chain(CurveTween(curve: Curves.easeOutBack)),
         weight: 60,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.3, end: 1.0)
+        tween: Tween<double>(begin: 1.35, end: 1.0)
             .chain(CurveTween(curve: Curves.easeInOut)),
         weight: 40,
       ),
@@ -117,7 +123,7 @@ class _FeedPostCardState extends State<FeedPostCard>
     super.dispose();
   }
 
-  String _getCategoryTag() {
+  String _getCategorySubtitle() {
     final title = widget.post.title;
     if (title.contains('[') && title.contains(']')) {
       final start = title.indexOf('[');
@@ -150,7 +156,6 @@ class _FeedPostCardState extends State<FeedPostCard>
     final previousState = _isLiked;
     final previousCount = _likesCount;
 
-    // Optimistic state
     setState(() {
       _isLiked = !previousState;
       _likesCount = _isLiked
@@ -206,7 +211,7 @@ class _FeedPostCardState extends State<FeedPostCard>
           'post_id': widget.post.id,
           'user_id': user.id,
         });
-        _showNotice("Reposted to your feed!");
+        _showNotice("Reposted to your profile!");
       } else {
         await supabase
             .from('post_reposts')
@@ -224,6 +229,14 @@ class _FeedPostCardState extends State<FeedPostCard>
         });
       }
     }
+  }
+
+  void _toggleFollow() {
+    HapticFeedback.lightImpact();
+    setState(() => _isFollowing = !_isFollowing);
+    _showNotice(_isFollowing
+        ? "Following @${widget.post.authorUsername}"
+        : "Unfollowed @${widget.post.authorUsername}");
   }
 
   void _openComments() {
@@ -271,7 +284,7 @@ class _FeedPostCardState extends State<FeedPostCard>
   Widget build(BuildContext context) {
     final post = widget.post;
     final timeStr = TimeAgo.format(post.createdAt);
-    final category = _getCategoryTag();
+    final subtitle = _getCategorySubtitle();
 
     return Container(
       decoration: const BoxDecoration(
@@ -279,20 +292,20 @@ class _FeedPostCardState extends State<FeedPostCard>
         border: Border(
           bottom: BorderSide(
             color: ZevColors.border,
-            width: 0.8,
+            width: 0.6,
           ),
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Post Header: Avatar, Username, Badge, Category Pill, Time, 3-dots
+          // 1. Post Header: Avatar, Username + Subtitle, Follow Pill, 3-dots
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
                 CircleAvatar(
-                  radius: 18,
+                  radius: 17,
                   backgroundColor: ZevColors.softSurface,
                   backgroundImage: post.authorAvatar.isNotEmpty
                       ? NetworkImage(post.authorAvatar)
@@ -337,54 +350,56 @@ class _FeedPostCardState extends State<FeedPostCard>
                           ],
                         ],
                       ),
-                      const SizedBox(height: 3),
-                      // Category Tag Pill & Timestamp
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 1.5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: ZevColors.softSurface,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: ZevColors.border,
-                                width: 0.8,
-                              ),
-                            ),
-                            child: Text(
-                              category,
-                              style: const TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w700,
-                                color: ZevColors.secondaryBlue,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          const Text(
-                            "•",
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: ZevColors.textMuted,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            timeStr,
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              color: ZevColors.textMuted,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 1),
+                      // Subtitle (AI content / Education / Analysis)
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: ZevColors.textMuted,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
+
+                // Follow Button (Exact Instagram Style)
+                GestureDetector(
+                  onTap: _toggleFollow,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _isFollowing
+                          ? ZevColors.white
+                          : ZevColors.softSurface,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: ZevColors.border,
+                        width: 1.0,
+                      ),
+                    ),
+                    child: Text(
+                      _isFollowing ? "Following" : "Follow",
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: _isFollowing
+                            ? ZevColors.textMuted
+                            : ZevColors.deepNavy,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 4),
+
                 IconButton(
                   icon: const Icon(
                     Icons.more_horiz_rounded,
@@ -397,7 +412,7 @@ class _FeedPostCardState extends State<FeedPostCard>
             ),
           ),
 
-          // 2. Media Box (Tap to Fullscreen Facebook-Style / Double-Tap to Like)
+          // 2. Media Box (Full Display without cut-off + Tap to Fullscreen)
           if (post.imageUrl.isNotEmpty)
             GestureDetector(
               onTap: _openFullscreenViewer,
@@ -409,17 +424,17 @@ class _FeedPostCardState extends State<FeedPostCard>
                     width: double.infinity,
                     constraints: const BoxConstraints(
                       minHeight: 220,
-                      maxHeight: 520,
+                      maxHeight: 580,
                     ),
                     color: ZevColors.softSurface,
                     child: Image.network(
                       post.imageUrl,
-                      fit: BoxFit.contain, // Full image view without clipping
+                      fit: BoxFit.contain, // Full un-cropped display
                       width: double.infinity,
                       loadingBuilder: (context, child, loadingProgress) {
                         if (loadingProgress == null) return child;
                         return Container(
-                          height: 300,
+                          height: 320,
                           color: ZevColors.softSurface,
                           child: const Center(
                             child: CircularProgressIndicator(
@@ -474,97 +489,65 @@ class _FeedPostCardState extends State<FeedPostCard>
                         );
                       },
                     ),
-
-                  // Tap to expand indicator hint
-                  Positioned(
-                    bottom: 8,
-                    right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black45,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.fullscreen_rounded,
-                            color: Colors.white,
-                            size: 15,
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            "Full view",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
 
-          // 3. Instagram Full Interaction Toolbar (Like, Comment, Repost, Share, Save)
+          // 3. Instagram Exact Single-Line Action Metrics Toolbar:
+          // [♡ 1,514] [💬 13] [🔁 47] [✈️] ... [🔖]
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Row(
                   children: [
-                    // Like Icon
-                    IconButton(
-                      icon: Icon(
-                        _isLiked
-                            ? Icons.favorite_rounded
-                            : Icons.favorite_border_rounded,
-                        color: _isLiked ? Colors.redAccent : ZevColors.deepNavy,
-                        size: 26,
-                      ),
-                      onPressed: _toggleLike,
+                    // Like + Count
+                    _buildMetricAction(
+                      icon: _isLiked
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      iconColor:
+                          _isLiked ? Colors.redAccent : ZevColors.deepNavy,
+                      count: _likesCount,
+                      onTap: _toggleLike,
                     ),
-                    // Comment Icon
-                    IconButton(
-                      icon: const Icon(
-                        Icons.chat_bubble_outline_rounded,
-                        color: ZevColors.deepNavy,
-                        size: 24,
-                      ),
-                      onPressed: _openComments,
+                    const SizedBox(width: 16),
+
+                    // Comment + Count
+                    _buildMetricAction(
+                      icon: Icons.chat_bubble_outline_rounded,
+                      iconColor: ZevColors.deepNavy,
+                      count: widget.post.commentsCount,
+                      onTap: _openComments,
                     ),
-                    // Repost Icon
-                    IconButton(
-                      icon: Icon(
-                        Icons.repeat_rounded,
-                        color: _isReposted
-                            ? ZevColors.primaryBlue
-                            : ZevColors.deepNavy,
-                        size: 25,
-                      ),
-                      onPressed: _toggleRepost,
+                    const SizedBox(width: 16),
+
+                    // Repost + Count
+                    _buildMetricAction(
+                      icon: Icons.repeat_rounded,
+                      iconColor: _isReposted
+                          ? ZevColors.primaryBlue
+                          : ZevColors.deepNavy,
+                      count: _repostsCount,
+                      onTap: _toggleRepost,
                     ),
-                    // Share Icon
-                    IconButton(
-                      icon: const Icon(
-                        Icons.send_rounded,
-                        color: ZevColors.deepNavy,
-                        size: 23,
-                      ),
-                      onPressed: _openShareSheet,
+                    const SizedBox(width: 16),
+
+                    // Share
+                    _buildMetricAction(
+                      icon: Icons.send_rounded,
+                      iconColor: ZevColors.deepNavy,
+                      count: null,
+                      onTap: _openShareSheet,
                     ),
                   ],
                 ),
-                // Bookmark / Save Icon
+
+                // Bookmark / Save
                 IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                   icon: Icon(
                     _isSaved
                         ? Icons.bookmark_rounded
@@ -585,51 +568,13 @@ class _FeedPostCardState extends State<FeedPostCard>
             ),
           ),
 
-          // 4. Social Telemetry (Likes & Reposts Counts)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Row(
-              children: [
-                if (_likesCount > 0)
-                  Text(
-                    _likesCount == 1 ? "1 like" : "$_likesCount likes",
-                    style: const TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w800,
-                      color: ZevColors.deepNavy,
-                    ),
-                  ),
-                if (_likesCount > 0 && _repostsCount > 0)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 6),
-                    child: Text(
-                      "•",
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: ZevColors.textMuted,
-                      ),
-                    ),
-                  ),
-                if (_repostsCount > 0)
-                  Text(
-                    _repostsCount == 1 ? "1 repost" : "$_repostsCount reposts",
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: ZevColors.secondaryBlue,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-
-          // 5. Post Title & Caption Block with Smart Dynamic RTL/LTR
+          // 4. Post Title & Caption Block with Smart Dynamic RTL/LTR
           if (post.title.isNotEmpty || post.content.isNotEmpty) () {
             final isContentRtl = TextDirectionHelper.isRtl(
               post.content.isNotEmpty ? post.content : post.title,
             );
             return Padding(
-              padding: const EdgeInsets.only(left: 14, right: 14, top: 4),
+              padding: const EdgeInsets.only(left: 14, right: 14, top: 2),
               child: SizedBox(
                 width: double.infinity,
                 child: Column(
@@ -700,24 +645,76 @@ class _FeedPostCardState extends State<FeedPostCard>
             );
           }(),
 
-          // 6. Comments Trigger
+          // 5. Date & See Translation (Exact Instagram Style)
           Padding(
-            padding:
-                const EdgeInsets.only(left: 14, right: 14, top: 6, bottom: 12),
-            child: GestureDetector(
-              onTap: _openComments,
-              child: Text(
-                widget.post.commentsCount > 0
-                    ? "View all ${widget.post.commentsCount} comments"
-                    : "Add a comment...",
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: ZevColors.textMuted,
-                  fontWeight: FontWeight.w500,
+            padding: const EdgeInsets.only(left: 14, right: 14, top: 4),
+            child: Row(
+              children: [
+                Text(
+                  timeStr,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: ZevColors.textMuted,
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
-              ),
+                const SizedBox(width: 6),
+                const Text(
+                  "•",
+                  style: TextStyle(fontSize: 10, color: ZevColors.textMuted),
+                ),
+                const SizedBox(width: 6),
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    setState(() => _showTranslation = !_showTranslation);
+                  },
+                  child: Text(
+                    _showTranslation ? "See original" : "See translation",
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: ZevColors.deepNavy,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
+
+          const SizedBox(height: 14),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricAction({
+    required IconData icon,
+    required Color iconColor,
+    required int? count,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: iconColor, size: 24),
+          if (count != null && count > 0) ...[
+            const SizedBox(width: 5),
+            Text(
+              count > 999
+                  ? "${(count / 1000).toStringAsFixed(1)}K"
+                  : "$count",
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: ZevColors.deepNavy,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ],
         ],
       ),
     );
