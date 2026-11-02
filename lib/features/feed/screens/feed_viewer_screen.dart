@@ -8,6 +8,8 @@ import '../../../core/theme/zev_theme.dart';
 import '../models/feed_post_item.dart';
 import '../widgets/feed_post_card.dart';
 import '../widgets/feed_stories_tray.dart';
+import '../../stories/screens/create_story_screen.dart';
+import '../../stories/screens/story_viewer_screen.dart';
 import 'create_post_screen.dart';
 
 /// Next-Generation Instagram-Grade Home Feed Screen for ZEV.
@@ -329,6 +331,19 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
     CreatePostScreen.open(
       context,
       onPostCreated: _fetchPosts,
+    );
+  }
+
+  void _openCreateStoryModal() {
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      _showNotice("Please log in to create a story.");
+      return;
+    }
+
+    CreateStoryScreen.open(
+      context,
+      onStoryCreated: _fetchFeedData,
     );
   }
 
@@ -730,9 +745,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                 child: FeedStoriesTray(
                   myAvatarUrl: _myAvatarUrl,
                   stories: _stories,
-                  onAddStory: _openCreatePostModal,
+                  onAddStory: _openCreateStoryModal,
                   onStoryTap: (story) {
-                    _showNotice("Viewing @${story.username}'s story");
+                    StoryViewerScreen.open(context, friendStory: story);
                   },
                 ),
               ),

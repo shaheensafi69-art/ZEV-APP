@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -128,8 +129,12 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
 
   Future<void> _initializeVideo() async {
     try {
-      final uri = Uri.parse(widget.reel.videoUrl);
-      _controller = VideoPlayerController.networkUrl(uri);
+      if (widget.reel.videoUrl.startsWith('http')) {
+        final uri = Uri.parse(widget.reel.videoUrl);
+        _controller = VideoPlayerController.networkUrl(uri);
+      } else {
+        _controller = VideoPlayerController.file(File(widget.reel.videoUrl));
+      }
       await _controller!.initialize();
       _controller!.setLooping(true);
       _controller!.setVolume(widget.isGlobalMuted ? 0.0 : 1.0);

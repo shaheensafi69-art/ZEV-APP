@@ -6,7 +6,9 @@ import '../../../core/services/auth_helper.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../feed/screens/create_post_screen.dart';
 import '../../feed/screens/feed_viewer_screen.dart';
+import '../../reels/screens/create_reel_screen.dart';
 import '../../reels/screens/reels_viewer_screen.dart';
+import '../../stories/screens/create_story_screen.dart';
 
 /// Next-Generation Instagram Main Shell for ZEV Social Network.
 /// Hosts 5 primary tabs (Home, Search, Create, Reels, Profile)
@@ -210,8 +212,11 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
               ),
               onTap: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Story camera opening...")),
+                CreateStoryScreen.open(
+                  context,
+                  onStoryCreated: () {
+                    setState(() => _currentIndex = 0);
+                  },
                 );
               },
             ),
@@ -225,7 +230,12 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
               ),
               onTap: () {
                 Navigator.pop(context);
-                setState(() => _currentIndex = 3);
+                CreateReelScreen.open(
+                  context,
+                  onReelCreated: () {
+                    setState(() => _currentIndex = 3);
+                  },
+                );
               },
             ),
             const SizedBox(height: 24),

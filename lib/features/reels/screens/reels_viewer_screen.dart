@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../models/reel_item.dart';
 import '../widgets/reel_player_item.dart';
+import 'create_reel_screen.dart';
 
 /// Flagship Full-Screen Reels Viewer Screen for ZEV.
 /// Hosts vertical snapping PageView, pre-caching, auto-play management,
@@ -286,24 +287,66 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: PageView.builder(
-        controller: _pageController,
-        scrollDirection: Axis.vertical,
-        physics: const BouncingScrollPhysics(),
-        itemCount: _reels.length,
-        onPageChanged: _onPageChanged,
-        itemBuilder: (context, index) {
-          final reel = _reels[index];
-          final isPageActive = widget.isScreenActive && index == _activePage;
+      body: Stack(
+        children: [
+          PageView.builder(
+            controller: _pageController,
+            scrollDirection: Axis.vertical,
+            physics: const BouncingScrollPhysics(),
+            itemCount: _reels.length,
+            onPageChanged: _onPageChanged,
+            itemBuilder: (context, index) {
+              final reel = _reels[index];
+              final isPageActive = widget.isScreenActive && index == _activePage;
 
-          return ReelPlayerItem(
-            key: ValueKey(reel.id),
-            reel: reel,
-            isActive: isPageActive,
-            isGlobalMuted: _isGlobalMuted,
-            onToggleMute: _toggleGlobalMute,
-          );
-        },
+              return ReelPlayerItem(
+                key: ValueKey(reel.id),
+                reel: reel,
+                isActive: isPageActive,
+                isGlobalMuted: _isGlobalMuted,
+                onToggleMute: _toggleGlobalMute,
+              );
+            },
+          ),
+
+          // Top Reels Header Overlay
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      "Reels",
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.camera_alt_outlined,
+                        color: Colors.white,
+                        size: 26,
+                      ),
+                      tooltip: "Create Reel",
+                      onPressed: () => CreateReelScreen.open(
+                        context,
+                        onReelCreated: _fetchReels,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
