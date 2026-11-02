@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/auth_helper.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../feed/screens/feed_viewer_screen.dart';
+import '../../reels/screens/reels_viewer_screen.dart';
 
 /// Next-Generation Instagram Main Shell for ZEV Social Network.
 /// Hosts 5 primary tabs (Home, Search, Create, Reels, Profile)
@@ -78,7 +79,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
           _buildCreatePlaceholder(),
 
           // Tab 3: Reels
-          _buildReelsPlaceholder(),
+          ReelsViewerScreen(isScreenActive: _currentIndex == 3),
 
           // Tab 4: Profile
           _buildProfileScreen(),
@@ -88,19 +89,27 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
       // Sculpted Modern ZEV Global Bottom Navigation Bar
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: ZevColors.white,
+          color: _currentIndex == 3 ? const Color(0xFF000000) : ZevColors.white,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: _currentIndex == 3
+              ? const Border(
+                  top: BorderSide(color: Colors.white12, width: 0.8),
+                )
+              : null,
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF080D1A).withValues(alpha: 0.07),
+              color: _currentIndex == 3
+                  ? Colors.black.withValues(alpha: 0.8)
+                  : const Color(0xFF080D1A).withValues(alpha: 0.07),
               blurRadius: 24,
               offset: const Offset(0, -6),
             ),
-            BoxShadow(
-              color: const Color(0xFF080D1A).withValues(alpha: 0.02),
-              blurRadius: 6,
-              offset: const Offset(0, -2),
-            ),
+            if (_currentIndex != 3)
+              BoxShadow(
+                color: const Color(0xFF080D1A).withValues(alpha: 0.02),
+                blurRadius: 6,
+                offset: const Offset(0, -2),
+              ),
           ],
         ),
         child: SafeArea(
@@ -335,6 +344,11 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     required String label,
   }) {
     final isSelected = _currentIndex == index;
+    final isReels = _currentIndex == 3;
+
+    final inactiveColor = isReels ? Colors.white60 : const Color(0xFF8E9BAE);
+    final activeColor = isReels ? Colors.white : ZevColors.deepNavy;
+
     return GestureDetector(
       onTap: () => _onTabTapped(index),
       behavior: HitTestBehavior.opaque,
@@ -352,9 +366,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
               child: Icon(
                 isSelected ? activeIcon : icon,
                 size: 26,
-                color: isSelected
-                    ? ZevColors.deepNavy
-                    : const Color(0xFF8E9BAE),
+                color: isSelected ? activeColor : inactiveColor,
               ),
             ),
             const SizedBox(height: 5),
@@ -370,8 +382,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: ZevColors.primaryBlue.withValues(alpha: 0.6),
-                          blurRadius: 6,
+                          color: ZevColors.primaryBlue.withValues(alpha: 0.8),
+                          blurRadius: 8,
                           offset: const Offset(0, 1),
                         ),
                       ]
@@ -386,6 +398,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
 
   Widget _buildProfileNavItem({required int index}) {
     final isSelected = _currentIndex == index;
+    final isReels = _currentIndex == 3;
+    final inactiveBorder = isReels ? Colors.white24 : const Color(0xFFCBD5E1);
+
     return GestureDetector(
       onTap: () => _onTabTapped(index),
       behavior: HitTestBehavior.opaque,
@@ -411,15 +426,15 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                 border: isSelected
                     ? null
                     : Border.all(
-                        color: const Color(0xFFCBD5E1),
+                        color: inactiveBorder,
                         width: 1.2,
                       ),
               ),
               padding: EdgeInsets.all(isSelected ? 2.0 : 0.0),
               child: Container(
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: ZevColors.white,
+                  color: isReels ? Colors.black : ZevColors.white,
                 ),
                 padding: const EdgeInsets.all(1.0),
                 child: ClipOval(
@@ -428,16 +443,16 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                           _myAvatarUrl,
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) =>
-                              const Icon(
+                              Icon(
                             Icons.person_rounded,
                             size: 18,
-                            color: ZevColors.textMuted,
+                            color: isReels ? Colors.white70 : ZevColors.textMuted,
                           ),
                         )
-                      : const Icon(
+                      : Icon(
                           Icons.person_rounded,
                           size: 18,
-                          color: ZevColors.textMuted,
+                          color: isReels ? Colors.white70 : ZevColors.textMuted,
                         ),
                 ),
               ),
@@ -455,8 +470,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: ZevColors.primaryBlue.withValues(alpha: 0.6),
-                          blurRadius: 6,
+                          color: ZevColors.primaryBlue.withValues(alpha: 0.8),
+                          blurRadius: 8,
                           offset: const Offset(0, 1),
                         ),
                       ]
@@ -587,42 +602,6 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                 ),
               ),
               child: const Text("Go to Feed"),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Reels Placeholder
-  Widget _buildReelsPlaceholder() {
-    return Container(
-      color: Colors.black,
-      child: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.play_circle_outline_rounded,
-              color: ZevColors.primaryBlue,
-              size: 56,
-            ),
-            SizedBox(height: 16),
-            Text(
-              "ZEV Reels",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            SizedBox(height: 6),
-            Text(
-              "Immersive short videos from creators",
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 13,
-              ),
             ),
           ],
         ),
