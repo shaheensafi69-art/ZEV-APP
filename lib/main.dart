@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/theme/zev_theme.dart';
 import 'features/auth/screens/welcome_screen.dart';
+import 'features/main_navigation/screens/zev_main_layout.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -39,11 +40,16 @@ Future<void> main() async {
     }
   }
 
-  runApp(const ZevApp());
+  // Check existing session
+  final session = Supabase.instance.client.auth.currentSession;
+  final initialHome = session != null ? const ZevMainLayout() : const WelcomeScreen();
+
+  runApp(ZevApp(home: initialHome));
 }
 
 class ZevApp extends StatelessWidget {
-  const ZevApp({super.key});
+  final Widget home;
+  const ZevApp({super.key, required this.home});
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +58,7 @@ class ZevApp extends StatelessWidget {
       title: 'ZEV',
       debugShowCheckedModeBanner: false,
       theme: ZevColors.lightTheme,
-      home: const WelcomeScreen(),
+      home: home,
     );
   }
 }

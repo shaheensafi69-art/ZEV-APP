@@ -9,6 +9,7 @@ import '../../../core/services/auth_helper.dart';
 import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_text_field.dart';
+import '../../main_navigation/screens/zev_main_layout.dart';
 import 'login_screen.dart';
 
 /// Next-Generation Instagram-Grade Registration Experience for ZEV.
@@ -972,7 +973,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
           child: ElevatedButton(
             onPressed: () {
-              Navigator.of(context).pop(true);
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const ZevMainLayout()),
+                (route) => false,
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
@@ -996,3 +1000,4 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
+

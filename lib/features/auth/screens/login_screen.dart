@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/auth_helper.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_text_field.dart';
+import '../../main_navigation/screens/zev_main_layout.dart';
 import 'register_screen.dart';
 
 /// Next-Generation Instagram-Grade Login Screen for ZEV.
@@ -101,8 +102,11 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
 
-        // Pop back to root or open main dashboard
-        Navigator.of(context).pop(true);
+        // Navigate to Instagram Home Dashboard
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const ZevMainLayout()),
+          (route) => false,
+        );
       } else {
         throw "Login failed. Please check your credentials.";
       }
