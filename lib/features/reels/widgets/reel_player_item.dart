@@ -213,12 +213,6 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
         _badgeIsPlay = true;
         _vinylAnimCtrl.repeat();
       }
-      _showPlayPauseBadge = true;
-    });
-
-    _badgeTimer?.cancel();
-    _badgeTimer = Timer(const Duration(milliseconds: 650), () {
-      if (mounted) setState(() => _showPlayPauseBadge = false);
     });
   }
 
@@ -544,21 +538,85 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
               ),
             ),
 
-          // 4. Center Play / Pause Pop Badge
-          if (_showPlayPauseBadge)
+          // 4. Center Pause Badge with Mute/Unmute Toggle directly above it
+          // Exactly as requested: Mute icon is hidden during playback, and appears above the pause badge when paused!
+          if (_controller != null && _isInitialized && !_controller!.value.isPlaying)
             Center(
-              child: Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.55),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  _badgeIsPlay ? Icons.play_arrow_rounded : Icons.pause_rounded,
-                  color: Colors.white,
-                  size: 44,
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Mute / Unmute Button directly ABOVE the Pause icon
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      widget.onToggleMute();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.65),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white24,
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.4),
+                            blurRadius: 14,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            widget.isGlobalMuted
+                                ? Icons.volume_off_rounded
+                                : Icons.volume_up_rounded,
+                            color: Colors.white,
+                            size: 19,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            widget.isGlobalMuted ? "Muted" : "Sound On",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  // Center Pause Circle Badge
+                  Container(
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.35),
+                          blurRadius: 18,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.pause_rounded,
+                      color: Colors.white,
+                      size: 42,
+                    ),
+                  ),
+                ],
               ),
             ),
 
@@ -594,63 +652,6 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                 },
               ),
             ),
-
-          // 6. Top Bar Header: "Reels" + Mute/Unmute sound button
-          Positioned(
-            top: 48,
-            left: 18,
-            right: 18,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Row(
-                  children: [
-                    Text(
-                      "Reels",
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    SizedBox(width: 4),
-                    Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ],
-                ),
-                // Sound Toggle Button
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    widget.onToggleMute();
-                  },
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.45),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        width: 1,
-                      ),
-                    ),
-                    child: Icon(
-                      widget.isGlobalMuted
-                          ? Icons.volume_off_rounded
-                          : Icons.volume_up_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
 
           // 7. Right-Side Action Column: Avatar + Like + Comment + Share + Save + Spinning Disc
           Positioned(

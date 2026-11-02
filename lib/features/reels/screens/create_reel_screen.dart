@@ -13,6 +13,7 @@ import '../models/reel_item.dart';
 import '../widgets/reel_player_item.dart';
 
 /// Flagship Instagram/TikTok-Grade Reel Creation Studio for ZEV.
+/// Fully designed in serene Light Mode matching official ZEV branding (#00D4FF / #080D1A).
 /// Features dual-mode [Editor | Live Preview], local video playback preview,
 /// custom audio track selector, topic taxonomy, Cloudflare R2 upload, and Supabase integration.
 class CreateReelScreen extends StatefulWidget {
@@ -285,20 +286,26 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E232F),
+        backgroundColor: ZevColors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text(
           "Discard Reel?",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+          style: TextStyle(
+            color: ZevColors.deepNavy,
+            fontWeight: FontWeight.w800,
+          ),
         ),
         content: const Text(
           "If you leave now, your selected video and edits will be lost.",
-          style: TextStyle(color: Colors.white70),
+          style: TextStyle(color: ZevColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("Keep Editing", style: TextStyle(color: Colors.white60)),
+            child: const Text(
+              "Keep Editing",
+              style: TextStyle(color: ZevColors.textMuted),
+            ),
           ),
           TextButton(
             onPressed: () {
@@ -307,7 +314,10 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
             },
             child: const Text(
               "Discard",
-              style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800),
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ],
@@ -320,22 +330,23 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: ZevColors.white, // Pristine ZEV Light Mode
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: ZevColors.white,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded, color: Colors.white, size: 26),
+          icon: const Icon(Icons.close_rounded, color: ZevColors.deepNavy, size: 26),
           onPressed: _showDiscardDialog,
         ),
         centerTitle: true,
-        // Segmented Toggle: [ Editor | Live Preview ]
+        // Segmented Toggle: [ Editor | Live Preview ] (Light Mode)
         title: Container(
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
-            color: const Color(0xFF1F2937),
+            color: ZevColors.softSurface,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white12, width: 0.8),
+            border: Border.all(color: ZevColors.border, width: 1.0),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -364,9 +375,10 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _canPublish
                           ? ZevColors.primaryBlue
-                          : const Color(0xFF1F2937),
-                      foregroundColor:
-                          _canPublish ? ZevColors.deepNavy : Colors.white38,
+                          : ZevColors.softSurface,
+                      foregroundColor: _canPublish
+                          ? ZevColors.deepNavy
+                          : ZevColors.textMuted,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -413,8 +425,17 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
+          color: isSelected ? ZevColors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -422,7 +443,7 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
             Icon(
               icon,
               size: 15,
-              color: isSelected ? Colors.black : Colors.white70,
+              color: isSelected ? ZevColors.deepNavy : ZevColors.textMuted,
             ),
             const SizedBox(width: 5),
             Text(
@@ -430,7 +451,7 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? Colors.black : Colors.white70,
+                color: isSelected ? ZevColors.deepNavy : ZevColors.textMuted,
               ),
             ),
           ],
@@ -439,7 +460,7 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
     );
   }
 
-  // 1. Editor View
+  // 1. Editor View (Light Mode)
   Widget _buildEditorView() {
     final isRtl = TextDirectionHelper.isRtl(_captionCtrl.text);
 
@@ -454,12 +475,12 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: const Color(0xFF1E232F),
+                backgroundColor: ZevColors.softSurface,
                 backgroundImage: _authorAvatar.isNotEmpty
                     ? NetworkImage(_authorAvatar)
                     : null,
                 child: _authorAvatar.isEmpty
-                    ? const Icon(Icons.person, color: Colors.white70)
+                    ? const Icon(Icons.person, color: ZevColors.textMuted)
                     : null,
               ),
               const SizedBox(width: 12),
@@ -473,7 +494,7 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                         style: const TextStyle(
                           fontSize: 14.5,
                           fontWeight: FontWeight.w800,
-                          color: Colors.white,
+                          color: ZevColors.deepNavy,
                         ),
                       ),
                       if (_isVerified) ...[
@@ -491,9 +512,9 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF131927),
+                      color: ZevColors.softSurface,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white12, width: 0.8),
+                      border: Border.all(color: ZevColors.border, width: 0.8),
                     ),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
@@ -503,7 +524,7 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                         SizedBox(width: 4),
                         Text(
                           "Public Reel",
-                          style: TextStyle(fontSize: 11, color: Colors.white70),
+                          style: TextStyle(fontSize: 11, color: ZevColors.textMuted),
                         ),
                       ],
                     ),
@@ -520,7 +541,7 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w800,
-              color: Colors.white60,
+              color: ZevColors.textMuted,
               letterSpacing: 0.6,
             ),
           ),
@@ -531,9 +552,16 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
               width: double.infinity,
               height: 260,
               decoration: BoxDecoration(
-                color: const Color(0xFF131927),
+                color: Colors.black,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white12),
+                border: Border.all(color: ZevColors.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(19),
@@ -674,13 +702,13 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
 
           const SizedBox(height: 20),
 
-          // Audio Track Input
+          // Audio Track Input (Light Mode)
           const Text(
             "AUDIO TRACK",
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w800,
-              color: Colors.white60,
+              color: ZevColors.textMuted,
               letterSpacing: 0.6,
             ),
           ),
@@ -688,9 +716,9 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFF131927),
+              color: ZevColors.softSurface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white12),
+              border: Border.all(color: ZevColors.border),
             ),
             child: Row(
               children: [
@@ -701,13 +729,13 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                   child: TextField(
                     controller: _audioCtrl,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: ZevColors.deepNavy,
                       fontSize: 13.5,
                       fontWeight: FontWeight.w600,
                     ),
                     decoration: const InputDecoration(
                       hintText: "Audio track name...",
-                      hintStyle: TextStyle(color: Colors.white38, fontSize: 13.5),
+                      hintStyle: TextStyle(color: ZevColors.textMuted, fontSize: 13.5),
                       border: InputBorder.none,
                       isDense: true,
                     ),
@@ -718,13 +746,13 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
           ),
           const SizedBox(height: 20),
 
-          // Category Pills
+          // Category Pills (Light Mode)
           const Text(
             "SELECT REEL CATEGORY",
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w800,
-              color: Colors.white60,
+              color: ZevColors.textMuted,
               letterSpacing: 0.6,
             ),
           ),
@@ -750,12 +778,12 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                     decoration: BoxDecoration(
                       color: isSelected
                           ? ZevColors.primaryBlue
-                          : const Color(0xFF131927),
+                          : ZevColors.softSurface,
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(
                         color: isSelected
                             ? ZevColors.primaryBlue
-                            : Colors.white12,
+                            : ZevColors.border,
                       ),
                     ),
                     child: Center(
@@ -767,7 +795,7 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                               isSelected ? FontWeight.w800 : FontWeight.w600,
                           color: isSelected
                               ? ZevColors.deepNavy
-                              : Colors.white70,
+                              : ZevColors.textSecondary,
                         ),
                       ),
                     ),
@@ -778,13 +806,13 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
           ),
           const SizedBox(height: 20),
 
-          // Caption
+          // Caption (Light Mode)
           const Text(
             "CAPTION & HASHTAGS",
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w800,
-              color: Colors.white60,
+              color: ZevColors.textMuted,
               letterSpacing: 0.6,
             ),
           ),
@@ -792,9 +820,9 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: const Color(0xFF131927),
+              color: ZevColors.softSurface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white12),
+              border: Border.all(color: ZevColors.border),
             ),
             child: TextField(
               controller: _captionCtrl,
@@ -803,14 +831,14 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
               textAlign: isRtl ? TextAlign.right : TextAlign.left,
               style: const TextStyle(
                 fontSize: 14.5,
-                color: Colors.white,
+                color: ZevColors.deepNavy,
                 height: 1.4,
               ),
               decoration: const InputDecoration(
                 hintText: "Write a captivating caption for your Reel...",
                 hintStyle: TextStyle(
                   fontSize: 14,
-                  color: Colors.white38,
+                  color: ZevColors.textMuted,
                 ),
                 border: InputBorder.none,
                 isDense: true,
@@ -819,7 +847,7 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
           ),
           const SizedBox(height: 10),
 
-          // Quick Hashtags Strip
+          // Quick Hashtags Strip (Light Mode)
           SizedBox(
             height: 32,
             child: ListView.separated(
@@ -834,16 +862,16 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF131927),
+                      color: ZevColors.white,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white12),
+                      border: Border.all(color: ZevColors.border),
                     ),
                     child: Text(
                       tag,
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: ZevColors.primaryBlue,
+                        color: ZevColors.secondaryBlue,
                       ),
                     ),
                   ),
@@ -857,7 +885,7 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.redAccent.withValues(alpha: 0.15),
+                color: Colors.redAccent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                     color: Colors.redAccent.withValues(alpha: 0.3)),
@@ -896,9 +924,9 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
         decoration: BoxDecoration(
-          color: const Color(0xFF131927),
+          color: ZevColors.softSurface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white12, width: 1.0),
+          border: Border.all(color: ZevColors.border, width: 1.2),
         ),
         child: Column(
           children: [
@@ -917,7 +945,7 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
-                color: Colors.white,
+                color: ZevColors.deepNavy,
               ),
             ),
             const SizedBox(height: 2),
@@ -925,7 +953,7 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
               subtitle,
               style: const TextStyle(
                 fontSize: 11.5,
-                color: Colors.white60,
+                color: ZevColors.textMuted,
               ),
             ),
           ],
@@ -941,12 +969,15 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.video_camera_back_outlined,
-                color: Colors.white54, size: 48),
+            const Icon(
+              Icons.video_camera_back_outlined,
+              color: ZevColors.textMuted,
+              size: 48,
+            ),
             const SizedBox(height: 12),
             const Text(
               "Select a video first to preview your Reel.",
-              style: TextStyle(color: Colors.white70, fontSize: 14),
+              style: TextStyle(color: ZevColors.textSecondary, fontSize: 14),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
@@ -954,6 +985,9 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: ZevColors.primaryBlue,
                 foregroundColor: ZevColors.deepNavy,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
               child: const Text("Select Video"),
             ),
@@ -1009,9 +1043,16 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.75),
+              color: ZevColors.white.withValues(alpha: 0.95),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white24, width: 0.8),
+              border: Border.all(color: ZevColors.border, width: 1.0),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
             child: const Row(
               children: [
@@ -1022,7 +1063,7 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                   child: Text(
                     "Live Reel Preview: Exactly how viewers will watch and interact.",
                     style: TextStyle(
-                      color: Colors.white,
+                      color: ZevColors.deepNavy,
                       fontSize: 11.5,
                       fontWeight: FontWeight.w700,
                     ),
@@ -1062,4 +1103,3 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
     );
   }
 }
-

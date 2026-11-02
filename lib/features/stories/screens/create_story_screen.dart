@@ -10,8 +10,9 @@ import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
 
 /// Flagship Instagram-Grade Story Creation Studio for ZEV.
-/// Features 9:16 fullscreen canvas, dual-mode [Studio | Live Preview],
-/// draggable text overlay, color filters, Cloudflare R2 upload, and 24h expiration.
+/// Fully designed in serene Light Mode matching official ZEV branding (#00D4FF / #080D1A).
+/// Features 9:16 canvas, dual-mode [Studio | Live Preview], draggable text overlay,
+/// color filters, Cloudflare R2 upload, and 24h expiration.
 class CreateStoryScreen extends StatefulWidget {
   final VoidCallback onStoryCreated;
 
@@ -59,7 +60,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
   // Text overlay state
   final TextEditingController _captionCtrl = TextEditingController();
   bool _isEditingText = false;
-  int _textStyleIndex = 0; // 0: White text on dark pill, 1: Cyan neon, 2: Bold white shadow
+  int _textStyleIndex = 0; // 0: Dark pill, 1: Cyan neon, 2: Bold white shadow
   Offset _textPosition = const Offset(0.0, 0.0);
 
   // Filter tints
@@ -216,20 +217,26 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E232F),
+        backgroundColor: ZevColors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text(
           "Discard story?",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+          style: TextStyle(
+            color: ZevColors.deepNavy,
+            fontWeight: FontWeight.w800,
+          ),
         ),
         content: const Text(
           "If you exit now, any edits and photos will be discarded.",
-          style: TextStyle(color: Colors.white70),
+          style: TextStyle(color: ZevColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("Keep Editing", style: TextStyle(color: Colors.white60)),
+            child: const Text(
+              "Keep Editing",
+              style: TextStyle(color: ZevColors.textMuted),
+            ),
           ),
           TextButton(
             onPressed: () {
@@ -238,7 +245,10 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
             },
             child: const Text(
               "Discard",
-              style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800),
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ],
@@ -249,7 +259,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: ZevColors.white, // Pristine ZEV Light Mode
       body: SafeArea(
         child: Stack(
           children: [
@@ -263,11 +273,11 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
               ),
             ),
 
-            // 2. Top Navigation Bar (Floating Overlay)
+            // 2. Top Navigation Bar (Light Mode)
             Positioned(
               top: 8,
-              left: 12,
-              right: 12,
+              left: 14,
+              right: 14,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -277,26 +287,27 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.5),
+                        color: ZevColors.softSurface,
                         shape: BoxShape.circle,
+                        border: Border.all(color: ZevColors.border, width: 1.0),
                       ),
                       child: const Icon(
                         Icons.close_rounded,
-                        color: Colors.white,
-                        size: 24,
+                        color: ZevColors.deepNavy,
+                        size: 22,
                       ),
                     ),
                   ),
 
-                  // Center Segmented Toggle: [ Studio | Preview ]
+                  // Center Segmented Toggle: [ Studio | Preview ] (Light Mode)
                   Container(
                     padding: const EdgeInsets.all(3),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.6),
+                      color: ZevColors.softSurface,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: Colors.white24,
-                        width: 0.8,
+                        color: ZevColors.border,
+                        width: 1.0,
                       ),
                     ),
                     child: Row(
@@ -331,13 +342,19 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                             decoration: BoxDecoration(
                               color: _isEditingText
                                   ? ZevColors.primaryBlue
-                                  : Colors.black.withValues(alpha: 0.5),
+                                  : ZevColors.softSurface,
                               shape: BoxShape.circle,
+                              border: Border.all(
+                                color: _isEditingText
+                                    ? ZevColors.primaryBlue
+                                    : ZevColors.border,
+                                width: 1.0,
+                              ),
                             ),
                             child: Icon(
                               Icons.title_rounded,
-                              color: _isEditingText ? Colors.black : Colors.white,
-                              size: 22,
+                              color: ZevColors.deepNavy,
+                              size: 20,
                             ),
                           ),
                         ),
@@ -355,19 +372,19 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                           child: Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.5),
+                              color: ZevColors.softSurface,
                               shape: BoxShape.circle,
-                              border: _filterColors[_activeFilterIndex] != null
-                                  ? Border.all(
-                                      color: ZevColors.primaryBlue,
-                                      width: 1.5,
-                                    )
-                                  : null,
+                              border: Border.all(
+                                color: _filterColors[_activeFilterIndex] != null
+                                    ? ZevColors.primaryBlue
+                                    : ZevColors.border,
+                                width: 1.2,
+                              ),
                             ),
                             child: const Icon(
                               Icons.auto_awesome_rounded,
-                              color: Colors.white,
-                              size: 20,
+                              color: ZevColors.deepNavy,
+                              size: 19,
                             ),
                           ),
                         ),
@@ -402,8 +419,17 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
+          color: isSelected ? ZevColors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -411,7 +437,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
             Icon(
               icon,
               size: 15,
-              color: isSelected ? Colors.black : Colors.white70,
+              color: isSelected ? ZevColors.deepNavy : ZevColors.textMuted,
             ),
             const SizedBox(width: 5),
             Text(
@@ -419,7 +445,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? Colors.black : Colors.white70,
+                color: isSelected ? ZevColors.deepNavy : ZevColors.textMuted,
               ),
             ),
           ],
@@ -428,7 +454,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
     );
   }
 
-  // 1. Studio Editor View
+  // 1. Studio Editor View (Light Mode)
   Widget _buildStudioEditorView() {
     if (_selectedImage == null) {
       return _buildEmptyStudioCanvas();
@@ -440,128 +466,148 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
       children: [
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 60, 10, 10),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Selected Image
-                  Image.file(
-                    _selectedImage!,
-                    fit: BoxFit.cover,
+            padding: const EdgeInsets.fromLTRB(14, 60, 14, 12),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: ZevColors.border, width: 1.2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
                   ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(23),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Selected Image
+                    Image.file(
+                      _selectedImage!,
+                      fit: BoxFit.cover,
+                    ),
 
-                  // Active Color Tint Filter
-                  if (_filterColors[_activeFilterIndex] != null)
-                    Container(color: _filterColors[_activeFilterIndex]),
+                    // Active Color Tint Filter
+                    if (_filterColors[_activeFilterIndex] != null)
+                      Container(color: _filterColors[_activeFilterIndex]),
 
-                  // Draggable / Styled Caption Overlay on canvas
-                  if (_captionCtrl.text.trim().isNotEmpty)
-                    Positioned(
-                      bottom: 80 + _textPosition.dy,
-                      left: 20,
-                      right: 20,
-                      child: GestureDetector(
-                        onTap: () => setState(() => _isEditingText = true),
-                        onPanUpdate: (details) {
-                          setState(() {
-                            _textPosition += Offset(0, details.delta.dy);
-                          });
-                        },
-                        child: Center(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _getTextBgColor(),
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.35),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 4),
+                    // Draggable / Styled Caption Overlay on canvas
+                    if (_captionCtrl.text.trim().isNotEmpty)
+                      Positioned(
+                        bottom: 80 + _textPosition.dy,
+                        left: 20,
+                        right: 20,
+                        child: GestureDetector(
+                          onTap: () => setState(() => _isEditingText = true),
+                          onPanUpdate: (details) {
+                            setState(() {
+                              _textPosition += Offset(0, details.delta.dy);
+                            });
+                          },
+                          child: Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _getTextBgColor(),
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.25),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Text(
+                                _captionCtrl.text.trim(),
+                                textAlign:
+                                    isRtl ? TextAlign.right : TextAlign.center,
+                                textDirection: isRtl
+                                    ? TextDirection.rtl
+                                    : TextDirection.ltr,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: _getTextColor(),
+                                  height: 1.35,
                                 ),
-                              ],
-                            ),
-                            child: Text(
-                              _captionCtrl.text.trim(),
-                              textAlign: isRtl ? TextAlign.right : TextAlign.center,
-                              textDirection:
-                                  isRtl ? TextDirection.rtl : TextDirection.ltr,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: _getTextColor(),
-                                height: 1.35,
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
 
-                  // Change photo small action pill
-                  Positioned(
-                    top: 14,
-                    right: 14,
-                    child: GestureDetector(
-                      onTap: () => _pickImage(ImageSource.gallery),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.65),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.swap_horiz_rounded, color: Colors.white, size: 16),
-                            SizedBox(width: 4),
-                            Text(
-                              "Change",
-                              style: TextStyle(color: Colors.white, fontSize: 12),
-                            ),
-                          ],
+                    // Change photo small action pill
+                    Positioned(
+                      top: 14,
+                      right: 14,
+                      child: GestureDetector(
+                        onTap: () => _pickImage(ImageSource.gallery),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.65),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.swap_horiz_rounded,
+                                  color: Colors.white, size: 16),
+                              SizedBox(width: 4),
+                              Text(
+                                "Change",
+                                style:
+                                    TextStyle(color: Colors.white, fontSize: 12),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ),
 
-        // Bottom Story Action Bar
+        // Bottom Story Action Bar (Light Mode)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
           child: Row(
             children: [
               // 24H Badge
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1F2937),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white12),
+                  color: ZevColors.softSurface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: ZevColors.border, width: 1.0),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.schedule_rounded,
-                        color: ZevColors.primaryBlue, size: 16),
+                    Icon(
+                      Icons.schedule_rounded,
+                      color: ZevColors.primaryBlue,
+                      size: 16,
+                    ),
                     SizedBox(width: 6),
                     Text(
                       "24 Hours",
                       style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
+                        color: ZevColors.deepNavy,
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -582,6 +628,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(24),
                       ),
+                      elevation: 0,
                     ),
                     child: Ink(
                       decoration: BoxDecoration(
@@ -593,8 +640,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF00D4FF).withValues(alpha: 0.4),
-                            blurRadius: 16,
+                            color: const Color(0xFF00D4FF).withValues(alpha: 0.35),
+                            blurRadius: 14,
                             offset: const Offset(0, 4),
                           ),
                         ],
@@ -656,7 +703,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
     );
   }
 
-  // Empty canvas with Gallery & Camera Pickers
+  // Empty canvas with Gallery & Camera Pickers (Light Mode)
   Widget _buildEmptyStudioCanvas() {
     return Center(
       child: Padding(
@@ -694,7 +741,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
-                color: Colors.white,
+                color: ZevColors.deepNavy,
               ),
             ),
             const SizedBox(height: 6),
@@ -703,7 +750,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13.5,
-                color: Colors.white60,
+                color: ZevColors.textSecondary,
                 height: 1.4,
               ),
             ),
@@ -747,9 +794,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
         decoration: BoxDecoration(
-          color: const Color(0xFF131927),
+          color: ZevColors.softSurface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white12, width: 1.0),
+          border: Border.all(color: ZevColors.border, width: 1.2),
         ),
         child: Column(
           children: [
@@ -768,7 +815,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
               style: const TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w800,
-                color: Colors.white,
+                color: ZevColors.deepNavy,
               ),
             ),
             const SizedBox(height: 2),
@@ -776,7 +823,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
               subtitle,
               style: const TextStyle(
                 fontSize: 12,
-                color: Colors.white60,
+                color: ZevColors.textMuted,
               ),
             ),
           ],
@@ -785,19 +832,22 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
     );
   }
 
-  // 2. THE SHOWSTOPPER: Live 1:1 Instagram Story Player Replica
+  // 2. THE SHOWSTOPPER: Live 1:1 Instagram Story Player Replica (Surrounded by Light Theme)
   Widget _buildLiveStoryPreviewView() {
     if (_selectedImage == null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.image_not_supported_outlined,
-                color: Colors.white54, size: 44),
+            const Icon(
+              Icons.image_not_supported_outlined,
+              color: ZevColors.textMuted,
+              size: 44,
+            ),
             const SizedBox(height: 12),
             const Text(
               "Select a photo first to preview your story.",
-              style: TextStyle(color: Colors.white70, fontSize: 14),
+              style: TextStyle(color: ZevColors.textSecondary, fontSize: 14),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
@@ -805,6 +855,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
               style: ElevatedButton.styleFrom(
                 backgroundColor: ZevColors.primaryBlue,
                 foregroundColor: ZevColors.deepNavy,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
               child: const Text("Pick Photo"),
             ),
@@ -815,166 +868,213 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
 
     final isRtl = TextDirectionHelper.isRtl(_captionCtrl.text);
 
-    return Stack(
-      fit: StackFit.expand,
+    return Column(
       children: [
-        // Story Canvas Image
-        Image.file(
-          _selectedImage!,
-          fit: BoxFit.cover,
-        ),
-
-        // Color Filter
-        if (_filterColors[_activeFilterIndex] != null)
-          Container(color: _filterColors[_activeFilterIndex]),
-
-        // Top Subtle Dark Gradient
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 140,
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.black.withValues(alpha: 0.8),
-                  Colors.transparent,
-                ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
+        // Top Informative Pill
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.fromLTRB(16, 56, 16, 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: ZevColors.softSurface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: ZevColors.border),
           ),
-        ),
-
-        // Top Simulated Story Progress Line
-        Positioned(
-          top: 60,
-          left: 14,
-          right: 14,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: AnimatedBuilder(
-              animation: _previewTimerAnim,
-              builder: (context, _) {
-                return LinearProgressIndicator(
-                  value: _previewTimerAnim.value,
-                  backgroundColor: Colors.white30,
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                  minHeight: 2.5,
-                );
-              },
-            ),
-          ),
-        ),
-
-        // Top Story Author Header
-        Positioned(
-          top: 72,
-          left: 16,
-          right: 16,
-          child: Row(
+          child: const Row(
             children: [
-              CircleAvatar(
-                radius: 17,
-                backgroundColor: Colors.white24,
-                backgroundImage: _authorAvatar.isNotEmpty
-                    ? NetworkImage(_authorAvatar)
-                    : null,
-                child: _authorAvatar.isEmpty
-                    ? const Icon(Icons.person, size: 18, color: Colors.white)
-                    : null,
-              ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        _authorUsername,
-                        style: const TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        "Just now",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const Spacer(),
-              const Icon(Icons.more_vert_rounded, color: Colors.white, size: 22),
-            ],
-          ),
-        ),
-
-        // Caption Text on Preview
-        if (_captionCtrl.text.trim().isNotEmpty)
-          Positioned(
-            bottom: 120 + _textPosition.dy,
-            left: 24,
-            right: 24,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: _getTextBgColor(),
-                  borderRadius: BorderRadius.circular(16),
-                ),
+              Icon(Icons.auto_awesome_rounded,
+                  color: ZevColors.primaryBlue, size: 16),
+              SizedBox(width: 8),
+              Expanded(
                 child: Text(
-                  _captionCtrl.text.trim(),
-                  textAlign: isRtl ? TextAlign.right : TextAlign.center,
-                  textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+                  "Live Story Preview: Exactly how followers will watch your 24h Story.",
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: _getTextColor(),
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-        // Bottom Simulated Story Reply Bar & Instant Publish Action
-        Positioned(
-          bottom: 16,
-          left: 16,
-          right: 16,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Bottom Action Button
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton.icon(
-                  onPressed: _isPublishing ? null : _publishStory,
-                  icon: const Icon(Icons.send_rounded, size: 18),
-                  label: const Text(
-                    "Looks Awesome! Share Story Now",
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ZevColors.primaryBlue,
-                    foregroundColor: ZevColors.deepNavy,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
-                    ),
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: ZevColors.deepNavy,
                   ),
                 ),
               ),
             ],
+          ),
+        ),
+
+        // Live Story Phone Frame
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: ZevColors.border, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(23),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Story Canvas Image
+                    Image.file(
+                      _selectedImage!,
+                      fit: BoxFit.cover,
+                    ),
+
+                    // Color Filter
+                    if (_filterColors[_activeFilterIndex] != null)
+                      Container(color: _filterColors[_activeFilterIndex]),
+
+                    // Top Subtle Dark Gradient
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: 120,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.black.withValues(alpha: 0.7),
+                              Colors.transparent,
+                            ],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Top Simulated Story Progress Line
+                    Positioned(
+                      top: 14,
+                      left: 14,
+                      right: 14,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: AnimatedBuilder(
+                          animation: _previewTimerAnim,
+                          builder: (context, _) {
+                            return LinearProgressIndicator(
+                              value: _previewTimerAnim.value,
+                              backgroundColor: Colors.white30,
+                              valueColor:
+                                  const AlwaysStoppedAnimation<Color>(Colors.white),
+                              minHeight: 2.5,
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+
+                    // Top Story Author Header
+                    Positioned(
+                      top: 24,
+                      left: 14,
+                      right: 14,
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor: Colors.white24,
+                            backgroundImage: _authorAvatar.isNotEmpty
+                                ? NetworkImage(_authorAvatar)
+                                : null,
+                            child: _authorAvatar.isEmpty
+                                ? const Icon(Icons.person,
+                                    size: 16, color: Colors.white)
+                                : null,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _authorUsername,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Text(
+                            "Just now",
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.white70,
+                            ),
+                          ),
+                          const Spacer(),
+                          const Icon(Icons.more_vert_rounded,
+                              color: Colors.white, size: 20),
+                        ],
+                      ),
+                    ),
+
+                    // Caption Text on Preview
+                    if (_captionCtrl.text.trim().isNotEmpty)
+                      Positioned(
+                        bottom: 40 + _textPosition.dy,
+                        left: 20,
+                        right: 20,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _getTextBgColor(),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(
+                              _captionCtrl.text.trim(),
+                              textAlign:
+                                  isRtl ? TextAlign.right : TextAlign.center,
+                              textDirection: isRtl
+                                  ? TextDirection.rtl
+                                  : TextDirection.ltr,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: _getTextColor(),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        // Bottom Action Button to Publish directly from Preview (Light Mode)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              onPressed: _isPublishing ? null : _publishStory,
+              icon: const Icon(Icons.send_rounded, size: 18),
+              label: const Text(
+                "Looks Awesome! Share Story Now",
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ZevColors.primaryBlue,
+                foregroundColor: ZevColors.deepNavy,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+            ),
           ),
         ),
       ],
@@ -1008,7 +1108,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                     borderRadius: BorderRadius.circular(18),
                   ),
                 ),
-                child: const Text("Done", style: TextStyle(fontWeight: FontWeight.w800)),
+                child: const Text("Done",
+                    style: TextStyle(fontWeight: FontWeight.w800)),
               ),
             ],
           ),
@@ -1063,4 +1164,3 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
     }
   }
 }
-
