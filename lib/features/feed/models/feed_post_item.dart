@@ -79,3 +79,4 @@ class ActiveFriendStory {
     this.isMe = false,
   });
 }
+

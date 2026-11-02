@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/utils/text_direction_helper.dart';
 import '../../../core/utils/time_ago.dart';
 
 /// Instagram-Grade Comments Sheet for ZEV.
@@ -295,38 +296,52 @@ class _FeedCommentsSheetState extends State<FeedCommentsSheet> {
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      RichText(
-                                        text: TextSpan(
-                                          style: const TextStyle(
-                                            fontSize: 13.5,
-                                            color: ZevColors.deepNavy,
-                                            height: 1.35,
-                                          ),
-                                          children: [
-                                            TextSpan(
-                                              text: "$username ",
+                                  child: Builder(
+                                    builder: (context) {
+                                      final isCommentRtl = TextDirectionHelper.isRtl(text);
+                                      return Column(
+                                        crossAxisAlignment: isCommentRtl
+                                            ? CrossAxisAlignment.end
+                                            : CrossAxisAlignment.start,
+                                        children: [
+                                          RichText(
+                                            textDirection: isCommentRtl
+                                                ? TextDirection.rtl
+                                                : TextDirection.ltr,
+                                            textAlign: isCommentRtl
+                                                ? TextAlign.right
+                                                : TextAlign.left,
+                                            text: TextSpan(
                                               style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
+                                                fontSize: 13.5,
+                                                color: ZevColors.deepNavy,
+                                                height: 1.35,
                                               ),
+                                              children: [
+                                                TextSpan(
+                                                  text: isCommentRtl
+                                                      ? " $username "
+                                                      : "$username ",
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w800,
+                                                  ),
+                                                ),
+                                                TextSpan(text: text),
+                                              ],
                                             ),
-                                            TextSpan(text: text),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        timeAgo,
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          color: ZevColors.textMuted,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            timeAgo,
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: ZevColors.textMuted,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
                                   ),
                                 ),
                               ],
@@ -414,3 +429,4 @@ class _FeedCommentsSheetState extends State<FeedCommentsSheet> {
     );
   }
 }
+

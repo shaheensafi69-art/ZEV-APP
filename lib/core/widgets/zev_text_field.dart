@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/zev_theme.dart';
+import '../utils/text_direction_helper.dart';
 
 /// Next-Generation Modern Input Field for ZEV.
 /// Reacts to focus with Electric Cyan (#00D4FF) highlight and subtle ambient glow.
@@ -56,6 +57,11 @@ class _ZevTextFieldState extends State<ZevTextField> {
     super.initState();
     _internalFocusNode = FocusNode();
     _effectiveFocusNode.addListener(_handleFocusChange);
+    widget.controller.addListener(_handleTextChange);
+  }
+
+  void _handleTextChange() {
+    if (mounted) setState(() {});
   }
 
   void _handleFocusChange() {
@@ -67,6 +73,10 @@ class _ZevTextFieldState extends State<ZevTextField> {
   @override
   void didUpdateWidget(ZevTextField oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.controller != oldWidget.controller) {
+      oldWidget.controller.removeListener(_handleTextChange);
+      widget.controller.addListener(_handleTextChange);
+    }
     if (widget.focusNode != oldWidget.focusNode) {
       oldWidget.focusNode?.removeListener(_handleFocusChange);
       _effectiveFocusNode.addListener(_handleFocusChange);
@@ -75,6 +85,7 @@ class _ZevTextFieldState extends State<ZevTextField> {
 
   @override
   void dispose() {
+    widget.controller.removeListener(_handleTextChange);
     _effectiveFocusNode.removeListener(_handleFocusChange);
     _internalFocusNode.dispose();
     super.dispose();
@@ -122,6 +133,7 @@ class _ZevTextFieldState extends State<ZevTextField> {
           child: TextField(
             controller: widget.controller,
             focusNode: _effectiveFocusNode,
+            textDirection: TextDirectionHelper.getDirection(widget.controller.text),
             readOnly: widget.isReadOnly,
             onTap: widget.onTap,
             obscureText: widget.isObscured,

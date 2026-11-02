@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/utils/text_direction_helper.dart';
 import '../../../core/utils/time_ago.dart';
 import '../models/feed_post_item.dart';
 import 'feed_comments_sheet.dart';
@@ -431,63 +432,78 @@ class _FeedPostCardState extends State<FeedPostCard>
             ),
 
           // 5. Post Title & Caption Block
-          if (post.title.isNotEmpty || post.content.isNotEmpty)
-            Padding(
+          if (post.title.isNotEmpty || post.content.isNotEmpty) () {
+            final isContentRtl = TextDirectionHelper.isRtl(
+              post.content.isNotEmpty ? post.content : post.title,
+            );
+            return Padding(
               padding: const EdgeInsets.only(left: 14, right: 14, top: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  RichText(
-                    maxLines: _isExpanded ? null : 2,
-                    overflow: _isExpanded
-                        ? TextOverflow.visible
-                        : TextOverflow.ellipsis,
-                    text: TextSpan(
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        color: ZevColors.deepNavy,
-                        height: 1.35,
-                      ),
-                      children: [
-                        TextSpan(
-                          text: "${post.authorUsername} ",
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                          ),
+              child: SizedBox(
+                width: double.infinity,
+                child: Column(
+                  crossAxisAlignment: isContentRtl
+                      ? CrossAxisAlignment.end
+                      : CrossAxisAlignment.start,
+                  children: [
+                    RichText(
+                      textDirection: isContentRtl
+                          ? TextDirection.rtl
+                          : TextDirection.ltr,
+                      textAlign: isContentRtl ? TextAlign.right : TextAlign.left,
+                      maxLines: _isExpanded ? null : 2,
+                      overflow: _isExpanded
+                          ? TextOverflow.visible
+                          : TextOverflow.ellipsis,
+                      text: TextSpan(
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          color: ZevColors.deepNavy,
+                          height: 1.35,
                         ),
-                        if (post.title.isNotEmpty && post.content.isNotEmpty)
+                        children: [
                           TextSpan(
-                            text: "${post.title} — ",
+                            text: isContentRtl
+                                ? " ${post.authorUsername} "
+                                : "${post.authorUsername} ",
                             style: const TextStyle(
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
-                        TextSpan(
-                          text: post.content.isNotEmpty
-                              ? post.content
-                              : post.title,
-                        ),
-                      ],
+                          if (post.title.isNotEmpty && post.content.isNotEmpty)
+                            TextSpan(
+                              text: "${post.title} — ",
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          TextSpan(
+                            text: post.content.isNotEmpty
+                                ? post.content
+                                : post.title,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  if (!_isExpanded && (post.content.length > 70))
-                    GestureDetector(
-                      onTap: () => setState(() => _isExpanded = true),
-                      child: const Padding(
-                        padding: EdgeInsets.only(top: 2),
-                        child: Text(
-                          "more",
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            color: ZevColors.textMuted,
-                            fontWeight: FontWeight.w600,
+                    if (!_isExpanded && (post.content.length > 70))
+                      GestureDetector(
+                        onTap: () => setState(() => _isExpanded = true),
+                        child: const Padding(
+                          padding: EdgeInsets.only(top: 2),
+                          child: Text(
+                            "more",
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: ZevColors.textMuted,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
+            );
+          }(),
 
           // 6. Comments Trigger
           Padding(
