@@ -245,7 +245,38 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
         } catch (_) {}
       }
 
-      // 6. Build models
+      // 6. Batch fetch my following status for post authors
+      Set<String> myFollowedAuthorIds = {};
+      if (currentUserId != null && authorIds.isNotEmpty) {
+        try {
+          final followRes = await supabase
+              .from('user_follows')
+              .select('following_id')
+              .eq('follower_id', currentUserId)
+              .inFilter('following_id', authorIds);
+
+          for (var f in (followRes as List)) {
+            final fId = f['following_id']?.toString() ?? '';
+            if (fId.isNotEmpty) myFollowedAuthorIds.add(fId);
+          }
+        } catch (_) {
+          // Fallback to student_friends if needed
+          try {
+            final friendRes = await supabase
+                .from('student_friends')
+                .select('friend_id')
+                .eq('user_id', currentUserId)
+                .inFilter('friend_id', authorIds);
+
+            for (var fr in (friendRes as List)) {
+              final frId = fr['friend_id']?.toString() ?? '';
+              if (frId.isNotEmpty) myFollowedAuthorIds.add(frId);
+            }
+          } catch (_) {}
+        }
+      }
+
+      // 7. Build models
       final List<FeedPostItem> items = [];
       for (var p in rawPosts) {
         final id = p['id'].toString();
@@ -274,6 +305,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
             commentsCount: commentsCountMap[id] ?? 0,
             repostsCount: repostsCountMap[id] ?? 0,
             isRepostedByMe: myRepostedPostIds.contains(id),
+            isAuthorFollowed: myFollowedAuthorIds.contains(aId),
           ),
         );
       }

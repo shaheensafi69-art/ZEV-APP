@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/services/notification_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
 import '../../../core/utils/time_ago.dart';
@@ -41,6 +43,7 @@ class _FeedPostCardState extends State<FeedPostCard>
   late bool _isReposted;
   late int _repostsCount;
   bool _isFollowing = false;
+  bool _isFollowLoading = false;
   bool _isSaved = false;
   bool _isExpanded = false;
   bool _showTranslation = false;
@@ -58,6 +61,7 @@ class _FeedPostCardState extends State<FeedPostCard>
     _likesCount = widget.post.likesCount;
     _isReposted = widget.post.isRepostedByMe;
     _repostsCount = widget.post.repostsCount;
+    _isFollowing = widget.post.isAuthorFollowed;
 
     _heartAnimCtrl = AnimationController(
       vsync: this,
@@ -114,6 +118,9 @@ class _FeedPostCardState extends State<FeedPostCard>
     }
     if (widget.post.repostsCount != oldWidget.post.repostsCount) {
       _repostsCount = widget.post.repostsCount;
+    }
+    if (widget.post.isAuthorFollowed != oldWidget.post.isAuthorFollowed) {
+      _isFollowing = widget.post.isAuthorFollowed;
     }
   }
 
@@ -231,12 +238,59 @@ class _FeedPostCardState extends State<FeedPostCard>
     }
   }
 
-  void _toggleFollow() {
+  Future<void> _toggleFollow() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      _showNotice("Please sign in to follow users.");
+      return;
+    }
+    if (_isFollowLoading) return;
+
     HapticFeedback.lightImpact();
-    setState(() => _isFollowing = !_isFollowing);
-    _showNotice(_isFollowing
-        ? "Following @${widget.post.authorUsername}"
-        : "Unfollowed @${widget.post.authorUsername}");
+
+    // Optimistically update follow status so the Follow button is hidden immediately
+    setState(() {
+      _isFollowing = true;
+      _isFollowLoading = true;
+    });
+
+    _showNotice("Following @${widget.post.authorUsername}");
+
+    try {
+      // 1. Insert into user_follows table
+      await supabase.from('user_follows').insert({
+        'follower_id': user.id,
+        'following_id': widget.post.authorId,
+      });
+
+      // 2. Also insert into student_friends table for mutual compatibility
+      try {
+        await supabase.from('student_friends').upsert({
+          'user_id': user.id,
+          'friend_id': widget.post.authorId,
+          'status': 'accepted',
+          'created_at': DateTime.now().toIso8601String(),
+        });
+      } catch (_) {}
+
+      // 3. Dispatch in-app push notification to author
+      unawaited(NotificationService().sendNotificationToUser(
+        targetUserId: widget.post.authorId,
+        title: "New Follower",
+        message: "Started following you on ZEV",
+        notificationType: "follow",
+        senderId: user.id,
+      ));
+    } catch (e) {
+      debugPrint("Follow author notice: $e");
+      if (mounted) {
+        setState(() => _isFollowing = false);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isFollowLoading = false);
+      }
+    }
   }
 
   void _openComments() {
@@ -285,6 +339,10 @@ class _FeedPostCardState extends State<FeedPostCard>
     final post = widget.post;
     final timeStr = TimeAgo.format(post.createdAt);
     final subtitle = _getCategorySubtitle();
+
+    final currentUserId = supabase.auth.currentUser?.id;
+    final isMe = currentUserId != null && currentUserId == post.authorId;
+    final shouldShowFollowButton = !isMe && !_isFollowing;
 
     return Container(
       decoration: const BoxDecoration(
@@ -366,39 +424,40 @@ class _FeedPostCardState extends State<FeedPostCard>
                   ),
                 ),
 
-                // Follow Button (Exact Instagram Style)
-                GestureDetector(
-                  onTap: _toggleFollow,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _isFollowing
-                          ? ZevColors.white
-                          : ZevColors.softSurface,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: ZevColors.border,
-                        width: 1.0,
+                // Follow Button: Only shown if NOT me and NOT already following!
+                if (shouldShowFollowButton) ...[
+                  GestureDetector(
+                    onTap: _toggleFollow,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
                       ),
-                    ),
-                    child: Text(
-                      _isFollowing ? "Following" : "Follow",
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: _isFollowing
-                            ? ZevColors.textMuted
-                            : ZevColors.deepNavy,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0095F6),
+                        borderRadius: BorderRadius.circular(8),
                       ),
+                      child: _isFollowLoading
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              "Follow",
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
                     ),
                   ),
-                ),
-
-                const SizedBox(width: 4),
+                  const SizedBox(width: 4),
+                ],
 
                 IconButton(
                   icon: const Icon(

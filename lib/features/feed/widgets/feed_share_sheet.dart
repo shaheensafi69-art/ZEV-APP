@@ -177,7 +177,7 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
     return Container(
       height: mediaQuery.size.height * 0.72,
       decoration: const BoxDecoration(
-        color: Color(0xFF1E232B), // Serene Midnight Surface matching Instagram screenshot
+        color: ZevColors.white, // Pristine Light Mode matching ZEV app theme
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
@@ -188,28 +188,42 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
             width: 38,
             height: 4.5,
             decoration: BoxDecoration(
-              color: Colors.white24,
+              color: const Color(0xFFCBD5E1),
               borderRadius: BorderRadius.circular(3),
             ),
           ),
           const SizedBox(height: 14),
 
-          // 1. Instagram Disclaimer Notice (Exact Text from Screenshot)
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24),
-            child: Text(
-              "Links you share are unique to you and may be used to improve suggestions and ads you see. Learn more",
+          // 1. Instagram Disclaimer Notice (Light Mode)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: RichText(
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 11.5,
-                color: Colors.white54,
-                height: 1.35,
+              text: const TextSpan(
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: ZevColors.textSecondary,
+                  height: 1.35,
+                ),
+                children: [
+                  TextSpan(
+                    text:
+                        "Links you share are unique to you and may be used to improve suggestions and ads you see. ",
+                  ),
+                  TextSpan(
+                    text: "Learn more",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: ZevColors.secondaryBlue,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
           const SizedBox(height: 14),
 
-          // 2. Search Bar + Create Group Button (Exact Layout from Screenshot)
+          // 2. Search Bar + Create Group Button (Light Mode)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
@@ -218,24 +232,31 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                   child: Container(
                     height: 44,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2B313D),
+                      color: ZevColors.softSurface,
                       borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: ZevColors.border,
+                        width: 1.0,
+                      ),
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     child: TextField(
                       controller: _searchCtrl,
-                      style: const TextStyle(fontSize: 14, color: Colors.white),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: ZevColors.deepNavy,
+                      ),
                       decoration: const InputDecoration(
                         hintText: "Search",
                         hintStyle: TextStyle(
                           fontSize: 14,
-                          color: Colors.white54,
+                          color: ZevColors.textMuted,
                           fontWeight: FontWeight.w400,
                         ),
                         prefixIcon: Icon(
                           Icons.search_rounded,
                           size: 20,
-                          color: Colors.white54,
+                          color: ZevColors.textMuted,
                         ),
                         border: InputBorder.none,
                         isDense: true,
@@ -248,14 +269,18 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                 Container(
                   width: 44,
                   height: 44,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF2B313D),
+                  decoration: BoxDecoration(
+                    color: ZevColors.softSurface,
                     shape: BoxShape.circle,
+                    border: Border.all(
+                      color: ZevColors.border,
+                      width: 1.0,
+                    ),
                   ),
                   child: IconButton(
                     icon: const Icon(
                       Icons.group_add_outlined,
-                      color: Colors.white,
+                      color: ZevColors.deepNavy,
                       size: 22,
                     ),
                     onPressed: () {
@@ -272,7 +297,7 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
 
           const SizedBox(height: 16),
 
-          // 3. Friends Avatars Grid/Row (Screenshot 1)
+          // 3. Friends Avatars Grid (Light Mode)
           Expanded(
             child: _isLoadingFriends
                 ? const Center(
@@ -285,7 +310,10 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                     ? const Center(
                         child: Text(
                           "No accounts found",
-                          style: TextStyle(fontSize: 13, color: Colors.white54),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: ZevColors.textMuted,
+                          ),
                         ),
                       )
                     : GridView.builder(
@@ -315,25 +343,34 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                                 Stack(
                                   clipBehavior: Clip.none,
                                   children: [
-                                    CircleAvatar(
-                                      radius: 36,
-                                      backgroundColor: const Color(0xFF2B313D),
-                                      backgroundImage: avatar.isNotEmpty
-                                          ? NetworkImage(avatar)
-                                          : null,
-                                      child: avatar.isEmpty
-                                          ? const Icon(
-                                              Icons.person_rounded,
-                                              size: 36,
-                                              color: Colors.white54,
-                                            )
-                                          : null,
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: ZevColors.border,
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: CircleAvatar(
+                                        radius: 36,
+                                        backgroundColor: ZevColors.softSurface,
+                                        backgroundImage: avatar.isNotEmpty
+                                            ? NetworkImage(avatar)
+                                            : null,
+                                        child: avatar.isEmpty
+                                            ? const Icon(
+                                                Icons.person_rounded,
+                                                size: 36,
+                                                color: ZevColors.textMuted,
+                                              )
+                                            : null,
+                                      ),
                                     ),
                                     if (isSent)
                                       Positioned.fill(
                                         child: Container(
                                           decoration: BoxDecoration(
-                                            color: Colors.black54,
+                                            color: Colors.black.withValues(alpha: 0.4),
                                             shape: BoxShape.circle,
                                           ),
                                           child: const Icon(
@@ -355,7 +392,7 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                                         style: const TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w600,
-                                          color: Colors.white,
+                                          color: ZevColors.deepNavy,
                                         ),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
@@ -379,7 +416,7 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                                     fontWeight: FontWeight.w700,
                                     color: isSent
                                         ? const Color(0xFF10B981)
-                                        : ZevColors.primaryBlue,
+                                        : ZevColors.secondaryBlue,
                                   ),
                                 ),
                               ],
@@ -389,9 +426,9 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                       ),
           ),
 
-          const Divider(height: 1, color: Color(0xFF2B313D)),
+          const Divider(height: 1, thickness: 0.8, color: ZevColors.border),
 
-          // 4. Bottom Circular Action Pills (Exact Order from Screenshot 1)
+          // 4. Bottom Circular Action Pills (Light Mode)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 14),
             child: SingleChildScrollView(
@@ -404,7 +441,9 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                   _buildCircleAction(
                     icon: Icons.add_circle_outline_rounded,
                     label: "Add to story",
-                    bgColor: const Color(0xFF2B313D),
+                    bgColor: ZevColors.softSurface,
+                    iconColor: ZevColors.deepNavy,
+                    hasBorder: true,
                     onTap: () {
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -418,7 +457,9 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                   _buildCircleAction(
                     icon: Icons.link_rounded,
                     label: "Copy link",
-                    bgColor: const Color(0xFF2B313D),
+                    bgColor: ZevColors.softSurface,
+                    iconColor: ZevColors.deepNavy,
+                    hasBorder: true,
                     onTap: _copyPostLink,
                   ),
                   const SizedBox(width: 16),
@@ -428,6 +469,7 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                     icon: Icons.chat_rounded,
                     label: "WhatsApp",
                     bgColor: const Color(0xFF25D366),
+                    iconColor: Colors.white,
                     onTap: _shareViaWhatsApp,
                   ),
                   const SizedBox(width: 16),
@@ -436,7 +478,9 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                   _buildCircleAction(
                     icon: Icons.share_rounded,
                     label: "Share",
-                    bgColor: const Color(0xFF2B313D),
+                    bgColor: ZevColors.softSurface,
+                    iconColor: ZevColors.deepNavy,
+                    hasBorder: true,
                     onTap: _openSystemNativeShare,
                   ),
                   const SizedBox(width: 16),
@@ -446,6 +490,7 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                     icon: Icons.adjust_rounded,
                     label: "WhatsApp Status",
                     bgColor: const Color(0xFF25D366),
+                    iconColor: Colors.white,
                     onTap: _shareViaWhatsApp,
                   ),
                   const SizedBox(width: 16),
@@ -454,7 +499,9 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                   _buildCircleAction(
                     icon: Icons.more_horiz_rounded,
                     label: "More",
-                    bgColor: const Color(0xFF2B313D),
+                    bgColor: ZevColors.softSurface,
+                    iconColor: ZevColors.deepNavy,
+                    hasBorder: true,
                     onTap: _openSystemNativeShare,
                   ),
                 ],
@@ -471,6 +518,7 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
     required String label,
     required Color bgColor,
     Color iconColor = Colors.white,
+    bool hasBorder = false,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -487,6 +535,12 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
               decoration: BoxDecoration(
                 color: bgColor,
                 shape: BoxShape.circle,
+                border: hasBorder
+                    ? Border.all(
+                        color: ZevColors.border,
+                        width: 1.0,
+                      )
+                    : null,
               ),
               child: Center(
                 child: Icon(icon, color: iconColor, size: 24),
@@ -498,8 +552,8 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 11,
-                color: Colors.white70,
-                fontWeight: FontWeight.w500,
+                color: ZevColors.deepNavy,
+                fontWeight: FontWeight.w600,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,

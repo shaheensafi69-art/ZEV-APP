@@ -16,6 +16,7 @@ class FeedPostItem {
   final String categoryTag;
   final int repostsCount;
   final bool isRepostedByMe;
+  final bool isAuthorFollowed;
 
   const FeedPostItem({
     required this.id,
@@ -34,6 +35,7 @@ class FeedPostItem {
     this.categoryTag = 'Explore',
     this.repostsCount = 0,
     this.isRepostedByMe = false,
+    this.isAuthorFollowed = false,
   });
 
   FeedPostItem copyWith({
@@ -53,6 +55,7 @@ class FeedPostItem {
     String? categoryTag,
     int? repostsCount,
     bool? isRepostedByMe,
+    bool? isAuthorFollowed,
   }) {
     return FeedPostItem(
       id: id ?? this.id,
@@ -71,6 +74,7 @@ class FeedPostItem {
       categoryTag: categoryTag ?? this.categoryTag,
       repostsCount: repostsCount ?? this.repostsCount,
       isRepostedByMe: isRepostedByMe ?? this.isRepostedByMe,
+      isAuthorFollowed: isAuthorFollowed ?? this.isAuthorFollowed,
     );
   }
 }
