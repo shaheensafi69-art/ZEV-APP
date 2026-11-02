@@ -83,7 +83,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
     try {
       final res = await supabase
           .from('profiles')
-          .select('id, username, first_name, last_name, avatar_url, is_verified')
+          .select(
+            'id, username, first_name, last_name, avatar_url, is_verified',
+          )
           .neq('id', currentUserId ?? '')
           .limit(8);
 
@@ -119,8 +121,10 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
           .limit(20);
 
       final rawList = List<Map<String, dynamic>>.from(res as List);
-      final userIds =
-          rawList.map((s) => s['user_id']?.toString() ?? '').toSet().toList();
+      final userIds = rawList
+          .map((s) => s['user_id']?.toString() ?? '')
+          .toSet()
+          .toList();
 
       Map<String, Map<String, dynamic>> profilesMap = {};
       if (userIds.isNotEmpty) {
@@ -169,15 +173,19 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
       }
 
       final postIds = rawPosts.map((p) => p['id'].toString()).toList();
-      final authorIds =
-          rawPosts.map((p) => p['student_id']?.toString() ?? '').toSet().toList();
+      final authorIds = rawPosts
+          .map((p) => p['student_id']?.toString() ?? '')
+          .toSet()
+          .toList();
 
       // 2. Batch fetch author profiles
       Map<String, Map<String, dynamic>> profilesMap = {};
       if (authorIds.isNotEmpty) {
         final profRes = await supabase
             .from('profiles')
-            .select('id, username, first_name, last_name, avatar_url, is_verified')
+            .select(
+              'id, username, first_name, last_name, avatar_url, is_verified',
+            )
             .inFilter('id', authorIds);
 
         for (var p in (profRes as List)) {
@@ -290,14 +298,16 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
           FeedPostItem(
             id: id,
             authorId: aId,
-            authorUsername: profile['username'] ?? (full.isNotEmpty ? full : 'user'),
+            authorUsername:
+                profile['username'] ?? (full.isNotEmpty ? full : 'user'),
             authorFullName: full,
             authorAvatar: profile['avatar_url'] ?? '',
             isVerified: profile['is_verified'] == true,
             title: p['title'] ?? '',
             content: p['content'] ?? '',
             imageUrl: p['image_url'] ?? '',
-            createdAt: DateTime.tryParse(p['created_at']?.toString() ?? '') ??
+            createdAt:
+                DateTime.tryParse(p['created_at']?.toString() ?? '') ??
                 DateTime.now(),
             likesCount: likesCountMap[id] ?? 0,
             isLikedByMe: myLikedPostIds.contains(id),
@@ -328,10 +338,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
       return;
     }
 
-    CreatePostScreen.open(
-      context,
-      onPostCreated: _fetchPosts,
-    );
+    CreatePostScreen.open(context, onPostCreated: _fetchPosts);
   }
 
   void _openCreateStoryModal() {
@@ -341,10 +348,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
       return;
     }
 
-    CreateStoryScreen.open(
-      context,
-      onStoryCreated: _fetchFeedData,
-    );
+    CreateStoryScreen.open(context, onStoryCreated: _fetchFeedData);
   }
 
   void _showNotice(String msg) {
@@ -359,7 +363,10 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
     );
   }
 
-  Future<void> _toggleFollowSuggestedUser(String targetUserId, String name) async {
+  Future<void> _toggleFollowSuggestedUser(
+    String targetUserId,
+    String name,
+  ) async {
     HapticFeedback.lightImpact();
     final currentUserId = supabase.auth.currentUser?.id;
     if (currentUserId == null) {
@@ -379,10 +386,10 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
 
     try {
       if (isCurrentlyFollowed) {
-        await supabase
-            .from('student_friends')
-            .delete()
-            .match({'user_id': currentUserId, 'friend_id': targetUserId});
+        await supabase.from('student_friends').delete().match({
+          'user_id': currentUserId,
+          'friend_id': targetUserId,
+        });
         _showNotice("Unfollowed $name");
       } else {
         await supabase.from('student_friends').upsert({
@@ -394,13 +401,15 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
         _showNotice("Following $name");
 
         // Record notification
-        unawaited(NotificationService().sendNotificationToUser(
-          targetUserId: targetUserId,
-          title: "New Follower",
-          message: "Started following your profile on ZEV",
-          notificationType: "follow",
-          senderId: currentUserId,
-        ));
+        unawaited(
+          NotificationService().sendNotificationToUser(
+            targetUserId: targetUserId,
+            title: "New Follower",
+            message: "Started following your profile on ZEV",
+            notificationType: "follow",
+            senderId: currentUserId,
+          ),
+        );
       }
     } catch (e) {
       debugPrint("Follow suggestion error: $e");
@@ -469,10 +478,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                   decoration: BoxDecoration(
                     color: ZevColors.white,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: ZevColors.border,
-                      width: 1.0,
-                    ),
+                    border: Border.all(color: ZevColors.border, width: 1.0),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.02),
@@ -537,12 +543,13 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                     ? Image.network(
                                         avatarUrl,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) =>
-                                            const Icon(
-                                          Icons.person,
-                                          size: 38,
-                                          color: ZevColors.textMuted,
-                                        ),
+                                        errorBuilder:
+                                            (context, error, stackTrace) =>
+                                                const Icon(
+                                                  Icons.person,
+                                                  size: 38,
+                                                  color: ZevColors.textMuted,
+                                                ),
                                       )
                                     : const Icon(
                                         Icons.person,
@@ -708,7 +715,8 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                           size: 26,
                         ),
                         tooltip: "Notifications",
-                        onPressed: widget.onOpenNotifications ??
+                        onPressed:
+                            widget.onOpenNotifications ??
                             () => _showNotice("No new notifications."),
                       ),
                       Positioned(
@@ -733,8 +741,11 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                       size: 23,
                     ),
                     tooltip: "Messages",
-                    onPressed: widget.onOpenMessages ??
-                        () => _showNotice("Direct Chat is ready for conversations."),
+                    onPressed:
+                        widget.onOpenMessages ??
+                        () => _showNotice(
+                          "Direct Chat is ready for conversations.",
+                        ),
                   ),
                   const SizedBox(width: 4),
                 ],
@@ -871,38 +882,30 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                 )
               else
                 SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final post = _posts[index];
-                      final card = FeedPostCard(
-                        key: ValueKey(post.id),
-                        post: post,
-                        onCommentsUpdated: _fetchPosts,
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final post = _posts[index];
+                    final card = FeedPostCard(
+                      key: ValueKey(post.id),
+                      post: post,
+                      onCommentsUpdated: _fetchPosts,
+                    );
+
+                    // Render "Suggested for you" carousel directly below the first post
+                    if (index == 0 &&
+                        _suggestedUsers.isNotEmpty &&
+                        !_dismissSuggestedCarousel) {
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [card, _buildSuggestedCarousel()],
                       );
+                    }
 
-                      // Render "Suggested for you" carousel directly below the first post
-                      if (index == 0 &&
-                          _suggestedUsers.isNotEmpty &&
-                          !_dismissSuggestedCarousel) {
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            card,
-                            _buildSuggestedCarousel(),
-                          ],
-                        );
-                      }
-
-                      return card;
-                    },
-                    childCount: _posts.length,
-                  ),
+                    return card;
+                  }, childCount: _posts.length),
                 ),
 
               // Bottom Spacer
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 80),
-              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 80)),
             ],
           ),
         ),

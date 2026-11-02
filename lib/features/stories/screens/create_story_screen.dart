@@ -554,7 +554,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.history_toggle_drop_rounded,
+                    Icon(Icons.schedule_rounded,
                         color: ZevColors.primaryBlue, size: 16),
                     SizedBox(width: 6),
                     Text(
@@ -1063,3 +1063,4 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
     }
   }
 }
+
