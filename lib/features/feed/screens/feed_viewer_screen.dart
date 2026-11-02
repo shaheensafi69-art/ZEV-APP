@@ -189,7 +189,28 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
         } catch (_) {}
       }
 
-      // 5. Build models
+      // 5. Batch fetch reposts count and my repost status
+      Map<String, int> repostsCountMap = {};
+      Set<String> myRepostedPostIds = {};
+      if (postIds.isNotEmpty) {
+        try {
+          final repRes = await supabase
+              .from('post_reposts')
+              .select('post_id, user_id')
+              .inFilter('post_id', postIds);
+
+          for (var r in (repRes as List)) {
+            final pId = r['post_id']?.toString() ?? '';
+            final uId = r['user_id']?.toString() ?? '';
+            repostsCountMap[pId] = (repostsCountMap[pId] ?? 0) + 1;
+            if (currentUserId != null && uId == currentUserId) {
+              myRepostedPostIds.add(pId);
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 6. Build models
       final List<FeedPostItem> items = [];
       for (var p in rawPosts) {
         final id = p['id'].toString();
@@ -216,6 +237,8 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
             likesCount: likesCountMap[id] ?? 0,
             isLikedByMe: myLikedPostIds.contains(id),
             commentsCount: commentsCountMap[id] ?? 0,
+            repostsCount: repostsCountMap[id] ?? 0,
+            isRepostedByMe: myRepostedPostIds.contains(id),
           ),
         );
       }
@@ -517,6 +540,8 @@ class _CreatePostModalState extends State<_CreatePostModal> {
   File? _selectedImage;
   bool _isPublishing = false;
   String? _modalError;
+  String _selectedCategory = "Explore";
+  final List<String> _categories = ["Analysis", "Education", "Explore", "Tech", "Community"];
 
   @override
   void dispose() {
@@ -578,9 +603,13 @@ class _CreatePostModalState extends State<_CreatePostModal> {
         }
       }
 
+      final formattedTitle = title.startsWith('[')
+          ? title
+          : "[$_selectedCategory] ${title.isNotEmpty ? title : (content.length > 30 ? content.substring(0, 30) : content)}";
+
       await supabase.from('discussion_posts').insert({
         'student_id': user.id,
-        'title': title.isNotEmpty ? title : (content.length > 30 ? content.substring(0, 30) : content),
+        'title': formattedTitle,
         'content': content,
         'image_url': imageUrl,
       });
@@ -735,6 +764,58 @@ class _CreatePostModalState extends State<_CreatePostModal> {
                                 ),
                               ],
                             ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Category Selector Chips
+                  const Text(
+                    "Topic / Category",
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: ZevColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 34,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _categories.length,
+                      separatorBuilder: (context, index) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        final cat = _categories[index];
+                        final isSelected = cat == _selectedCategory;
+                        return GestureDetector(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            setState(() => _selectedCategory = cat);
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: isSelected ? ZevColors.primaryBlue : ZevColors.softSurface,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: isSelected ? ZevColors.primaryBlue : ZevColors.border,
+                              ),
+                            ),
+                            child: Center(
+                              child: Text(
+                                cat,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                  color: isSelected ? ZevColors.deepNavy : ZevColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
 

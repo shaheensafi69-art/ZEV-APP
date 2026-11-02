@@ -6,11 +6,14 @@ import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
 import '../../../core/utils/time_ago.dart';
 import '../models/feed_post_item.dart';
+import '../screens/fullscreen_media_viewer.dart';
 import 'feed_comments_sheet.dart';
+import 'feed_share_sheet.dart';
 
 /// Next-Generation Instagram-Grade Post Card for ZEV Feed.
 /// Built with 120 FPS fluid interaction, double-tap heart pop animation,
-/// and direct Supabase `discussion_likes` / `discussion_comments` integration.
+/// fullscreen Facebook-style lightbox on tap, category badges, and complete
+/// Like, Comment, Repost, Share, and Save toolbars.
 class FeedPostCard extends StatefulWidget {
   final FeedPostItem post;
   final VoidCallback? onCommentsUpdated;
@@ -31,6 +34,8 @@ class _FeedPostCardState extends State<FeedPostCard>
 
   late bool _isLiked;
   late int _likesCount;
+  late bool _isReposted;
+  late int _repostsCount;
   bool _isSaved = false;
   bool _isExpanded = false;
 
@@ -45,6 +50,8 @@ class _FeedPostCardState extends State<FeedPostCard>
     super.initState();
     _isLiked = widget.post.isLikedByMe;
     _likesCount = widget.post.likesCount;
+    _isReposted = widget.post.isRepostedByMe;
+    _repostsCount = widget.post.repostsCount;
 
     _heartAnimCtrl = AnimationController(
       vsync: this,
@@ -96,12 +103,30 @@ class _FeedPostCardState extends State<FeedPostCard>
     if (widget.post.likesCount != oldWidget.post.likesCount) {
       _likesCount = widget.post.likesCount;
     }
+    if (widget.post.isRepostedByMe != oldWidget.post.isRepostedByMe) {
+      _isReposted = widget.post.isRepostedByMe;
+    }
+    if (widget.post.repostsCount != oldWidget.post.repostsCount) {
+      _repostsCount = widget.post.repostsCount;
+    }
   }
 
   @override
   void dispose() {
     _heartAnimCtrl.dispose();
     super.dispose();
+  }
+
+  String _getCategoryTag() {
+    final title = widget.post.title;
+    if (title.contains('[') && title.contains(']')) {
+      final start = title.indexOf('[');
+      final end = title.indexOf(']');
+      if (end > start) {
+        return title.substring(start + 1, end).trim();
+      }
+    }
+    return widget.post.categoryTag;
   }
 
   void _triggerDoubleTapLike() {
@@ -128,7 +153,9 @@ class _FeedPostCardState extends State<FeedPostCard>
     // Optimistic state
     setState(() {
       _isLiked = !previousState;
-      _likesCount = _isLiked ? previousCount + 1 : (previousCount > 0 ? previousCount - 1 : 0);
+      _likesCount = _isLiked
+          ? previousCount + 1
+          : (previousCount > 0 ? previousCount - 1 : 0);
     });
 
     try {
@@ -146,11 +173,54 @@ class _FeedPostCardState extends State<FeedPostCard>
       }
     } catch (e) {
       debugPrint("Like toggle warning: $e");
-      // Revert if failed
       if (mounted) {
         setState(() {
           _isLiked = previousState;
           _likesCount = previousCount;
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleRepost() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      _showNotice("Please log in to repost.");
+      return;
+    }
+
+    HapticFeedback.mediumImpact();
+    final previousState = _isReposted;
+    final previousCount = _repostsCount;
+
+    setState(() {
+      _isReposted = !previousState;
+      _repostsCount = _isReposted
+          ? previousCount + 1
+          : (previousCount > 0 ? previousCount - 1 : 0);
+    });
+
+    try {
+      if (_isReposted) {
+        await supabase.from('post_reposts').insert({
+          'post_id': widget.post.id,
+          'user_id': user.id,
+        });
+        _showNotice("Reposted to your feed!");
+      } else {
+        await supabase
+            .from('post_reposts')
+            .delete()
+            .eq('post_id', widget.post.id)
+            .eq('user_id', user.id);
+        _showNotice("Repost removed.");
+      }
+    } catch (e) {
+      debugPrint("Repost warning: $e");
+      if (mounted) {
+        setState(() {
+          _isReposted = previousState;
+          _repostsCount = previousCount;
         });
       }
     }
@@ -163,6 +233,25 @@ class _FeedPostCardState extends State<FeedPostCard>
       postId: widget.post.id,
       postAuthorUsername: widget.post.authorUsername,
       onCommentAdded: widget.onCommentsUpdated,
+    );
+  }
+
+  void _openShareSheet() {
+    HapticFeedback.lightImpact();
+    FeedShareSheet.show(context, post: widget.post);
+  }
+
+  void _openFullscreenViewer() {
+    HapticFeedback.lightImpact();
+    FullscreenMediaViewer.open(
+      context,
+      post: widget.post,
+      isLiked: _isLiked,
+      likesCount: _likesCount,
+      isReposted: _isReposted,
+      repostsCount: _repostsCount,
+      onToggleLike: _toggleLike,
+      onToggleRepost: _toggleRepost,
     );
   }
 
@@ -182,6 +271,7 @@ class _FeedPostCardState extends State<FeedPostCard>
   Widget build(BuildContext context) {
     final post = widget.post;
     final timeStr = TimeAgo.format(post.createdAt);
+    final category = _getCategoryTag();
 
     return Container(
       decoration: const BoxDecoration(
@@ -196,13 +286,13 @@ class _FeedPostCardState extends State<FeedPostCard>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Post Header: Avatar, Username, Badge, Time, 3-dots
+          // 1. Post Header: Avatar, Username, Badge, Category Pill, Time, 3-dots
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
                 CircleAvatar(
-                  radius: 17,
+                  radius: 18,
                   backgroundColor: ZevColors.softSurface,
                   backgroundImage: post.authorAvatar.isNotEmpty
                       ? NetworkImage(post.authorAvatar)
@@ -217,46 +307,80 @@ class _FeedPostCardState extends State<FeedPostCard>
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Flexible(
-                        child: Text(
-                          post.authorUsername.isNotEmpty
-                              ? post.authorUsername
-                              : 'user',
-                          style: const TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w800,
-                            color: ZevColors.deepNavy,
+                      // Username & Verified Badge
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              post.authorUsername.isNotEmpty
+                                  ? post.authorUsername
+                                  : 'user',
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w800,
+                                color: ZevColors.deepNavy,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                          if (post.isVerified) ...[
+                            const SizedBox(width: 4),
+                            const Icon(
+                              Icons.verified_rounded,
+                              size: 15,
+                              color: ZevColors.primaryBlue,
+                            ),
+                          ],
+                        ],
                       ),
-                      if (post.isVerified) ...[
-                        const SizedBox(width: 4),
-                        const Icon(
-                          Icons.verified_rounded,
-                          size: 15,
-                          color: ZevColors.primaryBlue,
-                        ),
-                      ],
-                      const SizedBox(width: 6),
-                      const Text(
-                        "•",
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: ZevColors.textMuted,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        timeStr,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: ZevColors.textMuted,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      const SizedBox(height: 3),
+                      // Category Tag Pill & Timestamp
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 1.5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: ZevColors.softSurface,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: ZevColors.border,
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Text(
+                              category,
+                              style: const TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: ZevColors.secondaryBlue,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Text(
+                            "•",
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: ZevColors.textMuted,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            timeStr,
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              color: ZevColors.textMuted,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -267,17 +391,16 @@ class _FeedPostCardState extends State<FeedPostCard>
                     color: ZevColors.deepNavy,
                     size: 20,
                   ),
-                  onPressed: () {
-                    _showPostOptions();
-                  },
+                  onPressed: _showPostOptions,
                 ),
               ],
             ),
           ),
 
-          // 2. Media Box (Double-Tap to Like with Floating Heart)
+          // 2. Media Box (Tap to Fullscreen Facebook-Style / Double-Tap to Like)
           if (post.imageUrl.isNotEmpty)
             GestureDetector(
+              onTap: _openFullscreenViewer,
               onDoubleTap: _triggerDoubleTapLike,
               child: Stack(
                 alignment: Alignment.center,
@@ -285,18 +408,18 @@ class _FeedPostCardState extends State<FeedPostCard>
                   Container(
                     width: double.infinity,
                     constraints: const BoxConstraints(
-                      minHeight: 280,
+                      minHeight: 220,
                       maxHeight: 520,
                     ),
                     color: ZevColors.softSurface,
                     child: Image.network(
                       post.imageUrl,
-                      fit: BoxFit.cover,
+                      fit: BoxFit.contain, // Full image view without clipping
                       width: double.infinity,
                       loadingBuilder: (context, child, loadingProgress) {
                         if (loadingProgress == null) return child;
                         return Container(
-                          height: 320,
+                          height: 300,
                           color: ZevColors.softSurface,
                           child: const Center(
                             child: CircularProgressIndicator(
@@ -307,7 +430,7 @@ class _FeedPostCardState extends State<FeedPostCard>
                         );
                       },
                       errorBuilder: (context, error, stackTrace) => Container(
-                        height: 240,
+                        height: 220,
                         color: ZevColors.softSurface,
                         child: const Center(
                           child: Icon(
@@ -334,7 +457,8 @@ class _FeedPostCardState extends State<FeedPostCard>
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.redAccent.withValues(alpha: 0.5),
+                                    color:
+                                        Colors.redAccent.withValues(alpha: 0.5),
                                     blurRadius: 36,
                                     spreadRadius: 8,
                                   ),
@@ -350,11 +474,46 @@ class _FeedPostCardState extends State<FeedPostCard>
                         );
                       },
                     ),
+
+                  // Tap to expand indicator hint
+                  Positioned(
+                    bottom: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black45,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.fullscreen_rounded,
+                            color: Colors.white,
+                            size: 15,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            "Full view",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
 
-          // 3. Instagram Interaction Action Bar
+          // 3. Instagram Full Interaction Toolbar (Like, Comment, Repost, Share, Save)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             child: Row(
@@ -382,6 +541,17 @@ class _FeedPostCardState extends State<FeedPostCard>
                       ),
                       onPressed: _openComments,
                     ),
+                    // Repost Icon
+                    IconButton(
+                      icon: Icon(
+                        Icons.repeat_rounded,
+                        color: _isReposted
+                            ? ZevColors.primaryBlue
+                            : ZevColors.deepNavy,
+                        size: 25,
+                      ),
+                      onPressed: _toggleRepost,
+                    ),
                     // Share Icon
                     IconButton(
                       icon: const Icon(
@@ -389,10 +559,7 @@ class _FeedPostCardState extends State<FeedPostCard>
                         color: ZevColors.deepNavy,
                         size: 23,
                       ),
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        _showNotice("Post link copied to clipboard.");
-                      },
+                      onPressed: _openShareSheet,
                     ),
                   ],
                 ),
@@ -402,36 +569,61 @@ class _FeedPostCardState extends State<FeedPostCard>
                     _isSaved
                         ? Icons.bookmark_rounded
                         : Icons.bookmark_border_rounded,
-                    color: _isSaved
-                        ? ZevColors.primaryBlue
-                        : ZevColors.deepNavy,
+                    color:
+                        _isSaved ? ZevColors.primaryBlue : ZevColors.deepNavy,
                     size: 25,
                   ),
                   onPressed: () {
                     HapticFeedback.lightImpact();
                     setState(() => _isSaved = !_isSaved);
-                    _showNotice(_isSaved ? "Saved to collection." : "Removed from collection.");
+                    _showNotice(_isSaved
+                        ? "Saved to collection."
+                        : "Removed from collection.");
                   },
                 ),
               ],
             ),
           ),
 
-          // 4. Likes Count
-          if (_likesCount > 0)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Text(
-                _likesCount == 1 ? "1 like" : "$_likesCount likes",
-                style: const TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w800,
-                  color: ZevColors.deepNavy,
-                ),
-              ),
+          // 4. Social Telemetry (Likes & Reposts Counts)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              children: [
+                if (_likesCount > 0)
+                  Text(
+                    _likesCount == 1 ? "1 like" : "$_likesCount likes",
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: ZevColors.deepNavy,
+                    ),
+                  ),
+                if (_likesCount > 0 && _repostsCount > 0)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 6),
+                    child: Text(
+                      "•",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: ZevColors.textMuted,
+                      ),
+                    ),
+                  ),
+                if (_repostsCount > 0)
+                  Text(
+                    _repostsCount == 1 ? "1 repost" : "$_repostsCount reposts",
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: ZevColors.secondaryBlue,
+                    ),
+                  ),
+              ],
             ),
+          ),
 
-          // 5. Post Title & Caption Block
+          // 5. Post Title & Caption Block with Smart Dynamic RTL/LTR
           if (post.title.isNotEmpty || post.content.isNotEmpty) () {
             final isContentRtl = TextDirectionHelper.isRtl(
               post.content.isNotEmpty ? post.content : post.title,
@@ -449,7 +641,8 @@ class _FeedPostCardState extends State<FeedPostCard>
                       textDirection: isContentRtl
                           ? TextDirection.rtl
                           : TextDirection.ltr,
-                      textAlign: isContentRtl ? TextAlign.right : TextAlign.left,
+                      textAlign:
+                          isContentRtl ? TextAlign.right : TextAlign.left,
                       maxLines: _isExpanded ? null : 2,
                       overflow: _isExpanded
                           ? TextOverflow.visible
@@ -469,7 +662,9 @@ class _FeedPostCardState extends State<FeedPostCard>
                               fontWeight: FontWeight.w800,
                             ),
                           ),
-                          if (post.title.isNotEmpty && post.content.isNotEmpty)
+                          if (post.title.isNotEmpty &&
+                              post.content.isNotEmpty &&
+                              !post.title.startsWith('['))
                             TextSpan(
                               text: "${post.title} — ",
                               style: const TextStyle(
@@ -507,7 +702,8 @@ class _FeedPostCardState extends State<FeedPostCard>
 
           // 6. Comments Trigger
           Padding(
-            padding: const EdgeInsets.only(left: 14, right: 14, top: 6, bottom: 12),
+            padding:
+                const EdgeInsets.only(left: 14, right: 14, top: 6, bottom: 12),
             child: GestureDetector(
               onTap: _openComments,
               child: Text(
@@ -541,24 +737,31 @@ class _FeedPostCardState extends State<FeedPostCard>
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.share_outlined, color: ZevColors.deepNavy),
-              title: const Text("Share Post", style: TextStyle(fontWeight: FontWeight.w700)),
+              leading:
+                  const Icon(Icons.share_outlined, color: ZevColors.deepNavy),
+              title: const Text("Share Post",
+                  style: TextStyle(fontWeight: FontWeight.w700)),
               onTap: () {
                 Navigator.pop(context);
-                _showNotice("Post link copied to clipboard.");
+                _openShareSheet();
               },
             ),
             ListTile(
-              leading: const Icon(Icons.link_rounded, color: ZevColors.deepNavy),
-              title: const Text("Copy Link", style: TextStyle(fontWeight: FontWeight.w700)),
+              leading:
+                  const Icon(Icons.link_rounded, color: ZevColors.deepNavy),
+              title: const Text("Copy Link",
+                  style: TextStyle(fontWeight: FontWeight.w700)),
               onTap: () {
                 Navigator.pop(context);
                 _showNotice("Link copied.");
               },
             ),
             ListTile(
-              leading: const Icon(Icons.flag_outlined, color: Colors.redAccent),
-              title: const Text("Report", style: TextStyle(fontWeight: FontWeight.w700, color: Colors.redAccent)),
+              leading:
+                  const Icon(Icons.flag_outlined, color: Colors.redAccent),
+              title: const Text("Report",
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, color: Colors.redAccent)),
               onTap: () {
                 Navigator.pop(context);
                 _showNotice("Thank you. Report received for review.");

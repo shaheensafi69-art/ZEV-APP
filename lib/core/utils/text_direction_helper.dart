@@ -34,3 +34,4 @@ class TextDirectionHelper {
     return isRtl(text) ? TextAlign.right : defaultLtr;
   }
 }
+

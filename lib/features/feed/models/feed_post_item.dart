@@ -13,6 +13,9 @@ class FeedPostItem {
   final int likesCount;
   final bool isLikedByMe;
   final int commentsCount;
+  final String categoryTag;
+  final int repostsCount;
+  final bool isRepostedByMe;
 
   const FeedPostItem({
     required this.id,
@@ -28,6 +31,9 @@ class FeedPostItem {
     required this.likesCount,
     required this.isLikedByMe,
     required this.commentsCount,
+    this.categoryTag = 'Explore',
+    this.repostsCount = 0,
+    this.isRepostedByMe = false,
   });
 
   FeedPostItem copyWith({
@@ -44,6 +50,9 @@ class FeedPostItem {
     int? likesCount,
     bool? isLikedByMe,
     int? commentsCount,
+    String? categoryTag,
+    int? repostsCount,
+    bool? isRepostedByMe,
   }) {
     return FeedPostItem(
       id: id ?? this.id,
@@ -59,6 +68,9 @@ class FeedPostItem {
       likesCount: likesCount ?? this.likesCount,
       isLikedByMe: isLikedByMe ?? this.isLikedByMe,
       commentsCount: commentsCount ?? this.commentsCount,
+      categoryTag: categoryTag ?? this.categoryTag,
+      repostsCount: repostsCount ?? this.repostsCount,
+      isRepostedByMe: isRepostedByMe ?? this.isRepostedByMe,
     );
   }
 }
@@ -79,4 +91,3 @@ class ActiveFriendStory {
     this.isMe = false,
   });
 }
-
