@@ -23,18 +23,30 @@ class FeedStoriesTray extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 104,
-      decoration: const BoxDecoration(
-        color: ZevColors.white,
-        border: Border(
-          bottom: BorderSide(
-            color: ZevColors.border,
-            width: 0.8,
-          ),
+      margin: const EdgeInsets.fromLTRB(14, 6, 14, 6),
+      height: 112,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.95),
+          width: 1.8,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 5),
+          ),
+          const BoxShadow(
+            color: Colors.white,
+            blurRadius: 8,
+            offset: Offset(0, -2),
+          ),
+        ],
       ),
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         itemCount: stories.length + 1,
@@ -82,11 +94,23 @@ class FeedStoriesTray extends StatelessWidget {
                   height: 58,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: ZevColors.softSurface,
+                    color: const Color(0xFFF1F5F9),
                     border: Border.all(
-                      color: ZevColors.border,
-                      width: 1.5,
+                      color: Colors.white,
+                      width: 2.0,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                      const BoxShadow(
+                        color: Colors.white,
+                        blurRadius: 6,
+                        offset: Offset(0, -2),
+                      ),
+                    ],
                   ),
                   child: ClipOval(
                     child: myAvatarUrl.isNotEmpty
@@ -107,18 +131,22 @@ class FeedStoriesTray extends StatelessWidget {
                   ),
                 ),
                 Positioned(
-                  bottom: 0,
-                  right: 0,
+                  bottom: -1,
+                  right: -1,
                   child: Container(
-                    width: 20,
-                    height: 20,
+                    width: 22,
+                    height: 22,
                     decoration: BoxDecoration(
-                      color: ZevColors.primaryBlue,
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF00D4FF), Color(0xFF0095F6)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                       boxShadow: [
                         BoxShadow(
-                          color: ZevColors.primaryBlue.withValues(alpha: 0.4),
+                          color: const Color(0xFF00D4FF).withValues(alpha: 0.45),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         ),
@@ -127,8 +155,8 @@ class FeedStoriesTray extends StatelessWidget {
                     child: const Center(
                       child: Icon(
                         Icons.add,
-                        size: 13,
-                        color: ZevColors.deepNavy,
+                        size: 14,
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -140,7 +168,7 @@ class FeedStoriesTray extends StatelessWidget {
               "Your story",
               style: TextStyle(
                 fontSize: 11.5,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
                 color: ZevColors.deepNavy,
               ),
               maxLines: 1,
@@ -169,13 +197,24 @@ class FeedStoriesTray extends StatelessWidget {
               width: 58,
               height: 58,
               padding: const EdgeInsets.all(2.5),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [ZevColors.primaryBlue, ZevColors.secondaryBlue],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFFFBAA47),
+                    Color(0xFFD91A46),
+                    Color(0xFFA60F93),
+                  ],
+                  begin: Alignment.bottomLeft,
+                  end: Alignment.topRight,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFD91A46).withValues(alpha: 0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
               child: Container(
                 decoration: const BoxDecoration(
@@ -207,7 +246,7 @@ class FeedStoriesTray extends StatelessWidget {
               story.username,
               style: const TextStyle(
                 fontSize: 11.5,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
                 color: ZevColors.deepNavy,
               ),
               maxLines: 1,

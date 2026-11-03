@@ -10,6 +10,10 @@ import '../widgets/feed_post_card.dart';
 import '../widgets/feed_stories_tray.dart';
 import '../../stories/screens/create_story_screen.dart';
 import '../../stories/screens/story_viewer_screen.dart';
+import '../../profile/screens/profile_screen.dart';
+import '../../notifications/screens/notifications_screen.dart';
+import '../../chat/screens/chat_list_screen.dart';
+import '../../discover/screens/discover_screen.dart';
 import 'create_post_screen.dart';
 
 /// Next-Generation Instagram-Grade Home Feed Screen for ZEV.
@@ -40,12 +44,64 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
   final Set<String> _followedSuggestedIds = {};
   bool _dismissSuggestedCarousel = false;
   String _myAvatarUrl = '';
+  bool _hasUnreadNotifications = false;
+  RealtimeChannel? _notificationsRealtimeChannel;
 
   @override
   void initState() {
     super.initState();
     _loadMyProfile();
     _fetchFeedData();
+    _checkUnreadNotifications();
+    _subscribeToUnreadNotifications();
+  }
+
+  @override
+  void dispose() {
+    _notificationsRealtimeChannel?.unsubscribe();
+    super.dispose();
+  }
+
+  Future<void> _checkUnreadNotifications() async {
+    final currentUserId = supabase.auth.currentUser?.id;
+    if (currentUserId == null) return;
+    try {
+      final res = await supabase
+          .from('user_notifications')
+          .select('id')
+          .eq('user_id', currentUserId)
+          .eq('is_read', false)
+          .not('notification_type', 'in', '("chat","message","direct_message")')
+          .limit(1);
+      if (mounted) {
+        setState(() {
+          _hasUnreadNotifications = (res as List).isNotEmpty;
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _subscribeToUnreadNotifications() {
+    final currentUserId = supabase.auth.currentUser?.id;
+    if (currentUserId == null) return;
+    try {
+      _notificationsRealtimeChannel = supabase
+          .channel('public:user_notifications_unread:$currentUserId')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'user_notifications',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'user_id',
+              value: currentUserId,
+            ),
+            callback: (_) {
+              _checkUnreadNotifications();
+            },
+          )
+          .subscribe();
+    } catch (_) {}
   }
 
   Future<void> _loadMyProfile() async {
@@ -422,13 +478,34 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
     }
 
     return Container(
-      margin: const EdgeInsets.only(top: 8, bottom: 16),
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.95),
+          width: 1.8,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 5),
+          ),
+          const BoxShadow(
+            color: Colors.white,
+            blurRadius: 8,
+            offset: Offset(0, -2),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header: "Suggested for you" + "See all"
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -436,36 +513,45 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                   "Suggested for you",
                   style: TextStyle(
                     fontSize: 14.5,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                     color: ZevColors.deepNavy,
+                    letterSpacing: -0.2,
                   ),
                 ),
                 GestureDetector(
                   onTap: () {
                     HapticFeedback.selectionClick();
-                    _showNotice("Discovering more creators on ZEV");
+                    DiscoverScreen.open(context);
                   },
-                  child: const Text(
-                    "See all",
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: ZevColors.secondaryBlue,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text(
+                      "See all",
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: ZevColors.secondaryBlue,
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 12),
 
           // Horizontal Carousel
           SizedBox(
-            height: 226,
+            height: 220,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               itemCount: _suggestedUsers.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 10),
+              separatorBuilder: (context, index) => const SizedBox(width: 12),
               itemBuilder: (context, i) {
                 final user = _suggestedUsers[i];
                 final id = user['id'] as String;
@@ -474,16 +560,16 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                 final name = user['name'] as String? ?? 'User';
 
                 return Container(
-                  width: 156,
+                  width: 154,
                   decoration: BoxDecoration(
-                    color: ZevColors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: ZevColors.border, width: 1.0),
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Colors.white, width: 1.5),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.02),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
                       ),
                     ],
                   ),
@@ -528,48 +614,68 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             // Circular Avatar
-                            Container(
-                              width: 72,
-                              height: 72,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: ZevColors.border,
-                                  width: 1.5,
+                            GestureDetector(
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                ProfileScreen.open(context, userId: id);
+                              },
+                              child: Container(
+                                width: 68,
+                                height: 68,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2.0,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              child: ClipOval(
-                                child: avatarUrl.isNotEmpty
-                                    ? Image.network(
-                                        avatarUrl,
-                                        fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stackTrace) =>
-                                                const Icon(
-                                                  Icons.person,
-                                                  size: 38,
-                                                  color: ZevColors.textMuted,
-                                                ),
-                                      )
-                                    : const Icon(
-                                        Icons.person,
-                                        size: 38,
-                                        color: ZevColors.textMuted,
-                                      ),
+                                child: ClipOval(
+                                  child: avatarUrl.isNotEmpty
+                                      ? Image.network(
+                                          avatarUrl,
+                                          fit: BoxFit.cover,
+                                          errorBuilder:
+                                              (context, error, stackTrace) =>
+                                                  const Icon(
+                                            Icons.person,
+                                            size: 34,
+                                            color: ZevColors.textMuted,
+                                          ),
+                                        )
+                                      : const Icon(
+                                          Icons.person,
+                                          size: 34,
+                                          color: ZevColors.textMuted,
+                                        ),
+                                ),
                               ),
                             ),
                             const SizedBox(height: 10),
 
                             // Display Name
-                            Text(
-                              name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: ZevColors.deepNavy,
+                            GestureDetector(
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                ProfileScreen.open(context, userId: id);
+                              },
+                              child: Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: ZevColors.deepNavy,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -596,7 +702,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                     _toggleFollowSuggestedUser(id, name),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: isFollowed
-                                      ? ZevColors.softSurface
+                                      ? const Color(0xFFE2E8F0)
                                       : const Color(0xFF0095F6),
                                   foregroundColor: isFollowed
                                       ? ZevColors.deepNavy
@@ -604,12 +710,13 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                   elevation: 0,
                                   padding: EdgeInsets.zero,
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
+                                    borderRadius: BorderRadius.circular(10),
                                     side: isFollowed
-                                        ? const BorderSide(
-                                            color: ZevColors.border,
-                                          )
-                                        : BorderSide.none,
+                                        ? BorderSide.none
+                                        : const BorderSide(
+                                            color: Colors.white,
+                                            width: 1.0,
+                                          ),
                                   ),
                                 ),
                                 child: Text(
@@ -633,9 +740,43 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
               },
             ),
           ),
-          const SizedBox(height: 12),
-          const Divider(height: 1, thickness: 0.8, color: ZevColors.border),
         ],
+      ),
+    );
+  }
+
+  Widget _buildClayAppbarButton({
+    required Widget child,
+    required VoidCallback onTap,
+    required String tooltip,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      child: Container(
+        width: 38,
+        height: 38,
+        margin: const EdgeInsets.symmetric(horizontal: 3),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white, width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+            const BoxShadow(
+              color: Colors.white,
+              blurRadius: 4,
+              offset: Offset(0, -1),
+            ),
+          ],
+        ),
+        child: Center(child: child),
       ),
     );
   }
@@ -643,7 +784,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ZevColors.white,
+      backgroundColor: const Color(0xFFF1F5F9),
       body: SafeArea(
         child: RefreshIndicator(
           color: ZevColors.primaryBlue,
@@ -653,33 +794,48 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
               parent: BouncingScrollPhysics(),
             ),
             slivers: [
-              // 1. Instagram-Style Top Navigation Bar
+              // 1. Next-Gen Claymorphic Top Navigation Bar
               SliverAppBar(
                 floating: true,
                 pinned: false,
                 snap: true,
-                backgroundColor: ZevColors.white,
+                backgroundColor: const Color(0xFFF1F5F9),
                 surfaceTintColor: Colors.transparent,
                 elevation: 0,
                 centerTitle: false,
                 title: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Image.asset(
-                      'assets/icon/icon-192x192.png',
-                      height: 28,
-                      width: 28,
-                      errorBuilder: (context, error, stackTrace) => const Icon(
-                        Icons.bolt_rounded,
-                        color: ZevColors.primaryBlue,
-                        size: 26,
+                    Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white, width: 1.2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Image.asset(
+                        'assets/icon/icon-192x192.png',
+                        height: 24,
+                        width: 24,
+                        errorBuilder: (context, error, stackTrace) => const Icon(
+                          Icons.bolt_rounded,
+                          color: ZevColors.primaryBlue,
+                          size: 24,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     const Text(
                       "ZEV",
                       style: TextStyle(
-                        fontSize: 23,
+                        fontSize: 22,
                         fontWeight: FontWeight.w900,
                         color: ZevColors.deepNavy,
                         letterSpacing: -0.5,
@@ -695,63 +851,71 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                 ),
                 actions: [
                   // Create Post (+) Button
-                  IconButton(
-                    icon: const Icon(
-                      Icons.add_box_outlined,
-                      color: ZevColors.deepNavy,
-                      size: 26,
-                    ),
+                  _buildClayAppbarButton(
                     tooltip: "Create Post",
-                    onPressed: _openCreatePostModal,
+                    onTap: _openCreatePostModal,
+                    child: const Icon(
+                      Icons.add_rounded,
+                      color: ZevColors.deepNavy,
+                      size: 24,
+                    ),
                   ),
-                  // Heart / Activity Button with notification dot
+
+                  // Heart / Activity Button with dynamic notification dot
                   Stack(
                     alignment: Alignment.center,
                     children: [
-                      IconButton(
-                        icon: const Icon(
+                      _buildClayAppbarButton(
+                        tooltip: "Notifications",
+                        onTap: () async {
+                          HapticFeedback.lightImpact();
+                          setState(() => _hasUnreadNotifications = false);
+                          if (widget.onOpenNotifications != null) {
+                            widget.onOpenNotifications!();
+                          } else {
+                            await NotificationsScreen.open(context);
+                          }
+                          _checkUnreadNotifications();
+                        },
+                        child: const Icon(
                           Icons.favorite_border_rounded,
                           color: ZevColors.deepNavy,
-                          size: 26,
+                          size: 21,
                         ),
-                        tooltip: "Notifications",
-                        onPressed:
-                            widget.onOpenNotifications ??
-                            () => _showNotice("No new notifications."),
                       ),
-                      Positioned(
-                        top: 12,
-                        right: 12,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFFF3040),
-                            shape: BoxShape.circle,
+                      if (_hasUnreadNotifications)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFF3040),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 1.5),
+                            ),
                           ),
                         ),
-                      ),
                     ],
                   ),
+
                   // Direct Messages (Paper Plane / Chat)
-                  IconButton(
-                    icon: const Icon(
+                  _buildClayAppbarButton(
+                    tooltip: "Messages",
+                    onTap: widget.onOpenMessages ??
+                        () => ChatListScreen.open(context),
+                    child: const Icon(
                       Icons.send_rounded,
                       color: ZevColors.deepNavy,
-                      size: 23,
+                      size: 19,
                     ),
-                    tooltip: "Messages",
-                    onPressed:
-                        widget.onOpenMessages ??
-                        () => _showNotice(
-                          "Direct Chat is ready for conversations.",
-                        ),
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 8),
                 ],
               ),
 
-              // 2. Stories Tray (Instagram Horizontal Carousel)
+              // 2. Stories Tray (Claymorphic Horizontal Carousel)
               SliverToBoxAdapter(
                 child: FeedStoriesTray(
                   myAvatarUrl: _myAvatarUrl,
@@ -825,57 +989,116 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                   hasScrollBody: false,
                   child: Center(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 32),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 72,
-                            height: 72,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: ZevColors.softSurface,
-                              border: Border.all(color: ZevColors.border),
-                            ),
-                            child: const Icon(
-                              Icons.camera_alt_outlined,
-                              size: 34,
-                              color: ZevColors.primaryBlue,
-                            ),
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(28),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.95),
+                            width: 1.8,
                           ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            "Welcome to your Feed",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                              color: ZevColors.deepNavy,
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+                              blurRadius: 20,
+                              offset: const Offset(0, 6),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            "When creators and friends share stories, photos, and thoughts, they will appear here.",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 13.5,
-                              color: ZevColors.textSecondary,
-                              height: 1.4,
+                            const BoxShadow(
+                              color: Colors.white,
+                              blurRadius: 10,
+                              offset: Offset(0, -2),
                             ),
-                          ),
-                          const SizedBox(height: 20),
-                          ElevatedButton.icon(
-                            onPressed: _openCreatePostModal,
-                            icon: const Icon(Icons.add, size: 18),
-                            label: const Text("Create First Post"),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: ZevColors.primaryBlue,
-                              foregroundColor: ZevColors.deepNavy,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 76,
+                              height: 76,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: const Color(0xFFF1F5F9),
+                                border: Border.all(color: Colors.white, width: 2.0),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt_outlined,
+                                size: 36,
+                                color: ZevColors.primaryBlue,
                               ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 18),
+                            const Text(
+                              "Welcome to your Feed",
+                              style: TextStyle(
+                                fontSize: 19,
+                                fontWeight: FontWeight.w900,
+                                color: ZevColors.deepNavy,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              "When creators and friends share stories, photos, and thoughts, they will appear here.",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                color: ZevColors.textSecondary,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 22),
+                            GestureDetector(
+                              onTap: _openCreatePostModal,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF00D4FF), Color(0xFF536DFE)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF00D4FF).withValues(alpha: 0.4),
+                                      blurRadius: 14,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.add_rounded, size: 20, color: Colors.white),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      "Create First Post",
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -904,8 +1127,8 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                   }, childCount: _posts.length),
                 ),
 
-              // Bottom Spacer
-              const SliverToBoxAdapter(child: SizedBox(height: 80)),
+              // Bottom Spacer to comfortably clear the floating navigation dock
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
           ),
         ),

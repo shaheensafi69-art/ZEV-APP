@@ -176,20 +176,38 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
 
     return Container(
       height: mediaQuery.size.height * 0.72,
-      decoration: const BoxDecoration(
-        color: ZevColors.white, // Pristine Light Mode matching ZEV app theme
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.95),
+          width: 1.8,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.12),
+            blurRadius: 30,
+            offset: const Offset(0, -6),
+          ),
+        ],
       ),
       child: Column(
         children: [
           // Drag Handle
           const SizedBox(height: 12),
           Container(
-            width: 38,
-            height: 4.5,
+            width: 44,
+            height: 5,
             decoration: BoxDecoration(
               color: const Color(0xFFCBD5E1),
               borderRadius: BorderRadius.circular(3),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.white,
+                  blurRadius: 4,
+                  offset: Offset(0, 1),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 14),
@@ -223,7 +241,7 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
           ),
           const SizedBox(height: 14),
 
-          // 2. Search Bar + Create Group Button (Light Mode)
+          // 2. Clay Search Bar + Create Group Button
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
@@ -232,12 +250,19 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                   child: Container(
                     height: 44,
                     decoration: BoxDecoration(
-                      color: ZevColors.softSurface,
+                      color: Colors.white,
                       borderRadius: BorderRadius.circular(22),
                       border: Border.all(
-                        color: ZevColors.border,
-                        width: 1.0,
+                        color: Colors.white,
+                        width: 1.5,
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     child: TextField(
@@ -270,12 +295,19 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: ZevColors.softSurface,
+                    color: Colors.white,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: ZevColors.border,
-                      width: 1.0,
+                      color: Colors.white,
+                      width: 1.5,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: IconButton(
                     icon: const Icon(

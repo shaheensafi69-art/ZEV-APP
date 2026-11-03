@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/cloudflare_storage_service.dart';
+import '../../../core/services/content_safety_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
 import '../models/feed_post_item.dart';
@@ -182,6 +183,31 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     try {
       String imageUrl = "";
       if (_selectedImage != null) {
+        // Pre-upload +18 and Violence Safety Check
+        final safetyResult =
+            await ContentSafetyService.instance.checkImageSafety(
+          file: _selectedImage,
+        );
+        if (!safetyResult.isSafe) {
+          if (mounted) {
+            setState(() {
+              _isPublishing = false;
+              _errorMessage = safetyResult.errorMessage ??
+                  "This content was flagged as inappropriate (+18) and cannot be posted.";
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  safetyResult.errorMessage ??
+                      "Content flagged as inappropriate (+18).",
+                ),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
+          return;
+        }
+
         final ext = _selectedImage!.path.split('.').last;
         final fileName =
             'feed_${user.id}_${DateTime.now().millisecondsSinceEpoch}.$ext';

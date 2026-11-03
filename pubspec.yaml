@@ -35,6 +35,7 @@ dependencies:
   firebase_messaging: ^15.2.3
   video_player: ^2.9.2
   audioplayers: ^6.0.0
+  record: ^7.1.2
   flutter_tts: ^4.2.1
   speech_to_text: ^7.4.0
 

@@ -4,10 +4,10 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/services/notification_service.dart';
+import 'core/services/user_presence_service.dart';
 import 'core/theme/zev_theme.dart';
 import 'core/utils/system_ui_helper.dart';
-import 'features/auth/screens/welcome_screen.dart';
-import 'features/main_navigation/screens/zev_main_layout.dart';
+import 'features/splash/screens/zev_splash_screen.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -49,12 +49,8 @@ Future<void> main() async {
   // 4. Initialize Push Notifications & Firebase
   unawaited(NotificationService().initPushNotifications());
 
-  // 5. Check existing session
-  final session = Supabase.instance.client.auth.currentSession;
-  final initialHome =
-      session != null ? const ZevMainLayout() : const WelcomeScreen();
-
-  runApp(ZevApp(home: initialHome));
+  // 5. Initial home is the flagship cinematic animated ZEV splash screen
+  runApp(const ZevApp(home: ZevSplashScreen()));
 }
 
 class ZevApp extends StatefulWidget {
@@ -71,11 +67,13 @@ class _ZevAppState extends State<ZevApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     SystemUiHelper.enableFullScreen();
+    UserPresenceService.instance.startPresenceHeartbeat();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    UserPresenceService.instance.stopPresenceHeartbeat();
     super.dispose();
   }
 
@@ -83,6 +81,10 @@ class _ZevAppState extends State<ZevApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       SystemUiHelper.enableFullScreen();
+      UserPresenceService.instance.updatePresence(isOnline: true);
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      UserPresenceService.instance.updatePresence(isOnline: false);
     }
   }
 

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/theme/zev_theme.dart';
 import '../models/reel_item.dart';
+import '../services/reel_video_cache_manager.dart';
 import '../widgets/reel_player_item.dart';
 import 'create_reel_screen.dart';
 
@@ -58,7 +59,7 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
       if (rawList.isEmpty) {
         if (mounted) {
           setState(() {
-            _reels = _getCuratedFallbackReels();
+            _reels = [];
             _isLoading = false;
           });
         }
@@ -174,55 +175,48 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
           _reels = items;
           _isLoading = false;
         });
+        _preloadAdjacentReels(0);
       }
     } catch (e) {
       debugPrint("Fetch reels exception: $e");
       if (mounted) {
         setState(() {
-          _reels = _getCuratedFallbackReels();
+          _reels = [];
           _isLoading = false;
         });
       }
     }
   }
 
-  List<ReelItem> _getCuratedFallbackReels() {
-    return [
-      ReelItem(
-        id: 'curated_1',
-        userId: 'dev_1',
-        authorUsername: 'novinera.academy',
-        authorFullName: 'Novin Era',
-        authorAvatar: '',
-        isVerified: true,
-        videoUrl:
-            'https://media.safiacademy.org/reels/reel_1790097598260_db8b43da-247d-41b3-a7e7-dca0475b5602.mp4',
-        title: 'Tips for mastering shortcuts',
-        description: 'Explore essential Windows productivity tips and tools.',
-        likesCount: 1420,
-        commentsCount: 38,
-        createdAt: DateTime.now(),
-      ),
-      ReelItem(
-        id: 'curated_2',
-        userId: 'dev_2',
-        authorUsername: 'zev_official',
-        authorFullName: 'ZEV Team',
-        authorAvatar: '',
-        isVerified: true,
-        videoUrl:
-            'https://media.safiacademy.org/reels/0077a98b-34ff-40d9-bd43-f8ceea4d0fbd.mp4',
-        title: "Don't forget it!!!",
-        description: 'Next generation social networking built for speed.',
-        likesCount: 890,
-        commentsCount: 19,
-        createdAt: DateTime.now(),
-      ),
-    ];
+  void _preloadAdjacentReels(int currentIndex) {
+    if (_reels.isEmpty) return;
+    final urlsToPreload = <String>[];
+    // Next 2 reels
+    if (currentIndex + 1 < _reels.length) {
+      final u1 = _reels[currentIndex + 1].videoUrl;
+      if (u1.isNotEmpty) urlsToPreload.add(u1);
+    }
+    if (currentIndex + 2 < _reels.length) {
+      final u2 = _reels[currentIndex + 2].videoUrl;
+      if (u2.isNotEmpty) urlsToPreload.add(u2);
+    }
+    // Previous reel for smooth backward scroll
+    if (currentIndex - 1 >= 0) {
+      final uPrev = _reels[currentIndex - 1].videoUrl;
+      if (uPrev.isNotEmpty) urlsToPreload.add(uPrev);
+    }
+
+    if (urlsToPreload.isNotEmpty) {
+      ReelVideoCacheManager().preloadVideos(urlsToPreload, isMuted: _isGlobalMuted);
+    }
   }
 
   void _onPageChanged(int index) {
     setState(() => _activePage = index);
+    if (_reels.isNotEmpty && index < _reels.length) {
+      ReelVideoCacheManager().pauseAllExcept(_reels[index].videoUrl);
+    }
+    _preloadAdjacentReels(index);
   }
 
   void _toggleGlobalMute() {
@@ -309,7 +303,7 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
             },
           ),
 
-          // Top Reels Header Overlay
+          // Next-Gen Claymorphic Top Reels Header Overlay
           Positioned(
             top: 0,
             left: 0,
@@ -320,25 +314,72 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      "Reels",
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: -0.5,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          width: 1.2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            "Reels",
+                            style: TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          SizedBox(width: 4),
+                          Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: Colors.white70,
+                            size: 18,
+                          ),
+                        ],
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.camera_alt_outlined,
-                        color: Colors.white,
-                        size: 26,
-                      ),
-                      tooltip: "Create Reel",
-                      onPressed: () => CreateReelScreen.open(
+                    GestureDetector(
+                      onTap: () => CreateReelScreen.open(
                         context,
                         onReelCreated: _fetchReels,
+                      ),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.35),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.25),
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.25),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.camera_alt_outlined,
+                          color: Colors.white,
+                          size: 21,
+                        ),
                       ),
                     ),
                   ],

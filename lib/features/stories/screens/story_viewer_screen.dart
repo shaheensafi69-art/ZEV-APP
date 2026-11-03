@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/services/notification_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
 import '../../../core/utils/time_ago.dart';
@@ -155,6 +156,17 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     HapticFeedback.mediumImpact();
     _replyCtrl.clear();
     FocusScope.of(context).unfocus();
+
+    final currentUserId = supabase.auth.currentUser?.id;
+    if (currentUserId != null && currentUserId != widget.friendStory.userId) {
+      unawaited(NotificationService().sendNotificationToUser(
+        targetUserId: widget.friendStory.userId,
+        title: "Story Reply",
+        message: "replied to your story: \"$text\"",
+        notificationType: "comment",
+        senderId: currentUserId,
+      ));
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -483,6 +495,17 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                     ),
                     onPressed: () {
                       HapticFeedback.mediumImpact();
+                      final currentUserId = supabase.auth.currentUser?.id;
+                      if (currentUserId != null && currentUserId != widget.friendStory.userId) {
+                        unawaited(NotificationService().sendNotificationToUser(
+                          targetUserId: widget.friendStory.userId,
+                          title: "Story Liked",
+                          message: "liked your story.",
+                          notificationType: "story_like",
+                          senderId: currentUserId,
+                        ));
+                      }
+
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text("❤️ Sent reaction"),

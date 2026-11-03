@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../core/services/notification_service.dart';
 
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
@@ -174,6 +177,26 @@ class _ReelCommentsSheetState extends State<ReelCommentsSheet> {
         'comment': text,
         'created_at': DateTime.now().toIso8601String(),
       });
+
+      // Dispatch notification to reel author
+      try {
+        final reelRes = await supabase
+            .from('reels')
+            .select('user_id')
+            .eq('id', widget.reelId)
+            .maybeSingle();
+        final authorId = reelRes?['user_id']?.toString() ?? '';
+        if (authorId.isNotEmpty && authorId != user.id) {
+          unawaited(NotificationService().sendNotificationToUser(
+            targetUserId: authorId,
+            title: "Reel Comment",
+            message: "commented on your reel: \"$text\"",
+            notificationType: "comment",
+            linkUrl: widget.reelId,
+            senderId: user.id,
+          ));
+        }
+      } catch (_) {}
 
       // Increment comments_count on reels
       try {

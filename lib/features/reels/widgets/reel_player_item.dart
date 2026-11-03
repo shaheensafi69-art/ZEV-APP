@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -10,7 +9,9 @@ import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
 import '../../feed/models/feed_post_item.dart';
 import '../../feed/widgets/feed_share_sheet.dart';
+import '../../profile/screens/profile_screen.dart';
 import '../models/reel_item.dart';
+import '../services/reel_video_cache_manager.dart';
 import 'reel_comments_sheet.dart';
 
 /// Next-Generation Instagram/TikTok Caliber Reel Player Item.
@@ -47,11 +48,6 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
   bool _isFollowLoading = false;
   bool _isCaptionExpanded = false;
 
-  // Single-tap play/pause animation overlay
-  bool _showPlayPauseBadge = false;
-  bool _badgeIsPlay = false;
-  Timer? _badgeTimer;
-
   // Double-tap heart animation
   late final AnimationController _heartAnimCtrl;
   late final Animation<double> _heartScaleAnim;
@@ -86,30 +82,25 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
     );
     _heartScaleAnim = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 0.0, end: 1.4)
-            .chain(CurveTween(curve: Curves.easeOutBack)),
+        tween: Tween<double>(
+          begin: 0.0,
+          end: 1.4,
+        ).chain(CurveTween(curve: Curves.easeOutBack)),
         weight: 60,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.4, end: 1.0)
-            .chain(CurveTween(curve: Curves.easeInOut)),
+        tween: Tween<double>(
+          begin: 1.4,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
         weight: 40,
       ),
     ]).animate(_heartAnimCtrl);
 
     _heartOpacityAnim = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 0.0, end: 1.0),
-        weight: 30,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 1.0, end: 1.0),
-        weight: 40,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 1.0, end: 0.0),
-        weight: 30,
-      ),
+      TweenSequenceItem(tween: Tween<double>(begin: 0.0, end: 1.0), weight: 30),
+      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.0), weight: 40),
+      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 0.0), weight: 30),
     ]).animate(_heartAnimCtrl);
 
     _heartAnimCtrl.addStatusListener((status) {
@@ -129,27 +120,22 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
 
   Future<void> _initializeVideo() async {
     try {
-      if (widget.reel.videoUrl.startsWith('http')) {
-        final uri = Uri.parse(widget.reel.videoUrl);
-        _controller = VideoPlayerController.networkUrl(uri);
-      } else {
-        _controller = VideoPlayerController.file(File(widget.reel.videoUrl));
-      }
-      await _controller!.initialize();
-      _controller!.setLooping(true);
-      _controller!.setVolume(widget.isGlobalMuted ? 0.0 : 1.0);
-
+      final ctrl = await ReelVideoCacheManager().getOrCreateController(
+        widget.reel.videoUrl,
+        isMuted: widget.isGlobalMuted,
+      );
+      if (!mounted) return;
+      _controller = ctrl;
+      _controller!.removeListener(_onVideoControllerTick);
       _controller!.addListener(_onVideoControllerTick);
 
-      if (mounted) {
-        setState(() {
-          _isInitialized = true;
-          _totalDuration = _controller!.value.duration;
-        });
+      setState(() {
+        _isInitialized = true;
+        _totalDuration = _controller!.value.duration;
+      });
 
-        if (widget.isActive) {
-          _controller!.play();
-        }
+      if (widget.isActive) {
+        _controller!.play();
       }
     } catch (e) {
       debugPrint("Reel video initialization notice: $e");
@@ -174,8 +160,12 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
 
     if (widget.isActive != oldWidget.isActive) {
       if (widget.isActive) {
-        _controller?.play();
-        _vinylAnimCtrl.repeat();
+        if (_controller != null && _isInitialized) {
+          _controller!.play();
+          _vinylAnimCtrl.repeat();
+        } else {
+          _initializeVideo();
+        }
       } else {
         _controller?.pause();
         _vinylAnimCtrl.stop();
@@ -189,10 +179,10 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
 
   @override
   void dispose() {
-    _badgeTimer?.cancel();
     _holdSpeedTimer?.cancel();
     _controller?.removeListener(_onVideoControllerTick);
-    _controller?.dispose();
+    // Keep in RAM cache! Only pause so returning to this reel is instantaneous!
+    _controller?.pause();
     _heartAnimCtrl.dispose();
     _vinylAnimCtrl.dispose();
     super.dispose();
@@ -206,11 +196,9 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
     setState(() {
       if (_controller!.value.isPlaying) {
         _controller!.pause();
-        _badgeIsPlay = false;
         _vinylAnimCtrl.stop();
       } else {
         _controller!.play();
-        _badgeIsPlay = true;
         _vinylAnimCtrl.repeat();
       }
     });
@@ -241,7 +229,9 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
 
     setState(() {
       _isLiked = !prevLiked;
-      _likesCount = _isLiked ? prevCount + 1 : (prevCount > 0 ? prevCount - 1 : 0);
+      _likesCount = _isLiked
+          ? prevCount + 1
+          : (prevCount > 0 ? prevCount - 1 : 0);
     });
 
     try {
@@ -252,13 +242,15 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
         });
 
         // Send notification to author
-        unawaited(NotificationService().sendNotificationToUser(
-          targetUserId: widget.reel.userId,
-          title: "Reel Liked",
-          message: "Liked your reel: ${widget.reel.title}",
-          notificationType: "like",
-          senderId: user.id,
-        ));
+        unawaited(
+          NotificationService().sendNotificationToUser(
+            targetUserId: widget.reel.userId,
+            title: "Reel Liked",
+            message: "Liked your reel: ${widget.reel.title}",
+            notificationType: "like",
+            senderId: user.id,
+          ),
+        );
       } else {
         await supabase.from('reel_likes').delete().match({
           'reel_id': widget.reel.id,
@@ -338,13 +330,15 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
         });
       } catch (_) {}
 
-      unawaited(NotificationService().sendNotificationToUser(
-        targetUserId: widget.reel.userId,
-        title: "New Follower",
-        message: "Started following you on ZEV",
-        notificationType: "follow",
-        senderId: user.id,
-      ));
+      unawaited(
+        NotificationService().sendNotificationToUser(
+          targetUserId: widget.reel.userId,
+          title: "New Follower",
+          message: "Started following you on ZEV",
+          notificationType: "follow",
+          senderId: user.id,
+        ),
+      );
     } catch (e) {
       debugPrint("Follow reel creator error: $e");
       if (mounted) setState(() => _isFollowing = false);
@@ -498,8 +492,10 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
               right: 0,
               child: Center(
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.8),
                     borderRadius: BorderRadius.circular(20),
@@ -539,8 +535,10 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
             ),
 
           // 4. Center Pause Badge with Mute/Unmute Toggle directly above it
-          // Exactly as requested: Mute icon is hidden during playback, and appears above the pause badge when paused!
-          if (_controller != null && _isInitialized && !_controller!.value.isPlaying)
+          // Tactile Claymorphic design with dual ambient shadows
+          if (_controller != null &&
+              _isInitialized &&
+              !_controller!.value.isPlaying)
             Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -553,21 +551,26 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
+                        horizontal: 16,
+                        vertical: 9,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.65),
-                        borderRadius: BorderRadius.circular(20),
+                        color: Colors.black.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(22),
                         border: Border.all(
-                          color: Colors.white24,
-                          width: 1,
+                          color: Colors.white.withValues(alpha: 0.3),
+                          width: 1.5,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.4),
-                            blurRadius: 14,
-                            offset: const Offset(0, 3),
+                            color: Colors.black.withValues(alpha: 0.35),
+                            blurRadius: 16,
+                            offset: const Offset(0, 4),
+                          ),
+                          BoxShadow(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            blurRadius: 6,
+                            offset: const Offset(0, -1),
                           ),
                         ],
                       ),
@@ -581,39 +584,48 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                             color: Colors.white,
                             size: 19,
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 8),
                           Text(
                             widget.isGlobalMuted ? "Muted" : "Sound On",
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 14),
-                  // Center Pause Circle Badge
+                  const SizedBox(height: 16),
+                  // Center Pause Clay Badge
                   Container(
-                    width: 70,
-                    height: 70,
+                    width: 74,
+                    height: 74,
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.55),
+                      color: Colors.black.withValues(alpha: 0.50),
                       shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.3),
+                        width: 2.0,
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.35),
-                          blurRadius: 18,
-                          offset: const Offset(0, 4),
+                          blurRadius: 20,
+                          offset: const Offset(0, 6),
+                        ),
+                        BoxShadow(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          blurRadius: 8,
+                          offset: const Offset(0, -2),
                         ),
                       ],
                     ),
                     child: const Icon(
                       Icons.pause_rounded,
                       color: Colors.white,
-                      size: 42,
+                      size: 44,
                     ),
                   ),
                 ],
@@ -656,26 +668,36 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
           // 7. Right-Side Action Column: Avatar + Like + Comment + Share + Save + Spinning Disc
           Positioned(
             right: 14,
-            bottom: 40,
+            bottom: 96,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 // Author Avatar with '+' follow badge if not followed
-                GestureDetector(
-                  onTap: shouldShowFollowButton ? _toggleFollow : null,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
+                Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        ProfileScreen.open(context, userId: widget.reel.userId);
+                      },
+                      child: Container(
                         width: 48,
                         height: 48,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: Colors.white,
+                            color: Colors.white.withValues(alpha: 0.9),
                             width: 2.0,
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.35),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
                         child: ClipOval(
                           child: widget.reel.authorAvatar.isNotEmpty
@@ -684,10 +706,10 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) =>
                                       const Icon(
-                                    Icons.person_rounded,
-                                    size: 26,
-                                    color: Colors.white70,
-                                  ),
+                                        Icons.person_rounded,
+                                        size: 26,
+                                        color: Colors.white70,
+                                      ),
                                 )
                               : const Icon(
                                   Icons.person_rounded,
@@ -696,15 +718,29 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                                 ),
                         ),
                       ),
-                      if (shouldShowFollowButton)
-                        Positioned(
-                          bottom: -6,
+                    ),
+                    if (shouldShowFollowButton)
+                      Positioned(
+                        bottom: -6,
+                        child: GestureDetector(
+                          onTap: _toggleFollow,
                           child: Container(
-                            width: 20,
-                            height: 20,
-                            decoration: const BoxDecoration(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
                               color: ZevColors.primaryBlue,
                               shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.3),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
                             ),
                             child: const Center(
                               child: Icon(
@@ -715,8 +751,8 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                             ),
                           ),
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 20),
 
@@ -752,15 +788,26 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
 
                 // Save / Bookmark Button
                 GestureDetector(
-                  onTap: _toggleBookmark,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    _toggleBookmark();
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Icon(
                       _isSaved
                           ? Icons.bookmark_rounded
                           : Icons.bookmark_border_rounded,
                       color: _isSaved ? ZevColors.primaryBlue : Colors.white,
-                      size: 28,
+                      size: 29,
+                      shadows: const [
+                        Shadow(
+                          color: Colors.black54,
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -776,9 +823,16 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                       shape: BoxShape.circle,
                       color: const Color(0xFF1E222B),
                       border: Border.all(
-                        color: Colors.white24,
-                        width: 2,
+                        color: Colors.white.withValues(alpha: 0.6),
+                        width: 1.8,
                       ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black45,
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
                     ),
                     padding: const EdgeInsets.all(5),
                     child: ClipOval(
@@ -788,15 +842,15 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) =>
                                   const Icon(
-                                Icons.music_note_rounded,
-                                color: ZevColors.primaryBlue,
-                                size: 16,
-                              ),
+                                    Icons.music_note_rounded,
+                                    color: ZevColors.primaryBlue,
+                                    size: 15,
+                                  ),
                             )
                           : const Icon(
                               Icons.music_note_rounded,
                               color: ZevColors.primaryBlue,
-                              size: 16,
+                              size: 15,
                             ),
                     ),
                   ),
@@ -805,38 +859,62 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
             ),
           ),
 
-          // 8. Bottom-Left Information Overlay: Author, Follow, Caption, Audio
+          // 8. Bottom-Left Information Overlay: Author, Follow, Caption, Audio (Authentic Instagram Floating Style)
           Positioned(
-            left: 16,
-            right: 80,
-            bottom: 34,
+            left: 14,
+            right: 84,
+            bottom: 96,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 // Author row with Follow button
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Flexible(
-                      child: Text(
-                        "@${widget.reel.authorUsername}",
-                        style: const TextStyle(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
+                      child: GestureDetector(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          ProfileScreen.open(
+                            context,
+                            userId: widget.reel.userId,
+                          );
+                        },
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                "@${widget.reel.authorUsername}",
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black87,
+                                      blurRadius: 8,
+                                      offset: Offset(0, 1),
+                                    ),
+                                  ],
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (widget.reel.isVerified) ...[
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.verified_rounded,
+                                size: 16,
+                                color: ZevColors.primaryBlue,
+                              ),
+                            ],
+                          ],
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (widget.reel.isVerified) ...[
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.verified_rounded,
-                        size: 15,
-                        color: ZevColors.primaryBlue,
-                      ),
-                    ],
                     if (shouldShowFollowButton) ...[
                       const SizedBox(width: 10),
                       GestureDetector(
@@ -844,11 +922,14 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
-                            vertical: 4,
+                            vertical: 3.5,
                           ),
                           decoration: BoxDecoration(
-                            border: Border.all(color: Colors.white, width: 1.2),
-                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.85),
+                              width: 1.2,
+                            ),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: _isFollowLoading
                               ? const SizedBox(
@@ -859,12 +940,18 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                                     color: Colors.white,
                                   ),
                                 )
-                              : const Text(
-                                  "Follow",
-                                  style: TextStyle(
-                                    fontSize: 11.5,
+                              : Text(
+                                  _isFollowing ? "Following" : "Follow",
+                                  style: const TextStyle(
+                                    fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                     color: Colors.white,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black54,
+                                        blurRadius: 4,
+                                      ),
+                                    ],
                                   ),
                                 ),
                         ),
@@ -874,7 +961,7 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                 ),
                 const SizedBox(height: 8),
 
-                // Title & Caption with Smart RTL/LTR
+                // Title & Caption with Smart RTL/LTR & "...more" expansion
                 if (widget.reel.description.isNotEmpty ||
                     widget.reel.title.isNotEmpty)
                   GestureDetector(
@@ -885,14 +972,22 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                       widget.reel.description.isNotEmpty
                           ? widget.reel.description
                           : widget.reel.title,
-                      textDirection:
-                          isRtl ? TextDirection.rtl : TextDirection.ltr,
+                      textDirection: isRtl
+                          ? TextDirection.rtl
+                          : TextDirection.ltr,
                       maxLines: _isCaptionExpanded ? 8 : 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 13,
+                        fontSize: 13.5,
                         color: Colors.white,
                         height: 1.35,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black87,
+                            blurRadius: 6,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -903,8 +998,9 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                   children: [
                     const Icon(
                       Icons.music_note_rounded,
-                      color: Colors.white70,
+                      color: Colors.white,
                       size: 15,
+                      shadows: [Shadow(color: Colors.black87, blurRadius: 4)],
                     ),
                     const SizedBox(width: 6),
                     Expanded(
@@ -912,8 +1008,11 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                         "Original audio • ${widget.reel.authorUsername}",
                         style: const TextStyle(
                           fontSize: 12,
-                          color: Colors.white70,
+                          color: Colors.white,
                           fontWeight: FontWeight.w500,
+                          shadows: [
+                            Shadow(color: Colors.black87, blurRadius: 4),
+                          ],
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -925,16 +1024,16 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
             ),
           ),
 
-          // 9. Floating Scrubber Tooltip & Interactive Scrubber Bar
+          // 9. Floating Scrubber Tooltip & Interactive Scrubber Bar (Above floating dock)
           Positioned(
             left: 0,
             right: 0,
-            bottom: 0,
+            bottom: 86,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 // Live timestamp bubble when scrubbing
-                if (_isScrubbing)
+                if (_isScrubbing && _totalDuration.inMilliseconds > 0)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Container(
@@ -951,7 +1050,7 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                         ),
                       ),
                       child: Text(
-                        "${_formatDuration(Duration(milliseconds: (_scrubRatio * _totalDuration.inMilliseconds).round()))} / ${_formatDuration(_totalDuration)}",
+                        "${_formatDuration(Duration(milliseconds: (_scrubRatio * _totalDuration.inMilliseconds).clamp(0, _totalDuration.inMilliseconds).round()))} / ${_formatDuration(_totalDuration)}",
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -965,24 +1064,36 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onHorizontalDragStart: (details) {
-                    setState(() {
-                      _isScrubbing = true;
-                      _scrubRatio = (details.localPosition.dx /
-                              MediaQuery.of(context).size.width)
-                          .clamp(0.0, 1.0);
-                    });
+                    final width = MediaQuery.sizeOf(context).width;
+                    if (width > 0) {
+                      setState(() {
+                        _isScrubbing = true;
+                        _scrubRatio = (details.localPosition.dx / width).clamp(
+                          0.0,
+                          1.0,
+                        );
+                      });
+                    }
                   },
                   onHorizontalDragUpdate: (details) {
-                    setState(() {
-                      _scrubRatio = (details.localPosition.dx /
-                              MediaQuery.of(context).size.width)
-                          .clamp(0.0, 1.0);
-                    });
+                    final width = MediaQuery.sizeOf(context).width;
+                    if (width > 0) {
+                      setState(() {
+                        _scrubRatio = (details.localPosition.dx / width).clamp(
+                          0.0,
+                          1.0,
+                        );
+                      });
+                    }
                   },
                   onHorizontalDragEnd: (details) {
-                    if (_controller != null && _isInitialized) {
+                    if (_controller != null &&
+                        _isInitialized &&
+                        _totalDuration.inMilliseconds > 0) {
                       final targetMs =
-                          (_scrubRatio * _totalDuration.inMilliseconds).round();
+                          (_scrubRatio * _totalDuration.inMilliseconds)
+                              .clamp(0, _totalDuration.inMilliseconds)
+                              .round();
                       _controller!.seekTo(Duration(milliseconds: targetMs));
                     }
                     setState(() => _isScrubbing = false);
@@ -998,20 +1109,21 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                         child: FractionallySizedBox(
                           alignment: Alignment.centerLeft,
                           widthFactor: _isScrubbing
-                              ? _scrubRatio
+                              ? _scrubRatio.clamp(0.0, 1.0)
                               : (_totalDuration.inMilliseconds > 0
-                                  ? (_currentPosition.inMilliseconds /
-                                          _totalDuration.inMilliseconds)
-                                      .clamp(0.0, 1.0)
-                                  : 0.0),
+                                    ? (_currentPosition.inMilliseconds /
+                                              _totalDuration.inMilliseconds)
+                                          .clamp(0.0, 1.0)
+                                    : 0.0),
                           child: Container(
                             decoration: BoxDecoration(
                               color: ZevColors.primaryBlue,
                               boxShadow: _isScrubbing
                                   ? [
                                       BoxShadow(
-                                        color: ZevColors.primaryBlue
-                                            .withValues(alpha: 0.8),
+                                        color: ZevColors.primaryBlue.withValues(
+                                          alpha: 0.8,
+                                        ),
                                         blurRadius: 8,
                                       ),
                                     ]
@@ -1038,29 +1150,56 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
     String? label,
     required VoidCallback onTap,
   }) {
+    final displayText =
+        label ??
+        (count != null
+            ? (count > 999 ? "${(count / 1000).toStringAsFixed(1)}K" : "$count")
+            : "");
+
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
       behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: iconColor, size: 30),
-          const SizedBox(height: 4),
-          Text(
-            label ??
-                (count != null
-                    ? (count > 999
-                        ? "${(count / 1000).toStringAsFixed(1)}K"
-                        : "$count")
-                    : ""),
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-              letterSpacing: -0.2,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: iconColor,
+              size: 30,
+              shadows: const [
+                Shadow(
+                  color: Colors.black54,
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
+              ],
             ),
-          ),
-        ],
+            if (displayText.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                displayText,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  letterSpacing: -0.2,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black87,
+                      blurRadius: 6,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

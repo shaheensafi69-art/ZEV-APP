@@ -8,6 +8,7 @@ import '../../../core/services/notification_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
 import '../../../core/utils/time_ago.dart';
+import '../../profile/screens/profile_screen.dart';
 import '../models/feed_post_item.dart';
 import '../screens/fullscreen_media_viewer.dart';
 import 'feed_comments_sheet.dart';
@@ -177,6 +178,17 @@ class _FeedPostCardState extends State<FeedPostCard>
           'post_id': widget.post.id,
           'student_id': user.id,
         });
+
+        if (widget.post.authorId.isNotEmpty && widget.post.authorId != user.id) {
+          unawaited(NotificationService().sendNotificationToUser(
+            targetUserId: widget.post.authorId,
+            title: "Post Liked",
+            message: "liked your post.",
+            notificationType: "like",
+            linkUrl: widget.post.id,
+            senderId: user.id,
+          ));
+        }
       } else {
         await supabase
             .from('discussion_likes')
@@ -346,82 +358,133 @@ class _FeedPostCardState extends State<FeedPostCard>
     final shouldShowFollowButton = !isMe && !_isFollowing;
 
     return Container(
-      decoration: const BoxDecoration(
-        color: ZevColors.white,
-        border: Border(
-          bottom: BorderSide(
-            color: ZevColors.border,
-            width: 0.6,
-          ),
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.95),
+          width: 1.8,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+            blurRadius: 22,
+            offset: const Offset(0, 6),
+            spreadRadius: -1,
+          ),
+          const BoxShadow(
+            color: Colors.white,
+            blurRadius: 10,
+            offset: Offset(0, -2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 1. Post Header: Avatar, Username + Subtitle, Follow Pill, 3-dots
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 10),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 17,
-                  backgroundColor: ZevColors.softSurface,
-                  backgroundImage: post.authorAvatar.isNotEmpty
-                      ? NetworkImage(post.authorAvatar)
-                      : null,
-                  child: post.authorAvatar.isEmpty
-                      ? const Icon(
-                          Icons.person_rounded,
-                          size: 20,
-                          color: ZevColors.textMuted,
-                        )
-                      : null,
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    ProfileScreen.open(context, userId: post.authorId);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFF1F5F9),
+                      border: Border.all(color: Colors.white, width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: CircleAvatar(
+                      radius: 17,
+                      backgroundColor: ZevColors.softSurface,
+                      backgroundImage: post.authorAvatar.isNotEmpty
+                          ? NetworkImage(post.authorAvatar)
+                          : null,
+                      child: post.authorAvatar.isEmpty
+                          ? const Icon(
+                              Icons.person_rounded,
+                              size: 20,
+                              color: ZevColors.textMuted,
+                            )
+                          : null,
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Username & Verified Badge
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              post.authorUsername.isNotEmpty
-                                  ? post.authorUsername
-                                  : 'user',
-                              style: const TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w800,
-                                color: ZevColors.deepNavy,
+                  child: GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      ProfileScreen.open(context, userId: post.authorId);
+                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Username & Verified Badge
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                post.authorUsername.isNotEmpty
+                                    ? post.authorUsername
+                                    : 'user',
+                                style: const TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: ZevColors.deepNavy,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (post.isVerified) ...[
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.verified_rounded,
+                                size: 15,
+                                color: ZevColors.primaryBlue,
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        // Subtitle Pill (Category / Education / AI)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: Colors.white,
+                              width: 1.0,
                             ),
                           ),
-                          if (post.isVerified) ...[
-                            const SizedBox(width: 4),
-                            const Icon(
-                              Icons.verified_rounded,
-                              size: 15,
-                              color: ZevColors.primaryBlue,
+                          child: Text(
+                            subtitle,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: ZevColors.textSecondary,
+                              fontWeight: FontWeight.w600,
                             ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 1),
-                      // Subtitle (AI content / Education / Analysis)
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          color: ZevColors.textMuted,
-                          fontWeight: FontWeight.w400,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
 
@@ -436,7 +499,18 @@ class _FeedPostCardState extends State<FeedPostCard>
                       ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF0095F6),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.8),
+                          width: 1.2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF0095F6).withValues(alpha: 0.35),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: _isFollowLoading
                           ? const SizedBox(
@@ -457,125 +531,154 @@ class _FeedPostCardState extends State<FeedPostCard>
                             ),
                     ),
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 6),
                 ],
 
-                IconButton(
-                  icon: const Icon(
-                    Icons.more_horiz_rounded,
-                    color: ZevColors.deepNavy,
-                    size: 20,
+                // Tactile Clay 3-Dots Button
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    _showPostOptions();
+                  },
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white, width: 1.0),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.more_horiz_rounded,
+                      color: ZevColors.deepNavy,
+                      size: 18,
+                    ),
                   ),
-                  onPressed: _showPostOptions,
                 ),
               ],
             ),
           ),
 
-          // 2. Media Box (Full Display without cut-off + Tap to Fullscreen)
+          // 2. Media Box (Smoothly Framed within Clay Card + Tap to Fullscreen)
           if (post.imageUrl.isNotEmpty)
-            GestureDetector(
-              onTap: _openFullscreenViewer,
-              onDoubleTap: _triggerDoubleTapLike,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    constraints: const BoxConstraints(
-                      minHeight: 220,
-                      maxHeight: 580,
-                    ),
-                    color: ZevColors.softSurface,
-                    child: post.imageUrl.startsWith('http')
-                        ? Image.network(
-                            post.imageUrl,
-                            fit: BoxFit.contain, // Full un-cropped display
-                            width: double.infinity,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Container(
-                                height: 320,
-                                color: ZevColors.softSurface,
-                                child: const Center(
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: ZevColors.primaryBlue,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: GestureDetector(
+                  onTap: _openFullscreenViewer,
+                  onDoubleTap: _triggerDoubleTapLike,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        constraints: const BoxConstraints(
+                          minHeight: 220,
+                          maxHeight: 560,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: post.imageUrl.startsWith('http')
+                            ? Image.network(
+                                post.imageUrl,
+                                fit: BoxFit.contain, // Full un-cropped display
+                                width: double.infinity,
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return Container(
+                                    height: 320,
+                                    color: const Color(0xFFF1F5F9),
+                                    child: const Center(
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: ZevColors.primaryBlue,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Container(
+                                  height: 220,
+                                  color: const Color(0xFFF1F5F9),
+                                  child: const Center(
+                                    child: Icon(
+                                      Icons.broken_image_rounded,
+                                      size: 48,
+                                      color: ZevColors.textMuted,
+                                    ),
                                   ),
                                 ),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                              height: 220,
-                              color: ZevColors.softSurface,
-                              child: const Center(
-                                child: Icon(
-                                  Icons.broken_image_rounded,
-                                  size: 48,
-                                  color: ZevColors.textMuted,
+                              )
+                            : Image.file(
+                                File(post.imageUrl),
+                                fit: BoxFit.contain,
+                                width: double.infinity,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Container(
+                                  height: 220,
+                                  color: const Color(0xFFF1F5F9),
+                                  child: const Center(
+                                    child: Icon(
+                                      Icons.broken_image_rounded,
+                                      size: 48,
+                                      color: ZevColors.textMuted,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          )
-                        : Image.file(
-                            File(post.imageUrl),
-                            fit: BoxFit.contain,
-                            width: double.infinity,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                              height: 220,
-                              color: ZevColors.softSurface,
-                              child: const Center(
-                                child: Icon(
-                                  Icons.broken_image_rounded,
-                                  size: 48,
-                                  color: ZevColors.textMuted,
-                                ),
-                              ),
-                            ),
-                          ),
-                  ),
+                      ),
 
-                  // Floating Heart Pop
-                  if (_showFloatingHeart)
-                    AnimatedBuilder(
-                      animation: _heartAnimCtrl,
-                      builder: (context, _) {
-                        return Opacity(
-                          opacity: _heartOpacityAnim.value,
-                          child: Transform.scale(
-                            scale: _heartScaleAnim.value,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color:
-                                        Colors.redAccent.withValues(alpha: 0.5),
-                                    blurRadius: 36,
-                                    spreadRadius: 8,
+                      // Floating Heart Pop
+                      if (_showFloatingHeart)
+                        AnimatedBuilder(
+                          animation: _heartAnimCtrl,
+                          builder: (context, _) {
+                            return Opacity(
+                              opacity: _heartOpacityAnim.value,
+                              child: Transform.scale(
+                                scale: _heartScaleAnim.value,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color:
+                                            Colors.redAccent.withValues(alpha: 0.5),
+                                        blurRadius: 36,
+                                        spreadRadius: 8,
+                                      ),
+                                    ],
                                   ),
-                                ],
+                                  child: const Icon(
+                                    Icons.favorite_rounded,
+                                    size: 100,
+                                    color: Colors.white,
+                                  ),
+                                ),
                               ),
-                              child: const Icon(
-                                Icons.favorite_rounded,
-                                size: 100,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                ],
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ),
 
-          // 3. Instagram Exact Single-Line Action Metrics Toolbar:
+          // 3. Tactile Clay Action Metrics Toolbar:
           // [♡ 1,514] [💬 13] [🔁 47] [✈️] ... [🔖]
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -590,8 +693,10 @@ class _FeedPostCardState extends State<FeedPostCard>
                           _isLiked ? Colors.redAccent : ZevColors.deepNavy,
                       count: _likesCount,
                       onTap: _toggleLike,
+                      isHighlight: _isLiked,
+                      highlightBg: Colors.redAccent.withValues(alpha: 0.10),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 8),
 
                     // Comment + Count
                     _buildMetricAction(
@@ -600,7 +705,7 @@ class _FeedPostCardState extends State<FeedPostCard>
                       count: widget.post.commentsCount,
                       onTap: _openComments,
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 8),
 
                     // Repost + Count
                     _buildMetricAction(
@@ -610,8 +715,10 @@ class _FeedPostCardState extends State<FeedPostCard>
                           : ZevColors.deepNavy,
                       count: _repostsCount,
                       onTap: _toggleRepost,
+                      isHighlight: _isReposted,
+                      highlightBg: ZevColors.primaryBlue.withValues(alpha: 0.12),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 8),
 
                     // Share
                     _buildMetricAction(
@@ -623,25 +730,45 @@ class _FeedPostCardState extends State<FeedPostCard>
                   ],
                 ),
 
-                // Bookmark / Save
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: Icon(
-                    _isSaved
-                        ? Icons.bookmark_rounded
-                        : Icons.bookmark_border_rounded,
-                    color:
-                        _isSaved ? ZevColors.primaryBlue : ZevColors.deepNavy,
-                    size: 25,
-                  ),
-                  onPressed: () {
+                // Tactile Clay Bookmark / Save
+                GestureDetector(
+                  onTap: () {
                     HapticFeedback.lightImpact();
                     setState(() => _isSaved = !_isSaved);
                     _showNotice(_isSaved
                         ? "Saved to collection."
                         : "Removed from collection.");
                   },
+                  child: Container(
+                    padding: const EdgeInsets.all(7.5),
+                    decoration: BoxDecoration(
+                      color: _isSaved
+                          ? const Color(0xFF00D4FF).withValues(alpha: 0.15)
+                          : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _isSaved
+                            ? const Color(0xFF00D4FF).withValues(alpha: 0.5)
+                            : Colors.white,
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      _isSaved
+                          ? Icons.bookmark_rounded
+                          : Icons.bookmark_border_rounded,
+                      color:
+                          _isSaved ? ZevColors.primaryBlue : ZevColors.deepNavy,
+                      size: 20,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -772,29 +899,61 @@ class _FeedPostCardState extends State<FeedPostCard>
     required Color iconColor,
     required int? count,
     required VoidCallback onTap,
+    bool isHighlight = false,
+    Color? highlightBg,
   }) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
       behavior: HitTestBehavior.opaque,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: iconColor, size: 24),
-          if (count != null && count > 0) ...[
-            const SizedBox(width: 5),
-            Text(
-              count > 999
-                  ? "${(count / 1000).toStringAsFixed(1)}K"
-                  : "$count",
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: ZevColors.deepNavy,
-                letterSpacing: -0.2,
-              ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isHighlight
+              ? (highlightBg ?? const Color(0xFFF1F5F9))
+              : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isHighlight
+                ? (highlightBg?.withValues(alpha: 0.5) ?? Colors.white)
+                : Colors.white,
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+            const BoxShadow(
+              color: Colors.white,
+              blurRadius: 4,
+              offset: Offset(0, -1),
             ),
           ],
-        ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: iconColor, size: 20),
+            if (count != null && count > 0) ...[
+              const SizedBox(width: 5),
+              Text(
+                count > 999
+                    ? "${(count / 1000).toStringAsFixed(1)}K"
+                    : "$count",
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: isHighlight ? iconColor : ZevColors.deepNavy,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -804,45 +963,104 @@ class _FeedPostCardState extends State<FeedPostCard>
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => Container(
-        padding: const EdgeInsets.all(20),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border.all(color: Colors.white, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.12),
+              blurRadius: 30,
+              offset: const Offset(0, -6),
+            ),
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading:
-                  const Icon(Icons.share_outlined, color: ZevColors.deepNavy),
-              title: const Text("Share Post",
-                  style: TextStyle(fontWeight: FontWeight.w700)),
+            // Drag Handle
+            Container(
+              width: 38,
+              height: 4.5,
+              decoration: BoxDecoration(
+                color: const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+            const SizedBox(height: 18),
+            _buildPostOptionTile(
+              icon: Icons.share_outlined,
+              title: "Share Post",
+              color: ZevColors.deepNavy,
               onTap: () {
                 Navigator.pop(context);
                 _openShareSheet();
               },
             ),
-            ListTile(
-              leading:
-                  const Icon(Icons.link_rounded, color: ZevColors.deepNavy),
-              title: const Text("Copy Link",
-                  style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 10),
+            _buildPostOptionTile(
+              icon: Icons.link_rounded,
+              title: "Copy Link",
+              color: ZevColors.deepNavy,
               onTap: () {
                 Navigator.pop(context);
                 _showNotice("Link copied.");
               },
             ),
-            ListTile(
-              leading:
-                  const Icon(Icons.flag_outlined, color: Colors.redAccent),
-              title: const Text("Report",
-                  style: TextStyle(
-                      fontWeight: FontWeight.w700, color: Colors.redAccent)),
+            const SizedBox(height: 10),
+            _buildPostOptionTile(
+              icon: Icons.flag_outlined,
+              title: "Report",
+              color: Colors.redAccent,
               onTap: () {
                 Navigator.pop(context);
                 _showNotice("Thank you. Report received for review.");
               },
             ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPostOptionTile({
+    required IconData icon,
+    required String title,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white, width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 14),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+            const Spacer(),
+            const Icon(Icons.chevron_right_rounded, color: ZevColors.textMuted, size: 20),
           ],
         ),
       ),

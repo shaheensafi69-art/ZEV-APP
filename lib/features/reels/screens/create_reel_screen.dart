@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:easy_compressor/easy_compressor.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../core/services/cloudflare_storage_service.dart';
+import '../../../core/services/content_safety_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
 import '../models/reel_item.dart';
@@ -215,9 +217,33 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
     });
 
     try {
+      // Pre-upload +18 and Violence Safety Check on Video Frames
+      final safetyResult = await ContentSafetyService.instance.checkVideoSafety(
+        _selectedVideo!,
+      );
+      if (!safetyResult.isSafe) {
+        if (mounted) {
+          setState(() {
+            _isPublishing = false;
+            _errorMessage = safetyResult.errorMessage ??
+                "This video was flagged as inappropriate (+18) and cannot be posted.";
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                safetyResult.errorMessage ??
+                    "Content flagged as inappropriate (+18).",
+              ),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        return;
+      }
+
       final ext = _selectedVideo!.path.split('.').last;
-      final fileName =
-          'reel_${user.id}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'reel_${user.id}_$timestamp.$ext';
 
       // 1. Upload video to Cloudflare R2
       final videoUrl = await CloudflareStorageService.instance.upload(
@@ -226,6 +252,27 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
         file: _selectedVideo,
       );
 
+      // 2. Generate and upload real thumbnail
+      String thumbnailUrl = '';
+      try {
+        final thumbBytes = await EasyCompressor().getThumbnail(
+          _selectedVideo!.path,
+          position: const Duration(milliseconds: 500),
+          quality: 80,
+          maxHeight: 720,
+        );
+        if (thumbBytes != null && thumbBytes.isNotEmpty) {
+          thumbnailUrl = await CloudflareStorageService.instance.upload(
+            bucket: 'reels',
+            path: 'thumb_${user.id}_$timestamp.jpg',
+            bytes: thumbBytes,
+            contentType: 'image/jpeg',
+          );
+        }
+      } catch (thumbErr) {
+        debugPrint("Reel thumbnail generation notice: $thumbErr");
+      }
+
       final caption = _captionCtrl.text.trim();
       final title = _titleCtrl.text.trim().isNotEmpty
           ? _titleCtrl.text.trim()
@@ -233,13 +280,13 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
               ? (caption.length > 40 ? caption.substring(0, 40) : caption)
               : "Reel by @$_authorUsername");
 
-      // 2. Insert into reels table
+      // 3. Insert into reels table
       await supabase.from('reels').insert({
         'user_id': user.id,
         'title': title,
         'description': caption,
         'video_url': videoUrl,
-        'thumbnail_url': '',
+        'thumbnail_url': thumbnailUrl,
         'category': _selectedCategory,
         'duration_seconds': _videoDuration.inSeconds > 0
             ? _videoDuration.inSeconds

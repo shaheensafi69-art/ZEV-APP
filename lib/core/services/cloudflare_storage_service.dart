@@ -21,7 +21,13 @@ class CloudflareStorageService {
       dotenv.env['CLOUDFLARE_R2_SECRET_ACCESS_KEY'] ?? '';
   String get _defaultBucket =>
       dotenv.env['CLOUDFLARE_R2_BUCKET_NAME'] ?? 'safiacademy-media';
-  String get _publicDomain => dotenv.env['CLOUDFLARE_R2_PUBLIC_DOMAIN'] ?? '';
+  String get _publicDomain {
+    final domain = dotenv.env['CLOUDFLARE_R2_PUBLIC_DOMAIN'];
+    if (domain != null && domain.trim().isNotEmpty) {
+      return domain.trim();
+    }
+    return 'https://media.zevapp.com';
+  }
 
   bool get isConfigured {
     return _accountId.isNotEmpty &&
@@ -51,6 +57,11 @@ class CloudflareStorageService {
         bucket.isNotEmpty &&
         !sanitizedPath.startsWith('$bucket/')) {
       sanitizedPath = '$bucket/$sanitizedPath';
+    }
+
+    // Keep all ZEV uploads isolated under a dedicated 'zev/' folder
+    if (!sanitizedPath.startsWith('zev/')) {
+      sanitizedPath = 'zev/$sanitizedPath';
     }
 
     final mimeType = contentType ?? _inferContentType(sanitizedPath);
@@ -243,6 +254,14 @@ class CloudflareStorageService {
         return 'video/mp4';
       case 'mov':
         return 'video/quicktime';
+      case 'm4a':
+        return 'audio/m4a';
+      case 'aac':
+        return 'audio/aac';
+      case 'mp3':
+        return 'audio/mpeg';
+      case 'wav':
+        return 'audio/wav';
       default:
         return 'application/octet-stream';
     }

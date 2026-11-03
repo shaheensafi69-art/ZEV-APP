@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../core/services/notification_service.dart';
 
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
@@ -165,6 +168,26 @@ class _FeedCommentsSheetState extends State<FeedCommentsSheet> {
         'comment_text': text,
       });
 
+      // Dispatch in-app notification to post author
+      try {
+        final postRes = await supabase
+            .from('discussion_posts')
+            .select('student_id')
+            .eq('id', widget.postId)
+            .maybeSingle();
+        final authorId = postRes?['student_id']?.toString() ?? '';
+        if (authorId.isNotEmpty && authorId != user.id) {
+          unawaited(NotificationService().sendNotificationToUser(
+            targetUserId: authorId,
+            title: "New Comment",
+            message: "commented on your post: \"$text\"",
+            notificationType: "comment",
+            linkUrl: widget.postId,
+            senderId: user.id,
+          ));
+        }
+      } catch (_) {}
+
       widget.onCommentAdded?.call();
 
       // Scroll to bottom
@@ -189,20 +212,38 @@ class _FeedCommentsSheetState extends State<FeedCommentsSheet> {
     return Container(
       height: mediaQuery.size.height * 0.72,
       padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.95),
+          width: 1.8,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.12),
+            blurRadius: 30,
+            offset: const Offset(0, -6),
+          ),
+        ],
       ),
       child: Column(
         children: [
           // Drag Handle
           const SizedBox(height: 12),
           Container(
-            width: 40,
-            height: 4.5,
+            width: 44,
+            height: 5,
             decoration: BoxDecoration(
-              color: ZevColors.border,
+              color: const Color(0xFFCBD5E1),
               borderRadius: BorderRadius.circular(3),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.white,
+                  blurRadius: 4,
+                  offset: Offset(0, 1),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 14),
@@ -211,13 +252,17 @@ class _FeedCommentsSheetState extends State<FeedCommentsSheet> {
           const Text(
             "Comments",
             style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
               color: ZevColors.deepNavy,
+              letterSpacing: -0.3,
             ),
           ),
           const SizedBox(height: 12),
-          const Divider(height: 1, color: ZevColors.border),
+          Container(
+            height: 1,
+            color: Colors.white,
+          ),
 
           // Comments List
           Expanded(
@@ -275,14 +320,27 @@ class _FeedCommentsSheetState extends State<FeedCommentsSheet> {
                             item['created_at']?.toString(),
                           );
 
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
+                          return Container(
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.white, width: 1.2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 CircleAvatar(
                                   radius: 17,
-                                  backgroundColor: ZevColors.softSurface,
+                                  backgroundColor: const Color(0xFFF1F5F9),
                                   backgroundImage: avatar.isNotEmpty
                                       ? NetworkImage(avatar)
                                       : null,
@@ -353,36 +411,57 @@ class _FeedCommentsSheetState extends State<FeedCommentsSheet> {
 
           // Bottom Input Bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: const BoxDecoration(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
               color: Colors.white,
-              border: Border(
-                top: BorderSide(color: ZevColors.border, width: 1),
-              ),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+              border: Border.all(color: Colors.white, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                  blurRadius: 12,
+                  offset: const Offset(0, -3),
+                ),
+              ],
             ),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: ZevColors.softSurface,
-                  backgroundImage: _myAvatarUrl.isNotEmpty
-                      ? NetworkImage(_myAvatarUrl)
-                      : null,
-                  child: _myAvatarUrl.isEmpty
-                      ? const Icon(
-                          Icons.person_rounded,
-                          size: 18,
-                          color: ZevColors.textMuted,
-                        )
-                      : null,
+                Container(
+                  padding: const EdgeInsets.all(1.5),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFFF1F5F9),
+                    border: Border.all(color: Colors.white, width: 1.2),
+                  ),
+                  child: CircleAvatar(
+                    radius: 16,
+                    backgroundColor: const Color(0xFFF1F5F9),
+                    backgroundImage: _myAvatarUrl.isNotEmpty
+                        ? NetworkImage(_myAvatarUrl)
+                        : null,
+                    child: _myAvatarUrl.isEmpty
+                        ? const Icon(
+                            Icons.person_rounded,
+                            size: 18,
+                            color: ZevColors.textMuted,
+                          )
+                        : null,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: ZevColors.softSurface,
+                      color: const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: ZevColors.border),
+                      border: Border.all(color: Colors.white, width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     child: TextField(
@@ -407,19 +486,44 @@ class _FeedCommentsSheetState extends State<FeedCommentsSheet> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                IconButton(
-                  onPressed: _isSending ? null : _handlePostComment,
-                  icon: _isSending
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(
-                          Icons.send_rounded,
-                          color: ZevColors.primaryBlue,
-                          size: 22,
+                GestureDetector(
+                  onTap: _isSending ? null : _handlePostComment,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF00D4FF), Color(0xFF536DFE)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF00D4FF).withValues(alpha: 0.4),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
+                      ],
+                    ),
+                    child: Center(
+                      child: _isSending
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.arrow_upward_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                    ),
+                  ),
                 ),
               ],
             ),

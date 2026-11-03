@@ -1,11 +1,17 @@
+import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/services/auth_helper.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../core/theme/zev_theme.dart';
+import '../../chat/screens/chat_list_screen.dart';
+import '../../explore/screens/explore_screen.dart';
 import '../../feed/screens/create_post_screen.dart';
 import '../../feed/screens/feed_viewer_screen.dart';
+import '../../notifications/screens/notifications_screen.dart';
+import '../../profile/screens/profile_screen.dart';
 import '../../reels/screens/create_reel_screen.dart';
 import '../../reels/screens/reels_viewer_screen.dart';
 import '../../stories/screens/create_story_screen.dart';
@@ -26,9 +32,6 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   late int _currentIndex;
 
   String _myAvatarUrl = '';
-  String _myUsername = 'user';
-  String _myFullName = 'ZEV User';
-  String _myBio = '';
 
   @override
   void initState() {
@@ -40,21 +43,17 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   Future<void> _loadUserProfile() async {
     final user = supabase.auth.currentUser;
     if (user == null) return;
+    unawaited(NotificationService().saveFCMTokenToDatabase());
     try {
       final res = await supabase
           .from('profiles')
-          .select('avatar_url, username, first_name, last_name, bio')
+          .select('avatar_url')
           .eq('id', user.id)
           .maybeSingle();
 
       if (res != null && mounted) {
-        final fn = res['first_name'] ?? '';
-        final ln = res['last_name'] ?? '';
         setState(() {
           _myAvatarUrl = res['avatar_url'] ?? '';
-          _myUsername = res['username'] ?? 'user';
-          _myFullName = "$fn $ln".trim().isNotEmpty ? "$fn $ln".trim() : 'ZEV User';
-          _myBio = res['bio'] ?? '';
         });
       }
     } catch (_) {}
@@ -62,91 +61,124 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
 
   void _onTabTapped(int index) {
     HapticFeedback.selectionClick();
+    FocusScope.of(context).unfocus();
     setState(() => _currentIndex = index);
   }
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+
     return Scaffold(
-      backgroundColor: ZevColors.white,
-      body: IndexedStack(
-        index: _currentIndex,
+      resizeToAvoidBottomInset: false,
+      backgroundColor: _currentIndex == 3 ? Colors.black : const Color(0xFFF1F5F9),
+      body: Stack(
         children: [
-          // Tab 0: Home Feed
-          const FeedViewerScreen(),
-
-          // Tab 1: Explore / Search
-          _buildExplorePlaceholder(),
-
-          // Tab 2: Create (opens in-feed modal or creation screen)
-          _buildCreatePlaceholder(),
-
-          // Tab 3: Reels
-          ReelsViewerScreen(isScreenActive: _currentIndex == 3),
-
-          // Tab 4: Profile
-          _buildProfileScreen(),
-        ],
-      ),
-
-      // Sculpted Modern ZEV Global Bottom Navigation Bar
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: _currentIndex == 3 ? const Color(0xFF000000) : ZevColors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          border: _currentIndex == 3
-              ? const Border(
-                  top: BorderSide(color: Colors.white12, width: 0.8),
-                )
-              : null,
-          boxShadow: [
-            BoxShadow(
-              color: _currentIndex == 3
-                  ? Colors.black.withValues(alpha: 0.8)
-                  : const Color(0xFF080D1A).withValues(alpha: 0.07),
-              blurRadius: 24,
-              offset: const Offset(0, -6),
-            ),
-            if (_currentIndex != 3)
-              BoxShadow(
-                color: const Color(0xFF080D1A).withValues(alpha: 0.02),
-                blurRadius: 6,
-                offset: const Offset(0, -2),
+          // 1. Five Tab Screens
+          IndexedStack(
+            index: _currentIndex,
+            children: [
+              // Tab 0: Home Feed
+              FeedViewerScreen(
+                onOpenNotifications: () => NotificationsScreen.open(context),
+                onOpenMessages: () => ChatListScreen.open(context),
               ),
-          ],
-        ),
-        child: SafeArea(
-          top: false,
-          child: Container(
-            height: 64,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(
-                  index: 0,
-                  icon: Icons.home_outlined,
-                  activeIcon: Icons.home_rounded,
-                  label: "Home",
+
+              // Tab 1: Explore / Search (Flagship Instagram Explore)
+              const ExploreScreen(),
+
+              // Tab 2: Create (opens in-feed modal or creation screen)
+              _buildCreatePlaceholder(),
+
+              // Tab 3: Reels
+              ReelsViewerScreen(isScreenActive: _currentIndex == 3),
+
+              // Tab 4: Profile
+              const ProfileScreen(),
+            ],
+          ),
+
+          // 2. Pure Floating Claymorphic Navigation Capsule Dock (Truly floating in the air)
+          Positioned(
+            left: 18,
+            right: 18,
+            bottom: (bottomInset > 0 ? bottomInset.clamp(0.0, 10.0) : 0) + 14,
+            child: Container(
+              height: 66,
+              decoration: BoxDecoration(
+                color: _currentIndex == 3
+                    ? const Color(0xFF0F172A).withValues(alpha: 0.88)
+                    : Colors.white.withValues(alpha: 0.94),
+                borderRadius: BorderRadius.circular(36),
+                border: Border.all(
+                  color: _currentIndex == 3
+                      ? const Color(0xFF334155).withValues(alpha: 0.5)
+                      : Colors.white,
+                  width: 1.8,
                 ),
-                _buildNavItem(
-                  index: 1,
-                  icon: Icons.search_rounded,
-                  activeIcon: Icons.search_rounded,
-                  label: "Search",
+                boxShadow: [
+                  BoxShadow(
+                    color: _currentIndex == 3
+                        ? Colors.black.withValues(alpha: 0.6)
+                        : const Color(0xFF0F172A).withValues(alpha: 0.12),
+                    blurRadius: 28,
+                    offset: const Offset(0, 10),
+                    spreadRadius: 1,
+                  ),
+                  if (_currentIndex != 3)
+                    const BoxShadow(
+                      color: Colors.white,
+                      blurRadius: 10,
+                      offset: Offset(0, -2),
+                    ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(36),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildNavItem(
+                            index: 0,
+                            icon: Icons.home_outlined,
+                            activeIcon: Icons.home_rounded,
+                            label: "Home",
+                          ),
+                        ),
+                        Expanded(
+                          child: _buildNavItem(
+                            index: 1,
+                            icon: Icons.search_rounded,
+                            activeIcon: Icons.search_rounded,
+                            label: "Search",
+                          ),
+                        ),
+                        Expanded(
+                          child: _buildCenterCreateButton(),
+                        ),
+                        Expanded(
+                          child: _buildNavItem(
+                            index: 3,
+                            icon: Icons.play_circle_outline_rounded,
+                            activeIcon: Icons.play_circle_fill_rounded,
+                            label: "Reels",
+                          ),
+                        ),
+                        Expanded(
+                          child: _buildProfileNavItem(index: 4),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                _buildCenterCreateButton(),
-                _buildNavItem(
-                  index: 3,
-                  icon: Icons.play_circle_outline_rounded,
-                  activeIcon: Icons.play_circle_fill_rounded,
-                  label: "Reels",
-                ),
-                _buildProfileNavItem(index: 4),
-              ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -158,33 +190,52 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: const BoxDecoration(
-          color: ZevColors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.95),
+            width: 1.8,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.10),
+              blurRadius: 30,
+              offset: const Offset(0, -8),
+            ),
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Drag Handle
+            // Clay Drag Handle
             Container(
-              width: 38,
-              height: 4.5,
+              width: 44,
+              height: 5,
               decoration: BoxDecoration(
                 color: const Color(0xFFCBD5E1),
                 borderRadius: BorderRadius.circular(3),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.white,
+                    blurRadius: 4,
+                    offset: Offset(0, 1),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 18),
             const Text(
               "Create",
               style: TextStyle(
-                fontSize: 17,
+                fontSize: 18,
                 fontWeight: FontWeight.w900,
                 color: ZevColors.deepNavy,
+                letterSpacing: -0.3,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             _buildCreateOptionTile(
               icon: Icons.post_add_rounded,
               title: "Share Post",
@@ -202,7 +253,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                 );
               },
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             _buildCreateOptionTile(
               icon: Icons.flash_on_rounded,
               title: "Add to Story",
@@ -220,7 +271,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                 );
               },
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             _buildCreateOptionTile(
               icon: Icons.play_arrow_rounded,
               title: "Create Reel",
@@ -258,25 +309,41 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
         onTap();
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: ZevColors.softSurface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: ZevColors.border, width: 1.0),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+            const BoxShadow(
+              color: Colors.white,
+              blurRadius: 8,
+              offset: Offset(0, -2),
+            ),
+          ],
         ),
         child: Row(
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: 46,
+              height: 46,
               decoration: BoxDecoration(
                 gradient: gradient,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.8),
+                  width: 1.5,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
                   ),
                 ],
               ),
@@ -290,7 +357,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                   Text(
                     title,
                     style: const TextStyle(
-                      fontSize: 14.5,
+                      fontSize: 15,
                       fontWeight: FontWeight.w800,
                       color: ZevColors.deepNavy,
                     ),
@@ -309,7 +376,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
             const Icon(
               Icons.chevron_right_rounded,
               color: ZevColors.textMuted,
-              size: 20,
+              size: 22,
             ),
           ],
         ),
@@ -321,32 +388,36 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     return GestureDetector(
       onTap: _openCreateActionSheet,
       behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Center(
         child: Container(
           width: 48,
           height: 36,
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFF00D4FF), Color(0xFF536DFE)],
+              colors: [Color(0xFF00D4FF), Color(0xFF4F46E5)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(13),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.9),
+              width: 1.4,
+            ),
             boxShadow: [
               BoxShadow(
                 color: const Color(0xFF00D4FF).withValues(alpha: 0.45),
                 blurRadius: 12,
-                offset: const Offset(0, 4),
+                offset: const Offset(0, 3),
+              ),
+              const BoxShadow(
+                color: Colors.white,
+                blurRadius: 4,
+                offset: Offset(0, -1),
               ),
             ],
           ),
           child: const Center(
-            child: Icon(
-              Icons.add_rounded,
-              color: Colors.white,
-              size: 26,
-            ),
+            child: Icon(Icons.add_rounded, color: Colors.white, size: 24),
           ),
         ),
       ),
@@ -368,45 +439,56 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     return GestureDetector(
       onTap: () => _onTabTapped(index),
       behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedScale(
-              scale: isSelected ? 1.12 : 1.0,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutBack,
-              child: Icon(
-                isSelected ? activeIcon : icon,
-                size: 26,
-                color: isSelected ? activeColor : inactiveColor,
+      child: Center(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? (isReels
+                      ? Colors.white.withValues(alpha: 0.10)
+                      : const Color(0xFF00D4FF).withValues(alpha: 0.10))
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedScale(
+                scale: isSelected ? 1.08 : 1.0,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                child: Icon(
+                  isSelected ? activeIcon : icon,
+                  size: 24,
+                  color: isSelected ? activeColor : inactiveColor,
+                ),
               ),
-            ),
-            const SizedBox(height: 5),
-            // Glowing Active Cyan Dot Indicator
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeOutBack,
-              width: isSelected ? 14 : 0,
-              height: 3.5,
-              decoration: BoxDecoration(
-                color: isSelected ? ZevColors.primaryBlue : Colors.transparent,
-                borderRadius: BorderRadius.circular(2),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: ZevColors.primaryBlue.withValues(alpha: 0.8),
-                          blurRadius: 8,
-                          offset: const Offset(0, 1),
-                        ),
-                      ]
-                    : null,
+              const SizedBox(height: 2),
+              // Glowing Active Cyan Dot Indicator
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                width: isSelected ? 12 : 0,
+                height: 3,
+                decoration: BoxDecoration(
+                  color: isSelected ? ZevColors.primaryBlue : Colors.transparent,
+                  borderRadius: BorderRadius.circular(2),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: ZevColors.primaryBlue.withValues(alpha: 0.8),
+                            blurRadius: 6,
+                            offset: const Offset(0, 1),
+                          ),
+                        ]
+                      : null,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -420,147 +502,82 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     return GestureDetector(
       onTap: () => _onTabTapped(index),
       behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: isSelected
-                    ? const LinearGradient(
-                        colors: [Color(0xFF00D4FF), Color(0xFF536DFE)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : null,
-                border: isSelected
-                    ? null
-                    : Border.all(
-                        color: inactiveBorder,
-                        width: 1.2,
-                      ),
-              ),
-              padding: EdgeInsets.all(isSelected ? 2.0 : 0.0),
-              child: Container(
+      child: Center(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 28,
+                height: 28,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isReels ? Colors.black : ZevColors.white,
+                  gradient: isSelected
+                      ? const LinearGradient(
+                          colors: [Color(0xFF00D4FF), Color(0xFF536DFE)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : null,
+                  border: isSelected
+                      ? null
+                      : Border.all(color: inactiveBorder, width: 1.2),
                 ),
-                padding: const EdgeInsets.all(1.0),
-                child: ClipOval(
-                  child: _myAvatarUrl.isNotEmpty
-                      ? Image.network(
-                          _myAvatarUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Icon(
+                padding: EdgeInsets.all(isSelected ? 1.8 : 0.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isReels ? Colors.black : ZevColors.white,
+                  ),
+                  padding: const EdgeInsets.all(1.0),
+                  child: ClipOval(
+                    child: _myAvatarUrl.isNotEmpty
+                        ? Image.network(
+                            _myAvatarUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                              Icons.person_rounded,
+                              size: 16,
+                              color: isReels
+                                  ? Colors.white70
+                                  : ZevColors.textMuted,
+                            ),
+                          )
+                        : Icon(
                             Icons.person_rounded,
-                            size: 18,
+                            size: 16,
                             color: isReels ? Colors.white70 : ZevColors.textMuted,
                           ),
-                        )
-                      : Icon(
-                          Icons.person_rounded,
-                          size: 18,
-                          color: isReels ? Colors.white70 : ZevColors.textMuted,
-                        ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 5),
-            // Glowing Active Cyan Dot Indicator
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeOutBack,
-              width: isSelected ? 14 : 0,
-              height: 3.5,
-              decoration: BoxDecoration(
-                color: isSelected ? ZevColors.primaryBlue : Colors.transparent,
-                borderRadius: BorderRadius.circular(2),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: ZevColors.primaryBlue.withValues(alpha: 0.8),
-                          blurRadius: 8,
-                          offset: const Offset(0, 1),
-                        ),
-                      ]
-                    : null,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Explore Placeholder
-  Widget _buildExplorePlaceholder() {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Container(
-              height: 42,
-              decoration: BoxDecoration(
-                color: ZevColors.softSurface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: ZevColors.border),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: const Row(
-                children: [
-                  Icon(Icons.search_rounded, color: ZevColors.textMuted, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    "Search creators, tags, or topics...",
-                    style: TextStyle(
-                      color: ZevColors.textMuted,
-                      fontSize: 13.5,
-                    ),
                   ),
-                ],
-              ),
-            ),
-            const Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.explore_outlined,
-                      size: 48,
-                      color: ZevColors.primaryBlue,
-                    ),
-                    SizedBox(height: 14),
-                    Text(
-                      "Explore ZEV",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: ZevColors.deepNavy,
-                      ),
-                    ),
-                    SizedBox(height: 6),
-                    Text(
-                      "Discover trending reels, posts, and creators.",
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: ZevColors.textSecondary,
-                      ),
-                    ),
-                  ],
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 3),
+              // Glowing Active Cyan Dot Indicator
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                width: isSelected ? 12 : 0,
+                height: 3,
+                decoration: BoxDecoration(
+                  color: isSelected ? ZevColors.primaryBlue : Colors.transparent,
+                  borderRadius: BorderRadius.circular(2),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: ZevColors.primaryBlue.withValues(alpha: 0.8),
+                            blurRadius: 6,
+                            offset: const Offset(0, 1),
+                          ),
+                        ]
+                      : null,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -570,235 +587,62 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   Widget _buildCreatePlaceholder() {
     return SafeArea(
       child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: ZevColors.primaryBlue.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: ZevColors.primaryBlue.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.add_photo_alternate_rounded,
+                  size: 40,
+                  color: ZevColors.primaryBlue,
+                ),
               ),
-              child: const Icon(
-                Icons.add_photo_alternate_rounded,
-                size: 40,
-                color: ZevColors.primaryBlue,
-              ),
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              "Create Content",
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                color: ZevColors.deepNavy,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 36),
-              child: Text(
-                "Share photos, short reels, or stories with the community.",
-                textAlign: TextAlign.center,
+              const SizedBox(height: 18),
+              const Text(
+                "Create Content",
                 style: TextStyle(
-                  fontSize: 13.5,
-                  color: ZevColors.textSecondary,
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () => setState(() => _currentIndex = 0),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: ZevColors.primaryBlue,
-                foregroundColor: ZevColors.deepNavy,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: const Text("Go to Feed"),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Profile Screen
-  Widget _buildProfileScreen() {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Profile Header Row
-            Row(
-              children: [
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: ZevColors.primaryBlue,
-                      width: 2.5,
-                    ),
-                  ),
-                  child: ClipOval(
-                    child: _myAvatarUrl.isNotEmpty
-                        ? Image.network(_myAvatarUrl, fit: BoxFit.cover)
-                        : const Icon(
-                            Icons.person_rounded,
-                            size: 44,
-                            color: ZevColors.textMuted,
-                          ),
-                  ),
-                ),
-                const SizedBox(width: 24),
-                Expanded(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildProfileStat("Posts", "0"),
-                      _buildProfileStat("Followers", "0"),
-                      _buildProfileStat("Following", "0"),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            Text(
-              _myFullName,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: ZevColors.deepNavy,
-              ),
-            ),
-            Text(
-              "@$_myUsername",
-              style: const TextStyle(
-                fontSize: 13,
-                color: ZevColors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            if (_myBio.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                _myBio,
-                style: const TextStyle(
-                  fontSize: 13.5,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
                   color: ZevColors.deepNavy,
                 ),
               ),
-            ],
-
-            const SizedBox(height: 24),
-
-            // Action Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {},
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: ZevColors.softSurface,
-                      side: const BorderSide(color: ZevColors.border),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: const Text(
-                      "Edit Profile",
-                      style: TextStyle(
-                        color: ZevColors.deepNavy,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                    ),
+              const SizedBox(height: 8),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 36),
+                child: Text(
+                  "Share photos, short reels, or stories with the community.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    color: ZevColors.textSecondary,
                   ),
                 ),
-                const SizedBox(width: 8),
-                OutlinedButton(
-                  onPressed: () async {
-                    HapticFeedback.mediumImpact();
-                    await AuthHelper.logout(context);
-                  },
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFEF2F2),
-                    side: const BorderSide(color: Color(0xFFFCA5A5)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: const Text(
-                    "Log Out",
-                    style: TextStyle(
-                      color: Color(0xFFDC2626),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 32),
-            const Divider(color: ZevColors.border),
-            const SizedBox(height: 16),
-
-            const Center(
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.grid_on_rounded,
-                    size: 36,
-                    color: ZevColors.deepNavy,
-                  ),
-                  SizedBox(height: 12),
-                  Text(
-                    "No posts yet",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: ZevColors.deepNavy,
-                    ),
-                  ),
-                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => setState(() => _currentIndex = 0),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ZevColors.primaryBlue,
+                  foregroundColor: ZevColors.deepNavy,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text("Go to Feed"),
+              ),
+            ],
+          ),
         ),
       ),
-    );
-  }
-
-  Widget _buildProfileStat(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w900,
-            color: ZevColors.deepNavy,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: ZevColors.textSecondary,
-          ),
-        ),
-      ],
     );
   }
 }
