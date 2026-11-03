@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/services/content_safety_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
+import '../widgets/video_trimmer_sheet.dart';
 
 /// Flagship Instagram-Grade Story Creation Studio for ZEV.
 /// Fully designed in serene Light Mode matching official ZEV branding (#00D4FF / #080D1A).
@@ -55,6 +57,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
   int _activeMode = 0;
 
   File? _selectedImage;
+  bool _isVideo = false;
+  VideoPlayerController? _videoCtrl;
+  bool _isVideoInitialized = false;
   bool _isPublishing = false;
   String? _errorMessage;
 
@@ -95,6 +100,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
   void dispose() {
     _captionCtrl.dispose();
     _previewTimerAnim.dispose();
+    _videoCtrl?.dispose();
     super.dispose();
   }
 
@@ -126,8 +132,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
         maxWidth: 1440,
       );
       if (picked != null) {
+        await _videoCtrl?.dispose();
         setState(() {
           _selectedImage = File(picked.path);
+          _isVideo = false;
+          _videoCtrl = null;
+          _isVideoInitialized = false;
           _errorMessage = null;
         });
       }
@@ -136,10 +146,59 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
     }
   }
 
+  Future<void> _pickVideo(ImageSource source) async {
+    HapticFeedback.lightImpact();
+    try {
+      final picked = await _picker.pickVideo(
+        source: source,
+        maxDuration: const Duration(minutes: 10),
+      );
+      if (picked == null) return;
+
+      File videoFile = File(picked.path);
+
+      // Verify duration
+      final tempCtrl = VideoPlayerController.file(videoFile);
+      await tempCtrl.initialize();
+      final duration = tempCtrl.value.duration;
+      await tempCtrl.dispose();
+
+      // Enforce 1:30 (90 seconds) limit with WhatsApp-style trimmer
+      if (duration.inSeconds > 90) {
+        if (!mounted) return;
+        final trimmedFile = await VideoTrimmerSheet.show(
+          context,
+          videoFile: videoFile,
+          maxDuration: const Duration(seconds: 90),
+        );
+        if (trimmedFile == null) return;
+        videoFile = trimmedFile;
+      }
+
+      await _videoCtrl?.dispose();
+      final newCtrl = VideoPlayerController.file(videoFile);
+      await newCtrl.initialize();
+      newCtrl.setLooping(true);
+      newCtrl.play();
+
+      if (mounted) {
+        setState(() {
+          _selectedImage = videoFile;
+          _isVideo = true;
+          _videoCtrl = newCtrl;
+          _isVideoInitialized = true;
+          _errorMessage = null;
+        });
+      }
+    } catch (e) {
+      debugPrint("Story video picker error: $e");
+    }
+  }
+
   Future<void> _publishStory() async {
     if (_selectedImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select a photo for your story.")),
+        const SnackBar(content: Text("Please select a photo or video for your story.")),
       );
       return;
     }
@@ -159,37 +218,39 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
     });
 
     try {
-      // Pre-upload +18 and Violence Safety Check
-      final safetyResult = await ContentSafetyService.instance.checkImageSafety(
-        file: _selectedImage,
-      );
-      if (!safetyResult.isSafe) {
-        if (mounted) {
-          setState(() {
-            _isPublishing = false;
-            _errorMessage = safetyResult.errorMessage ??
-                "This story was flagged as inappropriate (+18) and cannot be posted.";
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                safetyResult.errorMessage ??
-                    "Content flagged as inappropriate (+18).",
+      if (!_isVideo) {
+        // Pre-upload +18 and Violence Safety Check for photos
+        final safetyResult = await ContentSafetyService.instance.checkImageSafety(
+          file: _selectedImage,
+        );
+        if (!safetyResult.isSafe) {
+          if (mounted) {
+            setState(() {
+              _isPublishing = false;
+              _errorMessage = safetyResult.errorMessage ??
+                  "This story was flagged as inappropriate (+18) and cannot be posted.";
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  safetyResult.errorMessage ??
+                      "Content flagged as inappropriate (+18).",
+                ),
+                backgroundColor: Colors.redAccent,
               ),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
+            );
+          }
+          return;
         }
-        return;
       }
 
-      final ext = _selectedImage!.path.split('.').last;
+      final ext = _selectedImage!.path.split('.').last.toLowerCase();
       final fileName =
           'story_${user.id}_${DateTime.now().millisecondsSinceEpoch}.$ext';
 
-      // 1. Upload to Cloudflare R2
+      // 1. Upload to Cloudflare R2 bucket 'stories'
       final mediaUrl = await CloudflareStorageService.instance.upload(
-        bucket: 'feed',
+        bucket: 'stories',
         path: fileName,
         file: _selectedImage,
       );
@@ -201,7 +262,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
       await supabase.from('user_stories').insert({
         'user_id': user.id,
         'media_url': mediaUrl,
-        'media_type': 'image',
+        'media_type': _isVideo ? 'video' : 'image',
         'caption': _captionCtrl.text.trim(),
         'created_at': now.toIso8601String(),
         'expires_at': expiresAt,
@@ -509,11 +570,22 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    // Selected Image
-                    Image.file(
-                      _selectedImage!,
-                      fit: BoxFit.cover,
-                    ),
+                    // Selected Media (Image or Video)
+                    if (_isVideo && _isVideoInitialized && _videoCtrl != null)
+                      FittedBox(
+                        fit: BoxFit.cover,
+                        clipBehavior: Clip.hardEdge,
+                        child: SizedBox(
+                          width: _videoCtrl!.value.size.width,
+                          height: _videoCtrl!.value.size.height,
+                          child: VideoPlayer(_videoCtrl!),
+                        ),
+                      )
+                    else
+                      Image.file(
+                        _selectedImage!,
+                        fit: BoxFit.cover,
+                      ),
 
                     // Active Color Tint Filter
                     if (_filterColors[_activeFilterIndex] != null)
@@ -786,12 +858,21 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                 Expanded(
                   child: _buildPickerCard(
                     icon: Icons.photo_library_rounded,
-                    title: "Gallery",
+                    title: "Photo",
                     subtitle: "Choose photo",
                     onTap: () => _pickImage(ImageSource.gallery),
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildPickerCard(
+                    icon: Icons.video_library_rounded,
+                    title: "Video",
+                    subtitle: "Max 1:30",
+                    onTap: () => _pickVideo(ImageSource.gallery),
+                  ),
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: _buildPickerCard(
                     icon: Icons.camera_alt_rounded,
@@ -945,11 +1026,22 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    // Story Canvas Image
-                    Image.file(
-                      _selectedImage!,
-                      fit: BoxFit.cover,
-                    ),
+                    // Story Canvas Media (Image or Video)
+                    if (_isVideo && _isVideoInitialized && _videoCtrl != null)
+                      FittedBox(
+                        fit: BoxFit.cover,
+                        clipBehavior: Clip.hardEdge,
+                        child: SizedBox(
+                          width: _videoCtrl!.value.size.width,
+                          height: _videoCtrl!.value.size.height,
+                          child: VideoPlayer(_videoCtrl!),
+                        ),
+                      )
+                    else
+                      Image.file(
+                        _selectedImage!,
+                        fit: BoxFit.cover,
+                      ),
 
                     // Color Filter
                     if (_filterColors[_activeFilterIndex] != null)

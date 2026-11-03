@@ -4,7 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/zev_cached_image.dart';
 import '../models/story_highlight_model.dart';
+import 'video_cover_thumbnail.dart';
 
 /// Fullscreen, Instagram-Grade Story Highlight Viewer for ZEV.
 /// Plays highlight stories (images, videos, and text notes) with segmented progress,
@@ -52,6 +54,7 @@ class _HighlightViewerScreenState extends State<HighlightViewerScreen>
   int _currentIndex = 0;
   late final AnimationController _progressAnimCtrl;
   bool _isPaused = false;
+  DateTime? _pointerDownTime;
 
   VideoPlayerController? _videoPlayerCtrl;
   bool _isVideoInitialized = false;
@@ -251,29 +254,32 @@ class _HighlightViewerScreenState extends State<HighlightViewerScreen>
             // 1. Content Media (Image, Video, or Text)
             _buildItemContent(item),
 
-            // 2. Touch Navigation Gestures (Left 35% Previous, Right 65% Next, Hold Pause)
+            // 2. Touch Navigation Gestures (Instant Hold Pause & Tap Skip)
             Positioned.fill(
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 35,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: _previousItem,
-                      onLongPressStart: (_) => _pause(),
-                      onLongPressEnd: (_) => _resume(),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 65,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: _nextItem,
-                      onLongPressStart: (_) => _pause(),
-                      onLongPressEnd: (_) => _resume(),
-                    ),
-                  ),
-                ],
+              child: Listener(
+                behavior: HitTestBehavior.translucent,
+                onPointerDown: (e) {
+                  _pointerDownTime = DateTime.now();
+                  _pause();
+                },
+                onPointerUp: (e) {
+                  final downTime = _pointerDownTime;
+                  _resume();
+                  if (downTime != null) {
+                    final elapsed =
+                        DateTime.now().difference(downTime).inMilliseconds;
+                    if (elapsed < 250) {
+                      final screenWidth = MediaQuery.of(context).size.width;
+                      if (e.position.dx < screenWidth * 0.35) {
+                        _previousItem();
+                      } else {
+                        _nextItem();
+                      }
+                    }
+                  }
+                },
+                onPointerCancel: (_) => _resume(),
+                child: const SizedBox.expand(),
               ),
             ),
 
@@ -350,12 +356,14 @@ class _HighlightViewerScreenState extends State<HighlightViewerScreen>
                     ),
                     child: ClipOval(
                       child: widget.highlight.coverUrl.isNotEmpty
-                          ? Image.network(
-                              widget.highlight.coverUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  const Icon(Icons.star, color: Colors.white, size: 18),
-                            )
+                          ? (widget.highlight.coverUrl.toLowerCase().contains('.mp4') ||
+                                  widget.highlight.coverUrl.toLowerCase().contains('.mov') ||
+                                  widget.highlight.coverUrl.toLowerCase().contains('.webm')
+                              ? VideoCoverThumbnail(videoUrl: widget.highlight.coverUrl)
+                              : ZevCachedImage.avatar(
+                                  imageUrl: widget.highlight.coverUrl,
+                                  size: 32,
+                                ))
                           : const Icon(Icons.star, color: Colors.white, size: 18),
                     ),
                   ),
@@ -477,24 +485,11 @@ class _HighlightViewerScreenState extends State<HighlightViewerScreen>
     // Default: Image
     return Center(
       child: item.mediaUrl.isNotEmpty
-          ? Image.network(
-              item.mediaUrl,
+          ? ZevCachedImage(
+              imageUrl: item.mediaUrl,
               fit: BoxFit.contain,
               width: double.infinity,
               height: double.infinity,
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return const Center(
-                  child: CircularProgressIndicator(
-                    color: ZevColors.primaryBlue,
-                    strokeWidth: 2,
-                  ),
-                );
-              },
-              errorBuilder: (context, error, stackTrace) => const Center(
-                child: Icon(Icons.broken_image_rounded,
-                    color: Colors.white38, size: 48),
-              ),
             )
           : const Center(
               child: Icon(Icons.image, color: Colors.white24, size: 48),

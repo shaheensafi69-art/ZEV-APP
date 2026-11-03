@@ -13,8 +13,8 @@ class ReelVideoCacheManager {
   factory ReelVideoCacheManager() => _instance;
   ReelVideoCacheManager._internal();
 
-  // Maximum active controllers kept in phone RAM
-  static const int _maxControllersInRam = 8;
+  // Maximum active controllers kept in phone RAM (3 = active + 1 next + 1 prev to prevent hardware decoder starvation)
+  static const int _maxControllersInRam = 3;
 
   final Map<String, VideoPlayerController> _controllerCache = {};
   final Map<String, Completer<VideoPlayerController>> _inProgressInit = {};
@@ -97,6 +97,17 @@ class ReelVideoCacheManager {
         return _controllerCache[url] ?? VideoPlayerController.networkUrl(Uri.parse(url));
       }));
     }
+  }
+
+  /// Pauses all controllers in RAM immediately (e.g. when switching away from Reels tab)
+  void pauseAll() {
+    _controllerCache.forEach((_, controller) {
+      try {
+        if (controller.value.isPlaying) {
+          controller.pause();
+        }
+      } catch (_) {}
+    });
   }
 
   /// Pauses all controllers in RAM except the active one

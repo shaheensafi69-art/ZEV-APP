@@ -15,15 +15,24 @@ import '../models/feed_post_item.dart';
 /// - Signature circular app pills (Add to story, Copy link, WhatsApp, Share, WhatsApp Status, More)
 class FeedShareSheet extends StatefulWidget {
   final FeedPostItem post;
+  final bool isReel;
 
-  const FeedShareSheet({super.key, required this.post});
+  const FeedShareSheet({
+    super.key,
+    required this.post,
+    this.isReel = false,
+  });
 
-  static void show(BuildContext context, {required FeedPostItem post}) {
+  static void show(
+    BuildContext context, {
+    required FeedPostItem post,
+    bool isReel = false,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => FeedShareSheet(post: post),
+      builder: (_) => FeedShareSheet(post: post, isReel: isReel),
     );
   }
 
@@ -119,11 +128,17 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
     );
   }
 
+  String get _postUrl {
+    final type = widget.isReel ? "reel" : "post";
+    return "https://www.zevapp.com/$type/${widget.post.id}";
+  }
+
   String get _shareText {
     final title = widget.post.title.isNotEmpty ? "${widget.post.title}\n" : "";
     final content =
         widget.post.content.isNotEmpty ? "${widget.post.content}\n\n" : "";
-    return "Check out @${widget.post.authorUsername}'s post on ZEV:\n$title$content${widget.post.imageUrl}";
+    final mediaType = widget.isReel ? "reel" : "post";
+    return "Check out @${widget.post.authorUsername}'s $mediaType on ZEV:\n$title$content$_postUrl";
   }
 
   Future<void> _launchExternalApp(String urlScheme, String webFallback) async {
@@ -152,11 +167,11 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
 
   void _copyPostLink() {
     HapticFeedback.lightImpact();
-    Clipboard.setData(ClipboardData(text: _shareText));
+    Clipboard.setData(ClipboardData(text: _postUrl));
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text("Link copied to clipboard"),
+        content: const Text("Post link copied to clipboard"),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: const Duration(seconds: 2),

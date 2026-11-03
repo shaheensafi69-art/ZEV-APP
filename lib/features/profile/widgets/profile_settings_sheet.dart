@@ -3,35 +3,48 @@ import 'package:flutter/services.dart';
 
 import '../../../core/services/auth_helper.dart';
 import '../../../core/theme/zev_theme.dart';
+import 'help_support_sheet.dart';
+import 'notification_settings_sheet.dart';
+import 'privacy_security_sheet.dart';
+import 'user_activity_sheet.dart';
 
 /// Instagram-Grade Settings & Options Sheet for ZEV Profile.
 /// Opened via the top-right hamburger menu (☰).
+/// Features 8 fully activated options with real database integrations.
 class ProfileSettingsSheet extends StatelessWidget {
+  final Map<String, dynamic> profile;
   final VoidCallback? onOpenSaved;
   final VoidCallback? onOpenShareProfile;
   final VoidCallback? onOpenEditProfile;
+  final ValueChanged<Map<String, dynamic>>? onProfileUpdated;
 
   const ProfileSettingsSheet({
     super.key,
+    required this.profile,
     this.onOpenSaved,
     this.onOpenShareProfile,
     this.onOpenEditProfile,
+    this.onProfileUpdated,
   });
 
   static void show(
     BuildContext context, {
+    required Map<String, dynamic> profile,
     VoidCallback? onOpenSaved,
     VoidCallback? onOpenShareProfile,
     VoidCallback? onOpenEditProfile,
+    ValueChanged<Map<String, dynamic>>? onProfileUpdated,
   }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => ProfileSettingsSheet(
+        profile: profile,
         onOpenSaved: onOpenSaved,
         onOpenShareProfile: onOpenShareProfile,
         onOpenEditProfile: onOpenEditProfile,
+        onProfileUpdated: onProfileUpdated,
       ),
     );
   }
@@ -146,6 +159,7 @@ class ProfileSettingsSheet extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: [
+                  // 1. Edit profile
                   _buildMenuItem(
                     icon: Icons.edit_outlined,
                     title: "Edit profile",
@@ -156,6 +170,7 @@ class ProfileSettingsSheet extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
 
+                  // 2. Saved
                   _buildMenuItem(
                     icon: Icons.bookmark_border_rounded,
                     title: "Saved",
@@ -166,6 +181,7 @@ class ProfileSettingsSheet extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
 
+                  // 3. QR code & Share profile
                   _buildMenuItem(
                     icon: Icons.qr_code_rounded,
                     title: "QR code & Share profile",
@@ -176,54 +192,55 @@ class ProfileSettingsSheet extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
 
+                  // 4. Your activity
                   _buildMenuItem(
                     icon: Icons.history_rounded,
                     title: "Your activity",
                     onTap: () {
                       Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Activity insights coming soon!")),
-                      );
+                      UserActivitySheet.show(context, profile: profile);
                     },
                   ),
                   const SizedBox(height: 8),
 
+                  // 5. Notifications
                   _buildMenuItem(
                     icon: Icons.notifications_none_rounded,
                     title: "Notifications",
                     onTap: () {
                       Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Notification preferences")),
-                      );
+                      NotificationSettingsSheet.show(context);
                     },
                   ),
                   const SizedBox(height: 8),
 
+                  // 6. Account privacy & Security
                   _buildMenuItem(
                     icon: Icons.security_outlined,
                     title: "Account privacy & Security",
                     onTap: () {
                       Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Account security settings")),
+                      PrivacySecuritySheet.show(
+                        context,
+                        profile: profile,
+                        onProfileUpdated: onProfileUpdated,
                       );
                     },
                   ),
                   const SizedBox(height: 8),
 
+                  // 7. Help & Support
                   _buildMenuItem(
                     icon: Icons.help_outline_rounded,
                     title: "Help & Support",
                     onTap: () {
                       Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("ZEV Support: support@zevapp.com")),
-                      );
+                      HelpSupportSheet.show(context);
                     },
                   ),
                   const SizedBox(height: 12),
 
+                  // 8. Log Out
                   _buildMenuItem(
                     icon: Icons.logout_rounded,
                     title: "Log Out",
@@ -307,4 +324,3 @@ class ProfileSettingsSheet extends StatelessWidget {
     );
   }
 }
-

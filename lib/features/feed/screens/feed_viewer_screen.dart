@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/notification_service.dart';
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/zev_cached_image.dart';
 import '../models/feed_post_item.dart';
 import '../widgets/feed_post_card.dart';
 import '../widgets/feed_stories_tray.dart';
@@ -637,25 +638,16 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                     ),
                                   ],
                                 ),
-                                child: ClipOval(
-                                  child: avatarUrl.isNotEmpty
-                                      ? Image.network(
-                                          avatarUrl,
-                                          fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (context, error, stackTrace) =>
-                                                  const Icon(
-                                            Icons.person,
-                                            size: 34,
-                                            color: ZevColors.textMuted,
-                                          ),
-                                        )
-                                      : const Icon(
-                                          Icons.person,
-                                          size: 34,
-                                          color: ZevColors.textMuted,
-                                        ),
-                                ),
+                                child: avatarUrl.isNotEmpty
+                                    ? ZevCachedImage.avatar(
+                                        imageUrl: avatarUrl,
+                                        size: 64,
+                                      )
+                                    : const Icon(
+                                        Icons.person,
+                                        size: 34,
+                                        color: ZevColors.textMuted,
+                                      ),
                               ),
                             ),
                             const SizedBox(height: 10),
@@ -790,6 +782,8 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
           color: ZevColors.primaryBlue,
           onRefresh: _fetchFeedData,
           child: CustomScrollView(
+            // ignore: deprecated_member_use
+            cacheExtent: 1200.0,
             physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics(),
             ),
@@ -1105,26 +1099,33 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                 )
               else
                 SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    final post = _posts[index];
-                    final card = FeedPostCard(
-                      key: ValueKey(post.id),
-                      post: post,
-                      onCommentsUpdated: _fetchPosts,
-                    );
-
-                    // Render "Suggested for you" carousel directly below the first post
-                    if (index == 0 &&
-                        _suggestedUsers.isNotEmpty &&
-                        !_dismissSuggestedCarousel) {
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [card, _buildSuggestedCarousel()],
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final post = _posts[index];
+                      final card = RepaintBoundary(
+                        child: FeedPostCard(
+                          key: ValueKey(post.id),
+                          post: post,
+                          onCommentsUpdated: _fetchPosts,
+                        ),
                       );
-                    }
 
-                    return card;
-                  }, childCount: _posts.length),
+                      // Render "Suggested for you" carousel directly below the first post
+                      if (index == 0 &&
+                          _suggestedUsers.isNotEmpty &&
+                          !_dismissSuggestedCarousel) {
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [card, _buildSuggestedCarousel()],
+                        );
+                      }
+
+                      return card;
+                    },
+                    childCount: _posts.length,
+                    addAutomaticKeepAlives: true,
+                    addRepaintBoundaries: true,
+                  ),
                 ),
 
               // Bottom Spacer to comfortably clear the floating navigation dock

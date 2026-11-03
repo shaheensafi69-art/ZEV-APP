@@ -6,12 +6,14 @@ class ZevLogo extends StatelessWidget {
   final double height;
   final bool showText;
   final double spacing;
+  final Color? textColor;
 
   const ZevLogo({
     super.key,
     this.height = 32,
     this.showText = true,
     this.spacing = 8,
+    this.textColor,
   });
 
   @override
@@ -52,7 +54,7 @@ class ZevLogo extends StatelessWidget {
           Text(
             'ZEV',
             style: TextStyle(
-              color: ZevColors.deepNavy,
+              color: textColor ?? ZevColors.deepNavy,
               fontSize: height * 0.65,
               fontWeight: FontWeight.w900,
               letterSpacing: 1.5,

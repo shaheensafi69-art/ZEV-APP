@@ -8,6 +8,7 @@ class StoryHighlightItem {
   final String caption;
   final DateTime createdAt;
   final List<int>? bgGradientColors; // For text stories: [0xFF..., 0xFF...]
+  final String? thumbnailUrl;
 
   const StoryHighlightItem({
     required this.id,
@@ -16,6 +17,7 @@ class StoryHighlightItem {
     this.caption = '',
     required this.createdAt,
     this.bgGradientColors,
+    this.thumbnailUrl,
   });
 
   Map<String, dynamic> toJson() => {
@@ -25,6 +27,7 @@ class StoryHighlightItem {
         'caption': caption,
         'created_at': createdAt.toIso8601String(),
         'bg_gradient_colors': bgGradientColors,
+        'thumbnail_url': thumbnailUrl,
       };
 
   factory StoryHighlightItem.fromJson(Map<String, dynamic> json) {
@@ -39,6 +42,7 @@ class StoryHighlightItem {
       bgGradientColors: (json['bg_gradient_colors'] as List?)
           ?.map((e) => (e as num).toInt())
           .toList(),
+      thumbnailUrl: json['thumbnail_url']?.toString(),
     );
   }
 }

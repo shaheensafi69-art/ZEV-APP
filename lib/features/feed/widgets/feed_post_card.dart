@@ -8,6 +8,7 @@ import '../../../core/services/notification_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
 import '../../../core/utils/time_ago.dart';
+import '../../../core/widgets/zev_cached_image.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../models/feed_post_item.dart';
 import '../screens/fullscreen_media_viewer.dart';
@@ -407,20 +408,24 @@ class _FeedPostCardState extends State<FeedPostCard>
                         ),
                       ],
                     ),
-                    child: CircleAvatar(
-                      radius: 17,
-                      backgroundColor: ZevColors.softSurface,
-                      backgroundImage: post.authorAvatar.isNotEmpty
-                          ? NetworkImage(post.authorAvatar)
-                          : null,
-                      child: post.authorAvatar.isEmpty
-                          ? const Icon(
+                    child: post.authorAvatar.isNotEmpty
+                        ? ZevCachedImage.avatar(
+                            imageUrl: post.authorAvatar,
+                            size: 34,
+                          )
+                        : Container(
+                            width: 34,
+                            height: 34,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: ZevColors.softSurface,
+                            ),
+                            child: const Icon(
                               Icons.person_rounded,
                               size: 20,
                               color: ZevColors.textMuted,
-                            )
-                          : null,
-                    ),
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -589,35 +594,10 @@ class _FeedPostCardState extends State<FeedPostCard>
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: post.imageUrl.startsWith('http')
-                            ? Image.network(
-                                post.imageUrl,
-                                fit: BoxFit.contain, // Full un-cropped display
+                            ? ZevCachedImage.feedPost(
+                                imageUrl: post.imageUrl,
+                                fit: BoxFit.contain,
                                 width: double.infinity,
-                                loadingBuilder: (context, child, loadingProgress) {
-                                  if (loadingProgress == null) return child;
-                                  return Container(
-                                    height: 320,
-                                    color: const Color(0xFFF1F5F9),
-                                    child: const Center(
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: ZevColors.primaryBlue,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                errorBuilder: (context, error, stackTrace) =>
-                                    Container(
-                                  height: 220,
-                                  color: const Color(0xFFF1F5F9),
-                                  child: const Center(
-                                    child: Icon(
-                                      Icons.broken_image_rounded,
-                                      size: 48,
-                                      color: ZevColors.textMuted,
-                                    ),
-                                  ),
-                                ),
                               )
                             : Image.file(
                                 File(post.imageUrl),

@@ -16,12 +16,14 @@ import '../../stories/screens/create_story_screen.dart';
 import '../../stories/screens/story_viewer_screen.dart';
 import '../models/story_highlight_model.dart';
 import '../services/story_highlight_service.dart';
+import '../../../core/widgets/zev_cached_image.dart';
 import '../widgets/create_highlight_sheet.dart';
 import '../widgets/edit_profile_sheet.dart';
 import '../widgets/highlight_viewer_screen.dart';
 import '../widgets/profile_settings_sheet.dart';
 import '../widgets/share_profile_sheet.dart';
 import '../widgets/user_follows_sheet.dart';
+import '../widgets/video_cover_thumbnail.dart';
 import '../../discover/screens/discover_screen.dart';
 
 /// Next-Generation Claymorphic Profile Screen for ZEV Social Network.
@@ -584,7 +586,20 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   void _openSettingsMenu() {
     HapticFeedback.lightImpact();
-    ProfileSettingsSheet.show(context);
+    ProfileSettingsSheet.show(
+      context,
+      profile: _profile,
+      onOpenEditProfile: _openEditProfile,
+      onOpenShareProfile: _openShareProfile,
+      onOpenSaved: () {
+        if (_isMyProfile && _tabCtrl.length >= 4) {
+          _tabCtrl.animateTo(3);
+        }
+      },
+      onProfileUpdated: (updated) {
+        setState(() => _profile = updated);
+      },
+    );
   }
 
   void _openEditProfile() {
@@ -1044,16 +1059,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                           color: Colors.white,
                         ),
                         padding: const EdgeInsets.all(2.5),
-                        child: ClipOval(
-                          child: avatarUrl.isNotEmpty
-                              ? Image.network(
-                                  avatarUrl,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(Icons.person, color: ZevColors.textMuted, size: 40),
-                                )
-                              : const Icon(Icons.person, color: ZevColors.textMuted, size: 40),
-                        ),
+                        child: avatarUrl.isNotEmpty
+                            ? ZevCachedImage.avatar(
+                                imageUrl: avatarUrl,
+                                size: 84,
+                              )
+                            : const Center(
+                                child: Icon(Icons.person, color: ZevColors.textMuted, size: 40),
+                              ),
                       ),
                     ),
                     if (_isMyProfile && !_hasActiveStory)
@@ -1397,13 +1410,17 @@ class _ProfileScreenState extends State<ProfileScreen>
                     decoration: const BoxDecoration(shape: BoxShape.circle),
                     child: ClipOval(
                       child: h.coverUrl.isNotEmpty
-                          ? Image.network(
-                              h.coverUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  const Icon(Icons.star_rounded, color: ZevColors.primaryBlue, size: 28),
-                            )
-                          : const Icon(Icons.star_rounded, color: ZevColors.primaryBlue, size: 28),
+                          ? (h.coverUrl.toLowerCase().contains('.mp4') ||
+                                  h.coverUrl.toLowerCase().contains('.mov') ||
+                                  h.coverUrl.toLowerCase().contains('.webm')
+                              ? VideoCoverThumbnail(videoUrl: h.coverUrl)
+                              : ZevCachedImage.avatar(
+                                  imageUrl: h.coverUrl,
+                                  size: 58,
+                                ))
+                          : (h.items.isNotEmpty && h.items.first.mediaType == 'video'
+                              ? VideoCoverThumbnail(videoUrl: h.items.first.mediaUrl)
+                              : const Icon(Icons.star_rounded, color: ZevColors.primaryBlue, size: 28)),
                     ),
                   ),
                 ),
@@ -1657,12 +1674,8 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
               child: post.imageUrl.isNotEmpty
-                  ? Image.network(
-                      post.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => const Center(
-                        child: Icon(Icons.broken_image_rounded, color: ZevColors.textMuted),
-                      ),
+                  ? ZevCachedImage.grid(
+                      imageUrl: post.imageUrl,
                     )
                   : Container(
                       padding: const EdgeInsets.all(8),
@@ -1730,7 +1743,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 fit: StackFit.expand,
                 children: [
                   if (reel.thumbnailUrl != null && reel.thumbnailUrl!.isNotEmpty)
-                    Image.network(reel.thumbnailUrl!, fit: BoxFit.cover)
+                    ZevCachedImage.grid(imageUrl: reel.thumbnailUrl!)
                   else
                     const Center(
                       child: Icon(Icons.play_arrow_rounded, color: Colors.white54, size: 36),
@@ -1794,7 +1807,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 fit: StackFit.expand,
                 children: [
                   post.imageUrl.isNotEmpty
-                      ? Image.network(post.imageUrl, fit: BoxFit.cover)
+                      ? ZevCachedImage.grid(imageUrl: post.imageUrl)
                       : Center(
                           child: Text(
                             post.content,
@@ -1847,7 +1860,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
               child: post.imageUrl.isNotEmpty
-                  ? Image.network(post.imageUrl, fit: BoxFit.cover)
+                  ? ZevCachedImage.grid(imageUrl: post.imageUrl)
                   : Center(
                       child: Text(
                         post.content,

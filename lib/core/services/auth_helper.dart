@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/auth/screens/welcome_screen.dart';
+import '../../main.dart';
 
 /// Central auth helper for managing user sign-in and sign-out states.
 class AuthHelper {
@@ -85,7 +86,13 @@ class AuthHelper {
     } catch (e) {
       debugPrint("AuthHelper logout error: $e");
     } finally {
-      if (context.mounted) {
+      final navKey = appNavigatorKey.currentState;
+      if (navKey != null) {
+        navKey.pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+          (route) => false,
+        );
+      } else if (context.mounted) {
         Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const WelcomeScreen()),
           (route) => false,

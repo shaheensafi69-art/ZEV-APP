@@ -321,7 +321,7 @@ packages:
     source: hosted
     version: "2.2.0"
   ffmpeg_kit_flutter_new:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: ffmpeg_kit_flutter_new
       sha256: a6f881b2a41c8900733afef1806e069f58ab48e395174552e98157eb10d8adc0

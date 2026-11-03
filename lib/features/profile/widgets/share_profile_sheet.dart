@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/zev_cached_image.dart';
 
 /// Serene, Instagram-Grade Share Profile Bottom Sheet for ZEV.
 /// Displays user card with copy link, WhatsApp, and system share.
@@ -173,11 +174,9 @@ class ShareProfileSheet extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: ClipOval(
-                      child: avatarUrl.isNotEmpty
-                          ? Image.network(avatarUrl, fit: BoxFit.cover)
-                          : const Icon(Icons.person, color: Colors.white70, size: 40),
-                    ),
+                    child: avatarUrl.isNotEmpty
+                        ? ZevCachedImage.avatar(imageUrl: avatarUrl, size: 76)
+                        : const Icon(Icons.person, color: Colors.white70, size: 40),
                   ),
                   const SizedBox(height: 12),
                   Text(

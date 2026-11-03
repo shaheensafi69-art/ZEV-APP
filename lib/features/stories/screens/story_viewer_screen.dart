@@ -2,16 +2,21 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../../core/services/notification_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
 import '../../../core/utils/time_ago.dart';
+import '../../../core/widgets/zev_cached_image.dart';
 import '../../feed/models/feed_post_item.dart';
 
 /// Serene, Instagram-Grade Story Viewer for ZEV.
-/// Features segmented top progress bars, tap to skip/back, hold to pause,
-/// dynamic RTL/LTR captions, and direct message reply.
+/// Features:
+/// - 5-second timer for photos and text stories
+/// - Exact video duration timer for video stories
+/// - Instant press-and-hold freeze / pause (both video and progress timer)
+/// - Segmented top progress bars, tap to skip/back, and direct message replies.
 class StoryViewerScreen extends StatefulWidget {
   final ActiveFriendStory friendStory;
 
@@ -47,7 +52,11 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
 
   late final AnimationController _progressAnimCtrl;
   bool _isPaused = false;
+  DateTime? _pointerDownTime;
   final TextEditingController _replyCtrl = TextEditingController();
+
+  VideoPlayerController? _videoPlayerCtrl;
+  bool _isVideoInitialized = false;
 
   @override
   void initState() {
@@ -70,6 +79,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   @override
   void dispose() {
     _progressAnimCtrl.dispose();
+    _videoPlayerCtrl?.dispose();
     _replyCtrl.dispose();
     super.dispose();
   }
@@ -92,9 +102,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
         });
 
         if (list.isNotEmpty) {
-          _progressAnimCtrl.forward(from: 0.0);
+          _setupCurrentStory();
         } else {
-          // No active stories, close after 1s notice
           Future.delayed(const Duration(milliseconds: 800), () {
             if (mounted) Navigator.pop(context);
           });
@@ -106,10 +115,56 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     }
   }
 
+  void _setupCurrentStory() {
+    if (_stories.isEmpty) return;
+
+    _videoPlayerCtrl?.pause();
+    _videoPlayerCtrl?.dispose();
+    _videoPlayerCtrl = null;
+    _isVideoInitialized = false;
+
+    final currentStory = _stories[_currentIndex];
+    final mediaUrl = currentStory['media_url'] as String? ?? '';
+    final mediaType = currentStory['media_type'] as String? ?? 'image';
+
+    final isVideo = mediaType == 'video' ||
+        mediaUrl.toLowerCase().contains('.mp4') ||
+        mediaUrl.toLowerCase().contains('.mov') ||
+        mediaUrl.toLowerCase().contains('.webm');
+
+    if (isVideo && mediaUrl.isNotEmpty) {
+      _progressAnimCtrl.stop();
+      _videoPlayerCtrl = VideoPlayerController.networkUrl(Uri.parse(mediaUrl))
+        ..initialize().then((_) {
+          if (!mounted) return;
+          final videoDuration = _videoPlayerCtrl!.value.duration;
+          setState(() {
+            _isVideoInitialized = true;
+            _progressAnimCtrl.duration = videoDuration > Duration.zero
+                ? videoDuration
+                : const Duration(seconds: 5);
+          });
+          if (!_isPaused) {
+            _videoPlayerCtrl!.play();
+            _progressAnimCtrl.forward(from: 0.0);
+          }
+        }).catchError((err) {
+          debugPrint("Story video playback error: $err");
+          if (!mounted) return;
+          _progressAnimCtrl.duration = const Duration(seconds: 5);
+          _progressAnimCtrl.forward(from: 0.0);
+        });
+    } else {
+      // Photo or text story: exact 5-second timer
+      _progressAnimCtrl.duration = const Duration(seconds: 5);
+      _progressAnimCtrl.forward(from: 0.0);
+    }
+  }
+
   void _onStoryFinished() {
     if (_currentIndex < _stories.length - 1) {
       setState(() => _currentIndex++);
-      _progressAnimCtrl.forward(from: 0.0);
+      _setupCurrentStory();
     } else {
       Navigator.pop(context);
     }
@@ -119,7 +174,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     HapticFeedback.lightImpact();
     if (_currentIndex < _stories.length - 1) {
       setState(() => _currentIndex++);
-      _progressAnimCtrl.forward(from: 0.0);
+      _setupCurrentStory();
     } else {
       Navigator.pop(context);
     }
@@ -129,9 +184,9 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     HapticFeedback.lightImpact();
     if (_currentIndex > 0) {
       setState(() => _currentIndex--);
-      _progressAnimCtrl.forward(from: 0.0);
+      _setupCurrentStory();
     } else {
-      _progressAnimCtrl.forward(from: 0.0);
+      _setupCurrentStory();
     }
   }
 
@@ -139,6 +194,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     if (!_isPaused) {
       _isPaused = true;
       _progressAnimCtrl.stop();
+      _videoPlayerCtrl?.pause();
     }
   }
 
@@ -146,6 +202,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     if (_isPaused) {
       _isPaused = false;
       _progressAnimCtrl.forward();
+      _videoPlayerCtrl?.play();
     }
   }
 
@@ -206,11 +263,17 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
 
     final currentStory = _stories[_currentIndex];
     final mediaUrl = currentStory['media_url'] as String? ?? '';
+    final mediaType = currentStory['media_type'] as String? ?? 'image';
     final caption = currentStory['caption'] as String? ?? '';
     final createdAtStr = currentStory['created_at'] as String?;
     final timeStr = createdAtStr != null
         ? TimeAgo.format(DateTime.tryParse(createdAtStr) ?? DateTime.now())
         : 'Just now';
+
+    final isVideo = mediaType == 'video' ||
+        mediaUrl.toLowerCase().contains('.mp4') ||
+        mediaUrl.toLowerCase().contains('.mov') ||
+        mediaUrl.toLowerCase().contains('.webm');
 
     final isRtl = TextDirectionHelper.isRtl(caption);
 
@@ -220,76 +283,68 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // 1. Story Media Canvas
+            // 1. Story Media Canvas (Image or Video)
             Center(
-              child: mediaUrl.isNotEmpty
-                  ? Image.network(
-                      mediaUrl,
-                      fit: BoxFit.contain,
-                      width: double.infinity,
-                      height: double.infinity,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return const Center(
+              child: isVideo
+                  ? (_isVideoInitialized && _videoPlayerCtrl != null
+                      ? SizedBox.expand(
+                          child: FittedBox(
+                            fit: BoxFit.contain,
+                            child: SizedBox(
+                              width: _videoPlayerCtrl!.value.size.width,
+                              height: _videoPlayerCtrl!.value.size.height,
+                              child: VideoPlayer(_videoPlayerCtrl!),
+                            ),
+                          ),
+                        )
+                      : const Center(
                           child: CircularProgressIndicator(
                             color: ZevColors.primaryBlue,
                             strokeWidth: 2,
                           ),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Center(
-                        child: Icon(
-                          Icons.broken_image_rounded,
-                          color: Colors.white38,
-                          size: 48,
-                        ),
-                      ),
-                    )
-                  : const Center(
-                      child: Icon(
-                        Icons.image_outlined,
-                        color: Colors.white24,
-                        size: 48,
-                      ),
-                    ),
+                        ))
+                  : (mediaUrl.isNotEmpty
+                      ? ZevCachedImage(
+                          imageUrl: mediaUrl,
+                          fit: BoxFit.contain,
+                          width: double.infinity,
+                          height: double.infinity,
+                        )
+                      : const Center(
+                          child: Icon(
+                            Icons.image_outlined,
+                            color: Colors.white24,
+                            size: 48,
+                          ),
+                        )),
             ),
 
-            // 2. Gesture Detector for Tap Skip / Back / Pause on Hold
+            // 2. Gesture Detector with Instant Hold-to-Pause
             Positioned.fill(
-              child: Row(
-                children: [
-                  // Left 35%: Previous Story
-                  Expanded(
-                    flex: 35,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: _previousStory,
-                      onLongPressStart: (_) => _pauseStory(),
-                      onLongPressEnd: (_) => _resumeStory(),
-                    ),
-                  ),
-                  // Middle 30%: Pause on Hold
-                  Expanded(
-                    flex: 30,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: _nextStory,
-                      onLongPressStart: (_) => _pauseStory(),
-                      onLongPressEnd: (_) => _resumeStory(),
-                    ),
-                  ),
-                  // Right 35%: Next Story
-                  Expanded(
-                    flex: 35,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: _nextStory,
-                      onLongPressStart: (_) => _pauseStory(),
-                      onLongPressEnd: (_) => _resumeStory(),
-                    ),
-                  ),
-                ],
+              child: Listener(
+                behavior: HitTestBehavior.translucent,
+                onPointerDown: (e) {
+                  _pointerDownTime = DateTime.now();
+                  _pauseStory();
+                },
+                onPointerUp: (e) {
+                  final downTime = _pointerDownTime;
+                  _resumeStory();
+                  if (downTime != null) {
+                    final elapsed =
+                        DateTime.now().difference(downTime).inMilliseconds;
+                    if (elapsed < 250) {
+                      final screenWidth = MediaQuery.of(context).size.width;
+                      if (e.position.dx < screenWidth * 0.3) {
+                        _previousStory();
+                      } else {
+                        _nextStory();
+                      }
+                    }
+                  }
+                },
+                onPointerCancel: (_) => _resumeStory(),
+                child: const SizedBox.expand(),
               ),
             ),
 
@@ -299,15 +354,17 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
               left: 0,
               right: 0,
               height: 120,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.black.withValues(alpha: 0.8),
-                      Colors.transparent,
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.black.withValues(alpha: 0.8),
+                        Colors.transparent,
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
                   ),
                 ),
               ),
@@ -357,16 +414,16 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
               right: 14,
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 17,
-                    backgroundColor: Colors.white24,
-                    backgroundImage: widget.friendStory.avatarUrl.isNotEmpty
-                        ? NetworkImage(widget.friendStory.avatarUrl)
-                        : null,
-                    child: widget.friendStory.avatarUrl.isEmpty
-                        ? const Icon(Icons.person, color: Colors.white, size: 18)
-                        : null,
-                  ),
+                  widget.friendStory.avatarUrl.isNotEmpty
+                      ? ZevCachedImage.avatar(
+                          imageUrl: widget.friendStory.avatarUrl,
+                          size: 34,
+                        )
+                      : const CircleAvatar(
+                          radius: 17,
+                          backgroundColor: Colors.white24,
+                          child: Icon(Icons.person, color: Colors.white, size: 18),
+                        ),
                   const SizedBox(width: 10),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,120 +456,88 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
               ),
             ),
 
-            // 6. Caption Overlay (if exists)
+            // 6. Caption Overlay
             if (caption.isNotEmpty)
               Positioned(
-                bottom: 80,
+                bottom: 84,
                 left: 20,
                 right: 20,
-                child: Center(
+                child: IgnorePointer(
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
+                        horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.65),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                     child: Text(
                       caption,
-                      textAlign: isRtl ? TextAlign.right : TextAlign.center,
+                      textAlign: isRtl ? TextAlign.right : TextAlign.left,
                       textDirection:
                           isRtl ? TextDirection.rtl : TextDirection.ltr,
                       style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
                         color: Colors.white,
-                        height: 1.35,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        height: 1.3,
                       ),
                     ),
                   ),
                 ),
               ),
 
-            // 7. Bottom Reply Bar & Direct Interaction
+            // 7. Bottom Reply Bar
             Positioned(
-              bottom: 12,
+              bottom: 14,
               left: 14,
               right: 14,
               child: Row(
                 children: [
                   Expanded(
                     child: Container(
-                      height: 44,
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      height: 46,
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
+                        color: Colors.white.withValues(alpha: 0.16),
                         borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: Colors.white24,
-                          width: 1.0,
-                        ),
+                        border: Border.all(color: Colors.white30, width: 1.0),
                       ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _replyCtrl,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13.5,
-                              ),
-                              onSubmitted: (_) => _sendReply(),
-                              decoration: const InputDecoration(
-                                hintText: "Send message...",
-                                hintStyle: TextStyle(
-                                  color: Colors.white60,
-                                  fontSize: 13.5,
-                                ),
-                                border: InputBorder.none,
-                                isDense: true,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.send_rounded,
-                              color: ZevColors.primaryBlue,
-                              size: 18,
-                            ),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            onPressed: _sendReply,
-                          ),
-                        ],
+                      child: TextField(
+                        controller: _replyCtrl,
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 14),
+                        onTap: _pauseStory,
+                        onSubmitted: (_) {
+                          _resumeStory();
+                          _sendReply();
+                        },
+                        decoration: InputDecoration(
+                          hintText: "Reply to @${widget.friendStory.username}...",
+                          hintStyle: const TextStyle(
+                              color: Colors.white60, fontSize: 13),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 12),
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 10),
-                  // Heart reaction button
-                  IconButton(
-                    icon: const Icon(
-                      Icons.favorite_border_rounded,
-                      color: Colors.white,
-                      size: 26,
-                    ),
-                    onPressed: () {
-                      HapticFeedback.mediumImpact();
-                      final currentUserId = supabase.auth.currentUser?.id;
-                      if (currentUserId != null && currentUserId != widget.friendStory.userId) {
-                        unawaited(NotificationService().sendNotificationToUser(
-                          targetUserId: widget.friendStory.userId,
-                          title: "Story Liked",
-                          message: "liked your story.",
-                          notificationType: "story_like",
-                          senderId: currentUserId,
-                        ));
-                      }
-
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("❤️ Sent reaction"),
-                          duration: Duration(seconds: 1),
+                  GestureDetector(
+                    onTap: _sendReply,
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF00D4FF), Color(0xFF536DFE)],
                         ),
-                      );
-                    },
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.send_rounded,
+                            color: Colors.white, size: 20),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -523,4 +548,3 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     );
   }
 }
-

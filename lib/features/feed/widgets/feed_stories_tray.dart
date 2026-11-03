@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/zev_cached_image.dart';
 import '../models/feed_post_item.dart';
 
 /// Next-Generation Instagram Stories Tray for ZEV.
@@ -112,23 +113,18 @@ class FeedStoriesTray extends StatelessWidget {
                       ),
                     ],
                   ),
-                  child: ClipOval(
-                    child: myAvatarUrl.isNotEmpty
-                        ? Image.network(
-                            myAvatarUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => const Icon(
-                              Icons.person_rounded,
-                              size: 32,
-                              color: ZevColors.textMuted,
-                            ),
-                          )
-                        : const Icon(
+                  child: myAvatarUrl.isNotEmpty
+                      ? ZevCachedImage.avatar(
+                          imageUrl: myAvatarUrl,
+                          size: 60,
+                        )
+                      : const Center(
+                          child: Icon(
                             Icons.person_rounded,
                             size: 32,
                             color: ZevColors.textMuted,
                           ),
-                  ),
+                        ),
                 ),
                 Positioned(
                   bottom: -1,
@@ -222,23 +218,18 @@ class FeedStoriesTray extends StatelessWidget {
                   color: Colors.white,
                 ),
                 padding: const EdgeInsets.all(1.5),
-                child: ClipOval(
-                  child: story.avatarUrl.isNotEmpty
-                      ? Image.network(
-                          story.avatarUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => const Icon(
-                            Icons.person_rounded,
-                            size: 30,
-                            color: ZevColors.textMuted,
-                          ),
-                        )
-                      : const Icon(
+                child: story.avatarUrl.isNotEmpty
+                    ? ZevCachedImage.avatar(
+                        imageUrl: story.avatarUrl,
+                        size: 58,
+                      )
+                    : const Center(
+                        child: Icon(
                           Icons.person_rounded,
                           size: 30,
                           color: ZevColors.textMuted,
                         ),
-                ),
+                      ),
               ),
             ),
             const SizedBox(height: 6),

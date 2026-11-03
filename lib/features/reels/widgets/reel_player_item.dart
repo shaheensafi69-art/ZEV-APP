@@ -7,6 +7,7 @@ import 'package:video_player/video_player.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
+import '../../../core/widgets/zev_cached_image.dart';
 import '../../feed/models/feed_post_item.dart';
 import '../../feed/widgets/feed_share_sheet.dart';
 import '../../profile/screens/profile_screen.dart';
@@ -402,7 +403,7 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
       isLikedByMe: _isLiked,
       commentsCount: widget.reel.commentsCount,
     );
-    FeedShareSheet.show(context, post: postItem);
+    FeedShareSheet.show(context, post: postItem, isReel: true);
   }
 
   String _formatDuration(Duration d) {
@@ -699,24 +700,16 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                             ),
                           ],
                         ),
-                        child: ClipOval(
-                          child: widget.reel.authorAvatar.isNotEmpty
-                              ? Image.network(
-                                  widget.reel.authorAvatar,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(
-                                        Icons.person_rounded,
-                                        size: 26,
-                                        color: Colors.white70,
-                                      ),
-                                )
-                              : const Icon(
-                                  Icons.person_rounded,
-                                  size: 26,
-                                  color: Colors.white70,
-                                ),
-                        ),
+                        child: widget.reel.authorAvatar.isNotEmpty
+                            ? ZevCachedImage.avatar(
+                                imageUrl: widget.reel.authorAvatar,
+                                size: 48,
+                              )
+                            : const Icon(
+                                Icons.person_rounded,
+                                size: 26,
+                                color: Colors.white70,
+                              ),
                       ),
                     ),
                     if (shouldShowFollowButton)
@@ -835,24 +828,16 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                       ],
                     ),
                     padding: const EdgeInsets.all(5),
-                    child: ClipOval(
-                      child: widget.reel.authorAvatar.isNotEmpty
-                          ? Image.network(
-                              widget.reel.authorAvatar,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  const Icon(
-                                    Icons.music_note_rounded,
-                                    color: ZevColors.primaryBlue,
-                                    size: 15,
-                                  ),
-                            )
-                          : const Icon(
-                              Icons.music_note_rounded,
-                              color: ZevColors.primaryBlue,
-                              size: 15,
-                            ),
-                    ),
+                    child: widget.reel.authorAvatar.isNotEmpty
+                        ? ZevCachedImage.avatar(
+                            imageUrl: widget.reel.authorAvatar,
+                            size: 34,
+                          )
+                        : const Icon(
+                            Icons.music_note_rounded,
+                            color: ZevColors.primaryBlue,
+                            size: 15,
+                          ),
                   ),
                 ),
               ],

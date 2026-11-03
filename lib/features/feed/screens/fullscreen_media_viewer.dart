@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -143,20 +144,17 @@ class _FullscreenMediaViewerState extends State<FullscreenMediaViewer> {
                 transformationController: _transCtrl,
                 minScale: 0.8,
                 maxScale: 4.5,
-                child: Image.network(
-                  post.imageUrl,
+                child: CachedNetworkImage(
+                  imageUrl: post.imageUrl,
                   fit: BoxFit.contain,
                   width: double.infinity,
-                  loadingBuilder: (context, child, progress) {
-                    if (progress == null) return child;
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        color: ZevColors.primaryBlue,
-                        strokeWidth: 2.5,
-                      ),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) => const Center(
+                  placeholder: (context, url) => const Center(
+                    child: CircularProgressIndicator(
+                      color: ZevColors.primaryBlue,
+                      strokeWidth: 2.5,
+                    ),
+                  ),
+                  errorWidget: (context, url, error) => const Center(
                     child: Icon(
                       Icons.broken_image_rounded,
                       size: 64,

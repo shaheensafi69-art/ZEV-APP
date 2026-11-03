@@ -6,6 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/notification_service.dart';
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/zev_cached_image.dart';
+import '../../../core/widgets/zev_logo.dart';
 import '../../chat/screens/chat_list_screen.dart';
 import '../../explore/screens/explore_screen.dart';
 import '../../feed/screens/create_post_screen.dart';
@@ -19,6 +21,10 @@ import '../../stories/screens/create_story_screen.dart';
 /// Next-Generation Instagram Main Shell for ZEV Social Network.
 /// Hosts 5 primary tabs (Home, Search, Create, Reels, Profile)
 /// with 120 FPS IndexedStack preservation and Instagram-grade navigation.
+///
+/// Features Adaptive Layout:
+/// - Phones (< 720px): Floating Claymorphic Bottom Capsule Dock
+/// - Tablets / iPads (>= 720px): Sleek Instagram-grade Adaptive Left Sidebar
 class ZevMainLayout extends StatefulWidget {
   final int initialIndex;
   const ZevMainLayout({super.key, this.initialIndex = 0});
@@ -32,11 +38,24 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   late int _currentIndex;
 
   String _myAvatarUrl = '';
+  String _myUsername = '';
+  String _myFullName = '';
+
+  // Persistent cached tab widgets to prevent unnecessary rebuilds
+  late final Widget _feedTab;
+  late final Widget _exploreTab;
+  late final Widget _profileTab;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    _feedTab = FeedViewerScreen(
+      onOpenNotifications: () => NotificationsScreen.open(context),
+      onOpenMessages: () => ChatListScreen.open(context),
+    );
+    _exploreTab = const ExploreScreen();
+    _profileTab = const ProfileScreen();
     _loadUserProfile();
   }
 
@@ -47,13 +66,15 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     try {
       final res = await supabase
           .from('profiles')
-          .select('avatar_url')
+          .select('avatar_url, username, full_name')
           .eq('id', user.id)
           .maybeSingle();
 
       if (res != null && mounted) {
         setState(() {
           _myAvatarUrl = res['avatar_url'] ?? '';
+          _myUsername = res['username'] ?? '';
+          _myFullName = res['full_name'] ?? '';
         });
       }
     } catch (_) {}
@@ -68,37 +89,69 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isTablet = screenWidth >= 720;
+    final isExpandedSidebar = screenWidth >= 960;
+    final isReels = _currentIndex == 3;
 
+    final tabChildren = [
+      // Tab 0: Home Feed
+      _feedTab,
+
+      // Tab 1: Explore / Search (Flagship Instagram Explore)
+      _exploreTab,
+
+      // Tab 2: Create (opens in-feed modal or creation screen)
+      _buildCreatePlaceholder(),
+
+      // Tab 3: Reels
+      ReelsViewerScreen(isScreenActive: _currentIndex == 3),
+
+      // Tab 4: Profile
+      _profileTab,
+    ];
+
+    // ========================================================
+    // 1. Tablet / iPad Mode: Adaptive Left Navigation Sidebar
+    // ========================================================
+    if (isTablet) {
+      return Scaffold(
+        resizeToAvoidBottomInset: false,
+        backgroundColor: isReels ? Colors.black : const Color(0xFFF1F5F9),
+        body: Row(
+          children: [
+            // Left Adaptive Sidebar
+            _buildTabletSidebar(
+              isExpanded: isExpandedSidebar,
+              isReels: isReels,
+            ),
+            // Right Screen Area
+            Expanded(
+              child: IndexedStack(
+                index: _currentIndex,
+                children: tabChildren,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ========================================================
+    // 2. Phone Mode: Floating Claymorphic Navigation Capsule
+    // ========================================================
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      backgroundColor: _currentIndex == 3 ? Colors.black : const Color(0xFFF1F5F9),
+      backgroundColor: isReels ? Colors.black : const Color(0xFFF1F5F9),
       body: Stack(
         children: [
-          // 1. Five Tab Screens
+          // Five Tab Screens
           IndexedStack(
             index: _currentIndex,
-            children: [
-              // Tab 0: Home Feed
-              FeedViewerScreen(
-                onOpenNotifications: () => NotificationsScreen.open(context),
-                onOpenMessages: () => ChatListScreen.open(context),
-              ),
-
-              // Tab 1: Explore / Search (Flagship Instagram Explore)
-              const ExploreScreen(),
-
-              // Tab 2: Create (opens in-feed modal or creation screen)
-              _buildCreatePlaceholder(),
-
-              // Tab 3: Reels
-              ReelsViewerScreen(isScreenActive: _currentIndex == 3),
-
-              // Tab 4: Profile
-              const ProfileScreen(),
-            ],
+            children: tabChildren,
           ),
 
-          // 2. Pure Floating Claymorphic Navigation Capsule Dock (Truly floating in the air)
+          // Pure Floating Claymorphic Navigation Capsule Dock
           Positioned(
             left: 18,
             right: 18,
@@ -106,26 +159,26 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
             child: Container(
               height: 66,
               decoration: BoxDecoration(
-                color: _currentIndex == 3
+                color: isReels
                     ? const Color(0xFF0F172A).withValues(alpha: 0.88)
                     : Colors.white.withValues(alpha: 0.94),
                 borderRadius: BorderRadius.circular(36),
                 border: Border.all(
-                  color: _currentIndex == 3
+                  color: isReels
                       ? const Color(0xFF334155).withValues(alpha: 0.5)
                       : Colors.white,
                   width: 1.8,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: _currentIndex == 3
+                    color: isReels
                         ? Colors.black.withValues(alpha: 0.6)
                         : const Color(0xFF0F172A).withValues(alpha: 0.12),
                     blurRadius: 28,
                     offset: const Offset(0, 10),
                     spreadRadius: 1,
                   ),
-                  if (_currentIndex != 3)
+                  if (!isReels)
                     const BoxShadow(
                       color: Colors.white,
                       blurRadius: 10,
@@ -182,6 +235,512 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
       ),
     );
   }
+
+  // ========================================================
+  // Tablet / iPad Sidebar Widgets
+  // ========================================================
+
+  Widget _buildTabletSidebar({
+    required bool isExpanded,
+    required bool isReels,
+  }) {
+    final sidebarBg = isReels
+        ? const Color(0xFF0F172A)
+        : Colors.white;
+    final borderColor = isReels
+        ? const Color(0xFF1E293B)
+        : const Color(0xFFE2E8F0);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+      width: isExpanded ? 248 : 84,
+      decoration: BoxDecoration(
+        color: sidebarBg,
+        border: Border(
+          right: BorderSide(color: borderColor, width: 1.2),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isReels
+                ? Colors.black.withValues(alpha: 0.4)
+                : const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 18,
+            offset: const Offset(4, 0),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        right: false,
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: isExpanded ? 16 : 10,
+            vertical: 18,
+          ),
+          child: Column(
+            crossAxisAlignment: isExpanded
+                ? CrossAxisAlignment.start
+                : CrossAxisAlignment.center,
+            children: [
+              // 1. ZEV Logo at Top
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isExpanded ? 10 : 4,
+                  vertical: 6,
+                ),
+                child: ZevLogo(
+                  height: 36,
+                  showText: isExpanded,
+                  textColor: isReels ? Colors.white : ZevColors.deepNavy,
+                ),
+              ),
+              const SizedBox(height: 28),
+
+              // 2. Navigation items list
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  physics: const BouncingScrollPhysics(),
+                  children: [
+                    _buildSidebarNavItem(
+                      index: 0,
+                      icon: Icons.home_outlined,
+                      activeIcon: Icons.home_rounded,
+                      label: "Home",
+                      isExpanded: isExpanded,
+                      isReels: isReels,
+                    ),
+                    const SizedBox(height: 6),
+                    _buildSidebarNavItem(
+                      index: 1,
+                      icon: Icons.search_rounded,
+                      activeIcon: Icons.search_rounded,
+                      label: "Explore",
+                      isExpanded: isExpanded,
+                      isReels: isReels,
+                    ),
+                    const SizedBox(height: 6),
+                    _buildSidebarNavItem(
+                      index: 3,
+                      icon: Icons.play_circle_outline_rounded,
+                      activeIcon: Icons.play_circle_fill_rounded,
+                      label: "Reels",
+                      isExpanded: isExpanded,
+                      isReels: isReels,
+                    ),
+                    const SizedBox(height: 6),
+                    _buildSidebarActionItem(
+                      icon: Icons.chat_bubble_outline_rounded,
+                      label: "Messages",
+                      isExpanded: isExpanded,
+                      isReels: isReels,
+                      onTap: () => ChatListScreen.open(context),
+                    ),
+                    const SizedBox(height: 6),
+                    _buildSidebarActionItem(
+                      icon: Icons.favorite_outline_rounded,
+                      label: "Notifications",
+                      isExpanded: isExpanded,
+                      isReels: isReels,
+                      onTap: () => NotificationsScreen.open(context),
+                    ),
+                    const SizedBox(height: 18),
+                    // 3. Create Button
+                    _buildSidebarCreateButton(isExpanded: isExpanded),
+                  ],
+                ),
+              ),
+
+              // 4. User Profile Tile at Bottom
+              _buildSidebarProfileItem(
+                index: 4,
+                isExpanded: isExpanded,
+                isReels: isReels,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSidebarNavItem({
+    required int index,
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+    required bool isExpanded,
+    required bool isReels,
+  }) {
+    final isSelected = _currentIndex == index;
+    final inactiveColor = isReels ? Colors.white60 : const Color(0xFF64748B);
+    final activeColor = isReels ? Colors.white : ZevColors.deepNavy;
+
+    return Tooltip(
+      message: isExpanded ? '' : label,
+      preferBelow: false,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _onTabTapped(index),
+          hoverColor: (isReels ? Colors.white : ZevColors.primaryBlue)
+              .withValues(alpha: 0.06),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            padding: EdgeInsets.symmetric(
+              horizontal: isExpanded ? 14 : 10,
+              vertical: 11,
+            ),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? (isReels
+                      ? Colors.white.withValues(alpha: 0.12)
+                      : ZevColors.primaryBlue.withValues(alpha: 0.12))
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisAlignment: isExpanded
+                  ? MainAxisAlignment.start
+                  : MainAxisAlignment.center,
+              children: [
+                AnimatedScale(
+                  scale: isSelected ? 1.08 : 1.0,
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  child: Icon(
+                    isSelected ? activeIcon : icon,
+                    size: 26,
+                    color: isSelected ? activeColor : inactiveColor,
+                  ),
+                ),
+                if (isExpanded) ...[
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight:
+                            isSelected ? FontWeight.w800 : FontWeight.w600,
+                        color: isSelected ? activeColor : inactiveColor,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ),
+                  if (isSelected)
+                    Container(
+                      width: 4,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: ZevColors.primaryBlue,
+                        borderRadius: BorderRadius.circular(2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: ZevColors.primaryBlue.withValues(alpha: 0.8),
+                            blurRadius: 6,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSidebarActionItem({
+    required IconData icon,
+    required String label,
+    required bool isExpanded,
+    required bool isReels,
+    required VoidCallback onTap,
+  }) {
+    final inactiveColor = isReels ? Colors.white60 : const Color(0xFF64748B);
+
+    return Tooltip(
+      message: isExpanded ? '' : label,
+      preferBelow: false,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onTap();
+          },
+          hoverColor: (isReels ? Colors.white : ZevColors.primaryBlue)
+              .withValues(alpha: 0.06),
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isExpanded ? 14 : 10,
+              vertical: 11,
+            ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisAlignment: isExpanded
+                  ? MainAxisAlignment.start
+                  : MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 25,
+                  color: inactiveColor,
+                ),
+                if (isExpanded) ...[
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: inactiveColor,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSidebarCreateButton({required bool isExpanded}) {
+    if (isExpanded) {
+      return Container(
+        width: double.infinity,
+        height: 46,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF00D4FF), Color(0xFF4F46E5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF00D4FF).withValues(alpha: 0.35),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: _openCreateActionSheet,
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.add_rounded, color: Colors.white, size: 24),
+                SizedBox(width: 8),
+                Text(
+                  "Create",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Center(
+      child: Tooltip(
+        message: "Create",
+        preferBelow: false,
+        child: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF00D4FF), Color(0xFF4F46E5)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF00D4FF).withValues(alpha: 0.35),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: _openCreateActionSheet,
+              child: const Center(
+                child: Icon(Icons.add_rounded, color: Colors.white, size: 26),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSidebarProfileItem({
+    required int index,
+    required bool isExpanded,
+    required bool isReels,
+  }) {
+    final isSelected = _currentIndex == index;
+    final inactiveBorder = isReels ? Colors.white24 : const Color(0xFFCBD5E1);
+    final activeColor = isReels ? Colors.white : ZevColors.deepNavy;
+    final inactiveColor = isReels ? Colors.white60 : const Color(0xFF64748B);
+
+    return Tooltip(
+      message: isExpanded ? '' : (_myUsername.isNotEmpty ? "@$_myUsername" : "Profile"),
+      preferBelow: false,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _onTabTapped(index),
+          hoverColor: (isReels ? Colors.white : ZevColors.primaryBlue)
+              .withValues(alpha: 0.06),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            padding: EdgeInsets.symmetric(
+              horizontal: isExpanded ? 12 : 8,
+              vertical: 10,
+            ),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? (isReels
+                      ? Colors.white.withValues(alpha: 0.12)
+                      : ZevColors.primaryBlue.withValues(alpha: 0.12))
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisAlignment: isExpanded
+                  ? MainAxisAlignment.start
+                  : MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: isSelected
+                        ? const LinearGradient(
+                            colors: [Color(0xFF00D4FF), Color(0xFF536DFE)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    border: isSelected
+                        ? null
+                        : Border.all(color: inactiveBorder, width: 1.4),
+                  ),
+                  padding: EdgeInsets.all(isSelected ? 2.0 : 0.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isReels ? Colors.black : ZevColors.white,
+                    ),
+                    padding: const EdgeInsets.all(1.0),
+                    child: ClipOval(
+                      child: _myAvatarUrl.isNotEmpty
+                          ? ZevCachedImage.avatar(
+                              imageUrl: _myAvatarUrl,
+                              size: 26,
+                            )
+                          : Icon(
+                              Icons.person_rounded,
+                              size: 18,
+                              color: isReels ? Colors.white70 : ZevColors.textMuted,
+                            ),
+                    ),
+                  ),
+                ),
+                if (isExpanded) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _myFullName.isNotEmpty
+                              ? _myFullName
+                              : (_myUsername.isNotEmpty ? _myUsername : "Profile"),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: isSelected
+                                ? FontWeight.w800
+                                : FontWeight.w700,
+                            color: isSelected ? activeColor : inactiveColor,
+                          ),
+                        ),
+                        if (_myUsername.isNotEmpty)
+                          Text(
+                            "@$_myUsername",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isReels
+                                  ? Colors.white54
+                                  : ZevColors.textMuted,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (isSelected)
+                    Container(
+                      width: 4,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: ZevColors.primaryBlue,
+                        borderRadius: BorderRadius.circular(2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: ZevColors.primaryBlue.withValues(alpha: 0.8),
+                            blurRadius: 6,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ========================================================
+  // Action Sheets & Phone Navigation Items
+  // ========================================================
 
   void _openCreateActionSheet() {
     HapticFeedback.mediumImpact();
@@ -517,12 +1076,12 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: isSelected
-                      ? const LinearGradient(
-                          colors: [Color(0xFF00D4FF), Color(0xFF536DFE)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        )
-                      : null,
+                        ? const LinearGradient(
+                            colors: [Color(0xFF00D4FF), Color(0xFF536DFE)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
                   border: isSelected
                       ? null
                       : Border.all(color: inactiveBorder, width: 1.2),
@@ -536,16 +1095,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                   padding: const EdgeInsets.all(1.0),
                   child: ClipOval(
                     child: _myAvatarUrl.isNotEmpty
-                        ? Image.network(
-                            _myAvatarUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Icon(
-                              Icons.person_rounded,
-                              size: 16,
-                              color: isReels
-                                  ? Colors.white70
-                                  : ZevColors.textMuted,
-                            ),
+                        ? ZevCachedImage.avatar(
+                            imageUrl: _myAvatarUrl,
+                            size: 26,
                           )
                         : Icon(
                             Icons.person_rounded,

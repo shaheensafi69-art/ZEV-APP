@@ -45,6 +45,7 @@ dependencies:
   easy_compressor:
     path: packages/easy_compressor
   video_watermark_plus: ^1.2.0
+  ffmpeg_kit_flutter_new: any
   cached_network_image: ^3.4.1
   image: ^4.3.0
 

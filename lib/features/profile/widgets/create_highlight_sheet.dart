@@ -1,11 +1,15 @@
 import 'dart:io';
+import 'package:easy_compressor/easy_compressor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/services/content_safety_service.dart';
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/zev_cached_image.dart';
+import '../../stories/widgets/video_trimmer_sheet.dart';
 import '../models/story_highlight_model.dart';
 import '../services/story_highlight_service.dart';
 
@@ -162,13 +166,34 @@ class _CreateHighlightSheetState extends State<CreateHighlightSheet>
     try {
       final picked = await _picker.pickVideo(
         source: ImageSource.gallery,
-        maxDuration: const Duration(seconds: 60),
       );
       if (picked == null) return;
 
+      File videoFile = File(picked.path);
+
+      // Check duration
+      Duration? videoDuration;
+      try {
+        final ctrl = VideoPlayerController.file(videoFile);
+        await ctrl.initialize();
+        videoDuration = ctrl.value.duration;
+        await ctrl.dispose();
+      } catch (_) {}
+
+      // Enforce 1:30 (90 seconds) limit with WhatsApp-style trimmer
+      if (videoDuration != null && videoDuration > const Duration(seconds: 90)) {
+        if (!mounted) return;
+        final trimmed = await VideoTrimmerSheet.show(
+          context,
+          videoFile: videoFile,
+          maxDuration: const Duration(seconds: 90),
+        );
+        if (trimmed == null) return; // user cancelled
+        videoFile = trimmed;
+      }
+
       setState(() => _isCreating = true);
 
-      final videoFile = File(picked.path);
       final safetyResult = await ContentSafetyService.instance.checkVideoSafety(
         videoFile,
       );
@@ -188,9 +213,10 @@ class _CreateHighlightSheetState extends State<CreateHighlightSheet>
         return;
       }
 
-      final ext = picked.path.split('.').last;
+      final ext = videoFile.path.split('.').last;
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName =
-          'highlight_vid_${widget.userId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+          'highlight_vid_${widget.userId}_$timestamp.$ext';
 
       final url = await CloudflareStorageService.instance.upload(
         bucket: 'stories',
@@ -198,12 +224,34 @@ class _CreateHighlightSheetState extends State<CreateHighlightSheet>
         file: videoFile,
       );
 
+      // Generate real JPEG thumbnail for highlight cover
+      String? thumbUrl;
+      try {
+        final thumbBytes = await EasyCompressor().getThumbnail(
+          videoFile.path,
+          position: const Duration(milliseconds: 500),
+          quality: 80,
+          maxHeight: 720,
+        );
+        if (thumbBytes != null && thumbBytes.isNotEmpty) {
+          thumbUrl = await CloudflareStorageService.instance.upload(
+            bucket: 'stories',
+            path: 'thumb_${widget.userId}_$timestamp.jpg',
+            bytes: thumbBytes,
+            contentType: 'image/jpeg',
+          );
+        }
+      } catch (thumbErr) {
+        debugPrint("Highlight thumbnail generation notice: $thumbErr");
+      }
+
       final item = StoryHighlightItem(
-        id: 'new_vid_${DateTime.now().millisecondsSinceEpoch}',
+        id: 'new_vid_$timestamp',
         mediaUrl: url,
         mediaType: 'video',
         caption: '',
         createdAt: DateTime.now(),
+        thumbnailUrl: thumbUrl,
       );
 
       if (mounted) {
@@ -388,12 +436,23 @@ class _CreateHighlightSheetState extends State<CreateHighlightSheet>
       // Add newly uploaded/created items
       items.addAll(_newlyAddedItems);
 
-      // Determine cover URL
+      // Determine cover URL (prefer real thumbnail if item is a video)
       String coverUrl = '';
       for (var it in items) {
-        if (it.mediaUrl.isNotEmpty) {
+        if (it.thumbnailUrl != null && it.thumbnailUrl!.isNotEmpty) {
+          coverUrl = it.thumbnailUrl!;
+          break;
+        } else if (it.mediaUrl.isNotEmpty && it.mediaType != 'video') {
           coverUrl = it.mediaUrl;
           break;
+        }
+      }
+      if (coverUrl.isEmpty) {
+        for (var it in items) {
+          if (it.mediaUrl.isNotEmpty) {
+            coverUrl = it.mediaUrl;
+            break;
+          }
         }
       }
       if (coverUrl.isEmpty) {
@@ -537,15 +596,13 @@ class _CreateHighlightSheetState extends State<CreateHighlightSheet>
                             (_selectedArchiveStories.first['media_url'] ?? '')
                                 .toString()
                                 .isNotEmpty
-                        ? Image.network(
-                            _selectedArchiveStories.first['media_url'],
-                            fit: BoxFit.cover,
+                        ? ZevCachedImage.grid(
+                            imageUrl: _selectedArchiveStories.first['media_url'],
                           )
                         : _newlyAddedItems.isNotEmpty &&
                                 _newlyAddedItems.first.mediaUrl.isNotEmpty
-                            ? Image.network(
-                                _newlyAddedItems.first.mediaUrl,
-                                fit: BoxFit.cover,
+                            ? ZevCachedImage.grid(
+                                imageUrl: _newlyAddedItems.first.mediaUrl,
                               )
                             : const Icon(
                                 Icons.star_rounded,
@@ -715,11 +772,8 @@ class _CreateHighlightSheetState extends State<CreateHighlightSheet>
               Container(
                 color: ZevColors.softSurface,
                 child: mediaUrl.isNotEmpty
-                    ? Image.network(
-                        mediaUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const Icon(Icons.image, color: ZevColors.textMuted),
+                    ? ZevCachedImage.grid(
+                        imageUrl: mediaUrl,
                       )
                     : Container(
                         decoration: const BoxDecoration(
@@ -892,7 +946,7 @@ class _CreateHighlightSheetState extends State<CreateHighlightSheet>
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(10),
                           child: it.mediaUrl.isNotEmpty
-                              ? Image.network(it.mediaUrl, fit: BoxFit.cover)
+                              ? ZevCachedImage.grid(imageUrl: it.mediaUrl)
                               : Container(
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(

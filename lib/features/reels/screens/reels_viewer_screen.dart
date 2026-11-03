@@ -36,6 +36,18 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
   }
 
   @override
+  void didUpdateWidget(ReelsViewerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isScreenActive && !widget.isScreenActive) {
+      ReelVideoCacheManager().pauseAll();
+    } else if (!oldWidget.isScreenActive && widget.isScreenActive) {
+      if (_reels.isNotEmpty && _activePage < _reels.length) {
+        ReelVideoCacheManager().pauseAllExcept(_reels[_activePage].videoUrl);
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _pageController.dispose();
     super.dispose();

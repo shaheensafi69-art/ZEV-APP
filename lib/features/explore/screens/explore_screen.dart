@@ -1001,15 +1001,44 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 children: [
                   // Media Player / Preview
                   if (item.isReel)
-                    ExploreVideoTile(
-                      videoUrl: item.mediaUrl,
-                      thumbnailUrl: item.thumbnailUrl,
-                      autoPlay: true,
+                    Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (item.thumbnailUrl != null && item.thumbnailUrl!.isNotEmpty)
+                          CachedNetworkImage(
+                            imageUrl: item.thumbnailUrl!,
+                            fit: BoxFit.cover,
+                            memCacheWidth: 400,
+                            memCacheHeight: 400,
+                            placeholder: (context, url) => _buildFallbackTile(item),
+                            errorWidget: (context, url, error) => _buildFallbackTile(item),
+                          )
+                        else
+                          _buildFallbackTile(item),
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.45),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Icon(
+                              Icons.movie_rounded,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                          ),
+                        ),
+                      ],
                     )
                   else if (item.mediaUrl.isNotEmpty)
                     CachedNetworkImage(
                       imageUrl: item.mediaUrl,
                       fit: BoxFit.cover,
+                      memCacheWidth: 400,
+                      memCacheHeight: 400,
                       placeholder: (context, url) => _buildFallbackTile(item),
                       errorWidget: (context, url, error) => _buildFallbackTile(item),
                     )
@@ -1376,11 +1405,27 @@ class _ExploreScreenState extends State<ExploreScreen> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  ExploreVideoTile(
-                    videoUrl: reel.videoUrl,
-                    thumbnailUrl: reel.thumbnailUrl,
-                    autoPlay: false,
-                  ),
+                  if (reel.thumbnailUrl != null && reel.thumbnailUrl!.isNotEmpty)
+                    CachedNetworkImage(
+                      imageUrl: reel.thumbnailUrl!,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 400,
+                      memCacheHeight: 400,
+                      placeholder: (context, url) => Container(color: const Color(0xFF1E293B)),
+                      errorWidget: (context, url, error) => Container(
+                        color: const Color(0xFF1E293B),
+                        child: const Center(
+                          child: Icon(Icons.movie_rounded, color: Colors.white54, size: 28),
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      color: const Color(0xFF1E293B),
+                      child: const Center(
+                        child: Icon(Icons.movie_rounded, color: Colors.white54, size: 28),
+                      ),
+                    ),
                   Positioned(
                     bottom: 6,
                     left: 6,

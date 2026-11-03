@@ -52,7 +52,7 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
-            <!-- ZEV App Links (zevapp.com) -->
+            <!-- ZEV App Links (Verified) -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
@@ -61,9 +61,27 @@
                 <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/reel"/>
                 <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/post"/>
                 <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/post"/>
+                <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/@"/>
+                <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/@"/>
             </intent-filter>
 
-            <!-- ZEV Custom Scheme Fallback -->
+            <!-- ZEV Standard Web Deep Links (Fallback for all devices) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/reel"/>
+                <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/reel"/>
+                <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/post"/>
+                <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/post"/>
+                <data android:scheme="http" android:host="www.zevapp.com" android:pathPrefix="/post"/>
+                <data android:scheme="http" android:host="zevapp.com" android:pathPrefix="/post"/>
+                <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/@"/>
+                <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/@"/>
+                <data android:scheme="https" android:host="media.zevapp.com" android:pathPrefix="/zev/feed"/>
+            </intent-filter>
+
+            <!-- ZEV Custom Scheme Fallback (zev://post/... & zev://reel/...) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>

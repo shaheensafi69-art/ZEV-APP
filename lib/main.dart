@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'core/services/deep_link_service.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/user_presence_service.dart';
 import 'core/theme/zev_theme.dart';
@@ -13,6 +14,10 @@ final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // High-performance image cache tuning for silky smooth 120 FPS scrolling
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 250 << 20; // 250 MB
+  PaintingBinding.instance.imageCache.maximumSize = 500;
 
   // 1. Enable Full-Screen Immersive Mode & Hide System Navigation Bar
   await SystemUiHelper.enableFullScreen();
@@ -68,12 +73,14 @@ class _ZevAppState extends State<ZevApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     SystemUiHelper.enableFullScreen();
     UserPresenceService.instance.startPresenceHeartbeat();
+    DeepLinkService.instance.init();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     UserPresenceService.instance.stopPresenceHeartbeat();
+    DeepLinkService.instance.dispose();
     super.dispose();
   }
 
