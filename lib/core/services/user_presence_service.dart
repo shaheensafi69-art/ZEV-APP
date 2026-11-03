@@ -22,7 +22,7 @@ class UserPresenceInfo {
 
 /// Enterprise-grade Real-Time Presence & Last Seen Telemetry Service.
 /// Accurately detects whether a user is genuinely "Active now" or offline,
-/// and computes human-readable last active timestamps (e.g. "Active 5m ago", "Active 2h ago", "Active yesterday").
+/// and computes human-readable last active timestamps (e.g. "Active 5m ago", "Active 2h ago", "Active yesterday at 14:30").
 class UserPresenceService {
   static final UserPresenceService instance = UserPresenceService._();
   UserPresenceService._();
@@ -33,8 +33,8 @@ class UserPresenceService {
   void startPresenceHeartbeat() {
     updatePresence(isOnline: true);
     _heartbeatTimer?.cancel();
-    // Heartbeat every 90 seconds
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 90), (_) {
+    // Heartbeat every 45 seconds for precision
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 45), (_) {
       updatePresence(isOnline: true);
     });
   }
@@ -43,6 +43,26 @@ class UserPresenceService {
   void stopPresenceHeartbeat() {
     _heartbeatTimer?.cancel();
     updatePresence(isOnline: false);
+  }
+
+  /// When a recipient comes online, all pending undelivered messages addressed to them
+  /// are automatically marked as delivered (2 gray ticks for senders).
+  Future<void> markPendingMessagesDelivered() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    try {
+      final nowIso = DateTime.now().toUtc().toIso8601String();
+      await Supabase.instance.client
+          .from('direct_messages')
+          .update({
+            'is_delivered': true,
+            'delivered_at': nowIso,
+          })
+          .eq('receiver_id', user.id)
+          .eq('is_delivered', false);
+    } catch (e) {
+      debugPrint("markPendingMessagesDelivered notice: $e");
+    }
   }
 
   /// Updates current user's presence in Supabase profiles
@@ -67,10 +87,16 @@ class UserPresenceService {
         debugPrint("Presence update notice: $err");
       }
     }
+
+    // If coming online, automatically deliver pending messages
+    if (isOnline) {
+      unawaited(markPendingMessagesDelivered());
+    }
   }
 
   /// Computes accurate presence status from a profile record map.
-  /// A user is ONLY considered "Active now" if their last seen is within 4 minutes.
+  /// A user is ONLY considered "Active now" if their is_online flag is true
+  /// AND their heartbeat/last seen is within 2 minutes.
   static UserPresenceInfo computePresence(Map<String, dynamic>? profile) {
     if (profile == null || profile.isEmpty) {
       return UserPresenceInfo.offline;
@@ -94,8 +120,8 @@ class UserPresenceService {
     final lastSeenUtc = lastSeen.toUtc();
     final difference = nowUtc.difference(lastSeenUtc);
 
-    // If within 4 minutes AND flag is true (or recently pulsed), user is truly Active Now
-    if (isOnlineFlag && difference.inMinutes < 4) {
+    // If within 2.5 minutes AND flag is true, user is truly Active Now
+    if (isOnlineFlag && difference.inMinutes < 2) {
       return UserPresenceInfo(
         isOnline: true,
         statusText: "Active now",
@@ -114,7 +140,10 @@ class UserPresenceService {
       final h = difference.inHours.clamp(1, 23);
       text = "Active ${h}h ago";
     } else if (difference.inDays == 1) {
-      text = "Active yesterday";
+      final local = lastSeen.toLocal();
+      final timeStr =
+          "${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}";
+      text = "Active yesterday at $timeStr";
     } else if (difference.inDays < 7) {
       final d = difference.inDays.clamp(1, 6);
       text = "Active ${d}d ago";
@@ -129,4 +158,3 @@ class UserPresenceService {
     );
   }
 }
-

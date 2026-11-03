@@ -20,6 +20,8 @@
 	<string>ZEV requires camera access to record reels and take photos for stories.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>ZEV requires photo library access to select media for posts and reels.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>ZEV requires photo library access to save photos and reels to your device.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>ZEV requires microphone access to record audio for reels and voice messages.</string>
 	<key>NSFaceIDUsageDescription</key>

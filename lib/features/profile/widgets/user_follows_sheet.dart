@@ -5,10 +5,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/notification_service.dart';
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/zev_cached_image.dart';
 import '../screens/profile_screen.dart';
 
-/// Serene, Instagram-Grade Followers & Following Bottom Sheet for ZEV.
-/// Displays followers and following lists with search bar and live toggle actions.
+/// Flagship Claymorphic Followers & Following Bottom Sheet for ZEV.
+/// Engineered with authentic 3D tactile clay surfaces, dual multi-layer shadows,
+/// live Supabase follow/unfollow synchronization, and instant search filtering.
 class UserFollowsSheet extends StatefulWidget {
   final String userId;
   final String username;
@@ -31,6 +33,7 @@ class UserFollowsSheet extends StatefulWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
       builder: (_) => UserFollowsSheet(
         userId: userId,
         username: username,
@@ -49,6 +52,8 @@ class _UserFollowsSheetState extends State<UserFollowsSheet>
   late final TabController _tabCtrl;
   final TextEditingController _searchCtrl = TextEditingController();
 
+  int _activeTabIndex = 0;
+
   List<Map<String, dynamic>> _followers = [];
   List<Map<String, dynamic>> _filteredFollowers = [];
   bool _isLoadingFollowers = true;
@@ -62,11 +67,18 @@ class _UserFollowsSheetState extends State<UserFollowsSheet>
   @override
   void initState() {
     super.initState();
+    _activeTabIndex = widget.initialTabIndex;
     _tabCtrl = TabController(
       length: 2,
       vsync: this,
       initialIndex: widget.initialTabIndex,
     );
+
+    _tabCtrl.addListener(() {
+      if (_tabCtrl.indexIsChanging || _tabCtrl.index != _activeTabIndex) {
+        setState(() => _activeTabIndex = _tabCtrl.index);
+      }
+    });
 
     _searchCtrl.addListener(_onSearchChanged);
     _fetchFollowers();
@@ -123,7 +135,6 @@ class _UserFollowsSheetState extends State<UserFollowsSheet>
 
   Future<void> _fetchFollowers() async {
     try {
-      // 1. Get follower IDs from user_follows
       final res = await supabase
           .from('user_follows')
           .select('follower_id')
@@ -145,7 +156,6 @@ class _UserFollowsSheetState extends State<UserFollowsSheet>
         return;
       }
 
-      // 2. Query profiles
       final profs = await supabase
           .from('profiles')
           .select(
@@ -301,105 +311,294 @@ class _UserFollowsSheetState extends State<UserFollowsSheet>
     final mediaQuery = MediaQuery.of(context);
 
     return Container(
-      height: mediaQuery.size.height * 0.78,
-      decoration: const BoxDecoration(
-        color: ZevColors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      height: mediaQuery.size.height * 0.82,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9), // Luxurious porcelain clay canvas
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.95),
+          width: 1.8,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.16),
+            blurRadius: 36,
+            offset: const Offset(0, -10),
+          ),
+          const BoxShadow(
+            color: Colors.white,
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          // Drag Handle
           const SizedBox(height: 12),
+
+          // 1. Tactile Clay Drag Handle
           Container(
-            width: 38,
-            height: 4.5,
+            width: 44,
+            height: 5,
             decoration: BoxDecoration(
               color: const Color(0xFFCBD5E1),
-              borderRadius: BorderRadius.circular(3),
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          // User title
-          Text(
-            widget.username,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: ZevColors.deepNavy,
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // Tab Bar
-          TabBar(
-            controller: _tabCtrl,
-            indicatorColor: ZevColors.primaryBlue,
-            indicatorWeight: 2.5,
-            labelColor: ZevColors.deepNavy,
-            unselectedLabelColor: ZevColors.textMuted,
-            labelStyle: const TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w800,
-            ),
-            unselectedLabelStyle: const TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w600,
-            ),
-            tabs: [
-              Tab(text: "${_followers.length} Followers"),
-              Tab(text: "${_following.length} Following"),
-            ],
-          ),
-          const Divider(height: 1, color: ZevColors.border),
-
-          // Search Bar
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Container(
-              height: 38,
-              decoration: BoxDecoration(
-                color: ZevColors.softSurface,
-                borderRadius: BorderRadius.circular(19),
-                border: Border.all(color: ZevColors.border),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: TextField(
-                controller: _searchCtrl,
-                style: const TextStyle(fontSize: 13, color: ZevColors.deepNavy),
-                decoration: const InputDecoration(
-                  hintText: "Search",
-                  hintStyle: TextStyle(
-                    fontSize: 13,
-                    color: ZevColors.textMuted,
-                  ),
-                  prefixIcon: Icon(
-                    Icons.search_rounded,
-                    size: 18,
-                    color: ZevColors.textMuted,
-                  ),
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(vertical: 8),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.white,
+                  blurRadius: 4,
+                  offset: Offset(0, 1.5),
                 ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // 2. Clay Header with User Badge & Close Button
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                // Clay User Pill
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.95),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                      const BoxShadow(
+                        color: Colors.white,
+                        blurRadius: 4,
+                        offset: Offset(0, -1),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.people_alt_rounded,
+                        size: 16,
+                        color: Color(0xFF00D4FF),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        "@${widget.username}",
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: ZevColors.deepNavy,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const Spacer(),
+
+                // Close Button with Clay Tactile Circle
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.pop(context);
+                  },
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                        const BoxShadow(
+                          color: Colors.white,
+                          blurRadius: 4,
+                          offset: Offset(0, -1),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // 3. Flagship Claymorphic Segmented Tab Bar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Container(
+              height: 48,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                  const BoxShadow(
+                    color: Colors.white,
+                    blurRadius: 4,
+                    offset: Offset(0, -1),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildClayTabItem(
+                      index: 0,
+                      label: "Followers",
+                      count: _followers.length,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: _buildClayTabItem(
+                      index: 1,
+                      label: "Following",
+                      count: _following.length,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
+          const SizedBox(height: 14),
 
-          // Tab Views
+          // 4. Tactile Clay Search Bar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Container(
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.95),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                  const BoxShadow(
+                    color: Colors.white,
+                    blurRadius: 5,
+                    offset: Offset(0, -1),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00D4FF).withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.search_rounded,
+                      size: 16,
+                      color: Color(0xFF0095F6),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchCtrl,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: ZevColors.deepNavy,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: "Search people...",
+                        hintStyle: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF94A3B8),
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ),
+                  if (_searchCtrl.text.isNotEmpty)
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        _searchCtrl.clear();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFE2E8F0),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close_rounded,
+                          size: 13,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // 5. Tab Views with Clay Content
           Expanded(
             child: TabBarView(
               controller: _tabCtrl,
+              physics: const BouncingScrollPhysics(),
               children: [
                 _buildUserList(
                   items: _filteredFollowers,
                   isLoading: _isLoadingFollowers,
-                  emptyText: "No followers yet",
+                  emptyTitle: "No followers yet",
+                  emptySubtitle: "When people follow @${widget.username}, they'll appear here.",
+                  icon: Icons.people_outline_rounded,
                 ),
                 _buildUserList(
                   items: _filteredFollowing,
                   isLoading: _isLoadingFollowing,
-                  emptyText: "Not following anyone yet",
+                  emptyTitle: "Not following anyone",
+                  emptySubtitle: "@${widget.username} isn't following anyone yet.",
+                  icon: Icons.person_add_alt_1_outlined,
                 ),
               ],
             ),
@@ -409,26 +608,97 @@ class _UserFollowsSheetState extends State<UserFollowsSheet>
     );
   }
 
+  Widget _buildClayTabItem({
+    required int index,
+    required String label,
+    required int count,
+  }) {
+    final isSelected = _activeTabIndex == index;
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        _tabCtrl.animateTo(index);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: isSelected
+              ? Border.all(
+                  color: Colors.white,
+                  width: 1.2,
+                )
+              : null,
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                  const BoxShadow(
+                    color: Colors.white,
+                    blurRadius: 4,
+                    offset: Offset(0, -1),
+                  ),
+                ]
+              : null,
+        ),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? ZevColors.deepNavy : const Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? const Color(0xFF00D4FF).withValues(alpha: 0.15)
+                    : const Color(0xFFCBD5E1).withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                count > 9999 ? "${(count / 1000).toStringAsFixed(1)}K" : count.toString(),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: isSelected ? const Color(0xFF0095F6) : const Color(0xFF64748B),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildUserList({
     required List<Map<String, dynamic>> items,
     required bool isLoading,
-    required String emptyText,
+    required String emptyTitle,
+    required String emptySubtitle,
+    required IconData icon,
   }) {
     if (isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: ZevColors.primaryBlue,
-        ),
-      );
+      return _buildClayShimmerList();
     }
 
     if (items.isEmpty) {
-      return Center(
-        child: Text(
-          emptyText,
-          style: const TextStyle(fontSize: 13, color: ZevColors.textMuted),
-        ),
+      return _buildClayEmptyState(
+        icon: icon,
+        title: emptyTitle,
+        subtitle: emptySubtitle,
       );
     }
 
@@ -436,9 +706,9 @@ class _UserFollowsSheetState extends State<UserFollowsSheet>
 
     return ListView.separated(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(18, 6, 18, 30),
       itemCount: items.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      separatorBuilder: (context, index) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final u = items[index];
         final id = u['id'] as String;
@@ -449,108 +719,388 @@ class _UserFollowsSheetState extends State<UserFollowsSheet>
         final isMe = currentUserId != null && currentUserId == id;
         final isFollowing = _myFollowedIds.contains(id);
 
-        return Row(
-          children: [
-            Expanded(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  Navigator.pop(context);
-                  ProfileScreen.open(context, userId: id);
-                },
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 22,
-                      backgroundColor: ZevColors.softSurface,
-                      backgroundImage:
-                          avatar.isNotEmpty ? NetworkImage(avatar) : null,
-                      child: avatar.isEmpty
-                          ? const Icon(
-                              Icons.person,
-                              color: ZevColors.textMuted,
-                              size: 22,
-                            )
-                          : null,
+        return _buildClayUserCard(
+          id: id,
+          username: username,
+          name: name,
+          avatar: avatar,
+          isVerified: isVerified,
+          isMe: isMe,
+          isFollowing: isFollowing,
+        );
+      },
+    );
+  }
+
+  Widget _buildClayUserCard({
+    required String id,
+    required String username,
+    required String name,
+    required String avatar,
+    required bool isVerified,
+    required bool isMe,
+    required bool isFollowing,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.95),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+          const BoxShadow(
+            color: Colors.white,
+            blurRadius: 4,
+            offset: Offset(0, -1),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Navigator.pop(context);
+                ProfileScreen.open(context, userId: id);
+              },
+              child: Row(
+                children: [
+                  // Clay Avatar Container with subtle border highlight
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFF00D4FF).withValues(alpha: 0.35),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  username,
-                                  style: const TextStyle(
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: ZevColors.deepNavy,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                    child: ClipOval(
+                      child: avatar.isNotEmpty
+                          ? ZevCachedImage.avatar(
+                              imageUrl: avatar,
+                              size: 46,
+                            )
+                          : Container(
+                              color: const Color(0xFFE2E8F0),
+                              child: const Icon(
+                                Icons.person_rounded,
+                                color: Color(0xFF94A3B8),
+                                size: 24,
                               ),
-                              if (isVerified) ...[
-                                const SizedBox(width: 4),
-                                const Icon(
-                                  Icons.verified_rounded,
-                                  size: 14,
-                                  color: ZevColors.primaryBlue,
-                                ),
-                              ],
-                            ],
-                          ),
-                          Text(
-                            name,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: ZevColors.textMuted,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Name & Username
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                username,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: ZevColors.deepNavy,
+                                  letterSpacing: -0.2,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (isVerified) ...[
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.verified_rounded,
+                                size: 14,
+                                color: Color(0xFF00D4FF),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF64748B),
                           ),
-                        ],
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Action Button (Follow / Following / You)
+          if (!isMe)
+            _buildClayFollowButton(
+              isFollowing: isFollowing,
+              onTap: () => _toggleFollow(id, username),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClayFollowButton({
+    required bool isFollowing,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7.5),
+        decoration: BoxDecoration(
+          gradient: isFollowing
+              ? null
+              : const LinearGradient(
+                  colors: [
+                    Color(0xFF00D4FF),
+                    Color(0xFF0072FF),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+          color: isFollowing ? const Color(0xFFF1F5F9) : null,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isFollowing
+                ? const Color(0xFFCBD5E1)
+                : Colors.white.withValues(alpha: 0.6),
+            width: 1.2,
+          ),
+          boxShadow: [
+            if (!isFollowing)
+              BoxShadow(
+                color: const Color(0xFF00D4FF).withValues(alpha: 0.35),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              )
+            else ...[
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+              const BoxShadow(
+                color: Colors.white,
+                blurRadius: 2,
+                offset: Offset(0, -1),
+              ),
+            ],
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isFollowing) ...[
+              const Icon(
+                Icons.check_rounded,
+                size: 13,
+                color: Color(0xFF0F172A),
+              ),
+              const SizedBox(width: 4),
+            ] else ...[
+              const Icon(
+                Icons.add_rounded,
+                size: 14,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 3),
+            ],
+            Text(
+              isFollowing ? "Following" : "Follow",
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: isFollowing ? const Color(0xFF0F172A) : Colors.white,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClayEmptyState({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 30),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.95),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+              const BoxShadow(
+                color: Colors.white,
+                blurRadius: 6,
+                offset: Offset(0, -2),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00D4FF).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFF00D4FF).withValues(alpha: 0.3),
+                    width: 1.5,
+                  ),
+                ),
+                child: Icon(
+                  icon,
+                  size: 28,
+                  color: const Color(0xFF0095F6),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: ZevColors.deepNavy,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF64748B),
+                  height: 1.35,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClayShimmerList() {
+    return ListView.separated(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(18, 6, 18, 30),
+      itemCount: 6,
+      separatorBuilder: (context, index) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.95),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE2E8F0),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 100,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE2E8F0),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      width: 150,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(5),
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-            if (!isMe)
-              SizedBox(
-                height: 32,
-                child: ElevatedButton(
-                  onPressed: () => _toggleFollow(id, username),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isFollowing
-                        ? ZevColors.softSurface
-                        : const Color(0xFF0095F6),
-                    foregroundColor: isFollowing
-                        ? ZevColors.deepNavy
-                        : Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      side: isFollowing
-                          ? const BorderSide(color: ZevColors.border)
-                          : BorderSide.none,
-                    ),
-                  ),
-                  child: Text(
-                    isFollowing ? "Following" : "Follow",
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: isFollowing ? ZevColors.deepNavy : Colors.white,
-                    ),
-                  ),
+              Container(
+                width: 72,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE2E8F0),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
-          ],
+            ],
+          ),
         );
       },
     );

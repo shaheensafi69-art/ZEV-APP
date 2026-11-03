@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/zev_native_ad_reel_unit.dart';
 import '../models/reel_item.dart';
 import '../services/reel_video_cache_manager.dart';
 import '../widgets/reel_player_item.dart';
@@ -28,6 +29,19 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
   int _activePage = 0;
   bool _isGlobalMuted = false;
 
+  // Native In-Stream Ad Placement Rules (every 4 reels -> 1 ad unit)
+  int get _adCount => _reels.length ~/ 4;
+  int get _totalPageCount => _reels.length + _adCount;
+
+  bool _isAdPage(int index) {
+    if (_reels.isEmpty) return false;
+    return (index + 1) % 5 == 0;
+  }
+
+  int _getReelIndex(int index) {
+    return index - ((index + 1) ~/ 5);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -41,8 +55,13 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
     if (oldWidget.isScreenActive && !widget.isScreenActive) {
       ReelVideoCacheManager().pauseAll();
     } else if (!oldWidget.isScreenActive && widget.isScreenActive) {
-      if (_reels.isNotEmpty && _activePage < _reels.length) {
-        ReelVideoCacheManager().pauseAllExcept(_reels[_activePage].videoUrl);
+      if (_reels.isNotEmpty && !_isAdPage(_activePage)) {
+        final reelIdx = _getReelIndex(_activePage);
+        if (reelIdx < _reels.length) {
+          ReelVideoCacheManager().pauseAllExcept(_reels[reelIdx].videoUrl);
+        }
+      } else {
+        ReelVideoCacheManager().pauseAll();
       }
     }
   }
@@ -225,10 +244,18 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
 
   void _onPageChanged(int index) {
     setState(() => _activePage = index);
-    if (_reels.isNotEmpty && index < _reels.length) {
-      ReelVideoCacheManager().pauseAllExcept(_reels[index].videoUrl);
+    if (_isAdPage(index)) {
+      // Pause all reel audio/video while viewing the native in-stream ad
+      ReelVideoCacheManager().pauseAll();
+      final nextReelIdx = _getReelIndex(index + 1);
+      _preloadAdjacentReels(nextReelIdx);
+    } else {
+      final reelIdx = _getReelIndex(index);
+      if (_reels.isNotEmpty && reelIdx < _reels.length) {
+        ReelVideoCacheManager().pauseAllExcept(_reels[reelIdx].videoUrl);
+      }
+      _preloadAdjacentReels(reelIdx);
     }
-    _preloadAdjacentReels(index);
   }
 
   void _toggleGlobalMute() {
@@ -299,11 +326,22 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
             controller: _pageController,
             scrollDirection: Axis.vertical,
             physics: const BouncingScrollPhysics(),
-            itemCount: _reels.length,
+            itemCount: _totalPageCount,
             onPageChanged: _onPageChanged,
             itemBuilder: (context, index) {
-              final reel = _reels[index];
               final isPageActive = widget.isScreenActive && index == _activePage;
+
+              // Render luxury native ad unit every 4 reels
+              if (_isAdPage(index)) {
+                return ZevNativeAdReelUnit(
+                  key: ValueKey('reel_ad_$index'),
+                  isActive: isPageActive,
+                );
+              }
+
+              final reelIdx = _getReelIndex(index);
+              if (reelIdx >= _reels.length) return const SizedBox.shrink();
+              final reel = _reels[reelIdx];
 
               return ReelPlayerItem(
                 key: ValueKey(reel.id),

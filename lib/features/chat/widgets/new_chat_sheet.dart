@@ -165,7 +165,7 @@ class _NewChatSheetState extends State<NewChatSheet> {
       height: MediaQuery.of(context).size.height * 0.78 + bottomInset,
       padding: EdgeInsets.only(bottom: bottomInset),
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: Color(0xFFF8FAFC),
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       child: Column(
@@ -176,7 +176,7 @@ class _NewChatSheetState extends State<NewChatSheet> {
             width: 40,
             height: 4.5,
             decoration: BoxDecoration(
-              color: const Color(0xFFE2E8F0),
+              color: const Color(0xFFCBD5E1),
               borderRadius: BorderRadius.circular(3),
             ),
           ),
@@ -205,15 +205,23 @@ class _NewChatSheetState extends State<NewChatSheet> {
             ),
           ),
 
-          // Search Bar
+          // Claymorphic Search Bar
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 4, 18, 12),
             child: Container(
-              height: 44,
+              height: 46,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(16),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
               child: Row(
                 children: [
@@ -309,16 +317,16 @@ class _NewChatSheetState extends State<NewChatSheet> {
                               widget.onSelectUser(uId, uName, avatar, full, isVerified);
                             },
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               decoration: BoxDecoration(
                                 color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: const Color(0xFFF1F5F9)),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
+                                    color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 3),
                                   ),
                                 ],
                               ),
@@ -372,17 +380,26 @@ class _NewChatSheetState extends State<NewChatSheet> {
                                     ),
                                   ),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                                     decoration: BoxDecoration(
-                                      color: ZevColors.primaryBlue.withValues(alpha: 0.12),
+                                      gradient: const LinearGradient(
+                                        colors: [Color(0xFF00D4FF), Color(0xFF0284C7)],
+                                      ),
                                       borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: const Color(0xFF00D4FF).withValues(alpha: 0.3),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
                                     ),
                                     child: const Text(
                                       "Chat",
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w800,
-                                        color: ZevColors.primaryBlue,
+                                        color: Colors.white,
                                       ),
                                     ),
                                   ),

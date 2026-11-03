@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_cached_image.dart';
+import '../../../core/widgets/zev_native_ad_card.dart';
 import '../models/feed_post_item.dart';
 import '../widgets/feed_post_card.dart';
 import '../widgets/feed_stories_tray.dart';
@@ -1110,13 +1111,30 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                         ),
                       );
 
+                      // Display a native in-stream ad card every 3 posts (posts 0, 1, 2 -> Ad below 2, etc.)
+                      final showNativeAd = (index + 1) % 3 == 0;
+
                       // Render "Suggested for you" carousel directly below the first post
                       if (index == 0 &&
                           _suggestedUsers.isNotEmpty &&
                           !_dismissSuggestedCarousel) {
                         return Column(
                           mainAxisSize: MainAxisSize.min,
-                          children: [card, _buildSuggestedCarousel()],
+                          children: [
+                            card,
+                            _buildSuggestedCarousel(),
+                            if (showNativeAd) const ZevNativeAdCard(),
+                          ],
+                        );
+                      }
+
+                      if (showNativeAd) {
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            card,
+                            const ZevNativeAdCard(),
+                          ],
                         );
                       }
 

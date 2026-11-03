@@ -11,6 +11,7 @@ class ChatConversationItem {
   final String? lastAttachmentUrl;
   final String? lastAttachmentType;
   final bool isLastMessageMine;
+  final bool isLastMessageDelivered;
   final bool isLastMessageRead;
   final DateTime lastMessageAt;
   final int unreadCount;
@@ -28,6 +29,7 @@ class ChatConversationItem {
     this.lastAttachmentUrl,
     this.lastAttachmentType,
     this.isLastMessageMine = false,
+    this.isLastMessageDelivered = false,
     this.isLastMessageRead = true,
     required this.lastMessageAt,
     this.unreadCount = 0,
@@ -46,6 +48,7 @@ class ChatConversationItem {
     String? lastAttachmentUrl,
     String? lastAttachmentType,
     bool? isLastMessageMine,
+    bool? isLastMessageDelivered,
     bool? isLastMessageRead,
     DateTime? lastMessageAt,
     int? unreadCount,
@@ -63,6 +66,8 @@ class ChatConversationItem {
       lastAttachmentUrl: lastAttachmentUrl ?? this.lastAttachmentUrl,
       lastAttachmentType: lastAttachmentType ?? this.lastAttachmentType,
       isLastMessageMine: isLastMessageMine ?? this.isLastMessageMine,
+      isLastMessageDelivered:
+          isLastMessageDelivered ?? this.isLastMessageDelivered,
       isLastMessageRead: isLastMessageRead ?? this.isLastMessageRead,
       lastMessageAt: lastMessageAt ?? this.lastMessageAt,
       unreadCount: unreadCount ?? this.unreadCount,
@@ -70,4 +75,3 @@ class ChatConversationItem {
     );
   }
 }
-

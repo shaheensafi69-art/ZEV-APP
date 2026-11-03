@@ -17,6 +17,7 @@ import '../../stories/screens/story_viewer_screen.dart';
 import '../models/story_highlight_model.dart';
 import '../services/story_highlight_service.dart';
 import '../../../core/widgets/zev_cached_image.dart';
+import '../../../core/widgets/zev_video_thumbnail.dart';
 import '../widgets/create_highlight_sheet.dart';
 import '../widgets/edit_profile_sheet.dart';
 import '../widgets/highlight_viewer_screen.dart';
@@ -680,6 +681,148 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  /// Signature Instagram Long-Press Quick Peek dialog for Reels
+  void _showQuickReelPreview(ReelItem reel) {
+    HapticFeedback.heavyImpact();
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: "Reel Preview",
+      barrierColor: Colors.black.withValues(alpha: 0.75),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (context, anim1, anim2) {
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: const Color(0xFF00D4FF).withValues(alpha: 0.35),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    blurRadius: 30,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Author Header
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 18,
+                            backgroundColor: const Color(0xFF1E293B),
+                            backgroundImage: reel.authorAvatar.isNotEmpty
+                                ? NetworkImage(reel.authorAvatar)
+                                : null,
+                            child: reel.authorAvatar.isEmpty
+                                ? const Icon(Icons.person, color: Colors.white54, size: 18)
+                                : null,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      "@${reel.authorUsername}",
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 14,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    if (reel.isVerified) ...[
+                                      const SizedBox(width: 4),
+                                      const Icon(
+                                        Icons.verified_rounded,
+                                        size: 14,
+                                        color: ZevColors.primaryBlue,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                if (reel.title.isNotEmpty)
+                                  Text(
+                                    reel.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      color: Colors.white70,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Media Content with live looping preview
+                    AspectRatio(
+                      aspectRatio: 9 / 14,
+                      child: ZevVideoThumbnail(
+                        videoUrl: reel.videoUrl,
+                        thumbnailUrl: reel.thumbnailUrl,
+                        autoPlay: true,
+                        showPlayBadge: false,
+                        showViews: false,
+                      ),
+                    ),
+
+                    // Quick Action Button
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                      color: const Color(0xFF1E293B),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          TextButton.icon(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _openReelDetail(reel);
+                            },
+                            icon: const Icon(
+                              Icons.play_circle_fill_rounded,
+                              color: Color(0xFF00D4FF),
+                              size: 20,
+                            ),
+                            label: const Text(
+                              "Watch Full Reel",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _openCreateHighlightSheet() {
     HapticFeedback.lightImpact();
     CreateHighlightSheet.show(
@@ -1095,7 +1238,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   children: [
                     _buildClayStatBadge(
                       label: "Posts",
-                      count: _userPosts.length,
+                      count: _userPosts.length + _userReels.length,
                     ),
                     _buildClayStatBadge(
                       label: "Followers",
@@ -1674,9 +1817,16 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
               child: post.imageUrl.isNotEmpty
-                  ? ZevCachedImage.grid(
-                      imageUrl: post.imageUrl,
-                    )
+                  ? (post.imageUrl.toLowerCase().endsWith('.mp4') ||
+                          post.imageUrl.toLowerCase().endsWith('.mov') ||
+                          post.imageUrl.toLowerCase().endsWith('.webm')
+                      ? ZevVideoThumbnail(
+                          videoUrl: post.imageUrl,
+                          borderRadius: BorderRadius.circular(14),
+                        )
+                      : ZevCachedImage.grid(
+                          imageUrl: post.imageUrl,
+                        ))
                   : Container(
                       padding: const EdgeInsets.all(8),
                       color: const Color(0xFFF8FAFC),
@@ -1726,12 +1876,10 @@ class _ProfileScreenState extends State<ProfileScreen>
       itemCount: _userReels.length,
       itemBuilder: (context, index) {
         final reel = _userReels[index];
-        final views = reel.viewsCount > 999
-            ? "${(reel.viewsCount / 1000).toStringAsFixed(1)}K"
-            : reel.viewsCount.toString();
 
         return GestureDetector(
           onTap: () => _openReelDetail(reel),
+          onLongPress: () => _showQuickReelPreview(reel),
           child: _buildClayCard(
             borderRadius: 14,
             depth: 3.5,
@@ -1739,34 +1887,13 @@ class _ProfileScreenState extends State<ProfileScreen>
             color: const Color(0xFF0F172A),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (reel.thumbnailUrl != null && reel.thumbnailUrl!.isNotEmpty)
-                    ZevCachedImage.grid(imageUrl: reel.thumbnailUrl!)
-                  else
-                    const Center(
-                      child: Icon(Icons.play_arrow_rounded, color: Colors.white54, size: 36),
-                    ),
-                  Positioned(
-                    bottom: 6,
-                    left: 6,
-                    child: Row(
-                      children: [
-                        const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 14),
-                        const SizedBox(width: 2),
-                        Text(
-                          views,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+              child: ZevVideoThumbnail(
+                videoUrl: reel.videoUrl,
+                thumbnailUrl: reel.thumbnailUrl,
+                viewsCount: reel.viewsCount,
+                showPlayBadge: false,
+                showViews: true,
+                borderRadius: BorderRadius.circular(14),
               ),
             ),
           ),
@@ -1860,7 +1987,14 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
               child: post.imageUrl.isNotEmpty
-                  ? ZevCachedImage.grid(imageUrl: post.imageUrl)
+                  ? (post.imageUrl.toLowerCase().endsWith('.mp4') ||
+                          post.imageUrl.toLowerCase().endsWith('.mov') ||
+                          post.imageUrl.toLowerCase().endsWith('.webm')
+                      ? ZevVideoThumbnail(
+                          videoUrl: post.imageUrl,
+                          borderRadius: BorderRadius.circular(14),
+                        )
+                      : ZevCachedImage.grid(imageUrl: post.imageUrl))
                   : Center(
                       child: Text(
                         post.content,

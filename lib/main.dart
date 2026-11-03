@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'core/services/admob_service.dart';
 import 'core/services/deep_link_service.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/user_presence_service.dart';
@@ -54,7 +55,10 @@ Future<void> main() async {
   // 4. Initialize Push Notifications & Firebase
   unawaited(NotificationService().initPushNotifications());
 
-  // 5. Initial home is the flagship cinematic animated ZEV splash screen
+  // 5. Initialize Google Mobile Ads (Native in-stream Ad Units)
+  unawaited(AdmobService.instance.init());
+
+  // 6. Initial home is the flagship cinematic animated ZEV splash screen
   runApp(const ZevApp(home: ZevSplashScreen()));
 }
 
@@ -90,7 +94,9 @@ class _ZevAppState extends State<ZevApp> with WidgetsBindingObserver {
       SystemUiHelper.enableFullScreen();
       UserPresenceService.instance.updatePresence(isOnline: true);
     } else if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.hidden) {
       UserPresenceService.instance.updatePresence(isOnline: false);
     }
   }

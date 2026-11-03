@@ -6,6 +6,7 @@ import 'package:video_player/video_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/zev_video_thumbnail.dart';
 import '../../feed/models/feed_post_item.dart';
 import '../../feed/widgets/feed_post_card.dart';
 import '../../profile/screens/profile_screen.dart';
@@ -723,10 +724,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     AspectRatio(
                       aspectRatio: item.isReel ? 9 / 14 : 1.0,
                       child: item.isReel
-                          ? ExploreVideoTile(
+                          ? ZevVideoThumbnail(
                               videoUrl: item.mediaUrl,
                               thumbnailUrl: item.thumbnailUrl,
                               autoPlay: true,
+                              showPlayBadge: false,
+                              showViews: false,
                             )
                           : CachedNetworkImage(
                               imageUrl: item.mediaUrl,
@@ -1001,37 +1004,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 children: [
                   // Media Player / Preview
                   if (item.isReel)
-                    Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        if (item.thumbnailUrl != null && item.thumbnailUrl!.isNotEmpty)
-                          CachedNetworkImage(
-                            imageUrl: item.thumbnailUrl!,
-                            fit: BoxFit.cover,
-                            memCacheWidth: 400,
-                            memCacheHeight: 400,
-                            placeholder: (context, url) => _buildFallbackTile(item),
-                            errorWidget: (context, url, error) => _buildFallbackTile(item),
-                          )
-                        else
-                          _buildFallbackTile(item),
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.45),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Icon(
-                              Icons.movie_rounded,
-                              color: Colors.white,
-                              size: 14,
-                            ),
-                          ),
-                        ),
-                      ],
+                    ZevVideoThumbnail(
+                      videoUrl: item.mediaUrl,
+                      thumbnailUrl: item.thumbnailUrl,
+                      viewsCount: item.viewsCount,
+                      showPlayBadge: false,
+                      showViews: false,
+                      borderRadius: BorderRadius.circular(16),
                     )
                   else if (item.mediaUrl.isNotEmpty)
                     CachedNetworkImage(
@@ -1405,27 +1384,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (reel.thumbnailUrl != null && reel.thumbnailUrl!.isNotEmpty)
-                    CachedNetworkImage(
-                      imageUrl: reel.thumbnailUrl!,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 400,
-                      memCacheHeight: 400,
-                      placeholder: (context, url) => Container(color: const Color(0xFF1E293B)),
-                      errorWidget: (context, url, error) => Container(
-                        color: const Color(0xFF1E293B),
-                        child: const Center(
-                          child: Icon(Icons.movie_rounded, color: Colors.white54, size: 28),
-                        ),
-                      ),
-                    )
-                  else
-                    Container(
-                      color: const Color(0xFF1E293B),
-                      child: const Center(
-                        child: Icon(Icons.movie_rounded, color: Colors.white54, size: 28),
-                      ),
-                    ),
+                  ZevVideoThumbnail(
+                    videoUrl: reel.videoUrl,
+                    thumbnailUrl: reel.thumbnailUrl,
+                    viewsCount: reel.viewsCount,
+                    showPlayBadge: false,
+                    showViews: false,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                   Positioned(
                     bottom: 6,
                     left: 6,

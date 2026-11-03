@@ -104,6 +104,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     _markIncomingMessagesAsRead();
     _subscribeToLiveChat();
     _fetchPeerStatus();
+    _statusTimer = Timer.periodic(const Duration(seconds: 12), (_) {
+      if (mounted) _fetchPeerStatus();
+    });
   }
 
   @override
@@ -139,6 +142,26 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             table: 'message_reactions',
             callback: (payload) {
               _fetchReactions();
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'profiles',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'id',
+              value: widget.peerId,
+            ),
+            callback: (payload) {
+              if (mounted) {
+                final rec = payload.newRecord;
+                final presence = UserPresenceService.computePresence(rec);
+                setState(() {
+                  _isPeerOnline = presence.isOnline;
+                  _peerStatusText = presence.statusText;
+                });
+              }
             },
           )
           .subscribe();
@@ -212,11 +235,14 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     if (currentUserId == null) return;
 
     try {
+      final nowUtcIso = DateTime.now().toUtc().toIso8601String();
       await supabase
           .from('direct_messages')
           .update({
+            'is_delivered': true,
             'is_read': true,
-            'read_at': DateTime.now().toIso8601String(),
+            'delivered_at': nowUtcIso,
+            'read_at': nowUtcIso,
           })
           .eq('sender_id', widget.peerId)
           .eq('receiver_id', currentUserId)
@@ -324,6 +350,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
     final String tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
     final now = DateTime.now();
+    final bool isRecipientDelivered = _isPeerOnline;
 
     final optimisticMsg = DirectMessageModel(
       id: tempId,
@@ -332,7 +359,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       messageText: text,
       attachmentUrl: mediaUrl,
       attachmentType: mediaType,
-      isDelivered: true,
+      isDelivered: isRecipientDelivered,
       isRead: false,
       createdAt: now,
     );
@@ -351,10 +378,13 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         'message_text': text,
         'attachment_url': mediaUrl,
         'attachment_type': mediaType,
-        'is_delivered': true,
+        'is_delivered': isRecipientDelivered,
         'is_read': false,
         'created_at': now.toIso8601String(),
       };
+      if (isRecipientDelivered) {
+        insertPayload['delivered_at'] = now.toUtc().toIso8601String();
+      }
 
       final insertedRes = await supabase
           .from('direct_messages')
@@ -1128,27 +1158,27 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                           ? const EdgeInsets.all(4)
                           : const EdgeInsets.symmetric(horizontal: 14, vertical: 9)),
                   decoration: BoxDecoration(
-                    gradient: isMine
-                        ? const LinearGradient(
-                            colors: [
-                              ZevColors.primaryBlue,
-                              Color(0xFF0284C7),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          )
-                        : null,
-                    color: isMine ? null : Colors.white,
+                    color: isMine ? const Color(0xFF1E293B) : Colors.white,
+                    border: Border.all(
+                      color: isMine
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFE2E8F0),
+                      width: 1,
+                    ),
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(20),
                       topRight: const Radius.circular(20),
-                      bottomLeft: isMine ? const Radius.circular(20) : const Radius.circular(4),
-                      bottomRight: isMine ? const Radius.circular(4) : const Radius.circular(20),
+                      bottomLeft: isMine
+                          ? const Radius.circular(20)
+                          : const Radius.circular(4),
+                      bottomRight: isMine
+                          ? const Radius.circular(4)
+                          : const Radius.circular(20),
                     ),
                     boxShadow: [
                       BoxShadow(
                         color: isMine
-                            ? ZevColors.primaryBlue.withValues(alpha: 0.25)
+                            ? const Color(0xFF0F172A).withValues(alpha: 0.22)
                             : const Color(0xFF0F172A).withValues(alpha: 0.05),
                         blurRadius: 10,
                         offset: const Offset(0, 3),
@@ -1280,39 +1310,39 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
   }
 
-  /// Official WhatsApp-Style Tick Delivery Indicators:
-  /// - 1 tick (✓) = Sent to server
-  /// - 2 grey/white ticks (✓✓) = Delivered to recipient's phone
-  /// - 2 blue ticks (✓✓) = Read / Seen by recipient in cyan blue
+  /// Official WhatsApp/Telegram-Style Tick Delivery Indicators:
+  /// - 1 grey tick (✓) = Sent to server, recipient is offline / phone off
+  /// - 2 grey ticks (✓✓) = Delivered to recipient's phone / app
+  /// - 2 electric blue ticks (✓✓) = Read / Seen by recipient
   Widget _buildTickStatus(DirectMessageModel msg) {
     if (msg.isRead) {
-      // 2 Blue Ticks (Read / Seen)
+      // 2 Electric Blue Ticks (Read / Seen)
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 1),
         child: const Icon(
           Icons.done_all_rounded,
           size: 15,
-          color: Color(0xFF38BDF8), // Electric cyan-blue
+          color: Color(0xFF00D4FF), // Vivid Electric Cyan-Blue
         ),
       );
     } else if (msg.isDelivered) {
-      // 2 Grey/White Ticks (Delivered to peer)
+      // 2 Grey Ticks (Delivered to recipient's device)
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 1),
-        child: Icon(
+        child: const Icon(
           Icons.done_all_rounded,
           size: 15,
-          color: Colors.white.withValues(alpha: 0.75),
+          color: Color(0xFF94A3B8), // Muted Slate Grey
         ),
       );
     } else {
-      // 1 Tick (Sent to server)
+      // 1 Grey Tick (Sent to server, recipient offline)
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 1),
-        child: Icon(
+        child: const Icon(
           Icons.done_rounded,
           size: 15,
-          color: Colors.white.withValues(alpha: 0.75),
+          color: Color(0xFF94A3B8), // Muted Slate Grey
         ),
       );
     }

@@ -92,7 +92,11 @@ object MediaInfoExtractor {
     ): ByteArray? = withContext(Dispatchers.IO) {
         val retriever = MediaMetadataRetriever()
         try {
-            retriever.setDataSource(inputPath)
+            if (inputPath.startsWith("http://") || inputPath.startsWith("https://")) {
+                retriever.setDataSource(inputPath, HashMap<String, String>())
+            } else {
+                retriever.setDataSource(inputPath)
+            }
             var bitmap = retriever.getFrameAtTime(
                 positionMs * 1000, // convert ms to microseconds
                 MediaMetadataRetriever.OPTION_CLOSEST_SYNC

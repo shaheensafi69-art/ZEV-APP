@@ -217,6 +217,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
             lastAttachmentUrl: lastMsg['attachment_url']?.toString(),
             lastAttachmentType: lastMsg['attachment_type']?.toString(),
             isLastMessageMine: isMine,
+            isLastMessageDelivered: lastMsg['is_delivered'] == true,
             isLastMessageRead: lastMsg['is_read'] == true,
             lastMessageAt: DateTime.tryParse(lastMsg['created_at']?.toString() ?? '') ?? DateTime.now(),
             unreadCount: unreadCount,
@@ -842,6 +843,20 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   const SizedBox(height: 3),
                   Row(
                     children: [
+                      if (item.isLastMessageMine) ...[
+                        Icon(
+                          item.isLastMessageRead
+                              ? Icons.done_all_rounded
+                              : (item.isLastMessageDelivered
+                                  ? Icons.done_all_rounded
+                                  : Icons.done_rounded),
+                          size: 14,
+                          color: item.isLastMessageRead
+                              ? const Color(0xFF00D4FF)
+                              : const Color(0xFF94A3B8),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
                       Expanded(
                         child: Text(
                           previewText,
@@ -878,15 +893,24 @@ class _ChatListScreenState extends State<ChatListScreen> {
             // Right side: Unread Badge or Camera Quick-Send Shortcut
             if (hasUnread)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
                 decoration: BoxDecoration(
-                  color: ZevColors.primaryBlue,
-                  borderRadius: BorderRadius.circular(10),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF00D4FF), Color(0xFF0284C7)],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF00D4FF).withValues(alpha: 0.35),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Text(
                   item.unreadCount.toString(),
                   style: const TextStyle(
-                    color: ZevColors.deepNavy,
+                    color: Colors.white,
                     fontSize: 11,
                     fontWeight: FontWeight.w900,
                   ),
