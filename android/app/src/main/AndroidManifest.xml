@@ -33,7 +33,8 @@
     <application
         android:label="ZEV"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -81,19 +82,30 @@
                 <data android:scheme="https" android:host="media.zevapp.com" android:pathPrefix="/zev/feed"/>
             </intent-filter>
 
-            <!-- ZEV Custom Scheme Fallback (zev://post/... & zev://reel/...) -->
+            <!-- ZEV Custom Scheme Fallback (zev://post/..., zev://reel/..., zev://chat/..., zev://notifications) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="zev" android:host="reel"/>
                 <data android:scheme="zev" android:host="post"/>
+                <data android:scheme="zev" android:host="chat"/>
+                <data android:scheme="zev" android:host="notifications"/>
+                <data android:scheme="zev" android:host="profile"/>
             </intent-filter>
         </activity>
         
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Default Notification Icon & Accent Color for Firebase Cloud Messaging -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_accent_color" />
 
         <!-- Google AdMob Application ID -->
         <meta-data

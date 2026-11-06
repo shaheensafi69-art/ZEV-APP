@@ -48,19 +48,43 @@ class ChatConversationScreen extends StatefulWidget {
   static Future<void> open(
     BuildContext context, {
     required String peerId,
-    required String peerUsername,
+    String peerUsername = 'User',
     String peerFullName = '',
     String peerAvatar = '',
     bool isPeerVerified = false,
   }) async {
+    String resolvedUsername = peerUsername;
+    String resolvedFullName = peerFullName;
+    String resolvedAvatar = peerAvatar;
+    bool resolvedVerified = isPeerVerified;
+
+    if (resolvedUsername == 'User' || resolvedUsername.isEmpty) {
+      try {
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select('username, first_name, last_name, avatar_url, is_verified')
+            .eq('id', peerId)
+            .maybeSingle();
+
+        if (profile != null) {
+          resolvedUsername = profile['username']?.toString() ?? 'User';
+          resolvedFullName =
+              "${profile['first_name'] ?? ''} ${profile['last_name'] ?? ''}".trim();
+          resolvedAvatar = profile['avatar_url']?.toString() ?? '';
+          resolvedVerified = profile['is_verified'] == true;
+        }
+      } catch (_) {}
+    }
+
+    if (!context.mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ChatConversationScreen(
           peerId: peerId,
-          peerUsername: peerUsername,
-          peerFullName: peerFullName,
-          peerAvatar: peerAvatar,
-          isPeerVerified: isPeerVerified,
+          peerUsername: resolvedUsername,
+          peerFullName: resolvedFullName,
+          peerAvatar: resolvedAvatar,
+          isPeerVerified: resolvedVerified,
         ),
       ),
     );

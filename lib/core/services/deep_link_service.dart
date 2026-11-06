@@ -3,8 +3,12 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../features/chat/screens/chat_conversation_screen.dart';
 import '../../features/feed/screens/post_detail_screen.dart';
+import '../../features/notifications/screens/notifications_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
+import '../../features/reels/models/reel_item.dart';
+import '../../features/reels/widgets/reel_player_item.dart';
 import '../../main.dart';
 
 /// Flagship Deep Linking and Universal App Links Service for ZEV.
@@ -15,6 +19,12 @@ import '../../main.dart';
 /// - https://www.zevapp.com/reel/:id
 /// - https://zevapp.com/reel/:id
 /// - zev://reel/:id
+/// - https://zevapp.com/chat/:peerId
+/// - zev://chat/:peerId
+/// - https://zevapp.com/notifications
+/// - zev://notifications
+/// - https://zevapp.com/profile/:id
+/// - zev://profile/:id
 /// - https://zevapp.com/@username
 /// - https://media.zevapp.com/zev/feed/:file (fallback resolution)
 class DeepLinkService {
@@ -45,7 +55,7 @@ class DeepLinkService {
     _linkSubscription = _appLinks.uriLinkStream.listen(
       (Uri uri) {
         debugPrint('[DeepLinkService] Stream incoming link: $uri');
-        _handleIncomingUri(uri);
+        handleUri(uri);
       },
       onError: (err) {
         debugPrint('[DeepLinkService] Link stream error: $err');
@@ -61,15 +71,19 @@ class DeepLinkService {
   void _scheduleUriHandling(Uri uri) {
     // Small delay on cold start to ensure NavigatorState is attached
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Future.delayed(const Duration(milliseconds: 600), () {
-        _handleIncomingUri(uri);
+      Future.delayed(const Duration(milliseconds: 700), () {
+        handleUri(uri);
       });
     });
   }
 
-  Future<void> _handleIncomingUri(Uri uri) async {
+  /// Public entry-point to handle any URI incoming from external links, notifications, or deep links
+  Future<void> handleUri(Uri uri) async {
     final navContext = appNavigatorKey.currentContext;
-    if (navContext == null) return;
+    if (navContext == null) {
+      _scheduleUriHandling(uri);
+      return;
+    }
 
     final pathSegments = uri.pathSegments;
     final host = uri.host.toLowerCase();
@@ -77,7 +91,7 @@ class DeepLinkService {
 
     debugPrint('[DeepLinkService] Parsing URI: scheme=$scheme, host=$host, path=${uri.path}');
 
-    // Case 1: Custom Scheme "zev://post/:id" or "zev://reel/:id"
+    // Case 1: Custom Scheme "zev://..."
     if (scheme == 'zev') {
       if (host == 'post' && pathSegments.isNotEmpty) {
         _openPost(navContext, pathSegments.first);
@@ -87,12 +101,33 @@ class DeepLinkService {
         _openReel(navContext, pathSegments.first);
         return;
       }
+      if (host == 'chat' && pathSegments.isNotEmpty) {
+        _openChat(navContext, pathSegments.first);
+        return;
+      }
+      if (host == 'profile' && pathSegments.isNotEmpty) {
+        _openProfile(navContext, pathSegments.first);
+        return;
+      }
+      if (host == 'notifications') {
+        _openNotifications(navContext);
+        return;
+      }
+
       if (pathSegments.length >= 2) {
-        if (pathSegments[0] == 'post') {
-          _openPost(navContext, pathSegments[1]);
+        final target = pathSegments[0].toLowerCase();
+        final id = pathSegments[1];
+        if (target == 'post') {
+          _openPost(navContext, id);
           return;
-        } else if (pathSegments[0] == 'reel') {
-          _openReel(navContext, pathSegments[1]);
+        } else if (target == 'reel') {
+          _openReel(navContext, id);
+          return;
+        } else if (target == 'chat') {
+          _openChat(navContext, id);
+          return;
+        } else if (target == 'profile') {
+          _openProfile(navContext, id);
           return;
         }
       }
@@ -119,6 +154,24 @@ class DeepLinkService {
         return;
       }
 
+      // /chat/:peerId
+      if (pathSegments.length >= 2 && pathSegments[0] == 'chat') {
+        _openChat(navContext, pathSegments[1]);
+        return;
+      }
+
+      // /profile/:id
+      if (pathSegments.length >= 2 && pathSegments[0] == 'profile') {
+        _openProfile(navContext, pathSegments[1]);
+        return;
+      }
+
+      // /notifications
+      if (pathSegments.isNotEmpty && pathSegments[0] == 'notifications') {
+        _openNotifications(navContext);
+        return;
+      }
+
       // Fallback: Raw Media CDN Link resolution (e.g. media.zevapp.com/zev/feed/feed_...)
       if (host.contains('media.zevapp.com')) {
         await _resolveMediaLinkToPost(navContext, uri.toString());
@@ -137,10 +190,76 @@ class DeepLinkService {
     PostDetailScreen.open(context, postId: postId.trim());
   }
 
-  void _openReel(BuildContext context, String reelId) {
-    if (reelId.trim().isEmpty) return;
-    // Open post or reel screen
-    PostDetailScreen.open(context, postId: reelId.trim());
+  Future<void> _openReel(BuildContext context, String reelId) async {
+    final cleanId = reelId.trim();
+    if (cleanId.isEmpty) return;
+
+    try {
+      final res = await Supabase.instance.client
+          .from('reels')
+          .select(
+            'id, user_id, title, description, video_url, thumbnail_url, category, views_count, likes_count, comments_count, created_at',
+          )
+          .eq('id', cleanId)
+          .maybeSingle();
+
+      if (res != null && context.mounted) {
+        final reel = ReelItem(
+          id: res['id'].toString(),
+          userId: res['user_id']?.toString() ?? '',
+          authorUsername: res['title'] ?? 'Reel',
+          authorFullName: '',
+          authorAvatar: '',
+          isVerified: false,
+          videoUrl: res['video_url'] ?? '',
+          thumbnailUrl: res['thumbnail_url'],
+          title: res['title'] ?? '',
+          description: res['description'] ?? '',
+          createdAt: DateTime.now(),
+        );
+
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => Scaffold(
+              backgroundColor: Colors.black,
+              appBar: AppBar(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+                title: Text(reel.title.isNotEmpty ? reel.title : "Reel"),
+              ),
+              body: ReelPlayerItem(
+                reel: reel,
+                isActive: true,
+                isGlobalMuted: false,
+                onToggleMute: () {},
+              ),
+            ),
+          ),
+        );
+        return;
+      }
+    } catch (_) {}
+
+    // Fallback: open post detail
+    if (context.mounted) {
+      PostDetailScreen.open(context, postId: cleanId);
+    }
+  }
+
+  void _openChat(BuildContext context, String peerId) {
+    final cleanId = peerId.trim();
+    if (cleanId.isEmpty) return;
+    ChatConversationScreen.open(context, peerId: cleanId);
+  }
+
+  void _openProfile(BuildContext context, String userId) {
+    final cleanId = userId.trim();
+    if (cleanId.isEmpty) return;
+    ProfileScreen.open(context, userId: cleanId);
+  }
+
+  void _openNotifications(BuildContext context) {
+    NotificationsScreen.open(context);
   }
 
   Future<void> _openProfileByUsername(BuildContext context, String username) async {
@@ -160,7 +279,6 @@ class DeepLinkService {
 
   Future<void> _resolveMediaLinkToPost(BuildContext context, String rawUrl) async {
     try {
-      // Find post with matching image_url in discussion_posts
       final res = await Supabase.instance.client
           .from('discussion_posts')
           .select('id')
