@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/services/auth_helper.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../auth/screens/welcome_screen.dart';
 import '../../main_navigation/screens/zev_main_layout.dart';
@@ -115,6 +116,7 @@ class _ZevSplashScreenState extends State<ZevSplashScreen>
       final session = Supabase.instance.client.auth.currentSession;
       if (session != null) {
         targetScreen = const ZevMainLayout();
+        unawaited(AuthHelper.syncZevFcmToken(session.user.id));
       }
     } catch (e) {
       debugPrint('Auth check error in splash: $e');

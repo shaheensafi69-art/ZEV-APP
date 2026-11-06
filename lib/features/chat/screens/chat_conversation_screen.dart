@@ -15,19 +15,20 @@ import '../../../core/services/user_presence_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../models/direct_message_model.dart';
+import '../services/chat_cache_service.dart';
 
-/// Flagship WhatsApp, Instagram & Telegram Caliber 1-on-1 Direct Chat Screen for ZEV.
+/// Flagship Claymorphic 1-on-1 Direct Chat Screen for ZEV.
 /// Features:
-/// - Audio/Video calling disabled by requirement
+/// - Instant 0ms load with ChatCacheService memory-backed thread cache
 /// - Real-time Voice Messaging with dynamic soundwave recorder & Cloudflare R2 audio upload
 /// - In-bubble Voice Message player with live waveforms, progress scrubbing, and 1x/1.5x/2x speed controls
 /// - True database deletion with Telegram-grade dissolve, scale-down & fade animation
 /// - Exact 1-tick (sent), 2-ticks (delivered), and 2-blue-ticks (read/seen) delivery pipeline
-/// - Real-time active status & last seen telemetry
+/// - Real-time active status & last seen telemetry ("Active now", "Active 5m ago")
 /// - Photo attachments via Cloudflare R2 / Supabase Storage with interactive photo viewer
 /// - Rich message reactions (❤️, 😂, 😮, 😢, 👍, 🔥)
 /// - Quoted reply preview & clipboard copying
-/// - Claymorphic design language with 120 FPS buttery-smooth performance
+/// - Strictly preserves the Light aesthetic with buttery-smooth 120 FPS performance
 class ChatConversationScreen extends StatefulWidget {
   final String peerId;
   final String peerUsername;
@@ -90,9 +91,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   // Set of message IDs currently undergoing Telegram-style dissolve animation
   final Set<String> _deletingMessageIds = <String>{};
 
-  // Active status
-  bool _isPeerOnline = true;
-  String _peerStatusText = "Active now";
+  // Active presence telemetry
+  bool _isPeerOnline = false;
+  String _peerStatusText = "Loading...";
 
   RealtimeChannel? _chatChannel;
   Timer? _statusTimer;
@@ -100,11 +101,12 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   @override
   void initState() {
     super.initState();
+    _loadFromCacheFirst();
     _fetchMessages();
     _markIncomingMessagesAsRead();
     _subscribeToLiveChat();
     _fetchPeerStatus();
-    _statusTimer = Timer.periodic(const Duration(seconds: 12), (_) {
+    _statusTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) _fetchPeerStatus();
     });
   }
@@ -120,7 +122,23 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     super.dispose();
   }
 
-  /// Sets up real-time bidirectional message, read-receipt, and reaction streaming
+  /// Instantly displays cached messages from memory in 0ms (no loading screen!)
+  void _loadFromCacheFirst() {
+    final cached = ChatCacheService.instance.getThread(widget.peerId);
+    if (cached.isNotEmpty) {
+      _messages = List.from(cached);
+      _isLoading = false;
+    }
+
+    final cachedProfile = ChatCacheService.instance.getCachedProfile(widget.peerId);
+    if (cachedProfile != null) {
+      final presence = UserPresenceService.computePresence(cachedProfile);
+      _isPeerOnline = presence.isOnline;
+      _peerStatusText = presence.statusText;
+    }
+  }
+
+  /// Sets up real-time bidirectional message, read-receipt, and presence streaming
   void _subscribeToLiveChat() {
     final currentUserId = supabase.auth.currentUser?.id;
     if (currentUserId == null) return;
@@ -157,6 +175,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
               if (mounted) {
                 final rec = payload.newRecord;
                 final presence = UserPresenceService.computePresence(rec);
+                ChatCacheService.instance.cacheProfile(widget.peerId, rec);
                 setState(() {
                   _isPeerOnline = presence.isOnline;
                   _peerStatusText = presence.statusText;
@@ -166,7 +185,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           )
           .subscribe();
     } catch (e) {
-      debugPrint("Realtime chat subscription error: $e");
+      debugPrint("Realtime chat subscription notice: $e");
     }
   }
 
@@ -191,6 +210,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           setState(() {
             _messages.insert(0, newMsg);
           });
+          ChatCacheService.instance.addMessage(widget.peerId, newMsg);
           _scrollToBottom();
         }
 
@@ -209,11 +229,11 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         setState(() {
           _messages[index] = updatedMsg;
         });
+        ChatCacheService.instance.updateMessage(widget.peerId, updatedMsg);
       }
     } else if (payload.eventType == PostgresChangeEvent.delete) {
       final oldId = payload.oldRecord['id']?.toString() ?? '';
       if (oldId.isNotEmpty && mounted) {
-        // Trigger smooth Telegram fade/shrink animation for incoming deletions
         setState(() {
           _deletingMessageIds.add(oldId);
         });
@@ -223,32 +243,49 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
               _messages.removeWhere((m) => m.id == oldId);
               _deletingMessageIds.remove(oldId);
             });
+            ChatCacheService.instance.removeMessage(widget.peerId, oldId);
           }
         });
       }
     }
   }
 
-  /// Marks all incoming messages from this peer as read in Supabase
+  /// Marks all incoming messages from this peer as read atomically
   Future<void> _markIncomingMessagesAsRead() async {
     final currentUserId = supabase.auth.currentUser?.id;
     if (currentUserId == null) return;
 
+    // 1. Instant local state & cache update
+    ChatCacheService.instance.markThreadRead(widget.peerId);
+    bool hasLocalChanges = false;
+    for (int i = 0; i < _messages.length; i++) {
+      if (_messages[i].senderId == widget.peerId && !_messages[i].isRead) {
+        _messages[i] = _messages[i].copyWith(isRead: true, isDelivered: true);
+        hasLocalChanges = true;
+      }
+    }
+    if (hasLocalChanges && mounted) setState(() {});
+
+    // 2. Atomic Server Update via Supabase RPC or Direct Update
     try {
-      final nowUtcIso = DateTime.now().toUtc().toIso8601String();
-      await supabase
-          .from('direct_messages')
-          .update({
-            'is_delivered': true,
-            'is_read': true,
-            'delivered_at': nowUtcIso,
-            'read_at': nowUtcIso,
-          })
-          .eq('sender_id', widget.peerId)
-          .eq('receiver_id', currentUserId)
-          .eq('is_read', false);
-    } catch (e) {
-      debugPrint("Notice marking messages as read: $e");
+      await supabase.rpc('mark_messages_read', params: {'p_sender_id': widget.peerId});
+    } catch (_) {
+      try {
+        final nowUtcIso = DateTime.now().toUtc().toIso8601String();
+        await supabase
+            .from('direct_messages')
+            .update({
+              'is_delivered': true,
+              'is_read': true,
+              'delivered_at': nowUtcIso,
+              'read_at': nowUtcIso,
+            })
+            .eq('sender_id', widget.peerId)
+            .eq('receiver_id', currentUserId)
+            .eq('is_read', false);
+      } catch (e) {
+        debugPrint("Notice marking messages as read fallback: $e");
+      }
     }
   }
 
@@ -270,9 +307,12 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             'and(sender_id.eq.$currentUserId,receiver_id.eq.${widget.peerId}),and(sender_id.eq.${widget.peerId},receiver_id.eq.$currentUserId)',
           )
           .order('created_at', ascending: false)
-          .limit(100);
+          .limit(150);
 
       final list = (res as List).map((m) => DirectMessageModel.fromMap(m)).toList();
+
+      // Save to memory cache
+      ChatCacheService.instance.setThread(widget.peerId, list);
 
       if (mounted) {
         setState(() {
@@ -292,12 +332,15 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     try {
       final res = await supabase
           .from('profiles')
-          .select('username, first_name, last_name, avatar_url, is_verified, created_at, updated_at, last_seen, is_online')
+          .select(
+            'id, username, first_name, last_name, avatar_url, is_verified, created_at, updated_at, last_seen, last_seen_at, is_online',
+          )
           .eq('id', widget.peerId)
           .maybeSingle();
 
       if (res != null && mounted) {
         final presence = UserPresenceService.computePresence(res);
+        ChatCacheService.instance.cacheProfile(widget.peerId, res);
         setState(() {
           _isPeerOnline = presence.isOnline;
           _peerStatusText = presence.statusText;
@@ -317,7 +360,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           .inFilter('message_id', msgIds);
 
       final Map<String, List<String>> map = {};
-      for (final r in res) {
+      for (final r in (res as List)) {
         final mId = r['message_id']?.toString() ?? '';
         final em = r['emoji']?.toString() ?? '';
         if (mId.isNotEmpty && em.isNotEmpty) {
@@ -364,10 +407,11 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       createdAt: now,
     );
 
-    // Optimistic insert at top (since list is reverse order)
+    // 1. Optimistic insert into local state & cache
     setState(() {
       _messages.insert(0, optimisticMsg);
     });
+    ChatCacheService.instance.addMessage(widget.peerId, optimisticMsg);
     _scrollToBottom();
     HapticFeedback.lightImpact();
 
@@ -401,9 +445,10 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             _messages[idx] = serverMsg;
           }
         });
+        ChatCacheService.instance.updateMessage(widget.peerId, serverMsg);
       }
 
-      // Dispatch push notification to peer
+      // 2. Dispatch push notification to peer
       String notifBody = "New message";
       if (mediaType == 'audio') {
         notifBody = "🎙️ Sent a voice message ($text)";
@@ -508,7 +553,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       });
 
       if (path == null || recordedSeconds < 1) {
-        // Discard very short taps
         if (path != null) {
           final f = File(path);
           if (await f.exists()) await f.delete();
@@ -626,28 +670,24 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     }
   }
 
-  /// Telegram-Style Animated Deletion: Dissolves message with shrink & fade,
-  /// then deletes permanently from database for everyone.
+  /// Telegram-Style Animated Deletion
   Future<void> _animateAndDeleteMessage(DirectMessageModel msg) async {
     HapticFeedback.mediumImpact();
 
-    // 1. Mark as deleting to trigger Telegram shrink, scale-down & fade animation
     setState(() {
       _deletingMessageIds.add(msg.id);
     });
 
-    // 2. Allow the 320ms dissolution animation to gracefully run
     await Future.delayed(const Duration(milliseconds: 320));
 
-    // 3. Remove locally from memory
     if (mounted) {
       setState(() {
         _messages.removeWhere((m) => m.id == msg.id);
         _deletingMessageIds.remove(msg.id);
       });
     }
+    ChatCacheService.instance.removeMessage(widget.peerId, msg.id);
 
-    // 4. Delete permanently from Supabase direct_messages & message_reactions
     try {
       await supabase.from('direct_messages').delete().eq('id', msg.id);
       await supabase.from('message_reactions').delete().eq('message_id', msg.id);
@@ -656,7 +696,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     }
   }
 
-  /// Shows confirmation sheet for Telegram-style permanent delete
   void _confirmDeleteMessage(DirectMessageModel msg) {
     showModalBottomSheet(
       context: context,
@@ -682,8 +721,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             Container(
               width: 52,
               height: 52,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEE2E2),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFEE2E2),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.delete_forever_rounded, color: Color(0xFFEF4444), size: 28),
@@ -743,7 +782,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
   }
 
-  /// Opens the long-press action menu with reaction bar, reply, copy, and delete
   void _showMessageActionMenu(DirectMessageModel msg, bool isMine) {
     HapticFeedback.selectionClick();
     showModalBottomSheet(
@@ -793,7 +831,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Action List
             ListTile(
               leading: const Icon(Icons.reply_rounded, color: Color(0xFF0F172A)),
               title: const Text("Reply", style: TextStyle(fontWeight: FontWeight.w700)),
@@ -851,60 +888,55 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     final currentUserId = supabase.auth.currentUser?.id ?? '';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: _buildChatAppBar(),
-      body: Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFFF8FAFC),
-        ),
-        child: Column(
-          children: [
-            // Message List Area
-            Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: ZevColors.primaryBlue,
-                      ),
-                    )
-                  : _messages.isEmpty
-                      ? _buildEmptyConversationView()
-                      : ListView.builder(
-                          controller: _scrollCtrl,
-                          reverse: true,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
-                          ),
-                          itemCount: _messages.length,
-                          itemBuilder: (context, index) {
-                            final msg = _messages[index];
-                            final isMine = msg.isMine(currentUserId);
-                            final reactions = _reactions[msg.id] ?? [];
-
-                            // Check date separator
-                            final showDate = index == _messages.length - 1 ||
-                                !_isSameDay(msg.createdAt, _messages[index + 1].createdAt);
-
-                            return Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (showDate) _buildDateSeparator(msg.createdAt),
-                                _buildAnimatedMessageItem(msg, isMine, reactions),
-                              ],
-                            );
-                          },
+      body: Column(
+        children: [
+          // Message List Area
+          Expanded(
+            child: _isLoading && _messages.isEmpty
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: ZevColors.primaryBlue,
+                    ),
+                  )
+                : _messages.isEmpty
+                    ? _buildEmptyConversationView()
+                    : ListView.builder(
+                        controller: _scrollCtrl,
+                        reverse: true,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
                         ),
-            ),
+                        itemCount: _messages.length,
+                        itemBuilder: (context, index) {
+                          final msg = _messages[index];
+                          final isMine = msg.isMine(currentUserId);
+                          final reactions = _reactions[msg.id] ?? [];
 
-            // Quoted Reply Bar (if active)
-            if (_replyingTo != null) _buildQuotedReplyBar(),
+                          // Check date separator
+                          final showDate = index == _messages.length - 1 ||
+                              !_isSameDay(msg.createdAt, _messages[index + 1].createdAt);
 
-            // Chat Bottom Input Bar or Live Voice Recording Capsule
-            _isRecording ? _buildRecordingInputBar() : _buildBottomInputBar(),
-          ],
-        ),
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (showDate) _buildDateSeparator(msg.createdAt),
+                              _buildAnimatedMessageItem(msg, isMine, reactions),
+                            ],
+                          );
+                        },
+                      ),
+          ),
+
+          // Quoted Reply Bar (if active)
+          if (_replyingTo != null) _buildQuotedReplyBar(),
+
+          // Chat Bottom Input Bar or Live Voice Recording Capsule
+          _isRecording ? _buildRecordingInputBar() : _buildBottomInputBar(),
+        ],
       ),
     );
   }
@@ -931,15 +963,15 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     return Center(
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4.5),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white, width: 1.5),
           boxShadow: [
             BoxShadow(
               color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-              blurRadius: 6,
+              blurRadius: 8,
               offset: const Offset(0, 2),
             ),
           ],
@@ -956,12 +988,13 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
   }
 
-  /// Instagram / Telegram Hybrid Clean AppBar (Audio & Video calls disabled)
+  /// Claymorphic Top App Bar with Avatar, Verified badge, and Real-time Presence Status
   PreferredSizeWidget _buildChatAppBar() {
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0,
-      scrolledUnderElevation: 0.5,
+      scrolledUnderElevation: 1,
+      shadowColor: const Color(0xFF0F172A).withValues(alpha: 0.06),
       leadingWidth: 38,
       leading: IconButton(
         icon: const Icon(
@@ -979,31 +1012,45 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             Stack(
               clipBehavior: Clip.none,
               children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: const Color(0xFFE2E8F0),
-                  backgroundImage: widget.peerAvatar.isNotEmpty
-                      ? CachedNetworkImageProvider(widget.peerAvatar)
-                      : null,
-                  child: widget.peerAvatar.isEmpty
-                      ? const Icon(Icons.person, color: Color(0xFF94A3B8), size: 20)
-                      : null,
+                Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: CircleAvatar(
+                    radius: 19,
+                    backgroundColor: const Color(0xFFE2E8F0),
+                    backgroundImage: widget.peerAvatar.isNotEmpty
+                        ? CachedNetworkImageProvider(widget.peerAvatar)
+                        : null,
+                    child: widget.peerAvatar.isEmpty
+                        ? const Icon(Icons.person, color: Color(0xFF94A3B8), size: 20)
+                        : null,
+                  ),
                 ),
                 if (_isPeerOnline)
                   Positioned(
                     bottom: 0,
                     right: 0,
                     child: Container(
-                      width: 11,
-                      height: 11,
+                      width: 12,
+                      height: 12,
                       decoration: BoxDecoration(
                         color: const Color(0xFF10B981),
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.4),
-                            blurRadius: 6,
+                            color: const Color(0xFF10B981).withValues(alpha: 0.5),
+                            blurRadius: 4,
                           ),
                         ],
                       ),
@@ -1027,8 +1074,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                               : "@${widget.peerUsername}",
                           style: const TextStyle(
                             fontSize: 15,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w900,
                             color: Color(0xFF0F172A),
+                            letterSpacing: -0.2,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -1043,15 +1091,29 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                       ],
                     ],
                   ),
-                  Text(
-                    _peerStatusText,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: _isPeerOnline
-                          ? const Color(0xFF10B981)
-                          : const Color(0xFF94A3B8),
-                    ),
+                  Row(
+                    children: [
+                      if (_isPeerOnline)
+                        Container(
+                          width: 6,
+                          height: 6,
+                          margin: const EdgeInsets.only(right: 4),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF10B981),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      Text(
+                        _peerStatusText,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: _isPeerOnline
+                              ? const Color(0xFF10B981)
+                              : const Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1060,19 +1122,18 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         ),
       ),
       actions: [
-        // Profile Info Details Shortcut
         IconButton(
           icon: Container(
-            padding: const EdgeInsets.all(7),
+            padding: const EdgeInsets.all(7.5),
             decoration: BoxDecoration(
               color: const Color(0xFFF1F5F9),
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              border: Border.all(color: Colors.white, width: 1.5),
             ),
             child: const Icon(
               Icons.info_outline_rounded,
               color: Color(0xFF0F172A),
-              size: 20,
+              size: 19,
             ),
           ),
           tooltip: "Profile Info",
@@ -1110,7 +1171,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
   }
 
-  /// Message Bubble rendering with WhatsApp/Telegram tick pipeline
+  /// Flagship Claymorphic Message Bubble
   Widget _buildMessageBubble(
     DirectMessageModel msg,
     bool isMine,
@@ -1119,7 +1180,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     final isAudio = msg.attachmentType == 'audio';
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 7),
       child: GestureDetector(
         onLongPress: () => _showMessageActionMenu(msg, isMine),
         onDoubleTap: () => _reactToMessage(msg, '❤️'),
@@ -1143,48 +1204,70 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
               const SizedBox(width: 6),
             ],
 
-            // Message Capsule Container
+            // Message Bubble Container
             Stack(
               clipBehavior: Clip.none,
               children: [
                 Container(
                   constraints: BoxConstraints(
-                    maxWidth: MediaQuery.of(context).size.width * 0.78,
-                    minWidth: isAudio ? 240 : 70,
+                    maxWidth: MediaQuery.of(context).size.width * 0.76,
+                    minWidth: isAudio ? 240 : 66,
                   ),
                   padding: isAudio
                       ? const EdgeInsets.fromLTRB(10, 8, 10, 8)
                       : (msg.attachmentUrl != null
-                          ? const EdgeInsets.all(4)
-                          : const EdgeInsets.symmetric(horizontal: 14, vertical: 9)),
-                  decoration: BoxDecoration(
-                    color: isMine ? const Color(0xFF1E293B) : Colors.white,
-                    border: Border.all(
-                      color: isMine
-                          ? const Color(0xFF334155)
-                          : const Color(0xFFE2E8F0),
-                      width: 1,
-                    ),
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(20),
-                      topRight: const Radius.circular(20),
-                      bottomLeft: isMine
-                          ? const Radius.circular(20)
-                          : const Radius.circular(4),
-                      bottomRight: isMine
-                          ? const Radius.circular(4)
-                          : const Radius.circular(20),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: isMine
-                            ? const Color(0xFF0F172A).withValues(alpha: 0.22)
-                            : const Color(0xFF0F172A).withValues(alpha: 0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
+                          ? const EdgeInsets.all(5)
+                          : const EdgeInsets.symmetric(horizontal: 14, vertical: 10)),
+                  decoration: isMine
+                      ? BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF00D4FF), Color(0xFF0284C7)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(22),
+                            topRight: Radius.circular(22),
+                            bottomLeft: Radius.circular(22),
+                            bottomRight: Radius.circular(5),
+                          ),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.35),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF0284C7).withValues(alpha: 0.28),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        )
+                      : BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(22),
+                            topRight: Radius.circular(22),
+                            bottomLeft: Radius.circular(5),
+                            bottomRight: Radius.circular(22),
+                          ),
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                              blurRadius: 12,
+                              offset: const Offset(0, 3),
+                            ),
+                            BoxShadow(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              blurRadius: 2,
+                              offset: const Offset(0, -1),
+                            ),
+                          ],
+                        ),
                   child: Column(
                     crossAxisAlignment:
                         isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -1260,9 +1343,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                               _formatTime(msg.createdAt),
                               style: TextStyle(
                                 fontSize: 10.5,
-                                fontWeight: FontWeight.w500,
+                                fontWeight: FontWeight.w600,
                                 color: isMine
-                                    ? Colors.white.withValues(alpha: 0.8)
+                                    ? Colors.white.withValues(alpha: 0.85)
                                     : const Color(0xFF94A3B8),
                               ),
                             ),
@@ -1284,15 +1367,16 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                     right: isMine ? 8 : null,
                     left: isMine ? null : 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.white, width: 1.2),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
+                            color: const Color(0xFF0F172A).withValues(alpha: 0.12),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
                           ),
                         ],
                       ),
@@ -1310,40 +1394,28 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
   }
 
-  /// Official WhatsApp/Telegram-Style Tick Delivery Indicators:
-  /// - 1 grey tick (✓) = Sent to server, recipient is offline / phone off
-  /// - 2 grey ticks (✓✓) = Delivered to recipient's phone / app
-  /// - 2 electric blue ticks (✓✓) = Read / Seen by recipient
+  /// Delivery Ticks:
+  /// - 1 grey tick (✓) = Sent to server
+  /// - 2 grey ticks (✓✓) = Delivered to recipient client
+  /// - 2 blue ticks (✓✓) = Seen / Read by recipient
   Widget _buildTickStatus(DirectMessageModel msg) {
     if (msg.isRead) {
-      // 2 Electric Blue Ticks (Read / Seen)
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 1),
-        child: const Icon(
-          Icons.done_all_rounded,
-          size: 15,
-          color: Color(0xFF00D4FF), // Vivid Electric Cyan-Blue
-        ),
+      return const Icon(
+        Icons.done_all_rounded,
+        size: 15,
+        color: Colors.white, // Crisp white on blue bubble
       );
     } else if (msg.isDelivered) {
-      // 2 Grey Ticks (Delivered to recipient's device)
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 1),
-        child: const Icon(
-          Icons.done_all_rounded,
-          size: 15,
-          color: Color(0xFF94A3B8), // Muted Slate Grey
-        ),
+      return Icon(
+        Icons.done_all_rounded,
+        size: 15,
+        color: Colors.white.withValues(alpha: 0.7), // Semi-transparent on blue bubble
       );
     } else {
-      // 1 Grey Tick (Sent to server, recipient offline)
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 1),
-        child: const Icon(
-          Icons.done_rounded,
-          size: 15,
-          color: Color(0xFF94A3B8), // Muted Slate Grey
-        ),
+      return Icon(
+        Icons.done_rounded,
+        size: 15,
+        color: Colors.white.withValues(alpha: 0.7), // Single tick
       );
     }
   }
@@ -1417,12 +1489,12 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         "${_recordingDuration.inMinutes}:${(_recordingDuration.inSeconds % 60).toString().padLeft(2, '0')}";
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.06),
             blurRadius: 16,
             offset: const Offset(0, -3),
           ),
@@ -1454,11 +1526,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 ),
                 child: Row(
                   children: [
-                    // Pulsing Red Dot
                     const _PulsingRedDot(),
                     const SizedBox(width: 8),
-
-                    // Timer
                     Text(
                       durationStr,
                       style: const TextStyle(
@@ -1469,14 +1538,10 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                       ),
                     ),
                     const SizedBox(width: 10),
-
-                    // Animated Live Equalizer Waves
                     const Expanded(
                       child: _LiveRecordingWaveform(),
                     ),
                     const SizedBox(width: 6),
-
-                    // Slide to cancel hint
                     const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -1505,14 +1570,14 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 height: 44,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [ZevColors.primaryBlue, Color(0xFF0284C7)],
+                    colors: [Color(0xFF00D4FF), Color(0xFF0284C7)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: ZevColors.primaryBlue.withValues(alpha: 0.4),
+                      color: const Color(0xFF0284C7).withValues(alpha: 0.35),
                       blurRadius: 10,
                       offset: const Offset(0, 3),
                     ),
@@ -1531,7 +1596,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
   }
 
-  /// Modern Claymorphic Bottom Input Bar with Camera, Gallery, Voice Mic, and Send
+  /// Modern Claymorphic Bottom Input Bar
   Widget _buildBottomInputBar() {
     final hasText = _textCtrl.text.trim().isNotEmpty;
 
@@ -1553,10 +1618,11 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             // Camera Quick Capture Button
             IconButton(
               icon: Container(
-                padding: const EdgeInsets.all(7),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF1F5F9),
+                padding: const EdgeInsets.all(7.5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
                   shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1.2),
                 ),
                 child: const Icon(
                   Icons.camera_alt_rounded,
@@ -1571,10 +1637,11 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             // Gallery Attachment Button
             IconButton(
               icon: Container(
-                padding: const EdgeInsets.all(7),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF1F5F9),
+                padding: const EdgeInsets.all(7.5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
                   shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1.2),
                 ),
                 child: const Icon(
                   Icons.photo_library_rounded,
@@ -1593,7 +1660,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(color: Colors.white, width: 1.2),
                 ),
                 child: TextField(
                   controller: _textCtrl,
@@ -1639,14 +1706,18 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
               GestureDetector(
                 onTap: () => _sendMessage(),
                 child: Container(
-                  width: 40,
-                  height: 40,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
-                    color: ZevColors.primaryBlue,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF00D4FF), Color(0xFF0284C7)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: ZevColors.primaryBlue.withValues(alpha: 0.4),
+                        color: const Color(0xFF0284C7).withValues(alpha: 0.35),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -1654,13 +1725,12 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                   ),
                   child: const Icon(
                     Icons.send_rounded,
-                    color: ZevColors.deepNavy,
-                    size: 20,
+                    color: Colors.white,
+                    size: 19,
                   ),
                 ),
               )
             else
-              // Hold to Record or Tap to Record Mic Button
               GestureDetector(
                 onLongPressStart: (_) => _startVoiceRecording(),
                 onLongPressMoveUpdate: (details) {
@@ -1671,12 +1741,12 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 onLongPressEnd: (_) => _stopAndSendVoiceRecording(),
                 onTap: () => _startVoiceRecording(),
                 child: Container(
-                  width: 40,
-                  height: 40,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
                     color: const Color(0xFFF1F5F9),
                     shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: Colors.white, width: 1.5),
                   ),
                   child: const Icon(
                     Icons.mic_rounded,
@@ -1691,7 +1761,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
   }
 
-  /// Full-Screen Interactive Photo Viewer with pinch-to-zoom
   void _openFullScreenImage(String imageUrl) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -1725,15 +1794,29 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircleAvatar(
-              radius: 42,
-              backgroundColor: const Color(0xFFE2E8F0),
-              backgroundImage: widget.peerAvatar.isNotEmpty
-                  ? CachedNetworkImageProvider(widget.peerAvatar)
-                  : null,
-              child: widget.peerAvatar.isEmpty
-                  ? const Icon(Icons.person, color: Color(0xFF94A3B8), size: 42)
-                  : null,
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: CircleAvatar(
+                radius: 42,
+                backgroundColor: const Color(0xFFE2E8F0),
+                backgroundImage: widget.peerAvatar.isNotEmpty
+                    ? CachedNetworkImageProvider(widget.peerAvatar)
+                    : null,
+                child: widget.peerAvatar.isEmpty
+                    ? const Icon(Icons.person, color: Color(0xFF94A3B8), size: 42)
+                    : null,
+              ),
             ),
             const SizedBox(height: 14),
             Row(
@@ -1770,11 +1853,18 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
             ),
             const SizedBox(height: 16),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
               child: const Text(
                 "Say hi or send a voice message to start chatting! 👋",
@@ -1896,9 +1986,7 @@ class _LiveRecordingWaveformState extends State<_LiveRecordingWaveform>
   }
 }
 
-/// State-of-the-Art In-Bubble Voice Message Player
-/// Plays audio from Cloudflare R2 / Supabase with live waveform scrubbing,
-/// current/total time display, and 1.0x / 1.5x / 2.0x playback speed toggling.
+/// In-Bubble Voice Message Player
 class VoiceMessageBubblePlayer extends StatefulWidget {
   final String audioUrl;
   final String durationText;
@@ -1927,7 +2015,6 @@ class _VoiceMessageBubblePlayerState extends State<VoiceMessageBubblePlayer> {
   StreamSubscription? _durSub;
   StreamSubscription? _completeSub;
 
-  // Waveform bar heights (Telegram/WhatsApp styled 24 bars)
   static const List<double> _waveBars = [
     0.35, 0.65, 0.90, 0.45, 0.75, 1.00, 0.60, 0.40,
     0.80, 0.95, 0.50, 0.70, 0.85, 0.55, 0.35, 0.70,
@@ -2026,14 +2113,13 @@ class _VoiceMessageBubblePlayerState extends State<VoiceMessageBubblePlayer> {
 
     final activeColor = widget.isMine ? Colors.white : ZevColors.primaryBlue;
     final inactiveColor = widget.isMine
-        ? Colors.white.withValues(alpha: 0.38)
+        ? Colors.white.withValues(alpha: 0.4)
         : const Color(0xFFCBD5E1);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: Row(
         children: [
-          // Play / Pause Circle Button
           GestureDetector(
             onTap: _togglePlayPause,
             child: Container(
@@ -2054,7 +2140,7 @@ class _VoiceMessageBubblePlayerState extends State<VoiceMessageBubblePlayer> {
               ),
               child: Icon(
                 isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                color: widget.isMine ? ZevColors.deepNavy : Colors.white,
+                color: widget.isMine ? const Color(0xFF0284C7) : Colors.white,
                 size: 22,
               ),
             ),
@@ -2067,7 +2153,6 @@ class _VoiceMessageBubblePlayerState extends State<VoiceMessageBubblePlayer> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Interactive Waveform
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onHorizontalDragUpdate: (details) {
@@ -2110,7 +2195,6 @@ class _VoiceMessageBubblePlayerState extends State<VoiceMessageBubblePlayer> {
                 ),
                 const SizedBox(height: 4),
 
-                // Timer & Audio Mic Indicator
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -2120,7 +2204,7 @@ class _VoiceMessageBubblePlayerState extends State<VoiceMessageBubblePlayer> {
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: widget.isMine
-                            ? Colors.white.withValues(alpha: 0.85)
+                            ? Colors.white.withValues(alpha: 0.9)
                             : const Color(0xFF64748B),
                         fontFeatures: const [FontFeature.tabularFigures()],
                       ),
@@ -2129,7 +2213,7 @@ class _VoiceMessageBubblePlayerState extends State<VoiceMessageBubblePlayer> {
                       Icons.mic_rounded,
                       size: 13,
                       color: widget.isMine
-                          ? Colors.white.withValues(alpha: 0.7)
+                          ? Colors.white.withValues(alpha: 0.8)
                           : const Color(0xFF94A3B8),
                     ),
                   ],
@@ -2139,19 +2223,19 @@ class _VoiceMessageBubblePlayerState extends State<VoiceMessageBubblePlayer> {
           ),
           const SizedBox(width: 8),
 
-          // Speed Multiplier Capsule (1.0x / 1.5x / 2.0x)
+          // Speed Multiplier Capsule
           GestureDetector(
             onTap: _toggleSpeed,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
               decoration: BoxDecoration(
                 color: widget.isMine
-                    ? Colors.white.withValues(alpha: 0.22)
+                    ? Colors.white.withValues(alpha: 0.25)
                     : const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: widget.isMine
-                      ? Colors.white.withValues(alpha: 0.35)
+                      ? Colors.white.withValues(alpha: 0.4)
                       : const Color(0xFFE2E8F0),
                   width: 0.8,
                 ),

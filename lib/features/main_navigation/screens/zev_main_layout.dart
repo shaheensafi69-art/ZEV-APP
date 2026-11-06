@@ -62,7 +62,6 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   Future<void> _loadUserProfile() async {
     final user = supabase.auth.currentUser;
     if (user == null) return;
-    unawaited(NotificationService().saveFCMTokenToDatabase());
     try {
       final res = await supabase
           .from('profiles')

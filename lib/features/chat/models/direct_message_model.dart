@@ -28,6 +28,44 @@ class DirectMessageModel {
 
   bool isMine(String currentUserId) => senderId == currentUserId;
 
+  /// Delivery status helper:
+  /// - 'read': 2 blue ticks
+  /// - 'delivered': 2 grey ticks
+  /// - 'sent': 1 grey tick
+  String get status {
+    if (isRead) return 'read';
+    if (isDelivered) return 'delivered';
+    return 'sent';
+  }
+
+  DirectMessageModel copyWith({
+    String? id,
+    String? senderId,
+    String? receiverId,
+    String? messageText,
+    String? attachmentUrl,
+    String? attachmentType,
+    bool? isDelivered,
+    bool? isRead,
+    DateTime? deliveredAt,
+    DateTime? readAt,
+    DateTime? createdAt,
+  }) {
+    return DirectMessageModel(
+      id: id ?? this.id,
+      senderId: senderId ?? this.senderId,
+      receiverId: receiverId ?? this.receiverId,
+      messageText: messageText ?? this.messageText,
+      attachmentUrl: attachmentUrl ?? this.attachmentUrl,
+      attachmentType: attachmentType ?? this.attachmentType,
+      isDelivered: isDelivered ?? this.isDelivered,
+      isRead: isRead ?? this.isRead,
+      deliveredAt: deliveredAt ?? this.deliveredAt,
+      readAt: readAt ?? this.readAt,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
   factory DirectMessageModel.fromMap(Map<String, dynamic> map) {
     return DirectMessageModel(
       id: map['id']?.toString() ?? '',

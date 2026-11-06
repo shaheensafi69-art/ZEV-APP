@@ -6,7 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../core/theme/zev_theme.dart';
 
-/// Instagram-Grade "New Message" Bottom Sheet to search users and start a direct conversation.
+/// Flagship Claymorphic "New Message" Bottom Sheet to search users and start a direct conversation.
 class NewChatSheet extends StatefulWidget {
   final Function(
     String userId,
@@ -95,7 +95,28 @@ class _NewChatSheetState extends State<NewChatSheet> {
         users = List<Map<String, dynamic>>.from(profsRes);
       }
 
-      // 2. If following is small, fetch other active users
+      // 2. Also check followers
+      final followersRes = await supabase
+          .from('user_follows')
+          .select('follower_id')
+          .eq('following_id', currentUserId)
+          .limit(20);
+
+      final followerIds = (followersRes as List)
+          .map((f) => f['follower_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty && !followingIds.contains(id))
+          .toList();
+
+      if (followerIds.isNotEmpty) {
+        final fProfs = await supabase
+            .from('profiles')
+            .select('id, username, first_name, last_name, avatar_url, is_verified')
+            .inFilter('id', followerIds)
+            .limit(15);
+        users.addAll(List<Map<String, dynamic>>.from(fProfs));
+      }
+
+      // 3. Fallback to discover other users if list is small
       if (users.length < 10) {
         final othersRes = await supabase
             .from('profiles')
@@ -143,7 +164,7 @@ class _NewChatSheetState extends State<NewChatSheet> {
             .select('id, username, first_name, last_name, avatar_url, is_verified')
             .neq('id', currentUserId ?? '')
             .or('username.ilike.%$trimmed%,first_name.ilike.%$trimmed%,last_name.ilike.%$trimmed%')
-            .limit(20);
+            .limit(25);
 
         if (mounted) {
           setState(() {
@@ -213,8 +234,8 @@ class _NewChatSheetState extends State<NewChatSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white, width: 1.5),
                 boxShadow: [
                   BoxShadow(
                     color: const Color(0xFF0F172A).withValues(alpha: 0.04),
@@ -320,8 +341,8 @@ class _NewChatSheetState extends State<NewChatSheet> {
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               decoration: BoxDecoration(
                                 color: Colors.white,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: Colors.white, width: 1.5),
                                 boxShadow: [
                                   BoxShadow(
                                     color: const Color(0xFF0F172A).withValues(alpha: 0.04),
@@ -385,10 +406,10 @@ class _NewChatSheetState extends State<NewChatSheet> {
                                       gradient: const LinearGradient(
                                         colors: [Color(0xFF00D4FF), Color(0xFF0284C7)],
                                       ),
-                                      borderRadius: BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(14),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: const Color(0xFF00D4FF).withValues(alpha: 0.3),
+                                          color: const Color(0xFF0284C7).withValues(alpha: 0.3),
                                           blurRadius: 6,
                                           offset: const Offset(0, 2),
                                         ),
@@ -415,4 +436,3 @@ class _NewChatSheetState extends State<NewChatSheet> {
     );
   }
 }
-

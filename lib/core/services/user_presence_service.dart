@@ -33,8 +33,8 @@ class UserPresenceService {
   void startPresenceHeartbeat() {
     updatePresence(isOnline: true);
     _heartbeatTimer?.cancel();
-    // Heartbeat every 45 seconds for precision
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 45), (_) {
+    // Heartbeat every 30 seconds as specified in realtime architecture
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       updatePresence(isOnline: true);
     });
   }
@@ -51,17 +51,23 @@ class UserPresenceService {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
     try {
-      final nowIso = DateTime.now().toUtc().toIso8601String();
-      await Supabase.instance.client
-          .from('direct_messages')
-          .update({
-            'is_delivered': true,
-            'delivered_at': nowIso,
-          })
-          .eq('receiver_id', user.id)
-          .eq('is_delivered', false);
-    } catch (e) {
-      debugPrint("markPendingMessagesDelivered notice: $e");
+      // 1. Try via high-speed atomic RPC
+      await Supabase.instance.client.rpc('mark_messages_delivered');
+    } catch (_) {
+      // 2. Fallback to direct update
+      try {
+        final nowIso = DateTime.now().toUtc().toIso8601String();
+        await Supabase.instance.client
+            .from('direct_messages')
+            .update({
+              'is_delivered': true,
+              'delivered_at': nowIso,
+            })
+            .eq('receiver_id', user.id)
+            .eq('is_delivered', false);
+      } catch (e) {
+        debugPrint("markPendingMessagesDelivered notice: $e");
+      }
     }
   }
 
@@ -75,20 +81,15 @@ class UserPresenceService {
     try {
       await Supabase.instance.client.from('profiles').update({
         'last_seen': nowIso,
+        'last_seen_at': nowIso,
         'is_online': isOnline,
+        'updated_at': nowIso,
       }).eq('id', user.id);
-    } catch (_) {
-      // Graceful fallback if is_online column does not exist
-      try {
-        await Supabase.instance.client.from('profiles').update({
-          'updated_at': nowIso,
-        }).eq('id', user.id);
-      } catch (err) {
-        debugPrint("Presence update notice: $err");
-      }
+    } catch (err) {
+      debugPrint("Presence update notice: $err");
     }
 
-    // If coming online, automatically deliver pending messages
+    // If coming online, automatically deliver all pending messages
     if (isOnline) {
       unawaited(markPendingMessagesDelivered());
     }

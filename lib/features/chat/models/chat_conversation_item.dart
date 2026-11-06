@@ -36,6 +36,16 @@ class ChatConversationItem {
     this.peerNote,
   });
 
+  /// Status of the last outgoing message:
+  /// - 'read': 2 blue ticks
+  /// - 'delivered': 2 grey ticks
+  /// - 'sent': 1 grey tick
+  String get deliveryStatus {
+    if (isLastMessageRead) return 'read';
+    if (isLastMessageDelivered) return 'delivered';
+    return 'sent';
+  }
+
   ChatConversationItem copyWith({
     String? peerId,
     String? peerUsername,

@@ -1,0 +1,2628 @@
+این پیاده‌سازی کامل شامل مدل‌های داده، سرور بلادرنگ (Node.js / Socket.io با نگهداری سشن‌ها و منطق حضور) و کلاینت است.
+
+---
+
+### ۱. ساختار پایگاه داده (PostgreSQL / Supabase Schema)
+
+```sql
+-- وضعیت پیام‌ها
+CREATE TYPE message_status_enum AS ENUM ('sent', 'delivered', 'read');
+
+-- جدول کاربران با وضعیت حضور
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username VARCHAR(50) UNIQUE NOT NULL,
+    is_online BOOLEAN DEFAULT false,
+    last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- جدول چت‌ها
+CREATE TABLE chats (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- شرکت‌کنندگان چت
+CREATE TABLE chat_participants (
+    chat_id UUID REFERENCES chats(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    unread_count INT DEFAULT 0,
+    PRIMARY KEY (chat_id, user_id)
+);
+
+-- جدول پیام‌ها
+CREATE TABLE messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    chat_id UUID REFERENCES chats(id) ON DELETE CASCADE,
+    sender_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    status message_status_enum DEFAULT 'sent',
+    delivered_at TIMESTAMP WITH TIME ZONE,
+    read_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_messages_chat_created ON messages(chat_id, created_at DESC);
+
+```
+
+---
+
+### ۲. پیاده‌سازی سرور وب‌سوکت (`server.js` با Socket.io)
+
+سرور مدیریت اتصالات چندگانه کاربر (Multiple Devices/Tabs)، ثبت زمان آخرین حضور، و چرخه حیات تیک‌ها را بر عهده دارد:
+
+```javascript
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+
+const httpServer = createServer();
+const io = new Server(httpServer, {
+  cors: { origin: '*' }
+});
+
+// مپ برای ردیابی اتصالات فعال: userId -> Set(socketId)
+const activeUsers = new Map();
+
+io.use((socket, next) => {
+  const userId = socket.handshake.auth.userId;
+  if (!userId) {
+    return next(new Error('Authentication failed: userId is required'));
+  }
+  socket.userId = userId;
+  next();
+});
+
+io.on('connection', (socket) => {
+  const userId = socket.userId;
+
+  // ۱. مدیریت اتصال کاربر و وضعیت Online
+  if (!activeUsers.has(userId)) {
+    activeUsers.set(userId, new Set());
+    // اطلاع‌رسانی آنلاین شدن کاربر به بقیه
+    socket.broadcast.emit('user_presence_changed', {
+      userId,
+      isOnline: true,
+      lastSeenAt: null
+    });
+    // بروزرسانی در دیتابیس (is_online = true)
+    updateUserPresence(userId, true);
+  }
+  activeUsers.get(userId).add(socket.id);
+  socket.join(`user:${userId}`);
+
+  // پیوستن به اتاق‌های چت
+  socket.on('join_chat', ({ chatId }) => {
+    socket.join(`chat:${chatId}`);
+  });
+
+  // ۲. دریافت پیام جدید از ارسال‌کننده
+  socket.on('send_message', async (data, ack) => {
+    const { tempId, chatId, recipientId, content } = data;
+
+    // ثبت در دیتابیس با وضعیت پیش‌فرض 'sent' (یک تیک خاکستری)
+    const savedMessage = await saveMessageToDb({
+      chatId,
+      senderId: userId,
+      content,
+      status: 'sent'
+    });
+
+    // پاسخ فوری به فرستنده (پیام روی سرور ذخیره شد -> ۱ تیک خاکستری)
+    if (typeof ack === 'function') {
+      ack({
+        success: true,
+        tempId,
+        message: savedMessage
+      });
+    }
+
+    // ارسال به سوکت‌های دیگر خود فرستنده برای همگام‌سازی
+    socket.to(`user:${userId}`).emit('message_sent_sync', savedMessage);
+
+    // بررسی آیا گیرنده آنلاین است؟
+    const recipientSockets = activeUsers.get(recipientId);
+    if (recipientSockets && recipientSockets.size > 0) {
+      // گیرنده متصل است: ارسال پیام به تمام کلاینت‌های گیرنده
+      io.to(`user:${recipientId}`).emit('new_message', savedMessage);
+
+      // بروزرسانی خودکار وضعیت به 'delivered' (۲ تیک خاکستری)
+      await updateMessageStatus(savedMessage.id, 'delivered');
+      
+      // اطلاع به فرستنده که پیام به گوشی گیرنده رسید
+      io.to(`user:${userId}`).emit('message_status_updated', {
+        messageId: savedMessage.id,
+        chatId,
+        status: 'delivered'
+      });
+    } else {
+      // گیرنده آفلاین است: پیام فقط در سرور مانده (۱ تیک باقی می‌ماند)
+      // در صورت لزوم ارسال Push Notification در اینجا فراخوانی می‌شود
+      incrementUnreadCounter(chatId, recipientId);
+    }
+  });
+
+  // ۳. تأیید دریافت توسط کلاینت گیرنده (Delivered ACK)
+  // زمانی که گیرنده آنلاین می‌شود و پیام‌های ذخیره نشده را دریافت می‌کند
+  socket.on('ack_message_delivered', async ({ messageId, chatId, senderId }) => {
+    await updateMessageStatus(messageId, 'delivered');
+
+    // اطلاع به فرستنده برای تبدیل ۱ تیک به ۲ تیک خاکستری
+    io.to(`user:${senderId}`).emit('message_status_updated', {
+      messageId,
+      chatId,
+      status: 'delivered'
+    });
+  });
+
+  // ۴. خوانده شدن پیام در چت (Read / Seen ACK -> ۲ تیک آبی)
+  socket.on('mark_chat_as_read', async ({ chatId, senderId }) => {
+    // بروزرسانی تمام پیام‌های خوانده‌نشده در دیتابیس به 'read'
+    const updatedIds = await markMessagesAsReadInDb(chatId, userId);
+    await resetUnreadCounter(chatId, userId);
+
+    // اطلاع به ارسال‌کننده پیام‌ها که پیام‌ها خوانده شدند (تبدیل به ۲ تیک آبی)
+    io.to(`user:${senderId}`).emit('messages_read_batch', {
+      chatId,
+      messageIds: updatedIds,
+      readBy: userId,
+      readAt: new Date().toISOString()
+    });
+  });
+
+  // ۵. قطع ارتباط و مدیریت Last Seen
+  socket.on('disconnect', () => {
+    const userSockets = activeUsers.get(userId);
+    if (userSockets) {
+      userSockets.delete(socket.id);
+      if (userSockets.size === 0) {
+        activeUsers.delete(userId);
+        const lastSeen = new Date().toISOString();
+
+        // اطلاع‌رسانی آفلاین شدن کاربر به همراه زمان دقیق
+        socket.broadcast.emit('user_presence_changed', {
+          userId,
+          isOnline: false,
+          lastSeenAt: lastSeen
+        });
+
+        // ذخیره last_seen_at در دیتابیس
+        updateUserPresence(userId, false, lastSeen);
+      }
+    }
+  });
+});
+
+// توابع کمکی دیتابیس (شبیه‌سازی شده)
+async function saveMessageToDb(msg) {
+  return { id: 'msg_' + Date.now(), ...msg, createdAt: new Date().toISOString() };
+}
+async function updateMessageStatus(messageId, status) { /* DB Query */ }
+async function markMessagesAsReadInDb(chatId, readerId) { return []; }
+async function resetUnreadCounter(chatId, userId) { /* DB Query */ }
+async function incrementUnreadCounter(chatId, userId) { /* DB Query */ }
+async function updateUserPresence(userId, isOnline, lastSeenAt = null) { /* DB Query */ }
+
+httpServer.listen(4000, () => console.log('Chat WebSocket Server running on port 4000'));
+
+```
+
+---
+
+### ۳. پیاده‌سازی سمت کلاینت (`chatClient.js`)
+
+مدیریت تغییر وضعیت آیکون‌های تیک و به‌روزرسانی شمارنده لیست پیام‌ها:
+
+```javascript
+import { io } from 'socket.io-client';
+
+export class ChatClient {
+  constructor(userId, currentChatId = null) {
+    this.userId = userId;
+    this.currentChatId = currentChatId; // چت باز در صفحه
+    this.socket = null;
+  }
+
+  connect() {
+    this.socket = io('http://localhost:4000', {
+      auth: { userId: this.userId }
+    });
+
+    this.bindEvents();
+  }
+
+  bindEvents() {
+    // ۱. دریافت پیام جدید
+    this.socket.on('new_message', (message) => {
+      // اگر چت باز است، سریعاً به سرور اعلام شود که خوانده شد (Seen)
+      if (this.currentChatId === message.chatId) {
+        this.renderMessage(message);
+        this.socket.emit('mark_chat_as_read', {
+          chatId: message.chatId,
+          senderId: message.senderId
+        });
+      } else {
+        // چت باز نیست: فقط اعلان دریافت بفرست (۲ تیک خاکستری) و بج را افزایش بده
+        this.socket.emit('ack_message_delivered', {
+          messageId: message.id,
+          chatId: message.chatId,
+          senderId: message.senderId
+        });
+        this.incrementChatUnreadBadge(message.chatId, message);
+      }
+    });
+
+    // ۲. به‌روزرسانی وضعیت تک پیام (۱ تیک خاکستری -> ۲ تیک خاکستری)
+    this.socket.on('message_status_updated', ({ messageId, status }) => {
+      this.updateMessageTickUI(messageId, status);
+    });
+
+    // ۳. خوانده شدن پیام‌ها توسط گیرنده (۲ تیک آبی)
+    this.socket.on('messages_read_batch', ({ chatId, messageIds }) => {
+      messageIds.forEach(id => this.updateMessageTickUI(id, 'read'));
+    });
+
+    // ۴. تغییر وضعیت Last Seen و Online طرف مقابل
+    this.socket.on('user_presence_changed', ({ userId, isOnline, lastSeenAt }) => {
+      this.updatePresenceUI(userId, isOnline, lastSeenAt);
+    });
+  }
+
+  // ارسال پیام با رابط کاربری بهینه‌بینانه (Optimistic UI)
+  sendMessage(chatId, recipientId, content) {
+    const tempId = 'temp_' + Date.now();
+
+    // رندر اولیه با آیکون ساعت (Pending)
+    this.renderOptimisticMessage({
+      id: tempId,
+      chatId,
+      content,
+      status: 'sending'
+    });
+
+    this.socket.emit('send_message', { tempId, chatId, recipientId, content }, (response) => {
+      if (response.success) {
+        // تبدیل ساعت به ۱ تیک خاکستری (Sent)
+        this.replaceTempMessage(tempId, response.message);
+      }
+    });
+  }
+
+  // ورود به صفحه چت
+  openChat(chatId, partnerId) {
+    this.currentChatId = chatId;
+    this.socket.emit('join_chat', { chatId });
+    this.socket.emit('mark_chat_as_read', { chatId, senderId: partnerId });
+    this.clearUnreadBadge(chatId);
+  }
+
+  updateMessageTickUI(messageId, status) {
+    // status: 'sent' = ۱ تیک خاکستری
+    // status: 'delivered' = ۲ تیک خاکستری
+    // status: 'read' = ۲ تیک آبی
+    const el = document.getElementById(`tick-${messageId}`);
+    if (!el) return;
+
+    if (status === 'sent') el.className = 'tick-single-gray';
+    if (status === 'delivered') el.className = 'tick-double-gray';
+    if (status === 'read') el.className = 'tick-double-blue';
+  }
+
+  incrementChatUnreadBadge(chatId, lastMessage) {
+    // افزایش عدد خوانده‌نشده در سایدبار و پررنگ کردن آخرین پیام
+  }
+
+  clearUnreadBadge(chatId) {
+    // صفر کردن شمارنده چت در سایدبار
+  }
+
+  updatePresenceUI(userId, isOnline, lastSeenAt) {
+    // نمایش آنلاین سبز رنگ یا متن "آخرین بازدید: ۱۰ دقیقه پیش"
+  }
+}
+
+```
+
+---
+
+### ۴. جدول جریان رویدادها (Event Flow Matrix)
+
+| سناریو | رویداد ارسالی کلاینت | پردازش سرور | رویداد خروجی سرور به فرستنده | وضعیت بصری فرستنده |
+| --- | --- | --- | --- | --- |
+| **کلیک روی دکمه Send** | `send_message` | ذخیره در DB | پاسخ Ack | ۱ تیک خاکستری (`sent`) |
+| **گیرنده متصل است** | - | سوکت گیرنده پیدا شد | `message_status_updated` | ۲ تیک خاکستری (`delivered`) |
+| **گیرنده آفلاین بود و آنلاین شد** | `ack_message_delivered` | آپدیت استاتوس در DB | `message_status_updated` | تبدیل به ۲ تیک خاکستری |
+| **گیرنده چت را باز کرد** | `mark_chat_as_read` | آپدیت رید در DB | `messages_read_batch` | ۲ تیک آبی (`read`) |
+
+
+
+
+این پیاده‌سازی کامل کلاینت Flutter با استفاده از پکیج `socket_io_client` است و شامل مدل داده، مدیریت سوکت و وضعیت تیک‌ها، و رابط کاربری اختصاصی برای لیست پیام‌ها و صفحه گفتگو می‌شود.
+
+---
+
+### ۱. افزودن پیش‌نیازها به `pubspec.yaml`
+
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  socket_io_client: ^3.0.2
+  intl: ^0.19.0
+
+```
+
+---
+
+### ۲. مدل داده پیام (`message_model.dart`)
+
+```dart
+enum MessageStatus { sending, sent, delivered, read }
+
+class MessageModel {
+  final String id;
+  final String chatId;
+  final String senderId;
+  final String content;
+  MessageStatus status;
+  final DateTime createdAt;
+
+  MessageModel({
+    required this.id,
+    required this.chatId,
+    required this.senderId,
+    required this.content,
+    required this.status,
+    required this.createdAt,
+  });
+
+  factory MessageModel.fromJson(Map<String, dynamic> json) {
+    return MessageModel(
+      id: json['id'] as String,
+      chatId: json['chatId'] as String,
+      senderId: json['senderId'] as String,
+      content: json['content'] as String,
+      status: _parseStatus(json['status'] as String?),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'chatId': chatId,
+    'senderId': senderId,
+    'content': content,
+    'status': status.name,
+    'createdAt': createdAt.toIso8601String(),
+  };
+
+  static MessageStatus _parseStatus(String? status) {
+    switch (status) {
+      case 'delivered':
+        return MessageStatus.delivered;
+      case 'read':
+        return MessageStatus.read;
+      case 'sent':
+      default:
+        return MessageStatus.sent;
+    }
+  }
+}
+
+```
+
+---
+
+### ۳. سرویس مدیریت اتصال سوکت (`chat_socket_service.dart`)
+
+این سرویس سوکت را به عنوان یک Singleton مدیریت کرده و استریم‌های بلادرنگ را در اختیار UI قرار می‌دهد:
+
+```dart
+import 'dart:async';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'message_model.dart';
+
+class ChatSocketService {
+  static final ChatSocketService _instance = ChatSocketService._internal();
+  factory ChatSocketService() => _instance;
+  ChatSocketService._internal();
+
+  IO.Socket? _socket;
+  String? currentUserId;
+  String? activeChatId;
+
+  // کنترلرهای استریم برای تغییرات بلادرنگ
+  final _messageStreamController = StreamController<MessageModel>.broadcast();
+  final _statusStreamController = StreamController>.broadcast();
+  final _presenceStreamController = StreamController>.broadcast();
+
+  Stream<MessageModel> get onNewMessage => _messageStreamController.stream;
+  Stream> get onStatusUpdate => _statusStreamController.stream;
+  Stream> get onPresenceChange => _presenceStreamController.stream;
+
+  void init({required String serverUrl, required String userId}) {
+    currentUserId = userId;
+
+    _socket = IO.io(
+      serverUrl,
+      IO.OptionBuilder()
+          .setTransports(['websocket'])
+          .disableAutoConnect()
+          .setAuth({'userId': userId})
+          .build(),
+    );
+
+    _registerEvents();
+    _socket?.connect();
+  }
+
+  void _registerEvents() {
+    _socket?.onConnect((_) {
+      print('Socket Connected: ${_socket?.id}');
+    });
+
+    // ۱. دریافت پیام جدید
+    _socket?.on('new_message', (data) {
+      final message = MessageModel.fromJson(Map<String, dynamic>.from(data));
+      _messageStreamController.add(message);
+
+      // اگر چت باز است، سریعاً به سرور اعلام کن که خوانده شد
+      if (activeChatId == message.chatId) {
+        markChatAsRead(chatId: message.chatId, senderId: message.senderId);
+      } else {
+        // اگر کاربر در چت نیست، فقط تحویل گرفته شد (۲ تیک خاکستری)
+        ackDelivered(
+          messageId: message.id,
+          chatId: message.chatId,
+          senderId: message.senderId,
+        );
+      }
+    });
+
+    // ۲. تغییر وضعیت یک پیام (مثلاً ۱ تیک به ۲ تیک)
+    _socket?.on('message_status_updated', (data) {
+      _statusStreamController.add(Map<String, dynamic>.from(data));
+    });
+
+    // ۳. خوانده شدن دسته‌ای پیام‌ها (۲ تیک آبی)
+    _socket?.on('messages_read_batch', (data) {
+      _statusStreamController.add(Map<String, dynamic>.from(data));
+    });
+
+    // ۴. تغییر وضعیت آنلاین / آخرین بازدید مخاطب
+    _socket?.on('user_presence_changed', (data) {
+      _presenceStreamController.add(Map<String, dynamic>.from(data));
+    });
+
+    _socket?.onDisconnect((_) => print('Socket Disconnected'));
+  }
+
+  // ارسال پیام با Optimistic UI
+  void sendMessage({
+    required String tempId,
+    required String chatId,
+    required String recipientId,
+    required String content,
+    required Function(MessageModel confirmedMessage) onServerAck,
+  }) {
+    _socket?.emitWithAck(
+      'send_message',
+      {
+        'tempId': tempId,
+        'chatId': chatId,
+        'recipientId': recipientId,
+        'content': content,
+      },
+      ack: (response) {
+        if (response != null && response['success'] == true) {
+          final confirmed = MessageModel.fromJson(
+            Map<String, dynamic>.from(response['message']),
+          );
+          onServerAck(confirmed);
+        }
+      },
+    );
+  }
+
+  void ackDelivered({
+    required String messageId,
+    required String chatId,
+    required String senderId,
+  }) {
+    _socket?.emit('ack_message_delivered', {
+      'messageId': messageId,
+      'chatId': chatId,
+      'senderId': senderId,
+    });
+  }
+
+  void markChatAsRead({required String chatId, required String senderId}) {
+    _socket?.emit('mark_chat_as_read', {
+      'chatId': chatId,
+      'senderId': senderId,
+    });
+  }
+
+  void enterChat(String chatId, String partnerId) {
+    activeChatId = chatId;
+    _socket?.emit('join_chat', {'chatId': chatId});
+    markChatAsRead(chatId: chatId, senderId: partnerId);
+  }
+
+  void leaveChat() {
+    activeChatId = null;
+  }
+
+  void dispose() {
+    _socket?.disconnect();
+    _socket?.dispose();
+    _messageStreamController.close();
+    _statusStreamController.close();
+    _presenceStreamController.close();
+  }
+}
+
+```
+
+---
+
+### ۴. ویجت نمایش تیک‌های وضعیت پیام (`message_status_icon.dart`)
+
+```dart
+import 'package:flutter/material.dart';
+import 'message_model.dart';
+
+class MessageStatusIcon extends StatelessWidget {
+  final MessageStatus status;
+
+  const MessageStatusIcon({super.key, required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    switch (status) {
+      case MessageStatus.sending:
+        return const Icon(Icons.access_time, size: 13, color: Colors.white60);
+
+      case MessageStatus.sent:
+        // ۱ تیک خاکستری: پیام روی سرور ذخیره شده ولی اینترنت گیرنده قطع است
+        return const Icon(Icons.check, size: 15, color: Colors.white70);
+
+      case MessageStatus.delivered:
+        // ۲ تیک خاکستری: پیام به گوشی گیرنده تحویل داده شد
+        return const Icon(Icons.done_all, size: 15, color: Colors.white70);
+
+      case MessageStatus.read:
+        // ۲ تیک آبی: پیام توسط گیرنده دیده شد
+        return const Icon(Icons.done_all, size: 15, color: Color(0xFF34B7F1));
+    }
+  }
+}
+
+```
+
+---
+
+### ۵. صفحه چت با قابلیت به‌روزرسانی بلادرنگ تیک‌ها (`chat_screen.dart`)
+
+```dart
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'chat_socket_service.dart';
+import 'message_model.dart';
+import 'message_status_icon.dart';
+
+class ChatScreen extends StatefulWidget {
+  final String chatId;
+  final String partnerId;
+  final String partnerName;
+
+  const ChatScreen({
+    super.key,
+    required this.chatId,
+    required this.partnerId,
+    required this.partnerName,
+  });
+
+  @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  final _socketService = ChatSocketService();
+  final _textController = TextEditingController();
+  final List<MessageModel> _messages = [];
+
+  bool _isPartnerOnline = false;
+  String _partnerSubtitle = 'در حال اتصال...';
+
+  late StreamSubscription _messageSub;
+  late StreamSubscription _statusSub;
+  late StreamSubscription _presenceSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _socketService.enterChat(widget.chatId, widget.partnerId);
+
+    // گوش دادن به پیام‌های جدید
+    _messageSub = _socketService.onNewMessage.listen((msg) {
+      if (msg.chatId == widget.chatId) {
+        setState(() {
+          _messages.insert(0, msg);
+        });
+      }
+    });
+
+    // تغییر وضعیت تیک‌ها
+    _statusSub = _socketService.onStatusUpdate.listen((data) {
+      if (data['chatId'] != widget.chatId) return;
+
+      setState(() {
+        if (data.containsKey('messageId')) {
+          // آپدیت تکی (sent -> delivered)
+          final index = _messages.indexWhere((m) => m.id == data['messageId']);
+          if (index != -1) {
+            _messages[index].status = MessageModel._parseStatus(data['status']);
+          }
+        } else if (data.containsKey('messageIds')) {
+          // آپدیت گروهی (delivered -> read / ۲ تیک آبی)
+          final List ids = data['messageIds'];
+          for (var msg in _messages) {
+            if (ids.contains(msg.id)) {
+              msg.status = MessageStatus.read;
+            }
+          }
+        }
+      });
+    });
+
+    // تغییر وضعیت حضور آنلاین / آخرین بازدید
+    _presenceSub = _socketService.onPresenceChange.listen((data) {
+      if (data['userId'] == widget.partnerId) {
+        final bool isOnline = data['isOnline'] ?? false;
+        final String? lastSeen = data['lastSeenAt'];
+
+        setState(() {
+          _isPartnerOnline = isOnline;
+          if (isOnline) {
+            _partnerSubtitle = 'آنلاین';
+          } else if (lastSeen != null) {
+            final dt = DateTime.parse(lastSeen).toLocal();
+            _partnerSubtitle = 'آخرین بازدید: ${DateFormat('HH:mm').format(dt)}';
+          } else {
+            _partnerSubtitle = 'آفلاین';
+          }
+        });
+      }
+    });
+  }
+
+  void _sendTextMessage() {
+    final text = _textController.text.trim();
+    if (text.isEmpty) return;
+
+    final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+    final optimisticMessage = MessageModel(
+      id: tempId,
+      chatId: widget.chatId,
+      senderId: _socketService.currentUserId!,
+      content: text,
+      status: MessageStatus.sending, // آیکون ساعت
+      createdAt: DateTime.now(),
+    );
+
+    setState(() {
+      _messages.insert(0, optimisticMessage);
+    });
+    _textController.clear();
+
+    _socketService.sendMessage(
+      tempId: tempId,
+      chatId: widget.chatId,
+      recipientId: widget.partnerId,
+      content: text,
+      onServerAck: (confirmedMessage) {
+        // جایگزینی پیام موقت با پیام تایید شده از سرور (تبدیل ساعت به ۱ تیک)
+        setState(() {
+          final index = _messages.indexWhere((m) => m.id == tempId);
+          if (index != -1) {
+            _messages[index] = confirmedMessage;
+          }
+        });
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _socketService.leaveChat();
+    _messageSub.cancel();
+    _statusSub.cancel();
+    _presenceSub.cancel();
+    _textController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F172A),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF1E293B),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.partnerName, style: const TextStyle(fontSize: 16)),
+            Text(
+              _partnerSubtitle,
+              style: TextStyle(
+                fontSize: 11,
+                color: _isPartnerOnline ? const Color(0xFF10B981) : Colors.white60,
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              reverse: true,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                final msg = _messages[index];
+                final isMe = msg.senderId == _socketService.currentUserId;
+                return _buildMessageBubble(msg, isMe);
+              },
+            ),
+          ),
+          _buildInputBar(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(MessageModel msg, bool isMe) {
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
+        ),
+        decoration: BoxDecoration(
+          color: isMe ? const Color(0xFF1E3A8A) : const Color(0xFF334155),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(14),
+            topRight: const Radius.circular(14),
+            bottomLeft: Radius.circular(isMe ? 14 : 2),
+            bottomRight: Radius.circular(isMe ? 2 : 14),
+          ),
+        ),
+        child: Wrap(
+          alignment: WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.bottom,
+          spacing: 6,
+          children: [
+            Text(
+              msg.content,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  DateFormat('HH:mm').format(msg.createdAt),
+                  style: const TextStyle(color: Colors.white54, fontSize: 10),
+                ),
+                if (isMe) ...[
+                  const SizedBox(width: 4),
+                  MessageStatusIcon(status: msg.status),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      color: const Color(0xFF1E293B),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _textController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  hintText: 'پیام خود را بنویسید...',
+                  hintStyle: TextStyle(color: Colors.white38),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.send_rounded, color: Color(0xFF38BDF8)),
+              onPressed: _sendTextMessage,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+```
+
+---
+
+
+
+
+برای اضافه کردن دو قابلیت **Reply (پاسخ به پیام)** و **Forward (ارسال به دیگری)**، تغییرات لازم را در سه لایه **مدل داده**، **منطق ارسال و سوکت** و **رابط کاربری (UI)** به صورت گام‌به‌گام پیاده‌سازی می‌کنیم.
+
+---
+
+### ۱. به‌روزرسانی مدل داده (`message_model.dart`)
+
+برای پشتیبانی از Reply، فیلد `replyTo` (که خود یک آبجکت سبک از پیام والد است) و برای پشتیبانی از Forward، یک پرچم بولین `isForwarded` به مدل پیام اضافه می‌شود:
+
+```dart
+enum MessageStatus { sending, sent, delivered, read }
+
+class MessageModel {
+  final String id;
+  final String chatId;
+  final String senderId;
+  final String content;
+  MessageStatus status;
+  final DateTime createdAt;
+  final MessageModel? replyTo; // پیامی که به آن پاسخ داده شده
+  final bool isForwarded;       // آیا پیام فوروارد شده است؟
+
+  MessageModel({
+    required this.id,
+    required this.chatId,
+    required this.senderId,
+    required this.content,
+    required this.status,
+    required this.createdAt,
+    this.replyTo,
+    this.isForwarded = false,
+  });
+
+  factory MessageModel.fromJson(Map<String, dynamic> json) {
+    return MessageModel(
+      id: json['id'] as String,
+      chatId: json['chatId'] as String,
+      senderId: json['senderId'] as String,
+      content: json['content'] as String,
+      status: _parseStatus(json['status'] as String?),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : DateTime.now(),
+      replyTo: json['replyTo'] != null
+          ? MessageModel.fromJson(Map<String, dynamic>.from(json['replyTo']))
+          : null,
+      isForwarded: json['isForwarded'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'chatId': chatId,
+    'senderId': senderId,
+    'content': content,
+    'status': status.name,
+    'createdAt': createdAt.toIso8601String(),
+    'replyTo': replyTo != null
+        ? {
+            'id': replyTo!.id,
+            'senderId': replyTo!.senderId,
+            'content': replyTo!.content,
+          }
+        : null,
+    'isForwarded': isForwarded,
+  };
+
+  static MessageStatus _parseStatus(String? status) {
+    switch (status) {
+      case 'delivered':
+        return MessageStatus.delivered;
+      case 'read':
+        return MessageStatus.read;
+      case 'sent':
+      default:
+        return MessageStatus.sent;
+    }
+  }
+}
+
+```
+
+---
+
+### ۲. به‌روزرسانی سرویس سوکت (`chat_socket_service.dart`)
+
+پارامترهای `replyTo` و `isForwarded` به متد `sendMessage` اضافه می‌شوند تا در بسته ارسالی سوکت به سرور منتقل گردند:
+
+```dart
+void sendMessage({
+  required String tempId,
+  required String chatId,
+  required String recipientId,
+  required String content,
+  MessageModel? replyTo,
+  bool isForwarded = false,
+  required Function(MessageModel confirmedMessage) onServerAck,
+}) {
+  _socket?.emitWithAck(
+    'send_message',
+    {
+      'tempId': tempId,
+      'chatId': chatId,
+      'recipientId': recipientId,
+      'content': content,
+      'replyTo': replyTo != null
+          ? {
+              'id': replyTo.id,
+              'senderId': replyTo.senderId,
+              'content': replyTo.content,
+            }
+          : null,
+      'isForwarded': isForwarded,
+    },
+    ack: (response) {
+      if (response != null && response['success'] == true) {
+        final confirmed = MessageModel.fromJson(
+          Map<String, dynamic>.from(response['message']),
+        );
+        onServerAck(confirmed);
+      }
+    },
+  );
+}
+
+```
+
+---
+
+### ۳. ویجت نوار پیش‌نمایش ریپلای بالای فیلد متنی (`reply_preview_bar.dart`)
+
+زمانی که کاربر پیامی را برای ریپلای انتخاب می‌کند، این ویجت بالای نوار ورودی ظاهر می‌شود:
+
+```dart
+import 'package:flutter/material.dart';
+import 'message_model.dart';
+
+class ReplyPreviewBar extends StatelessWidget {
+  final MessageModel replyMessage;
+  final VoidCallback onCancel;
+
+  const ReplyPreviewBar({
+    super.key,
+    required this.replyMessage,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1E293B),
+        border: Border(
+          top: BorderSide(color: Color(0xFF334155), width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 3.5,
+            height: 38,
+            decoration: BoxDecoration(
+              color: const Color(0xFF38BDF8),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'پاسخ به پیام',
+                  style: TextStyle(
+                    color: Color(0xFF38BDF8),
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  replyMessage.content,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+            onPressed: onCancel,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+```
+
+---
+
+### ۴. باتم‌شیت انتخاب مخاطب برای فوروارد (`forward_bottom_sheet.dart`)
+
+این شیت با نگه داشتن دست روی پیام باز شده و اجازه می‌دهد پیام جاری به کاربر دیگر ارسال شود:
+
+```dart
+import 'package:flutter/material.dart';
+import 'message_model.dart';
+
+class ForwardBottomSheet extends StatelessWidget {
+  final MessageModel message;
+  final Function(String targetChatId, String targetUserId) onForwardSelected;
+
+  const ForwardBottomSheet({
+    super.key,
+    required this.message,
+    required this.onForwardSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // نمونه ساختگی لیست مخاطبان فعال برای فوروارد
+    final contacts = [
+      {'chatId': 'chat_101', 'userId': 'user_2', 'name': 'مجتبی رحمانی'},
+      {'chatId': 'chat_102', 'userId': 'user_3', 'name': 'ساحل سالم'},
+      {'chatId': 'chat_103', 'userId': 'user_4', 'name': 'مبین حسنی'},
+    ];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1E293B),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              'ارسال پیام به...',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          ...contacts.map((contact) {
+            return ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: Color(0xFF334155),
+                child: Icon(Icons.person, color: Colors.white),
+              ),
+              title: Text(
+                contact['name']!,
+                style: const TextStyle(color: Colors.white),
+              ),
+              trailing: const Icon(Icons.send_rounded, color: Color(0xFF38BDF8), size: 20),
+              onTap: () {
+                Navigator.pop(context);
+                onForwardSelected(contact['chatId']!, contact['userId']!);
+              },
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+```
+
+---
+
+### ۵. اعمال تغییرات در ساختار حباب پیام (`chat_screen.dart`)
+
+در ویجت پیام، با کشیدن به سمت راست (Swipe to Reply) یا لمس طولانی (Long Press to Forward) اکشن‌ها فعال می‌شوند:
+
+```dart
+// متد ساخت حباب پیام با پشتیبانی از Reply و Forward
+Widget _buildMessageBubble(MessageModel msg, bool isMe) {
+  return GestureDetector(
+    onLongPress: () => _showForwardSheet(msg),
+    child: Dismissible(
+      key: Key('reply_${msg.id}'),
+      direction: DismissDirection.startToEnd,
+      confirmDismiss: (direction) async {
+        setState(() {
+          _replyingMessage = msg;
+        });
+        return false; // برای اینکه آیتم از لیست حذف نشود و فقط ریپلای فعال گردد
+      },
+      child: Align(
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.78,
+          ),
+          decoration: BoxDecoration(
+            color: isMe ? const Color(0xFF1E3A8A) : const Color(0xFF334155),
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(14),
+              topRight: const Radius.circular(14),
+              bottomLeft: Radius.circular(isMe ? 14 : 2),
+              bottomRight: Radius.circular(isMe ? 2 : 14),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ۱. نشانگر پیام فوروارد شده (Forwarded Indicator)
+              if (msg.isForwarded) ...[
+                const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.reply, size: 14, color: Colors.white54),
+                    SizedBox(width: 4),
+                    Text(
+                      'هدایت‌شده (Forwarded)',
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+              ],
+
+              // ۲. پیش‌نمایش پیام والد در صورت وجود ریپلای (Quoted Reply Box)
+              if (msg.replyTo != null) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.25),
+                    borderRadius: BorderRadius.circular(8),
+                    border: const Border(
+                      right: BorderSide(color: Color(0xFF38BDF8), width: 3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        msg.replyTo!.senderId == _socketService.currentUserId
+                            ? 'شما'
+                            : widget.partnerName,
+                        style: const TextStyle(
+                          color: Color(0xFF38BDF8),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        msg.replyTo!.content,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              // ۳. متن اصلی پیام و تایم‌استمپ و تیک‌ها
+              Wrap(
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.bottom,
+                spacing: 6,
+                children: [
+                  Text(
+                    msg.content,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        DateFormat('HH:mm').format(msg.createdAt),
+                        style: const TextStyle(color: Colors.white54, fontSize: 10),
+                      ),
+                      if (isMe) ...[
+                        const SizedBox(width: 4),
+                        MessageStatusIcon(status: msg.status),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+```
+
+---
+
+### ۶. اتصال رویدادهای ارسال نهایی در صفحه چت
+
+```dart
+MessageModel? _replyingMessage;
+
+void _sendTextMessage() {
+  final text = _textController.text.trim();
+  if (text.isEmpty) return;
+
+  final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+  final optimisticMessage = MessageModel(
+    id: tempId,
+    chatId: widget.chatId,
+    senderId: _socketService.currentUserId!,
+    content: text,
+    status: MessageStatus.sending,
+    createdAt: DateTime.now(),
+    replyTo: _replyingMessage,
+    isForwarded: false,
+  );
+
+  setState(() {
+    _messages.insert(0, optimisticMessage);
+  });
+
+  final replyToSend = _replyingMessage;
+  setState(() {
+    _replyingMessage = null; // پاک کردن حالت ریپلای
+  });
+  _textController.clear();
+
+  _socketService.sendMessage(
+    tempId: tempId,
+    chatId: widget.chatId,
+    recipientId: widget.partnerId,
+    content: text,
+    replyTo: replyToSend,
+    isForwarded: false,
+    onServerAck: (confirmedMessage) {
+      setState(() {
+        final index = _messages.indexWhere((m) => m.id == tempId);
+        if (index != -1) {
+          _messages[index] = confirmedMessage;
+        }
+      });
+    },
+  );
+}
+
+// متد باز کردن شیت فوروارد
+void _showForwardSheet(MessageModel message) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (context) => ForwardBottomSheet(
+      message: message,
+      onForwardSelected: (targetChatId, targetUserId) {
+        _socketService.sendMessage(
+          tempId: 'temp_fwd_${DateTime.now().millisecondsSinceEpoch}',
+          chatId: targetChatId,
+          recipientId: targetUserId,
+          content: message.content,
+          isForwarded: true,
+          onServerAck: (_) {},
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('پیام هدایت شد')),
+        );
+      },
+    ),
+  );
+}
+
+```
+
+
+
+برای اسکرول دقیق به پیام والد با ارتفاع داینامیک و هایلایت انیمیشنی، استانداردترین روش در فلاتر استفاده از پکیج **`scroll_to_index`** است (چون بدون نیاز به دانستن ارتفاع دقیق هر پیام بر حسب پیکسل، مستقیماً بر اساس `index` اسکرول انجام می‌دهد).
+
+---
+
+### ۱. نصب پکیج در `pubspec.yaml`
+
+```yaml
+dependencies:
+  scroll_to_index: ^3.0.1
+
+```
+
+---
+
+### ۲. پیاده‌سازی کنترلر اسکرول و منطق هایلایت در `chat_screen.dart`
+
+کنترلر پیش‌فرض `ListView` را با `AutoScrollController` جایگزین کرده و شناسه پیامی که باید هایلایت شود را در وضعیت صفحه ذخیره می‌کنیم:
+
+```dart
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:scroll_to_index/scroll_to_index.dart';
+import 'message_model.dart';
+import 'chat_socket_service.dart';
+import 'message_status_icon.dart';
+import 'reply_preview_bar.dart';
+
+class ChatScreen extends StatefulWidget {
+  final String chatId;
+  final String partnerId;
+  final String partnerName;
+
+  const ChatScreen({
+    super.key,
+    required this.chatId,
+    required this.partnerId,
+    required this.partnerName,
+  });
+
+  @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  final _socketService = ChatSocketService();
+  final _textController = TextEditingController();
+  final List<MessageModel> _messages = [];
+
+  // کنترلر هوشمند اسکرول بر اساس ایندکس
+  late AutoScrollController _scrollController;
+
+  // شناسه پیامی که هم‌اکنون هایلایت است
+  String? _highlightedMessageId;
+  MessageModel? _replyingMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = AutoScrollController(
+      axis: Axis.vertical,
+      suggestedRowHeight: 80,
+    );
+    _socketService.enterChat(widget.chatId, widget.partnerId);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _textController.dispose();
+    _socketService.leaveChat();
+    super.dispose();
+  }
+
+  // متد پرش به پیام والد و اجرای افکت چشمک‌زن (Highlight Flash)
+  Future<void> _scrollToAndHighlightMessage(String targetMessageId) async {
+    final targetIndex = _messages.indexWhere((m) => m.id == targetMessageId);
+
+    if (targetIndex == -1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('پیام اصلی یافت نشد یا در حافظه بارگذاری نشده است.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    // اسکرول نرم به موقعیت پیام هدف
+    await _scrollController.scrollToIndex(
+      targetIndex,
+      preferPosition: AutoScrollPosition.middle,
+      duration: const Duration(milliseconds: 400),
+    );
+
+    // فعال‌سازی هایلایت
+    setState(() {
+      _highlightedMessageId = targetMessageId;
+    });
+
+    // حذف خودکار هایلایت پس از ۱.۲ ثانیه
+    Timer(const Duration(milliseconds: 1200), () {
+      if (mounted) {
+        setState(() {
+          _highlightedMessageId = null;
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F172A),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF1E293B),
+        title: Text(widget.partnerName),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              controller: _scrollController,
+              reverse: true,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                final msg = _messages[index];
+                final isMe = msg.senderId == _socketService.currentUserId;
+                final isHighlighted = msg.id == _highlightedMessageId;
+
+                // رپ کردن هر آیتم داخل AutoScrollTag
+                return AutoScrollTag(
+                  key: ValueKey(msg.id),
+                  controller: _scrollController,
+                  index: index,
+                  child: _buildMessageBubble(msg, isMe, isHighlighted),
+                );
+              },
+            ),
+          ),
+          if (_replyingMessage != null)
+            ReplyPreviewBar(
+              replyMessage: _replyingMessage!,
+              onCancel: () => setState(() => _replyingMessage = null),
+            ),
+          _buildInputBar(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(MessageModel msg, bool isMe, bool isHighlighted) {
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeInOut,
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.78,
+        ),
+        decoration: BoxDecoration(
+          // تغییر رنگ آنی در صورت هایلایت شدن
+          color: isHighlighted
+              ? const Color(0xFF0284C7).withOpacity(0.9) // رنگ هایلایت فیروزه‌ای پررنگ
+              : (isMe ? const Color(0xFF1E3A8A) : const Color(0xFF334155)),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(14),
+            topRight: const Radius.circular(14),
+            bottomLeft: Radius.circular(isMe ? 14 : 2),
+            bottomRight: Radius.circular(isMe ? 2 : 14),
+          ),
+          boxShadow: isHighlighted
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF38BDF8).withOpacity(0.6),
+                    blurRadius: 16,
+                    spreadRadius: 2,
+                  )
+                ]
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // باکس ریپلای با قابلیت لمس و پرش به پیام والد
+            if (msg.replyTo != null) ...[
+              GestureDetector(
+                onTap: () => _scrollToAndHighlightMessage(msg.replyTo!.id),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.28),
+                    borderRadius: BorderRadius.circular(8),
+                    border: const Border(
+                      right: BorderSide(color: Color(0xFF38BDF8), width: 3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.reply, size: 12, color: Color(0xFF38BDF8)),
+                          const SizedBox(width: 4),
+                          Text(
+                            msg.replyTo!.senderId == _socketService.currentUserId
+                                ? 'شما'
+                                : widget.partnerName,
+                            style: const TextStyle(
+                              color: Color(0xFF38BDF8),
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        msg.replyTo!.content,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+
+            // متن پیام
+            Text(
+              msg.content,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      color: const Color(0xFF1E293B),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _textController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  hintText: 'پیام خود را بنویسید...',
+                  hintStyle: TextStyle(color: Colors.white38),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.send_rounded, color: Color(0xFF38BDF8)),
+              onPressed: () {
+                // ارسال پیام
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+```
+
+---
+
+### مزایای کلیدی این رویکرد:
+
+1. **پشتیبانی از لیست معکوس (`reverse: true`):** پکیج `scroll_to_index` بدون به هم ریختن محاسبات لیست چت، ایندکس معکوس را به درستی محاسبه می‌کند.
+2. **پوزیشن `middle`:** پیام هدف دقیقاً در وسط کادر صفحه قرار می‌گیرد تا کاربر دید کاملی از متن آن داشته باشد.
+3. **انیمیشن ترکیبی:** استفاده از `AnimatedContainer` تغییر پس‌زمینه و تابش نور آبی (`BoxShadow`) را بدون افت فریم (Jank) به شکل کاملاً نرم اجرا می‌کند.
+
+
+
+برای پیاده‌سازی اصولی Pagination در لیست معکوس چت (`reverse: true`)، باید از **Cursor-based Pagination** بر اساس تاریخ ایجاد پیام (`created_at`) استفاده کرد. مزیت این روش نسبت به `offset` و `page` این است که با دریافت پیام جدید در بلادرنگ، آفست‌ها به هم نمی‌ریزند و هیچ پیامی تکراری یا جا افتاده نمی‌شود.
+
+---
+
+### ۱. اندپوینت سمت سرور (Node.js / Express + PostgreSQL)
+
+```javascript
+// GET /api/chats/:chatId/messages?before=2026-11-06T12:00:00.000Z&limit=25
+app.get('/api/chats/:chatId/messages', async (req, res) => {
+  const { chatId } = req.params;
+  const { before, limit = 25 } = req.query;
+
+  try {
+    let query = `
+      SELECT id, chat_id AS "chatId", sender_id AS "senderId",
+             content, status, created_at AS "createdAt", reply_to AS "replyTo", is_forwarded AS "isForwarded"
+      FROM messages
+      WHERE chat_id = $1
+    `;
+    const params = [chatId];
+
+    // واکشی پیام‌های قبل از تاریخ کرسر (قدیمی‌ترها)
+    if (before) {
+      params.push(before);
+      query += ` AND created_at < $2`;
+    }
+
+    params.push(parseInt(limit, 10));
+    query += ` ORDER BY created_at DESC LIMIT $${params.length}`;
+
+    const result = await db.query(query, params);
+    
+    // مشخص کردن وجود پیام‌های بیشتر
+    const hasMore = result.rows.length === parseInt(limit, 10);
+    
+    res.json({
+      messages: result.rows,
+      hasMore,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+```
+
+---
+
+### ۲. سرویس واکشی پیام‌ها از REST API (`chat_api_service.dart`)
+
+```dart
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'message_model.dart';
+
+class PaginatedMessagesResponse {
+  final List<MessageModel> messages;
+  final bool hasMore;
+
+  PaginatedMessagesResponse({required this.messages, required this.hasMore});
+}
+
+class ChatApiService {
+  static const String baseUrl = 'https://api.yourdomain.com';
+
+  static Future<PaginatedMessagesResponse> fetchHistory({
+    required String chatId,
+    DateTime? before,
+    int limit = 25,
+  }) async {
+    final queryParams = {
+      'limit': limit.toString(),
+      if (before != null) 'before': before.toUtc().toIso8601String(),
+    };
+
+    final uri = Uri.parse('$baseUrl/api/chats/$chatId/messages')
+        .replace(queryParameters: queryParams);
+
+    final res = await http.get(uri);
+
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      final List rawList = data['messages'];
+      final messages = rawList.map((m) => MessageModel.fromJson(m)).toList();
+      return PaginatedMessagesResponse(
+        messages: messages,
+        hasMore: data['hasMore'] ?? false,
+      );
+    } else {
+      throw Exception('Failed to load message history');
+    }
+  }
+}
+
+```
+
+---
+
+### ۳. مدیریت اسکرول نامحدود و همگام‌سازی بلادرنگ (`chat_screen.dart`)
+
+در لیست معکوس چت:
+
+* `index = 0` و موقعیت `pixels = 0` انتهای پایین چت (جدیدترین پیام‌ها) است.
+* اسکرول به سمت بالا باعث رسیدن به `maxScrollExtent` می‌شود که تریگر درخواست پیام‌های قدیمی‌تر است.
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:scroll_to_index/scroll_to_index.dart';
+import 'message_model.dart';
+import 'chat_socket_service.dart';
+import 'chat_api_service.dart';
+import 'message_status_icon.dart';
+import 'reply_preview_bar.dart';
+
+class ChatScreen extends StatefulWidget {
+  final String chatId;
+  final String partnerId;
+  final String partnerName;
+
+  const ChatScreen({
+    super.key,
+    required this.chatId,
+    required this.partnerId,
+    required this.partnerName,
+  });
+
+  @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  final _socketService = ChatSocketService();
+  final _textController = TextEditingController();
+  late AutoScrollController _scrollController;
+
+  final List<MessageModel> _messages = [];
+  bool _isLoadingInitial = true;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = AutoScrollController(
+      axis: Axis.vertical,
+      suggestedRowHeight: 80,
+    );
+
+    _scrollController.addListener(_onScroll);
+    _loadInitialMessages();
+    _initSocketListeners();
+  }
+
+  // ۱. بارگذاری اولین صفحه چت (۲۵ پیام اخیر)
+  Future<void> _loadInitialMessages() async {
+    try {
+      final res = await ChatApiService.fetchHistory(
+        chatId: widget.chatId,
+        limit: 25,
+      );
+
+      setState(() {
+        _messages.addAll(res.messages);
+        _hasMore = res.hasMore;
+        _isLoadingInitial = false;
+      });
+    } catch (e) {
+      setState(() => _isLoadingInitial = false);
+    }
+  }
+
+  // ۲. تریگر اسکرول نامحدود هنگام نزدیک شدن به انتهای بالای چت
+  void _onScroll() {
+    if (!_hasMore || _isLoadingMore || _messages.isEmpty) return;
+
+    // در لیست معکوس، maxScrollExtent بالای لیست چت است
+    const threshold = 200.0;
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - threshold) {
+      _loadMoreOldMessages();
+    }
+  }
+
+  // ۳. واکشی پیام‌های قدیمی‌تر با استفاده از کرسر آخرین پیام
+  Future<void> _loadMoreOldMessages() async {
+    setState(() => _isLoadingMore = true);
+
+    try {
+      // قدیمی‌ترین پیام فعلی در انتهای لیست _messages قرار دارد
+      final oldestMessage = _messages.last;
+
+      final res = await ChatApiService.fetchHistory(
+        chatId: widget.chatId,
+        before: oldestMessage.createdAt,
+        limit: 25,
+      );
+
+      setState(() {
+        _messages.addAll(res.messages);
+        _hasMore = res.hasMore;
+        _isLoadingMore = false;
+      });
+    } catch (e) {
+      setState(() => _isLoadingMore = false);
+    }
+  }
+
+  // ۴. دریافت پیام‌های زنده از طریق سوکت بدون ایجاد تداخل در Pagination
+  void _initSocketListeners() {
+    _socketService.enterChat(widget.chatId, widget.partnerId);
+
+    _socketService.onNewMessage.listen((msg) {
+      if (msg.chatId == widget.chatId) {
+        // جلوگیری از ثبت پیام‌های تکراری
+        final exists = _messages.any((m) => m.id == msg.id);
+        if (!exists) {
+          setState(() {
+            _messages.insert(0, msg);
+          });
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    _textController.dispose();
+    _socketService.leaveChat();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F172A),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF1E293B),
+        title: Text(widget.partnerName),
+      ),
+      body: _isLoadingInitial
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF38BDF8)))
+          : Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    reverse: true, // ترتیب معکوس چت
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    // یک آیتم بیشتر برای لودر بالای لیست
+                    itemCount: _messages.length + (_hasMore ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      // نمایش لودر کوچک هنگام واکشی پیام‌های گذشته
+                      if (index == _messages.length) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child: SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFF38BDF8),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
+                      final msg = _messages[index];
+                      final isMe = msg.senderId == _socketService.currentUserId;
+
+                      return AutoScrollTag(
+                        key: ValueKey(msg.id),
+                        controller: _scrollController,
+                        index: index,
+                        child: _buildMessageBubble(msg, isMe),
+                      );
+                    },
+                  ),
+                ),
+                _buildInputBar(),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildMessageBubble(MessageModel msg, bool isMe) {
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.78,
+        ),
+        decoration: BoxDecoration(
+          color: isMe ? const Color(0xFF1E3A8A) : const Color(0xFF334155),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          msg.content,
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      color: const Color(0xFF1E293B),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _textController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  hintText: 'پیام خود را بنویسید...',
+                  hintStyle: TextStyle(color: Colors.white38),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.send_rounded, color: Color(0xFF38BDF8)),
+              onPressed: () {
+                final text = _textController.text.trim();
+                if (text.isEmpty) return;
+
+                final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+                final optimisticMessage = MessageModel(
+                  id: tempId,
+                  chatId: widget.chatId,
+                  senderId: _socketService.currentUserId!,
+                  content: text,
+                  status: MessageStatus.sending,
+                  createdAt: DateTime.now(),
+                );
+
+                setState(() {
+                  _messages.insert(0, optimisticMessage);
+                });
+                _textController.clear();
+
+                _socketService.sendMessage(
+                  tempId: tempId,
+                  chatId: widget.chatId,
+                  recipientId: widget.partnerId,
+                  content: text,
+                  onServerAck: (confirmed) {
+                    setState(() {
+                      final i = _messages.indexWhere((m) => m.id == tempId);
+                      if (i != -1) _messages[i] = confirmed;
+                    });
+                  },
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+```
+
+---
+
+### ۴. نحوه ادغام با پرش به ریپلای ناموجود (Jump to Missing Message)
+
+اگر کاربر روی باکس Reply پیامی کلیک کند که در آرایه `_messages` موجود نیست (چون مربوط به ماه‌ها پیش است):
+
+1. **فراخوانی اندپوینت اختصاصی کانتکست:** `GET /api/chats/:chatId/around/:messageId`
+2. **جایگزینی یا ادغام محدوده پیام‌ها:** پیام والد به همراه ۱۰ پیام قبل و بعد از آن دریافت می‌شود.
+3. **اسکرول به ایندکس پیام:** متد `_scrollToAndHighlightMessage(targetId)` روی ایندکس جدید فراخوانی می‌شود.
+
+
+
+
+برای پیاده‌سازی پرش به یک پیام قدیمی که در آرایه فعال کلاینت موجود نیست، سیستم باید بتواند **پنجره زمانی اطراف پیام هدف (Surrounding Window)** شامل پیام هدف به همراه تعدادی پیام قبل (قدیمی‌تر) و بعد (جدیدتر) از آن را به صورت اتمیک واکشی کند.
+
+این راهکار شامل اندپوینت اختصاصی سرور، تابع API کلاینت و منطق ادغام/اسکرول در فلاتر است.
+
+---
+
+### ۱. اندپوینت سرور (`GET /api/chats/:chatId/context/:messageId`)
+
+در این اندپوینت، ابتدا زمان پیام هدف خوانده می‌شود؛ سپس با استفاده از دو کوئری موازی، `N` پیام قبل و `N` پیام بعد از آن استخراج شده و با ترتیب نزولی زمانی مرتب می‌شوند:
+
+```javascript
+// Node.js / Express + PostgreSQL
+app.get('/api/chats/:chatId/context/:messageId', async (req, res) => {
+  const { chatId, messageId } = req.params;
+  const limitAround = parseInt(req.query.limit || '15', 10); // ۱۵ پیام قبل و ۱۵ پیام بعد
+
+  try {
+    // ۱. استخراج تاریخ پیام هدف
+    const targetQuery = await db.query(
+      'SELECT created_at FROM messages WHERE id = $1 AND chat_id = $2',
+      [messageId, chatId]
+    );
+
+    if (targetQuery.rows.length === 0) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    const targetTime = targetQuery.rows[0].created_at;
+
+    // ۲. دریافت پیام‌های قبل، خود پیام و پیام‌های بعد در یک کوئری تلفیقی (UNION)
+    const contextQuery = `
+      (
+        -- پیام‌های جدیدتر (بعد از پیام هدف)
+        SELECT id, chat_id AS "chatId", sender_id AS "senderId", content, status,
+               created_at AS "createdAt", reply_to AS "replyTo", is_forwarded AS "isForwarded"
+        FROM messages
+        WHERE chat_id = $1 AND created_at > $2
+        ORDER BY created_at ASC
+        LIMIT $3
+      )
+      UNION ALL
+      (
+        -- خود پیام هدف
+        SELECT id, chat_id AS "chatId", sender_id AS "senderId", content, status,
+               created_at AS "createdAt", reply_to AS "replyTo", is_forwarded AS "isForwarded"
+        FROM messages
+        WHERE id = $4
+      )
+      UNION ALL
+      (
+        -- پیام‌های قدیمی‌تر (قبل از پیام هدف)
+        SELECT id, chat_id AS "chatId", sender_id AS "senderId", content, status,
+               created_at AS "createdAt", reply_to AS "replyTo", is_forwarded AS "isForwarded"
+        FROM messages
+        WHERE chat_id = $1 AND created_at < $2
+        ORDER BY created_at DESC
+        LIMIT $3
+      )
+      ORDER BY "createdAt" DESC;
+    `;
+
+    const result = await db.query(contextQuery, [chatId, targetTime, limitAround, messageId]);
+
+    res.json({
+      targetMessageId: messageId,
+      messages: result.rows, // لیست کامل ۳۱ پیام بر اساس ترتیب DESC (مناسب reverse: true)
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+```
+
+---
+
+### ۲. فراخوانی API در کلاینت فلاتر (`chat_api_service.dart`)
+
+متد واکشی کانتکست پیام به سرویس اضافه می‌شود:
+
+```dart
+static Future<List<MessageModel>> fetchMessageContext({
+  required String chatId,
+  required String messageId,
+  int limit = 15,
+}) async {
+  final uri = Uri.parse('$baseUrl/api/chats/$chatId/context/$messageId?limit=$limit');
+  final res = await http.get(uri);
+
+  if (res.statusCode == 200) {
+    final data = json.decode(res.body);
+    final List rawList = data['messages'];
+    return rawList.map((m) => MessageModel.fromJson(m)).toList();
+  } else {
+    throw Exception('Failed to fetch message context');
+  }
+}
+
+```
+
+---
+
+### ۳. مدیریت ادغام هوشمند و پرش در `chat_screen.dart`
+
+زمانی که کاربر روی ریپلای کلیک می‌کند، متد ابتدا کش لوکال را چک می‌کند؛ اگر پیدا نشد، یک نشانگر بارگذاری (Loading Overlay) نشان داده، کانتکست را فچ کرده و پیام‌ها را ادغام (Merge & Deduplicate) می‌کند:
+
+```dart
+// متد جامع پرش به پیام ریپلای (موجود در رم یا نیازمند فچ از سرور)
+Future<void> handleReplyTap(String targetMessageId) async {
+  // ۱. بررسی وجود پیام در لیست جاری
+  int index = _messages.indexWhere((m) => m.id == targetMessageId);
+
+  if (index != -1) {
+    // پیام در حافظه هست؛ مستقیماً اسکرول و هایلایت کن
+    await _scrollToAndHighlightMessage(targetMessageId, index);
+    return;
+  }
+
+  // ۲. پیام در حافظه نیست: نمایش لودینگ و فچ از اندپوینت Context
+  _showLoadingDialog('در حال بارگذاری پیام اصلی...');
+
+  try {
+    final contextMessages = await ChatApiService.fetchMessageContext(
+      chatId: widget.chatId,
+      messageId: targetMessageId,
+      limit: 15,
+    );
+
+    if (mounted) Navigator.pop(context); // بستن دیالوگ لودینگ
+
+    if (contextMessages.isEmpty) {
+      _showSnackBar('پیام مورد نظر یافت نشد یا حذف شده است.');
+      return;
+    }
+
+    // ۳. ادغام بدون تکرار (Merge & Deduplicate) با پیام‌های قبلی
+    final Map<String, MessageModel> mergedMap = {};
+    for (var m in _messages) {
+      mergedMap[m.id] = m;
+    }
+    for (var m in contextMessages) {
+      mergedMap[m.id] = m; // اضافه یا بروزرسانی
+    }
+
+    // تبدیل مجدد به لیست و مرتب‌سازی نزولی (DESC) بر اساس تاریخ
+    final sortedList = mergedMap.values.toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    setState(() {
+      _messages.clear();
+      _messages.addAll(sortedList);
+    });
+
+    // ۴. ثبت فریم در موتور Flutter و سپس اسکرول به ایندکس جدید
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final newIndex = _messages.indexWhere((m) => m.id == targetMessageId);
+      if (newIndex != -1) {
+        await _scrollToAndHighlightMessage(targetMessageId, newIndex);
+      }
+    });
+  } catch (e) {
+    if (mounted) Navigator.pop(context);
+    _showSnackBar('خطا در دریافت پیام از سرور');
+  }
+}
+
+// متد کمکی برای اسکرول و فعال‌سازی انیمیشن هایلایت
+Future<void> _scrollToAndHighlightMessage(String messageId, int index) async {
+  await _scrollController.scrollToIndex(
+    index,
+    preferPosition: AutoScrollPosition.middle,
+    duration: const Duration(milliseconds: 400),
+  );
+
+  setState(() {
+    _highlightedMessageId = messageId;
+  });
+
+  Timer(const Duration(milliseconds: 1400), () {
+    if (mounted) {
+      setState(() {
+        _highlightedMessageId = null;
+      });
+    }
+  });
+}
+
+void _showLoadingDialog(String text) {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E293B),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF38BDF8)),
+            ),
+            const SizedBox(width: 14),
+            Text(text, style: const TextStyle(color: Colors.white, fontSize: 13)),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+void _showSnackBar(String text) {
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+}
+
+```
+
+---
+
+### ۴. نحوه کلیک روی باکس ریپلای در حباب پیام
+
+در داخل متد `_buildMessageBubble`، رویداد `onTap` مستقیماً به تابع `handleReplyTap` متصل می‌شود:
+
+```dart
+if (msg.replyTo != null) ...[
+  GestureDetector(
+    onTap: () => handleReplyTap(msg.replyTo!.id), // مدیریت خودکار کش یا واکشی سرور
+    child: Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.28),
+        borderRadius: BorderRadius.circular(8),
+        border: const Border(
+          right: BorderSide(color: Color(0xFF38BDF8), width: 3),
+        ),
+      ),
+      child: Text(
+        msg.replyTo!.content,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: Colors.white70, fontSize: 12),
+      ),
+    ),
+  ),
+],
+
+```
+
+---
+
+### ۵. دکمه بازگشت به جدیدترین پیام‌ها (Jump to Bottom Floating Button)
+
+هنگامی که کلاینت به پیام‌های ماه‌ها پیش پرش می‌کند، کاربر باید بتواند با یک لمس به زمان حال برگردد:
+
+```dart
+Widget _buildJumpToBottomButton() {
+  return Positioned(
+    bottom: 80,
+    right: 16,
+    child: FloatingActionButton.small(
+      backgroundColor: const Color(0xFF1E293B),
+      child: const Icon(Icons.keyboard_double_arrow_down, color: Color(0xFF38BDF8)),
+      onPressed: () {
+        _scrollController.animateTo(
+          0.0,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOut,
+        );
+      },
+    ),
+  );
+}
+
+```
+
+
+
+پیاده‌سازی کامل هر سه بخش پیشنهادی برای ارتقای زیرساخت پیام‌رسانی:
+
+---
+
+### ۱. مدیریت گپ‌های بین پیام‌ها (Message Gap Detection)
+
+وقتی کاربر به یک پیام خیلی قدیمی پرش می‌کند و پنجره اطراف آن را فچ می‌نماید، بین پیام‌های جدید فعلی و پیام‌های قدیمی یک «شکاف اطلاعاتی» (Gap) به وجود می‌آید. برای مدیریت این وضعیت:
+
+1. اگر کاربر در لیست اسکرول کند و به این شکاف برسد، به جای پیام، یک بنر کوچک «بارگذاری پیام‌های جامانده» نمایش داده می‌شود.
+2. با کلیک یا اسکرول، بازه بین دو پیام متوالی از سرور استعلام و پر می‌شود.
+
+```dart
+// مدلی برای تشخیص شکاف یا پیام عادی
+abstract class ChatListItem {}
+
+class MessageItem extends ChatListItem {
+  final MessageModel message;
+  MessageItem(this.message);
+}
+
+class GapItem extends ChatListItem {
+  final DateTime afterTime;  // قدیمی‌تر
+  final DateTime beforeTime; // جدیدتر
+
+  GapItem({required this.afterTime, required this.beforeTime});
+}
+
+// متد ساخت لیست یکپارچه با گپ‌ها
+List<ChatListItem> buildItemsWithGaps(List<MessageModel> messages) {
+  List<ChatListItem> items = [];
+  if (messages.isEmpty) return items;
+
+  for (int i = 0; i < messages.length; i++) {
+    items.add(MessageItem(messages[i]));
+
+    // اگر پیام بعدی وجود دارد، فاصله زمانی را بررسی کن
+    if (i < messages.length - 1) {
+      final currentMsg = messages[i];
+      final olderMsg = messages[i + 1];
+
+      // به عنوان مثال: اگر فاصله زمانی دو پیام بیش از ۶ ساعت باشد یا فچ غیرپیوسته انجام شده باشد
+      if (currentMsg.createdAt.difference(olderMsg.createdAt).inHours > 6) {
+        items.add(GapItem(
+          beforeTime: currentMsg.createdAt,
+          afterTime: olderMsg.createdAt,
+        ));
+      }
+    }
+  }
+  return items;
+}
+
+```
+
+ویجت نمایش شکاف در `ListView`:
+
+```dart
+Widget buildGapWidget(GapItem gap) {
+  return InkWell(
+    onTap: () async {
+      // فراخوانی اندپوینت دریافت پیام‌های بین دو تاریخ
+      // GET /api/chats/:chatId/messages?after=${gap.afterTime}&before=${gap.beforeTime}
+    },
+    child: Container(
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF334155)),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.history, size: 16, color: Color(0xFF38BDF8)),
+          SizedBox(width: 8),
+          Text(
+            'بارگذاری پیام‌های خوانده‌نشده بین این دو زمان',
+            style: TextStyle(color: Color(0xFF38BDF8), fontSize: 12),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+```
+
+---
+
+### ۲. ذخیره محلی پنجره‌های چت با Isar
+
+پکیج **Isar** سریع‌ترین دیتابیس NoSQL برای فلاتر است و برای کش کردن پیام‌ها و پنجره‌های چت بدون افت فریم (۶۰/۱۲۰ FPS) ایده‌آل است.
+
+#### افزودن وابستگی‌ها به `pubspec.yaml`:
+
+```yaml
+dependencies:
+  isar: ^3.1.0+1
+  isar_flutter_libs: ^3.1.0+1
+
+dev_dependencies:
+  isar_generator: ^3.1.0+1
+  build_runner: any
+
+```
+
+#### مدل دیتابیس Isar (`local_message.dart`):
+
+```dart
+import 'package:isar/isar.dart';
+
+part 'local_message.g.dart';
+
+@collection
+class LocalMessage {
+  Id id = Isar.autoIncrement;
+
+  @Index(unique: true, replace: true)
+  late String serverId;
+
+  @Index()
+  late String chatId;
+
+  late String senderId;
+  late String content;
+  late String status; // sent, delivered, read
+
+  @Index()
+  late DateTime createdAt;
+
+  String? replyToId;
+  String? replyToContent;
+  bool isForwarded = false;
+}
+
+```
+
+#### سرویس ذخیره و بازیابی پیام‌ها (`chat_cache_service.dart`):
+
+```dart
+import 'package:isar/isar.dart';
+import 'package:path_provider/path_provider.dart';
+import 'local_message.dart';
+import 'message_model.dart';
+
+class ChatCacheService {
+  late Future<Isar> db;
+
+  ChatCacheService() {
+    db = _initDb();
+  }
+
+  Future<Isar> _initDb() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return await Isar.open(
+      [LocalMessageSchema],
+      directory: dir.path,
+      name: 'chat_cache',
+    );
+  }
+
+  // ذخیره دسته‌ای پیام‌های فچ شده
+  Future<void> saveMessages(List<MessageModel> messages) async {
+    final isar = await db;
+    final locals = messages.map((m) {
+      return LocalMessage()
+        ..serverId = m.id
+        ..chatId = m.chatId
+        ..senderId = m.senderId
+        ..content = m.content
+        ..status = m.status.name
+        ..createdAt = m.createdAt
+        ..replyToId = m.replyTo?.id
+        ..replyToContent = m.replyTo?.content
+        ..isForwarded = m.isForwarded;
+    }).toList();
+
+    await isar.writeTxn(() async {
+      await isar.localMessages.putAllByServerId(locals);
+    });
+  }
+
+  // واکشی پیام‌ها از کش محلی بر اساس تاریخ
+  Future<List<LocalMessage>> getCachedMessages({
+    required String chatId,
+    DateTime? before,
+    int limit = 25,
+  }) async {
+    final isar = await db;
+    var query = isar.localMessages.filter().chatIdEqualTo(chatId);
+
+    if (before != null) {
+      return await query
+          .createdAtLessThan(before)
+          .sortByCreatedAtDesc()
+          .limit(limit)
+          .findAll();
+    }
+
+    return await query.sortByCreatedAtDesc().limit(limit).findAll();
+  }
+}
+
+```
+
+---
+
+### ۳. نمایش جداکننده روز (Date Sticky Headers)
+
+برای نمایش جداکننده تاریخ (امروز، دیروز، یا تاریخ شمسی/میلادی خاص) که به صورت چسبنده (Sticky) بالای صفحه در هنگام اسکرول شناور بماند، از پکیج **`sticky_grouped_list`** استفاده می‌شود.
+
+#### نصب پکیج:
+
+```yaml
+dependencies:
+  sticky_grouped_list: ^3.1.0
+  intl: ^0.19.0
+
+```
+
+#### پیاده‌سازی کامل ویجت چت با Sticky Header:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:sticky_grouped_list/sticky_grouped_list.dart';
+import 'message_model.dart';
+
+class ChatWithStickyHeaders extends StatelessWidget {
+  final List<MessageModel> messages;
+  final String currentUserId;
+
+  const ChatWithStickyHeaders({
+    super.key,
+    required this.messages,
+    required this.currentUserId,
+  });
+
+  // تولید متن تاریخ (امروز، دیروز یا فرمت تاریخ)
+  String _formatDateHeader(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final messageDate = DateTime(date.year, date.month, date.day);
+
+    final difference = today.difference(messageDate).inDays;
+
+    if (difference == 0) return 'امروز';
+    if (difference == 1) return 'دیروز';
+    return DateFormat('yyyy/MM/dd').format(date);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StickyGroupedListView<MessageModel, DateTime>(
+      elements: messages,
+      order: StickyGroupedListOrder.DESC, // ترتیب معکوس چت
+      reverse: true,
+      // گروه‌بندی پیام‌ها بر اساس روز (ساعت و دقیقه صفر می‌شود)
+      groupBy: (msg) => DateTime(
+        msg.createdAt.year,
+        msg.createdAt.month,
+        msg.createdAt.day,
+      ),
+      // هدر تاریخ چسبنده
+      groupSeparatorBuilder: (MessageModel msg) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          alignment: Alignment.center,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B).withOpacity(0.9),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF334155), width: 0.8),
+            ),
+            child: Text(
+              _formatDateHeader(msg.createdAt),
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        );
+      },
+      // آیتم پیام
+      itemBuilder: (context, MessageModel msg) {
+        final isMe = msg.senderId == currentUserId;
+        return Align(
+          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: 3, horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isMe ? const Color(0xFF1E3A8A) : const Color(0xFF334155),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              msg.content,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+```

@@ -84,10 +84,8 @@ class _LoginScreenState extends State<LoginScreen> {
           debugPrint("Profile role fetch warning: $roleErr");
         }
 
-        // Store local session in SharedPreferences
-        if (_rememberMe) {
-          await AuthHelper.markUserLoggedIn(userId: user.id, role: userRole);
-        }
+        // Store local session in SharedPreferences and register single FCM token (zev_fmc)
+        await AuthHelper.markUserLoggedIn(userId: user.id, role: userRole);
 
         if (!mounted) return;
 

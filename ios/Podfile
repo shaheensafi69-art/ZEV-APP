@@ -1,4 +1,4 @@
-platform :ios, '14.0'
+platform :ios, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -39,7 +39,31 @@ post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      if target.name == 'ffmpeg_kit_flutter_new'
+        ['FRAMEWORK_SEARCH_PATHS', 'FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]', 'FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*]'].each do |key|
+          existing = config.build_settings[key]
+          framework_dir = '"$(PODS_TARGET_SRCROOT)/Frameworks"'
+          if existing.is_a?(Array)
+            existing << framework_dir unless existing.include?(framework_dir)
+          elsif existing.is_a?(String)
+            config.build_settings[key] = "#{existing} #{framework_dir}" unless existing.include?(framework_dir)
+          else
+            config.build_settings[key] = "$(inherited) #{framework_dir}"
+          end
+        end
+        ['HEADER_SEARCH_PATHS', 'HEADER_SEARCH_PATHS[sdk=iphoneos*]', 'HEADER_SEARCH_PATHS[sdk=iphonesimulator*]'].each do |key|
+          existing = config.build_settings[key]
+          header_dir = '"$(PODS_TARGET_SRCROOT)/Frameworks/ffmpegkit.framework/Headers"'
+          if existing.is_a?(Array)
+            existing << header_dir unless existing.include?(header_dir)
+          elsif existing.is_a?(String)
+            config.build_settings[key] = "#{existing} #{header_dir}" unless existing.include?(header_dir)
+          else
+            config.build_settings[key] = "$(inherited) #{header_dir}"
+          end
+        end
+      end
     end
   end
 end
