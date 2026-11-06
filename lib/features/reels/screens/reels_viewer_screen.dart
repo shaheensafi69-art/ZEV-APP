@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/services/feed_algorithm_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_native_ad_reel_unit.dart';
 import '../models/reel_item.dart';
@@ -76,7 +77,7 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
     final currentUserId = supabase.auth.currentUser?.id;
 
     try {
-      // 1. Fetch published reels
+      // 1. Fetch candidate pool of published reels
       final res = await supabase
           .from('reels')
           .select(
@@ -84,7 +85,7 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
           )
           .eq('is_published', true)
           .order('created_at', ascending: false)
-          .limit(30);
+          .limit(50);
 
       final rawList = List<Map<String, dynamic>>.from(res as List);
       if (rawList.isEmpty) {
@@ -201,9 +202,15 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
         );
       }
 
+      // 7. Apply Instagram-grade Algorithmic Reels Mix
+      final mixedReels = FeedAlgorithmService.instance.mixReels(
+        items,
+        currentUserId: currentUserId,
+      );
+
       if (mounted) {
         setState(() {
-          _reels = items;
+          _reels = mixedReels;
           _isLoading = false;
         });
         _preloadAdjacentReels(0);

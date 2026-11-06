@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/services/feed_algorithm_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_cached_image.dart';
@@ -217,12 +218,12 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
     final currentUserId = supabase.auth.currentUser?.id;
 
     try {
-      // 1. Fetch posts from discussion_posts
+      // 1. Fetch candidate pool of posts from discussion_posts
       final postsRes = await supabase
           .from('discussion_posts')
           .select('id, student_id, title, content, image_url, created_at')
           .order('created_at', ascending: false)
-          .limit(40);
+          .limit(60);
 
       final rawPosts = List<Map<String, dynamic>>.from(postsRes as List);
       if (rawPosts.isEmpty) {
@@ -377,9 +378,15 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
         );
       }
 
+      // 8. Apply Instagram-grade Algorithmic Feed Mix
+      final mixedPosts = FeedAlgorithmService.instance.mixPosts(
+        items,
+        currentUserId: currentUserId,
+      );
+
       if (mounted) {
         setState(() {
-          _posts = items;
+          _posts = mixedPosts;
           _errorMsg = null;
         });
       }
