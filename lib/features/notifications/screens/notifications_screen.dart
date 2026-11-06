@@ -896,6 +896,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       } catch (_) {}
     }
 
+    if (!mounted) return;
+
     // 3. Post Like, Post Comment, or Mention -> Open Post Detail
     if ((item.isLike || item.isComment || item.isMention) &&
         item.linkUrl != null &&
@@ -905,7 +907,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     // 4. Default fallback: Open sender's profile
-    if (mounted && item.senderId.isNotEmpty && item.senderId != currentUserId) {
+    if (item.senderId.isNotEmpty && item.senderId != currentUserId) {
       ProfileScreen.open(context, userId: item.senderId);
     }
   }
