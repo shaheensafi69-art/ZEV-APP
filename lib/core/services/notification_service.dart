@@ -160,8 +160,8 @@ class NotificationService {
       return;
     }
 
-    // 2. Follow / New Follower
-    if (type.contains('follow')) {
+    // 2. Follow / Friend (Friend Request / Friend Accept)
+    if (type.contains('follow') || type.contains('friend')) {
       final targetUser = senderId.isNotEmpty ? senderId : linkUrl;
       if (targetUser.isNotEmpty) {
         ProfileScreen.open(navContext, userId: targetUser);
@@ -187,6 +187,15 @@ class NotificationService {
     if (type.contains('reel')) {
       if (linkUrl.isNotEmpty) {
         _openReelInPlayer(navContext, linkUrl);
+        return;
+      }
+    }
+
+    // 5. Story (Like, Reaction)
+    if (type.contains('story')) {
+      final targetUser = senderId.isNotEmpty ? senderId : linkUrl;
+      if (targetUser.isNotEmpty) {
+        ProfileScreen.open(navContext, userId: targetUser);
         return;
       }
     }

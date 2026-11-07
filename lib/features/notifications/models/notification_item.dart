@@ -43,7 +43,7 @@ class NotificationItem {
       notificationType.contains('comment') || notificationType.contains('reply');
 
   bool get isFollow =>
-      notificationType == 'follow';
+      notificationType.contains('follow') || notificationType.contains('friend');
 
   bool get isMention =>
       notificationType.contains('mention') || notificationType.contains('tag');
@@ -51,11 +51,22 @@ class NotificationItem {
   bool get isReel =>
       notificationType.contains('reel');
 
+  bool get isRepost =>
+      notificationType.contains('repost');
+
+  bool get isStory =>
+      notificationType.contains('story');
+
+  bool get isFriend =>
+      notificationType.contains('friend');
+
   bool get isSystem =>
       notificationType == 'system' ||
       notificationType == 'milestone' ||
       notificationType == 'welcome' ||
-      notificationType == 'verified';
+      notificationType == 'verified' ||
+      notificationType == 'admin_announcement' ||
+      notificationType == 'class_reminder';
 
   NotificationItem copyWith({
     String? id,

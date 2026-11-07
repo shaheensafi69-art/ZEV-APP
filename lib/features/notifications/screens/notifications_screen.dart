@@ -215,6 +215,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             .eq('id', currentUserId)
             .maybeSingle()
             .catchError((_) => null),
+
+        // [5] my active stories
+        supabase
+            .from('user_stories')
+            .select('id, user_id, media_url, created_at')
+            .eq('user_id', currentUserId)
+            .order('created_at', ascending: false)
+            .limit(20)
+            .catchError((_) => []),
       ]);
 
       final rawNotifs = List.from(phase1[0] as List? ?? []);
@@ -222,6 +231,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       final rawPosts = List.from(phase1[2] as List? ?? []);
       final rawReels = List.from(phase1[3] as List? ?? []);
       final myProfile = phase1[4] as Map<String, dynamic>?;
+      final rawStories = List.from(phase1[5] as List? ?? []);
 
       if (myProfile != null) {
         _currentUsername = myProfile['username']?.toString() ?? '';
@@ -246,6 +256,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         if (rId.isNotEmpty) {
           myReelIds.add(rId);
           reelThumbnails[rId] = r['thumbnail_url']?.toString();
+        }
+      }
+
+      // Pre-map story thumbnails
+      final List<String> myStoryIds = [];
+      final Map<String, String?> storyThumbnails = {};
+      for (final s in rawStories) {
+        final sId = s['id']?.toString() ?? '';
+        if (sId.isNotEmpty) {
+          myStoryIds.add(sId);
+          storyThumbnails[sId] = s['media_url']?.toString();
         }
       }
 
@@ -279,7 +300,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           }
 
           final mediaThumb = (link != null && link.isNotEmpty)
-              ? (postThumbnails[link] ?? reelThumbnails[link])
+              ? (postThumbnails[link] ?? reelThumbnails[link] ?? storyThumbnails[link])
               : null;
 
           items.add(NotificationItem(
@@ -406,12 +427,56 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         phase2Futures.add(Future.value([]));
       }
 
+      // [5] Post reposts
+      if (myPostIds.isNotEmpty) {
+        phase2Futures.add(
+          supabase
+              .from('post_reposts')
+              .select('id, post_id, user_id, created_at')
+              .inFilter('post_id', myPostIds)
+              .order('created_at', ascending: false)
+              .limit(30)
+              .catchError((_) => []),
+        );
+      } else {
+        phase2Futures.add(Future.value([]));
+      }
+
+      // [6] Story likes
+      if (myStoryIds.isNotEmpty) {
+        phase2Futures.add(
+          supabase
+              .from('story_likes')
+              .select('id, story_id, user_id, created_at')
+              .inFilter('story_id', myStoryIds)
+              .order('created_at', ascending: false)
+              .limit(30)
+              .catchError((_) => []),
+        );
+      } else {
+        phase2Futures.add(Future.value([]));
+      }
+
+      // [7] Friends (incoming friend requests & accepts)
+      phase2Futures.add(
+        supabase
+            .from('student_friends')
+            .select('id, sender_id, receiver_id, status, created_at')
+            .eq('receiver_id', currentUserId)
+            .order('created_at', ascending: false)
+            .limit(20)
+            .catchError((_) => []),
+      );
+
       final phase2Results = await Future.wait(phase2Futures);
       final rawPostLikes = List.from(phase2Results[0] as List? ?? []);
       final rawPostComments = List.from(phase2Results[1] as List? ?? []);
       final rawReelLikes = List.from(phase2Results[2] as List? ?? []);
       final rawReelComments = List.from(phase2Results[3] as List? ?? []);
       final rawMentions = List.from(phase2Results[4] as List? ?? []);
+      final rawReposts = List.from(phase2Results[5] as List? ?? []);
+      final rawStoryLikes = List.from(phase2Results[6] as List? ?? []);
+      final rawFriends = List.from(phase2Results[7] as List? ?? []);
 
       // Process post likes
       for (final l in rawPostLikes) {
@@ -559,6 +624,88 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               additionalText: text,
               isRead: true,
               createdAt: DateTime.tryParse(m['created_at']?.toString() ?? '') ??
+                  DateTime.now(),
+            ));
+          }
+        }
+      }
+
+      // Process post reposts
+      for (final r in rawReposts) {
+        final uId = r['user_id']?.toString() ?? '';
+        final pId = r['post_id']?.toString() ?? '';
+        if (uId.isNotEmpty && uId != currentUserId) {
+          if (seenActions.contains('${uId}_repost_$pId')) continue;
+          allSenderIds.add(uId);
+          final key = 'post_repost_${r['id']}';
+          if (uniqueKeys.add(key)) {
+            items.add(NotificationItem(
+              id: key,
+              userId: currentUserId,
+              senderId: uId,
+              senderUsername: 'user',
+              title: "Post Reposted",
+              message: "reposted your post.",
+              notificationType: "repost",
+              linkUrl: pId,
+              mediaThumbnail: postThumbnails[pId],
+              isRead: true,
+              createdAt: DateTime.tryParse(r['created_at']?.toString() ?? '') ??
+                  DateTime.now(),
+            ));
+          }
+        }
+      }
+
+      // Process story likes
+      for (final s in rawStoryLikes) {
+        final uId = s['user_id']?.toString() ?? '';
+        final sId = s['story_id']?.toString() ?? '';
+        if (uId.isNotEmpty && uId != currentUserId) {
+          if (seenActions.contains('${uId}_story_like_$sId')) continue;
+          allSenderIds.add(uId);
+          final key = 'story_like_${s['id']}';
+          if (uniqueKeys.add(key)) {
+            items.add(NotificationItem(
+              id: key,
+              userId: currentUserId,
+              senderId: uId,
+              senderUsername: 'user',
+              title: "Story Liked",
+              message: "liked your story.",
+              notificationType: "story_like",
+              linkUrl: sId,
+              mediaThumbnail: storyThumbnails[sId],
+              isRead: true,
+              createdAt: DateTime.tryParse(s['created_at']?.toString() ?? '') ??
+                  DateTime.now(),
+            ));
+          }
+        }
+      }
+
+      // Process friends
+      for (final f in rawFriends) {
+        final sId = f['sender_id']?.toString() ?? '';
+        final status = f['status']?.toString() ?? 'pending';
+        if (sId.isNotEmpty && sId != currentUserId) {
+          if (seenActions.contains('${sId}_friend_')) continue;
+          allSenderIds.add(sId);
+          final key = 'friend_${f['id']}';
+          if (uniqueKeys.add(key)) {
+            final isAccepted = status == 'accepted';
+            items.add(NotificationItem(
+              id: key,
+              userId: currentUserId,
+              senderId: sId,
+              senderUsername: 'user',
+              title: isAccepted ? "Friend Request Accepted" : "Friend Request",
+              message: isAccepted
+                  ? "is now your friend on ZEV."
+                  : "sent you a friend request.",
+              notificationType: isAccepted ? "friend_accept" : "friend_request",
+              isRead: true,
+              createdAt: DateTime.tryParse(f['created_at']?.toString() ?? '') ??
                   DateTime.now(),
             ));
           }
@@ -791,7 +938,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (!item.id.startsWith('follow_') &&
           !item.id.startsWith('post_') &&
           !item.id.startsWith('reel_') &&
-          !item.id.startsWith('mention_')) {
+          !item.id.startsWith('mention_') &&
+          !item.id.startsWith('story_') &&
+          !item.id.startsWith('friend_')) {
         await supabase
             .from('user_notifications')
             .update({'is_read': true})
@@ -840,8 +989,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     _markAsRead(item);
     HapticFeedback.lightImpact();
 
-    // 1. Follow notification -> Open Profile
-    if (item.isFollow) {
+    // 1. Follow or Friend notification -> Open Profile
+    if (item.isFollow || item.isFriend) {
       ProfileScreen.open(context, userId: item.senderId);
       return;
     }
@@ -898,15 +1047,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     if (!mounted) return;
 
-    // 3. Post Like, Post Comment, or Mention -> Open Post Detail
-    if ((item.isLike || item.isComment || item.isMention) &&
+    // 3. Post Like, Post Comment, Mention, or Repost -> Open Post Detail
+    if ((item.isLike || item.isComment || item.isMention || item.isRepost) &&
         item.linkUrl != null &&
         item.linkUrl!.isNotEmpty) {
       PostDetailScreen.open(context, postId: item.linkUrl!);
       return;
     }
 
-    // 4. Default fallback: Open sender's profile
+    // 4. Story Like -> Open Profile
+    if (item.isStory) {
+      ProfileScreen.open(context, userId: item.senderId);
+      return;
+    }
+
+    // 5. Default fallback: Open sender's profile
     if (item.senderId.isNotEmpty && item.senderId != currentUserId) {
       ProfileScreen.open(context, userId: item.senderId);
     }
@@ -1285,6 +1440,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (type.contains('follow')) {
       icon = Icons.person_add_rounded;
       gradientColors = [const Color(0xFF00D4FF), const Color(0xFF0284C7)];
+    } else if (type.contains('friend')) {
+      icon = Icons.people_alt_rounded;
+      gradientColors = [const Color(0xFF6366F1), const Color(0xFF4F46E5)];
+    } else if (type.contains('repost')) {
+      icon = Icons.repeat_rounded;
+      gradientColors = [const Color(0xFF10B981), const Color(0xFF059669)];
+    } else if (type.contains('story')) {
+      icon = Icons.star_rounded;
+      gradientColors = [const Color(0xFFFF8A00), const Color(0xFFE52E71)];
     } else if (type.contains('reel')) {
       icon = Icons.play_arrow_rounded;
       gradientColors = [const Color(0xFF8B5CF6), const Color(0xFF6D28D9)];
