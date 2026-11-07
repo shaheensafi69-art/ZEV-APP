@@ -92,6 +92,10 @@
                 <data android:scheme="zev" android:host="chat"/>
                 <data android:scheme="zev" android:host="notifications"/>
                 <data android:scheme="zev" android:host="profile"/>
+                <data android:scheme="zev" android:host="auth"/>
+                <data android:scheme="zev" android:host="login"/>
+                <data android:scheme="zev" android:host="reset-password"/>
+                <data android:scheme="zevapp"/>
             </intent-filter>
         </activity>
         
@@ -106,6 +110,9 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notification_accent_color" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="zev_notifications_channel" />
 
         <!-- Google AdMob Application ID -->
         <meta-data

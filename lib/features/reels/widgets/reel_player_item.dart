@@ -414,6 +414,8 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.sizeOf(context);
+    final isCompact = screenSize.height < 720 || screenSize.width < 380;
     final currentUserId = supabase.auth.currentUser?.id;
     final isMe = currentUserId != null && currentUserId == widget.reel.userId;
     final shouldShowFollowButton = !isMe && !_isFollowing;
@@ -668,8 +670,8 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
 
           // 7. Right-Side Action Column: Avatar + Like + Comment + Share + Save + Spinning Disc
           Positioned(
-            right: 14,
-            bottom: 96,
+            right: isCompact ? 8 : 10,
+            bottom: isCompact ? 92 : 98,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -684,62 +686,62 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                         ProfileScreen.open(context, userId: widget.reel.userId);
                       },
                       child: Container(
-                        width: 48,
-                        height: 48,
+                        width: isCompact ? 36 : 40,
+                        height: isCompact ? 36 : 40,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: Colors.white.withValues(alpha: 0.9),
-                            width: 2.0,
+                            width: 1.5,
                           ),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withValues(alpha: 0.35),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
                             ),
                           ],
                         ),
                         child: widget.reel.authorAvatar.isNotEmpty
                             ? ZevCachedImage.avatar(
                                 imageUrl: widget.reel.authorAvatar,
-                                size: 48,
+                                size: isCompact ? 36 : 40,
                               )
-                            : const Icon(
+                            : Icon(
                                 Icons.person_rounded,
-                                size: 26,
+                                size: isCompact ? 20 : 22,
                                 color: Colors.white70,
                               ),
                       ),
                     ),
                     if (shouldShowFollowButton)
                       Positioned(
-                        bottom: -6,
+                        bottom: -4,
                         child: GestureDetector(
                           onTap: _toggleFollow,
                           child: Container(
-                            width: 22,
-                            height: 22,
+                            width: isCompact ? 16 : 18,
+                            height: isCompact ? 16 : 18,
                             decoration: BoxDecoration(
                               color: ZevColors.primaryBlue,
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: Colors.white,
-                                width: 1.5,
+                                width: 1.2,
                               ),
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withValues(alpha: 0.3),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1.5),
                                 ),
                               ],
                             ),
-                            child: const Center(
+                            child: Center(
                               child: Icon(
                                 Icons.add_rounded,
                                 color: ZevColors.deepNavy,
-                                size: 16,
+                                size: isCompact ? 11 : 13,
                               ),
                             ),
                           ),
@@ -747,7 +749,7 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                       ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: isCompact ? 10 : 13),
 
                 // Like Button
                 _buildActionColumnItem(
@@ -757,8 +759,10 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                   iconColor: _isLiked ? const Color(0xFFFF3040) : Colors.white,
                   count: _likesCount,
                   onTap: _toggleLike,
+                  iconSize: isCompact ? 24 : 26,
+                  isCompact: isCompact,
                 ),
-                const SizedBox(height: 18),
+                SizedBox(height: isCompact ? 8 : 11),
 
                 // Comment Button
                 _buildActionColumnItem(
@@ -766,8 +770,10 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                   iconColor: Colors.white,
                   count: widget.reel.commentsCount,
                   onTap: _openComments,
+                  iconSize: isCompact ? 24 : 26,
+                  isCompact: isCompact,
                 ),
-                const SizedBox(height: 18),
+                SizedBox(height: isCompact ? 8 : 11),
 
                 // Share Button (Opens Light Share Sheet)
                 _buildActionColumnItem(
@@ -776,8 +782,10 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                   count: null,
                   label: "Share",
                   onTap: _openShareSheet,
+                  iconSize: isCompact ? 23 : 25,
+                  isCompact: isCompact,
                 ),
-                const SizedBox(height: 18),
+                SizedBox(height: isCompact ? 8 : 11),
 
                 // Save / Bookmark Button
                 GestureDetector(
@@ -787,56 +795,56 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                   },
                   behavior: HitTestBehavior.opaque,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    padding: EdgeInsets.symmetric(vertical: isCompact ? 2 : 3),
                     child: Icon(
                       _isSaved
                           ? Icons.bookmark_rounded
                           : Icons.bookmark_border_rounded,
                       color: _isSaved ? ZevColors.primaryBlue : Colors.white,
-                      size: 29,
+                      size: isCompact ? 24 : 26,
                       shadows: const [
                         Shadow(
                           color: Colors.black54,
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
+                          blurRadius: 6,
+                          offset: Offset(0, 1.5),
                         ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 18),
+                SizedBox(height: isCompact ? 8 : 11),
 
                 // Rotating Vinyl Music Record
                 RotationTransition(
                   turns: _vinylAnimCtrl,
                   child: Container(
-                    width: 38,
-                    height: 38,
+                    width: isCompact ? 28 : 32,
+                    height: isCompact ? 28 : 32,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: const Color(0xFF1E222B),
                       border: Border.all(
                         color: Colors.white.withValues(alpha: 0.6),
-                        width: 1.8,
+                        width: 1.5,
                       ),
                       boxShadow: const [
                         BoxShadow(
                           color: Colors.black45,
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
+                          blurRadius: 6,
+                          offset: Offset(0, 1.5),
                         ),
                       ],
                     ),
-                    padding: const EdgeInsets.all(5),
+                    padding: EdgeInsets.all(isCompact ? 3 : 4),
                     child: widget.reel.authorAvatar.isNotEmpty
                         ? ZevCachedImage.avatar(
                             imageUrl: widget.reel.authorAvatar,
-                            size: 34,
+                            size: isCompact ? 22 : 26,
                           )
-                        : const Icon(
+                        : Icon(
                             Icons.music_note_rounded,
                             color: ZevColors.primaryBlue,
-                            size: 15,
+                            size: isCompact ? 12 : 14,
                           ),
                   ),
                 ),
@@ -846,9 +854,9 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
 
           // 8. Bottom-Left Information Overlay: Author, Follow, Caption, Audio (Authentic Instagram Floating Style)
           Positioned(
-            left: 14,
-            right: 84,
-            bottom: 96,
+            left: 12,
+            right: isCompact ? 56 : 64,
+            bottom: isCompact ? 92 : 98,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -1134,6 +1142,8 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
     required int? count,
     String? label,
     required VoidCallback onTap,
+    double iconSize = 25.0,
+    bool isCompact = false,
   }) {
     final displayText =
         label ??
@@ -1148,35 +1158,35 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
       },
       behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+        padding: EdgeInsets.symmetric(vertical: isCompact ? 2 : 3),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
               color: iconColor,
-              size: 30,
+              size: iconSize,
               shadows: const [
                 Shadow(
                   color: Colors.black54,
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
+                  blurRadius: 6,
+                  offset: Offset(0, 1.5),
                 ),
               ],
             ),
             if (displayText.isNotEmpty) ...[
-              const SizedBox(height: 4),
+              SizedBox(height: isCompact ? 2 : 3),
               Text(
                 displayText,
-                style: const TextStyle(
-                  fontSize: 12,
+                style: TextStyle(
+                  fontSize: isCompact ? 10.5 : 11.5,
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
                   letterSpacing: -0.2,
-                  shadows: [
+                  shadows: const [
                     Shadow(
                       color: Colors.black87,
-                      blurRadius: 6,
+                      blurRadius: 5,
                       offset: Offset(0, 1),
                     ),
                   ],

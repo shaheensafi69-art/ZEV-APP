@@ -920,6 +920,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     required String label,
     required int count,
     VoidCallback? onTap,
+    bool isCompact = false,
   }) {
     final countStr = count > 9999
         ? "${(count / 1000).toStringAsFixed(1)}K"
@@ -927,31 +928,46 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: _buildClayCard(
-        borderRadius: 18,
-        depth: 4.0,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              countStr,
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w900,
-                color: ZevColors.deepNavy,
+        borderRadius: isCompact ? 14 : 18,
+        depth: 3.5,
+        padding: EdgeInsets.symmetric(
+          horizontal: isCompact ? 4 : 8,
+          vertical: isCompact ? 8 : 10,
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  countStr,
+                  style: TextStyle(
+                    fontSize: isCompact ? 15 : 17,
+                    fontWeight: FontWeight.w900,
+                    color: ZevColors.deepNavy,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                color: ZevColors.textSecondary,
+              const SizedBox(height: 2),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: isCompact ? 10.5 : 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: ZevColors.textSecondary,
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -978,6 +994,10 @@ class _ProfileScreenState extends State<ProfileScreen>
     final bio = _profile['bio'] as String? ?? '';
     final isBioRtl = TextDirectionHelper.isRtl(bio);
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 380;
+    final horizontalPadding = isCompact ? 12.0 : 16.0;
+
     // Claymorphism porcelain ambient canvas
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
@@ -993,13 +1013,18 @@ class _ProfileScreenState extends State<ProfileScreen>
               return [
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalPadding,
+                      isCompact ? 8 : 12,
+                      horizontalPadding,
+                      isCompact ? 12 : 16,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // 1. Floating Claymorphic Top Bar
-                        _buildClayTopBar(username, isVerified),
-                        const SizedBox(height: 14),
+                        _buildClayTopBar(username, isVerified, isCompact),
+                        SizedBox(height: isCompact ? 10 : 14),
 
                         // 2. Master Claymorphic Profile Info Card
                         _buildClayProfileCard(
@@ -1009,22 +1034,23 @@ class _ProfileScreenState extends State<ProfileScreen>
                           bio: bio,
                           isBioRtl: isBioRtl,
                           isVerified: isVerified,
+                          isCompact: isCompact,
                         ),
-                        const SizedBox(height: 14),
+                        SizedBox(height: isCompact ? 10 : 14),
 
                         // 3. Claymorphic Action Buttons Row
-                        _buildClayActionRow(),
+                        _buildClayActionRow(isCompact),
 
                         // 4. Suggested Creators Expandable Section
                         if (_showSuggestedCreators) ...[
-                          const SizedBox(height: 14),
+                          SizedBox(height: isCompact ? 10 : 14),
                           _buildSuggestedCreatorsCarousel(),
                         ],
 
                         // 5. Authentic Claymorphic Story Highlights
-                        const SizedBox(height: 16),
+                        SizedBox(height: isCompact ? 12 : 16),
                         _buildClayStoryHighlights(),
-                        const SizedBox(height: 16),
+                        SizedBox(height: isCompact ? 12 : 16),
 
                         // 6. Floating Claymorphic Tab Bar
                         _buildClayTabBar(),
@@ -1056,50 +1082,58 @@ class _ProfileScreenState extends State<ProfileScreen>
   // ---------------------------------------------------------------------------
   // Claymorphic Top Bar
   // ---------------------------------------------------------------------------
-  Widget _buildClayTopBar(String username, bool isVerified) {
+  Widget _buildClayTopBar(String username, bool isVerified, [bool isCompact = false]) {
     return _buildClayCard(
       borderRadius: 20,
       depth: 5.0,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 14, vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              if (widget.onExit != null || !_isMyProfile) ...[
-                GestureDetector(
-                  onTap: widget.onExit ?? () => Navigator.pop(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    child: const Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      color: ZevColors.deepNavy,
-                      size: 19,
+          Expanded(
+            child: Row(
+              children: [
+                if (widget.onExit != null || !_isMyProfile) ...[
+                  GestureDetector(
+                    onTap: widget.onExit ?? () => Navigator.pop(context),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: ZevColors.deepNavy,
+                        size: 19,
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 4),
+                ],
+                Flexible(
+                  child: Text(
+                    "@$username",
+                    style: TextStyle(
+                      fontSize: isCompact ? 15.5 : 17,
+                      fontWeight: FontWeight.w900,
+                      color: ZevColors.deepNavy,
+                      letterSpacing: -0.3,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                const SizedBox(width: 6),
+                if (isVerified) ...[
+                  const SizedBox(width: 5),
+                  const Icon(
+                    Icons.verified_rounded,
+                    size: 16,
+                    color: ZevColors.primaryBlue,
+                  ),
+                ],
               ],
-              Text(
-                "@$username",
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w900,
-                  color: ZevColors.deepNavy,
-                  letterSpacing: -0.3,
-                ),
-              ),
-              if (isVerified) ...[
-                const SizedBox(width: 5),
-                const Icon(
-                  Icons.verified_rounded,
-                  size: 16,
-                  color: ZevColors.primaryBlue,
-                ),
-              ],
-            ],
+            ),
           ),
+          const SizedBox(width: 8),
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               if (_isMyProfile) ...[
                 GestureDetector(
@@ -1155,11 +1189,14 @@ class _ProfileScreenState extends State<ProfileScreen>
     required String bio,
     required bool isBioRtl,
     required bool isVerified,
+    bool isCompact = false,
   }) {
+    final avatarSize = isCompact ? 68.0 : 82.0;
+
     return _buildClayCard(
-      borderRadius: 28,
-      depth: 7.0,
-      padding: const EdgeInsets.all(18),
+      borderRadius: isCompact ? 22 : 28,
+      depth: 6.0,
+      padding: EdgeInsets.all(isCompact ? 13 : 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1173,8 +1210,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                   alignment: Alignment.center,
                   children: [
                     Container(
-                      width: 82,
-                      height: 82,
+                      width: avatarSize,
+                      height: avatarSize,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: _hasActiveStory
@@ -1205,11 +1242,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                         child: avatarUrl.isNotEmpty
                             ? ZevCachedImage.avatar(
                                 imageUrl: avatarUrl,
-                                size: 84,
+                                size: avatarSize,
                               )
-                            : const Center(
-                                child: Icon(Icons.person, color: ZevColors.textMuted, size: 40),
-                              ),
+                            : Icon(Icons.person, color: ZevColors.textMuted, size: isCompact ? 34 : 40),
                       ),
                     ),
                     if (_isMyProfile && !_hasActiveStory)
@@ -1223,32 +1258,42 @@ class _ProfileScreenState extends State<ProfileScreen>
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white, width: 2.0),
                           ),
-                          child: const Icon(Icons.add_rounded, color: ZevColors.deepNavy, size: 14),
+                          child: Icon(Icons.add_rounded, color: ZevColors.deepNavy, size: isCompact ? 12 : 14),
                         ),
                       ),
                   ],
                 ),
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: isCompact ? 10 : 16),
 
               // 3 Claymorphic Stat Badges
               Expanded(
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _buildClayStatBadge(
-                      label: "Posts",
-                      count: _userPosts.length + _userReels.length,
+                    Expanded(
+                      child: _buildClayStatBadge(
+                        label: "Posts",
+                        count: _userPosts.length + _userReels.length,
+                        isCompact: isCompact,
+                      ),
                     ),
-                    _buildClayStatBadge(
-                      label: "Followers",
-                      count: _followersCount,
-                      onTap: () => _openFollowersSheet(0),
+                    SizedBox(width: isCompact ? 6 : 8),
+                    Expanded(
+                      child: _buildClayStatBadge(
+                        label: "Followers",
+                        count: _followersCount,
+                        onTap: () => _openFollowersSheet(0),
+                        isCompact: isCompact,
+                      ),
                     ),
-                    _buildClayStatBadge(
-                      label: "Following",
-                      count: _followingCount,
-                      onTap: () => _openFollowersSheet(1),
+                    SizedBox(width: isCompact ? 6 : 8),
+                    Expanded(
+                      child: _buildClayStatBadge(
+                        label: "Following",
+                        count: _followingCount,
+                        onTap: () => _openFollowersSheet(1),
+                        isCompact: isCompact,
+                      ),
                     ),
                   ],
                 ),
@@ -1316,7 +1361,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   // ---------------------------------------------------------------------------
   // Claymorphic Action Buttons Row
   // ---------------------------------------------------------------------------
-  Widget _buildClayActionRow() {
+  Widget _buildClayActionRow([bool isCompact = false]) {
     if (_isMyProfile) {
       return Row(
         children: [
@@ -1326,19 +1371,33 @@ class _ProfileScreenState extends State<ProfileScreen>
               onTap: _openEditProfile,
               child: _buildClayCard(
                 borderRadius: 16,
-                depth: 4.0,
-                padding: const EdgeInsets.symmetric(vertical: 11),
-                child: const Row(
+                depth: 3.5,
+                padding: EdgeInsets.symmetric(
+                  vertical: isCompact ? 9 : 11,
+                  horizontal: 4,
+                ),
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.edit_outlined, size: 16, color: ZevColors.deepNavy),
-                    SizedBox(width: 6),
-                    Text(
-                      "Edit Profile",
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: ZevColors.deepNavy,
+                    Icon(
+                      Icons.edit_outlined,
+                      size: isCompact ? 15 : 16,
+                      color: ZevColors.deepNavy,
+                    ),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          "Edit Profile",
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: isCompact ? 12.5 : 13,
+                            fontWeight: FontWeight.w800,
+                            color: ZevColors.deepNavy,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -1346,7 +1405,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: isCompact ? 8 : 10),
 
           // Share Profile Clay Button
           Expanded(
@@ -1354,19 +1413,33 @@ class _ProfileScreenState extends State<ProfileScreen>
               onTap: _openShareProfile,
               child: _buildClayCard(
                 borderRadius: 16,
-                depth: 4.0,
-                padding: const EdgeInsets.symmetric(vertical: 11),
-                child: const Row(
+                depth: 3.5,
+                padding: EdgeInsets.symmetric(
+                  vertical: isCompact ? 9 : 11,
+                  horizontal: 4,
+                ),
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.share_outlined, size: 16, color: ZevColors.deepNavy),
-                    SizedBox(width: 6),
-                    Text(
-                      "Share Profile",
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: ZevColors.deepNavy,
+                    Icon(
+                      Icons.share_outlined,
+                      size: isCompact ? 15 : 16,
+                      color: ZevColors.deepNavy,
+                    ),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          "Share Profile",
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: isCompact ? 12.5 : 13,
+                            fontWeight: FontWeight.w800,
+                            color: ZevColors.deepNavy,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -1374,7 +1447,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: isCompact ? 8 : 10),
 
           // Discover Creators Toggle Clay Button
           GestureDetector(
@@ -1384,15 +1457,15 @@ class _ProfileScreenState extends State<ProfileScreen>
             },
             child: _buildClayCard(
               borderRadius: 16,
-              depth: 4.0,
-              padding: const EdgeInsets.all(10),
+              depth: 3.5,
+              padding: EdgeInsets.all(isCompact ? 8 : 10),
               color: _showSuggestedCreators ? ZevColors.primaryBlue : Colors.white,
               child: Icon(
                 _showSuggestedCreators
                     ? Icons.person_remove_outlined
                     : Icons.person_add_outlined,
-                size: 20,
-                color: _showSuggestedCreators ? ZevColors.deepNavy : ZevColors.deepNavy,
+                size: isCompact ? 18 : 20,
+                color: ZevColors.deepNavy,
               ),
             ),
           ),
@@ -1408,9 +1481,12 @@ class _ProfileScreenState extends State<ProfileScreen>
             onTap: _toggleFollow,
             child: _buildClayCard(
               borderRadius: 16,
-              depth: 4.0,
+              depth: 3.5,
               color: _isFollowing ? Colors.white : const Color(0xFF0095F6),
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: EdgeInsets.symmetric(
+                vertical: isCompact ? 10 : 12,
+                horizontal: 4,
+              ),
               child: Center(
                 child: _isFollowLoading
                     ? const SizedBox(
@@ -1418,19 +1494,22 @@ class _ProfileScreenState extends State<ProfileScreen>
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : Text(
-                        _isFollowing ? "Following" : "Follow",
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w800,
-                          color: _isFollowing ? ZevColors.deepNavy : Colors.white,
+                    : FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          _isFollowing ? "Following" : "Follow",
+                          style: TextStyle(
+                            fontSize: isCompact ? 13 : 13.5,
+                            fontWeight: FontWeight.w800,
+                            color: _isFollowing ? ZevColors.deepNavy : Colors.white,
+                          ),
                         ),
                       ),
               ),
             ),
           ),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: isCompact ? 8 : 10),
         Expanded(
           child: GestureDetector(
             onTap: () {
@@ -1441,20 +1520,33 @@ class _ProfileScreenState extends State<ProfileScreen>
             },
             child: _buildClayCard(
               borderRadius: 16,
-              depth: 4.0,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: const Center(
+              depth: 3.5,
+              padding: EdgeInsets.symmetric(
+                vertical: isCompact ? 10 : 12,
+                horizontal: 4,
+              ),
+              child: Center(
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.chat_bubble_outline_rounded, size: 16, color: ZevColors.deepNavy),
-                    SizedBox(width: 6),
-                    Text(
-                      "Message",
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w800,
-                        color: ZevColors.deepNavy,
+                    Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      size: isCompact ? 15 : 16,
+                      color: ZevColors.deepNavy,
+                    ),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          "Message",
+                          style: TextStyle(
+                            fontSize: isCompact ? 13 : 13.5,
+                            fontWeight: FontWeight.w800,
+                            color: ZevColors.deepNavy,
+                          ),
+                        ),
                       ),
                     ),
                   ],

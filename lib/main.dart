@@ -32,9 +32,9 @@ Future<void> main() async {
 
   // 3. Initialize Supabase with retry logic
   final supabaseUrl = dotenv.env['NEXT_PUBLIC_SUPABASE_URL'] ??
-      'https://enpuoypqpklndnnhndax.supabase.co';
+      'https://zjwmioalrhkyfbzhdnnw.supabase.co';
   final supabaseAnonKey = dotenv.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] ??
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVucHVveXBxcGtsbmRubmhuZGF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwNzg1MjgsImV4cCI6MjA5ODY1NDUyOH0.slU2vYIzM0BXG_3ksR5pcfvP-cpFH7IkwIyuzF1pNCo';
+      'sb_publishable_mhRdQoBdG-Ha0_nQ4dHIVw_MrXwmR5z';
 
   for (int attempt = 1; attempt <= 3; attempt++) {
     try {

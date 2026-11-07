@@ -924,7 +924,12 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                   stories: _stories,
                   onAddStory: _openCreateStoryModal,
                   onStoryTap: (story) {
-                    StoryViewerScreen.open(context, friendStory: story);
+                    StoryViewerScreen.open(
+                      context,
+                      friendStory: story,
+                      allFriendStories: _stories,
+                      initialFriendIndex: _stories.indexOf(story),
+                    );
                   },
                 ),
               ),
