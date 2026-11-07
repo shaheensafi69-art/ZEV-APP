@@ -3,6 +3,7 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../features/chat/screens/chat_conversation_screen.dart';
 import '../../features/feed/screens/post_detail_screen.dart';
 import '../../features/notifications/screens/notifications_screen.dart';
@@ -91,8 +92,18 @@ class DeepLinkService {
 
     debugPrint('[DeepLinkService] Parsing URI: scheme=$scheme, host=$host, path=${uri.path}');
 
-    // Case 1: Custom Scheme "zev://..."
-    if (scheme == 'zev') {
+    // Recovery / Password Reset deep-link detection
+    if (uri.queryParameters['type'] == 'recovery' ||
+        uri.path.contains('reset-password') ||
+        uri.host == 'reset-password') {
+      final email = uri.queryParameters['email'] ?? '';
+      final token = uri.queryParameters['token'] ?? uri.queryParameters['code'];
+      ForgotPasswordScreen.open(navContext, email: email, token: token);
+      return;
+    }
+
+    // Case 1: Custom Scheme "zev://..." or "zevapp://..."
+    if (scheme == 'zev' || scheme == 'zevapp') {
       if (host == 'post' && pathSegments.isNotEmpty) {
         _openPost(navContext, pathSegments.first);
         return;
@@ -111,6 +122,12 @@ class DeepLinkService {
       }
       if (host == 'notifications') {
         _openNotifications(navContext);
+        return;
+      }
+      if (host == 'reset-password' || host == 'recovery') {
+        final email = uri.queryParameters['email'] ?? '';
+        final token = uri.queryParameters['token'] ?? uri.queryParameters['code'];
+        ForgotPasswordScreen.open(navContext, email: email, token: token);
         return;
       }
 

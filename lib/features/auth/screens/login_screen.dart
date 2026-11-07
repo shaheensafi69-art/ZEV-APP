@@ -7,6 +7,7 @@ import '../../../core/services/auth_helper.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_text_field.dart';
 import '../../main_navigation/screens/zev_main_layout.dart';
+import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 
 /// Next-Generation Instagram-Grade Login Screen for ZEV.
@@ -125,12 +126,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _handleForgotPassword() {
     HapticFeedback.lightImpact();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _ForgotPasswordSheet(initialEmail: _emailCtrl.text.trim()),
-    );
+    ForgotPasswordScreen.open(context, email: _emailCtrl.text.trim());
   }
 
   @override
