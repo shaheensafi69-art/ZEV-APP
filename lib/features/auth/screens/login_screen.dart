@@ -4,13 +4,16 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/auth_helper.dart';
+import '../../../core/services/mfa_service.dart';
 import '../../../core/services/multi_account_service.dart';
+import '../../../core/services/passkey_auth_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/google_sign_in_button.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_logo.dart';
 import '../../../core/widgets/zev_text_field.dart';
 import '../../main_navigation/screens/zev_main_layout.dart';
+import '../widgets/mfa_challenge_sheet.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 
@@ -56,6 +59,11 @@ class _LoginScreenState extends State<LoginScreen>
   bool _rememberMe = true;
   String? _errorMsg;
 
+  // Passkey / Biometrics state
+  bool _isPasskeySupported = false;
+  bool _isPasskeyEnrolled = false;
+  String? _passkeyIdentifier;
+
   @override
   void initState() {
     super.initState();
@@ -76,6 +84,24 @@ class _LoginScreenState extends State<LoginScreen>
 
     // 2. Load Multi-Account saved list
     _loadSavedAccounts();
+
+    // 3. Check Passkey / Biometric capability
+    _checkPasskey();
+  }
+
+  Future<void> _checkPasskey() async {
+    try {
+      final supported = await PasskeyAuthService.instance.isDeviceSupported();
+      final enrolled = await PasskeyAuthService.instance.isPasskeyEnrolled();
+      final id = await PasskeyAuthService.instance.getEnrolledIdentifier();
+      if (mounted) {
+        setState(() {
+          _isPasskeySupported = supported;
+          _isPasskeyEnrolled = enrolled;
+          _passkeyIdentifier = id;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadSavedAccounts() async {
@@ -125,6 +151,25 @@ class _LoginScreenState extends State<LoginScreen>
       final user = authResponse.user;
 
       if (user != null) {
+        // Check Multi-Factor Authentication requirement
+        if (MfaService.instance.isMfaRequired()) {
+          final factors = await MfaService.instance.getEnrolledFactors();
+          if (factors.isNotEmpty && mounted) {
+            final verified = await MfaChallengeSheet.show(
+              context,
+              factorId: factors.first.id,
+              accountEmail: email,
+            );
+            if (!verified) {
+              setState(() {
+                _isLoading = false;
+                _errorMsg = "Two-Factor Authentication cancelled. Login incomplete.";
+              });
+              return;
+            }
+          }
+        }
+
         TextInput.finishAutofillContext(shouldSave: true);
 
         // Fetch user profile info
@@ -966,6 +1011,12 @@ class _LoginScreenState extends State<LoginScreen>
             },
           ),
 
+          // 1-Tap Passkey / Biometrics Button
+          if (_isPasskeySupported && _isPasskeyEnrolled) ...[
+            const SizedBox(height: 12),
+            _buildPasskeyButton(),
+          ],
+
           // Return to Saved Accounts Option if any exist
           if (_savedAccounts.isNotEmpty) ...[
             const SizedBox(height: 16),
@@ -1014,6 +1065,120 @@ class _LoginScreenState extends State<LoginScreen>
 
           const SizedBox(height: 24),
         ],
+      ),
+    );
+  }
+
+  Future<void> _handlePasskeyLogin() async {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _isLoading = true;
+      _errorMsg = null;
+    });
+
+    try {
+      final res = await PasskeyAuthService.instance.signInWithPasskey();
+      if (!res.success) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _errorMsg = res.errorMessage;
+          });
+        }
+        return;
+      }
+
+      // Check MFA if required
+      if (MfaService.instance.isMfaRequired()) {
+        final factors = await MfaService.instance.getEnrolledFactors();
+        if (factors.isNotEmpty && mounted) {
+          final verified = await MfaChallengeSheet.show(
+            context,
+            factorId: factors.first.id,
+            accountEmail: res.email,
+          );
+          if (!verified) {
+            setState(() {
+              _isLoading = false;
+              _errorMsg = "Two-Factor Authentication cancelled.";
+            });
+            return;
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const ZevMainLayout()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMsg = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
+    }
+  }
+
+  Widget _buildPasskeyButton() {
+    return Container(
+      width: double.infinity,
+      height: 52,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF00D4FF).withValues(alpha: 0.5),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF00D4FF).withValues(alpha: 0.12),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: _isLoading ? null : _handlePasskeyLogin,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00D4FF).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.fingerprint_rounded,
+                  color: ZevColors.secondaryBlue,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                _passkeyIdentifier != null
+                    ? "Sign in with Passkey ($_passkeyIdentifier)"
+                    : "Sign in with Passkey / Face ID",
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w800,
+                  color: ZevColors.deepNavy,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

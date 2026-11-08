@@ -4,18 +4,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/services/auth_helper.dart';
 import '../../../core/services/cloudflare_storage_service.dart';
+import '../../../core/services/multi_account_service.dart';
+import '../../../core/services/passkey_auth_service.dart';
 import '../../../core/theme/zev_theme.dart';
-import '../../../core/widgets/google_sign_in_button.dart';
 import '../../../core/widgets/zev_text_field.dart';
 import '../../main_navigation/screens/zev_main_layout.dart';
 import 'login_screen.dart';
 
 /// Next-Generation Instagram-Grade Registration Experience for ZEV.
-/// Built with 3 streamlined steps, real-time handle verification, avatar upload,
-/// and official brand palette (#00D4FF, #080D1A, #F5F8FC, #E7EDF5, #536DFE).
+/// Built with 4 streamlined steps:
+/// 1. Identity & Avatar
+/// 2. Handle & Social Profile
+/// 3. Security & Credentials
+/// 4. Email OTP & Activation Link Verification (with live email link listener & 6-digit PIN)
+/// Plus automatic Passkey / Biometrics setup upon registration completion!
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -27,7 +33,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final supabase = Supabase.instance.client;
   final ImagePicker _picker = ImagePicker();
 
-  int _step = 1; // 1 = Identity, 2 = Handle & Social, 3 = Security
+  int _step = 1; // 1 = Identity, 2 = Handle, 3 = Security, 4 = Email OTP / Link
   bool _isLoading = false;
   bool _isSuccess = false;
   String? _errorMsg;
@@ -57,15 +63,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _showConfirmPassword = false;
   bool _agreedToTerms = true;
 
+  // Step 4 Controllers: Email OTP & Link Verification
+  String? _pendingUserId;
+  final List<TextEditingController> _otpCtrls =
+      List.generate(6, (_) => TextEditingController());
+  final List<FocusNode> _otpFocusNodes =
+      List.generate(6, (_) => FocusNode());
+  bool _isVerifyingOtp = false;
+  int _resendCountdown = 60;
+  Timer? _resendTimer;
+  StreamSubscription<AuthState>? _authListener;
+
+  // Passkey enrollment on completion
+  bool _isPasskeySupported = false;
+  bool _isPasskeyEnrolling = false;
+  bool _passkeyEnrolledSuccess = false;
+
   @override
   void initState() {
     super.initState();
     _usernameCtrl.addListener(_onUsernameChanged);
+    _checkPasskeySupport();
+  }
+
+  Future<void> _checkPasskeySupport() async {
+    try {
+      final supported = await PasskeyAuthService.instance.isDeviceSupported();
+      if (mounted) setState(() => _isPasskeySupported = supported);
+    } catch (_) {}
   }
 
   @override
   void dispose() {
     _usernameDebounce?.cancel();
+    _resendTimer?.cancel();
+    _authListener?.cancel();
     _usernameCtrl.removeListener(_onUsernameChanged);
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
@@ -78,6 +110,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordCtrl.dispose();
     _confirmPasswordCtrl.dispose();
     _refCodeCtrl.dispose();
+    for (final c in _otpCtrls) {
+      c.dispose();
+    }
+    for (final f in _otpFocusNodes) {
+      f.dispose();
+    }
     super.dispose();
   }
 
@@ -204,7 +242,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     HapticFeedback.lightImpact();
-    setState(() => _step = (_step < 3) ? _step + 1 : 3);
+    setState(() => _step = (_step < 4) ? _step + 1 : 4);
   }
 
   void _prevStep() {
@@ -215,6 +253,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
   }
 
+  /// Trigger Supabase Sign Up and transition to Step 4 (Email OTP & Link Verification)
   Future<void> _handleRegister() async {
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
@@ -251,32 +290,243 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      // 1. Check referral code if provided
-      String? validReferrerId;
-      if (_refCodeCtrl.text.trim().isNotEmpty) {
-        final refData = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('referral_code', _refCodeCtrl.text.trim().toUpperCase())
-            .maybeSingle();
-
-        if (refData != null) {
-          validReferrerId = refData['id'];
-        }
-      }
-
-      // 2. Supabase Auth SignUp
+      // 1. Supabase Auth SignUp with metadata
       final authResponse = await supabase.auth.signUp(
         email: email,
         password: password,
+        data: {
+          'username': _usernameCtrl.text.trim().toLowerCase(),
+          'first_name': _firstNameCtrl.text.trim(),
+          'last_name': _lastNameCtrl.text.trim(),
+        },
       );
 
-      final userId = authResponse.user?.id;
+      final user = authResponse.user;
+      final userId = user?.id;
       if (userId == null) {
         throw "Failed to create user session. Please try again.";
       }
 
-      // 3. Upload avatar if selected
+      _pendingUserId = userId;
+
+      // 2. Transition immediately to Step 4: Email OTP & Link Verification
+      setState(() {
+        _isLoading = false;
+        _step = 4;
+      });
+
+      _startResendTimer();
+      _startEmailLinkListener();
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _otpFocusNodes[0].requestFocus();
+      });
+    } on AuthException catch (e) {
+      HapticFeedback.heavyImpact();
+      setState(() {
+        _isLoading = false;
+        _errorMsg = e.message;
+      });
+    } catch (e) {
+      HapticFeedback.heavyImpact();
+      setState(() {
+        _isLoading = false;
+        _errorMsg = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  // ============================================================
+  // STEP 4: EMAIL OTP & ACTIVATION LINK VERIFICATION LOGIC
+  // ============================================================
+  void _startResendTimer() {
+    _resendCountdown = 60;
+    _resendTimer?.cancel();
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        if (_resendCountdown > 0) {
+          _resendCountdown--;
+        } else {
+          timer.cancel();
+        }
+      });
+    });
+  }
+
+  /// Listen in real-time for when user clicks the confirmation link in their email!
+  void _startEmailLinkListener() {
+    _authListener?.cancel();
+    _authListener = supabase.auth.onAuthStateChange.listen((data) async {
+      final event = data.event;
+      final session = data.session;
+      if ((event == AuthChangeEvent.signedIn || event == AuthChangeEvent.userUpdated) &&
+          session != null) {
+        _authListener?.cancel();
+        await _completeRegistrationAndProfile(session.user.id);
+      }
+    });
+  }
+
+  String get _currentOtpCode => _otpCtrls.map((c) => c.text.trim()).join();
+
+  void _onOtpDigitChanged(int index, String value) {
+    setState(() => _errorMsg = null);
+
+    // Handle paste of 6 digits
+    if (value.length > 1) {
+      final digits = value.replaceAll(RegExp(r'\D'), '');
+      for (int i = 0; i < 6 && i < digits.length; i++) {
+        _otpCtrls[i].text = digits[i];
+      }
+      if (digits.length >= 6) {
+        _otpFocusNodes[5].requestFocus();
+        _verifyOtpCode();
+      } else {
+        _otpFocusNodes[digits.length.clamp(0, 5)].requestFocus();
+      }
+      return;
+    }
+
+    if (value.isNotEmpty) {
+      HapticFeedback.selectionClick();
+      if (index < 5) {
+        _otpFocusNodes[index + 1].requestFocus();
+      } else {
+        _otpFocusNodes[index].unfocus();
+        _verifyOtpCode();
+      }
+    } else {
+      if (index > 0) {
+        _otpFocusNodes[index - 1].requestFocus();
+      }
+    }
+  }
+
+  /// Verify 6-digit OTP entered by user
+  Future<void> _verifyOtpCode() async {
+    final code = _currentOtpCode;
+    if (code.length < 6) return;
+
+    final email = _emailCtrl.text.trim();
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _isVerifyingOtp = true;
+      _errorMsg = null;
+    });
+
+    try {
+      final res = await supabase.auth.verifyOTP(
+        email: email,
+        token: code,
+        type: OtpType.signup,
+      );
+
+      final verifiedUser = res.user;
+      if (verifiedUser == null) {
+        throw "Could not verify code. Please check and try again.";
+      }
+
+      await _completeRegistrationAndProfile(verifiedUser.id);
+    } on AuthException catch (e) {
+      HapticFeedback.heavyImpact();
+      if (mounted) {
+        setState(() {
+          _isVerifyingOtp = false;
+          _errorMsg = e.message;
+        });
+        for (final c in _otpCtrls) {
+          c.clear();
+        }
+        _otpFocusNodes[0].requestFocus();
+      }
+    } catch (e) {
+      HapticFeedback.heavyImpact();
+      if (mounted) {
+        setState(() {
+          _isVerifyingOtp = false;
+          _errorMsg = e.toString().replaceFirst('Exception: ', '');
+        });
+        for (final c in _otpCtrls) {
+          c.clear();
+        }
+        _otpFocusNodes[0].requestFocus();
+      }
+    }
+  }
+
+  /// Resend confirmation OTP & link to user's email
+  Future<void> _resendOtp() async {
+    if (_resendCountdown > 0) return;
+
+    HapticFeedback.lightImpact();
+    setState(() => _errorMsg = null);
+
+    try {
+      await supabase.auth.resend(
+        type: OtpType.signup,
+        email: _emailCtrl.text.trim(),
+      );
+
+      _startResendTimer();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 10),
+                Text("Verification code resent to your email!"),
+              ],
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _errorMsg = "Failed to resend code: $e");
+    }
+  }
+
+  /// Open user's default email client
+  Future<void> _openEmailApp() async {
+    HapticFeedback.lightImpact();
+    final mailUri = Uri.parse("mailto:");
+    try {
+      if (await canLaunchUrl(mailUri)) {
+        await launchUrl(mailUri);
+      }
+    } catch (_) {}
+  }
+
+  /// Finalize Profile creation, avatar upload, local session, and MultiAccount
+  Future<void> _completeRegistrationAndProfile(String userId) async {
+    _authListener?.cancel();
+    _resendTimer?.cancel();
+
+    try {
+      // 1. Check referral code if provided
+      String? validReferrerId;
+      if (_refCodeCtrl.text.trim().isNotEmpty) {
+        try {
+          final refData = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('referral_code', _refCodeCtrl.text.trim().toUpperCase())
+              .maybeSingle();
+
+          if (refData != null) {
+            validReferrerId = refData['id'];
+          }
+        } catch (_) {}
+      }
+
+      // 2. Upload avatar if selected
       String avatarUrl = "";
       if (_avatarFile != null) {
         final ext = _avatarFile!.path.split('.').last;
@@ -292,13 +542,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       }
 
-      // 4. Upsert User Profile
+      // 3. Upsert User Profile
       final username = _usernameCtrl.text.trim().toLowerCase();
+      final firstName = _firstNameCtrl.text.trim();
+      final lastName = _lastNameCtrl.text.trim();
+      final email = _emailCtrl.text.trim();
+
       await supabase.from('profiles').upsert({
         'id': userId,
         'username': username,
-        'first_name': _firstNameCtrl.text.trim(),
-        'last_name': _lastNameCtrl.text.trim(),
+        'first_name': firstName,
+        'last_name': lastName,
         'date_of_birth': _dobCtrl.text.trim(),
         'country': _countryCtrl.text.trim(),
         'phone_number': _phoneCtrl.text.trim(),
@@ -309,27 +563,73 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'referred_by': validReferrerId,
       });
 
-      // 5. Mark user logged in locally
+      // 4. Mark user logged in locally
       await AuthHelper.markUserLoggedIn(userId: userId, role: 'student');
+
+      // 5. Save into Instagram-style multi-account switcher
+      await MultiAccountService.saveCurrentAccount(
+        overrideUsername: username,
+        overrideFullName: '$firstName $lastName'.trim(),
+        overrideAvatar: avatarUrl,
+        overrideIsVerified: false,
+      );
 
       if (mounted) {
         setState(() {
-          _isLoading = false;
+          _isVerifyingOtp = false;
           _isSuccess = true;
         });
       }
-    } on AuthException catch (e) {
-      HapticFeedback.heavyImpact();
-      setState(() {
-        _isLoading = false;
-        _errorMsg = e.message;
-      });
     } catch (e) {
-      HapticFeedback.heavyImpact();
+      if (mounted) {
+        setState(() {
+          _isVerifyingOtp = false;
+          _isSuccess = true; // still let user proceed since account is verified
+        });
+      }
+    }
+  }
+
+  /// Enroll Passkey / Biometrics on success screen
+  Future<void> _enrollPasskeyFromSuccess() async {
+    final userId = _pendingUserId ?? supabase.auth.currentUser?.id;
+    final email = _emailCtrl.text.trim();
+    if (userId == null || email.isEmpty) return;
+
+    HapticFeedback.lightImpact();
+    setState(() => _isPasskeyEnrolling = true);
+
+    final success = await PasskeyAuthService.instance.enrollPasskey(
+      email: email,
+      userId: userId,
+      username: _usernameCtrl.text.trim().toLowerCase(),
+      passwordSecret: _passwordCtrl.text,
+    );
+
+    if (mounted) {
       setState(() {
-        _isLoading = false;
-        _errorMsg = e.toString().replaceFirst('Exception: ', '');
+        _isPasskeyEnrolling = false;
+        _passkeyEnrolledSuccess = success;
       });
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            content: const Row(
+              children: [
+                Icon(Icons.fingerprint_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 10),
+                Text(
+                  "Passkey activated! You can now log in with 1 tap.",
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -359,7 +659,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         title: _isSuccess
             ? null
             : Text(
-                "Step $_step of 3",
+                "Step $_step of 4",
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
@@ -378,7 +678,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 color: ZevColors.border,
                 child: FractionallySizedBox(
                   alignment: Alignment.centerLeft,
-                  widthFactor: _step / 3.0,
+                  widthFactor: _step / 4.0,
                   child: Container(
                     color: ZevColors.primaryBlue,
                   ),
@@ -441,6 +741,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               if (_step == 1) _buildStep1Identity(),
                               if (_step == 2) _buildStep2Handle(),
                               if (_step == 3) _buildStep3Security(),
+                              if (_step == 4) _buildStep4EmailVerification(),
 
                               const SizedBox(height: 28),
                             ],
@@ -451,7 +752,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
 
             // Bottom Footer
-            if (!_isSuccess)
+            if (!_isSuccess && _step < 4)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -549,185 +850,196 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   decoration: BoxDecoration(
                     color: ZevColors.primaryBlue,
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
+                    border: Border.all(color: Colors.white, width: 2.5),
                   ),
-                  child: const Icon(
-                    Icons.camera_alt_rounded,
-                    size: 16,
-                    color: ZevColors.deepNavy,
+                  child: const Center(
+                    child: Icon(
+                      Icons.camera_alt_rounded,
+                      size: 16,
+                      color: ZevColors.deepNavy,
+                    ),
                   ),
                 ),
               ),
             ],
           ),
         ),
-
-        const SizedBox(height: 18),
-
+        const SizedBox(height: 12),
         const Text(
-          "Personal Details",
+          "Add Profile Photo",
           style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w900,
-            color: ZevColors.deepNavy,
-          ),
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          "Let's set up your profile on ZEV",
-          style: TextStyle(
-            fontSize: 13.5,
-            color: ZevColors.textSecondary,
-          ),
-        ),
-
-        const SizedBox(height: 24),
-
-        ZevTextField(
-          label: "First Name",
-          hint: "e.g. Alex",
-          controller: _firstNameCtrl,
-          prefixIcon: Icons.badge_outlined,
-          textInputAction: TextInputAction.next,
-        ),
-
-        const SizedBox(height: 16),
-
-        ZevTextField(
-          label: "Last Name",
-          hint: "e.g. Morgan",
-          controller: _lastNameCtrl,
-          prefixIcon: Icons.badge_outlined,
-          textInputAction: TextInputAction.next,
-        ),
-
-        const SizedBox(height: 16),
-
-        ZevTextField(
-          label: "Date of Birth",
-          hint: "YYYY-MM-DD",
-          controller: _dobCtrl,
-          prefixIcon: Icons.calendar_month_outlined,
-          isReadOnly: true,
-          onTap: _selectDateOfBirth,
-          suffixIcon: IconButton(
-            icon: const Icon(
-              Icons.date_range_rounded,
-              color: ZevColors.primaryBlue,
-            ),
-            onPressed: _selectDateOfBirth,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: ZevColors.secondaryBlue,
           ),
         ),
 
         const SizedBox(height: 28),
 
-        _buildNextButton(label: "Continue to Step 2", onPressed: _nextStep),
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            "What's your name?",
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: ZevColors.deepNavy,
+              letterSpacing: -0.4,
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            "Enter the name you use in real life.",
+            style: TextStyle(
+              fontSize: 13.5,
+              color: ZevColors.textSecondary,
+            ),
+          ),
+        ),
 
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
 
-        // OR Divider
         Row(
           children: [
-            const Expanded(
-              child: Divider(color: Color(0xFFE2E8F0), thickness: 1.2),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Text(
-                "OR",
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: ZevColors.textSecondary.withValues(alpha: 0.7),
-                  letterSpacing: 0.8,
-                ),
+            Expanded(
+              child: ZevTextField(
+                label: "First Name",
+                hint: "First name",
+                controller: _firstNameCtrl,
+                prefixIcon: Icons.badge_rounded,
+                textInputAction: TextInputAction.next,
               ),
             ),
-            const Expanded(
-              child: Divider(color: Color(0xFFE2E8F0), thickness: 1.2),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ZevTextField(
+                label: "Last Name",
+                hint: "Last name",
+                controller: _lastNameCtrl,
+                prefixIcon: Icons.badge_outlined,
+                textInputAction: TextInputAction.next,
+              ),
             ),
           ],
         ),
 
-        const SizedBox(height: 18),
+        const SizedBox(height: 16),
 
-        GoogleSignInButton(
-          text: "Sign up with Google",
-          onError: (msg) {
-            setState(() => _errorMsg = msg);
-          },
+        GestureDetector(
+          onTap: _selectDateOfBirth,
+          child: AbsorbPointer(
+            child: ZevTextField(
+              label: "Date of Birth",
+              hint: "YYYY-MM-DD",
+              controller: _dobCtrl,
+              prefixIcon: Icons.cake_rounded,
+              suffixIcon: const Icon(
+                Icons.calendar_month_rounded,
+                color: ZevColors.primaryBlue,
+                size: 20,
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 32),
+
+        _buildNextButton(
+          label: "Continue",
+          onPressed: _nextStep,
         ),
       ],
     );
   }
 
   // ==========================================
-  // STEP 2: HANDLE & SOCIAL
+  // STEP 2: HANDLE & SOCIAL PROFILE
   // ==========================================
   Widget _buildStep2Handle() {
-    Widget? handleSuffix;
-    if (_isCheckingUsername) {
-      handleSuffix = const Padding(
-        padding: EdgeInsets.all(12),
-        child: SizedBox(
-          width: 18,
-          height: 18,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-      );
-    } else if (_isUsernameAvailable == true) {
-      handleSuffix = const Icon(
-        Icons.check_circle_rounded,
-        color: Color(0xFF10B981),
-        size: 20,
-      );
-    } else if (_isUsernameAvailable == false) {
-      handleSuffix = const Icon(
-        Icons.cancel_rounded,
-        color: Color(0xFFDC2626),
-        size: 20,
-      );
-    }
-
     return Column(
       children: [
-        const Text(
-          "Your ZEV Handle",
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w900,
-            color: ZevColors.deepNavy,
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            "Choose a Username",
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: ZevColors.deepNavy,
+              letterSpacing: -0.4,
+            ),
           ),
         ),
-        const SizedBox(height: 4),
-        const Text(
-          "Pick your unique username and bio",
-          style: TextStyle(
-            fontSize: 13.5,
-            color: ZevColors.textSecondary,
+        const SizedBox(height: 6),
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            "You can always change this later.",
+            style: TextStyle(
+              fontSize: 13.5,
+              color: ZevColors.textSecondary,
+            ),
           ),
         ),
 
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
 
+        // Username Field with live availability badge
         ZevTextField(
           label: "Username",
           hint: "username",
           controller: _usernameCtrl,
           prefixIcon: Icons.alternate_email_rounded,
-          suffixIcon: handleSuffix,
           textInputAction: TextInputAction.next,
+          suffixIcon: _isCheckingUsername
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: Center(
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                )
+              : (_isUsernameAvailable == null
+                  ? null
+                  : _isUsernameAvailable!
+                      ? const Icon(
+                          Icons.check_circle_rounded,
+                          color: Color(0xFF10B981),
+                          size: 20,
+                        )
+                      : const Icon(
+                          Icons.cancel_rounded,
+                          color: Color(0xFFEF4444),
+                          size: 20,
+                        )),
         ),
+
+        if (_isUsernameAvailable == false) ...[
+          const SizedBox(height: 6),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              "Username is already taken.",
+              style: TextStyle(color: Color(0xFFEF4444), fontSize: 12),
+            ),
+          ),
+        ],
 
         const SizedBox(height: 16),
 
         ZevTextField(
           label: "Bio (Optional)",
-          hint: "Tell the world what you love...",
+          hint: "Tell the ZEV community about yourself...",
           controller: _bioCtrl,
           prefixIcon: Icons.edit_note_rounded,
           maxLines: 2,
-          textInputAction: TextInputAction.next,
         ),
 
         const SizedBox(height: 16),
@@ -746,51 +1058,60 @@ class _RegisterScreenState extends State<RegisterScreen> {
           label: "Phone Number (Optional)",
           hint: "+1 234 567 8900",
           controller: _phoneCtrl,
-          prefixIcon: Icons.phone_outlined,
+          prefixIcon: Icons.phone_android_rounded,
           keyboardType: TextInputType.phone,
           textInputAction: TextInputAction.done,
         ),
 
-        const SizedBox(height: 28),
+        const SizedBox(height: 32),
 
-        _buildNextButton(label: "Continue to Security", onPressed: _nextStep),
+        _buildNextButton(
+          label: "Continue",
+          onPressed: _nextStep,
+        ),
       ],
     );
   }
 
   // ==========================================
-  // STEP 3: SECURITY & ACCOUNT
+  // STEP 3: SECURITY & CREDENTIALS
   // ==========================================
   Widget _buildStep3Security() {
     return Column(
       children: [
-        const Text(
-          "Account Security",
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w900,
-            color: ZevColors.deepNavy,
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            "Account Credentials",
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: ZevColors.deepNavy,
+              letterSpacing: -0.4,
+            ),
           ),
         ),
-        const SizedBox(height: 4),
-        const Text(
-          "Set up your email and password to log in",
-          style: TextStyle(
-            fontSize: 13.5,
-            color: ZevColors.textSecondary,
+        const SizedBox(height: 6),
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            "Secure your account with email and password.",
+            style: TextStyle(
+              fontSize: 13.5,
+              color: ZevColors.textSecondary,
+            ),
           ),
         ),
 
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
 
         ZevTextField(
           label: "Email Address",
           hint: "name@example.com",
           controller: _emailCtrl,
-          prefixIcon: Icons.email_outlined,
+          prefixIcon: Icons.mail_outline_rounded,
           keyboardType: TextInputType.emailAddress,
           textInputAction: TextInputAction.next,
-          autofillHints: const [AutofillHints.email],
         ),
 
         const SizedBox(height: 16),
@@ -803,7 +1124,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           isPassword: true,
           isObscured: !_showPassword,
           textInputAction: TextInputAction.next,
-          autofillHints: const [AutofillHints.newPassword],
           suffixIcon: IconButton(
             icon: Icon(
               _showPassword
@@ -812,9 +1132,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               size: 20,
               color: ZevColors.textMuted,
             ),
-            onPressed: () {
-              setState(() => _showPassword = !_showPassword);
-            },
+            onPressed: () => setState(() => _showPassword = !_showPassword),
           ),
         ),
 
@@ -822,13 +1140,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
         ZevTextField(
           label: "Confirm Password",
-          hint: "Repeat your password",
+          hint: "Re-enter your password",
           controller: _confirmPasswordCtrl,
           prefixIcon: Icons.lock_reset_rounded,
           isPassword: true,
           isObscured: !_showConfirmPassword,
           textInputAction: TextInputAction.next,
-          autofillHints: const [AutofillHints.newPassword],
           suffixIcon: IconButton(
             icon: Icon(
               _showConfirmPassword
@@ -837,9 +1154,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
               size: 20,
               color: ZevColors.textMuted,
             ),
-            onPressed: () {
-              setState(() => _showConfirmPassword = !_showConfirmPassword);
-            },
+            onPressed: () => setState(
+              () => _showConfirmPassword = !_showConfirmPassword,
+            ),
           ),
         ),
 
@@ -902,6 +1219,246 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  // ============================================================
+  // STEP 4: EMAIL OTP & ACTIVATION LINK VERIFICATION VIEW
+  // ============================================================
+  Widget _buildStep4EmailVerification() {
+    final email = _emailCtrl.text.trim();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const SizedBox(height: 10),
+
+        // Glowing Mail & Shield Header Icon
+        Container(
+          width: 84,
+          height: 84,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const LinearGradient(
+              colors: [Color(0xFF00D4FF), Color(0xFF536DFE)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF00D4FF).withValues(alpha: 0.35),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: const Center(
+            child: Icon(
+              Icons.mark_email_read_rounded,
+              color: Colors.white,
+              size: 42,
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        const Text(
+          "Verify Your Email",
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.w900,
+            color: ZevColors.deepNavy,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Text(
+            "We've sent a 6-digit confirmation code and an activation link to:",
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 14,
+              color: ZevColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+
+        // Highlighted email badge with Edit button
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.email_outlined, size: 16, color: ZevColors.secondaryBlue),
+              const SizedBox(width: 6),
+              Text(
+                email,
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800,
+                  color: ZevColors.deepNavy,
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => setState(() => _step = 3),
+                child: const Text(
+                  "Edit",
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: ZevColors.secondaryBlue,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Explanation Pill (User decision: OTP or Link)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE0F2FE),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFBAE6FD)),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.info_outline_rounded, color: Color(0xFF0284C7), size: 18),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  "You can enter the 6-digit OTP code below, or simply tap the confirmation link in your email.",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF0369A1),
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 26),
+
+        // 6-Digit OTP Boxes
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: List.generate(6, (i) {
+            final hasValue = _otpCtrls[i].text.isNotEmpty;
+            return Container(
+              width: 46,
+              height: 56,
+              decoration: BoxDecoration(
+                color: hasValue ? const Color(0xFFF1F5F9) : Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _errorMsg != null
+                      ? const Color(0xFFEF4444)
+                      : hasValue
+                          ? ZevColors.primaryBlue
+                          : const Color(0xFFCBD5E1),
+                  width: hasValue ? 2.0 : 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: TextField(
+                  controller: _otpCtrls[i],
+                  focusNode: _otpFocusNodes[i],
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  maxLength: 1,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: ZevColors.deepNavy,
+                  ),
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(
+                    counterText: "",
+                    border: InputBorder.none,
+                  ),
+                  onChanged: (val) => _onOtpDigitChanged(i, val),
+                ),
+              ),
+            );
+          }),
+        ),
+
+        const SizedBox(height: 24),
+
+        // Verify OTP Button
+        _buildNextButton(
+          label: "Verify & Complete",
+          isLoading: _isVerifyingOtp,
+          onPressed: _verifyOtpCode,
+        ),
+
+        const SizedBox(height: 16),
+
+        // Open Mail App Shortcut Button
+        OutlinedButton.icon(
+          onPressed: _openEmailApp,
+          icon: const Icon(Icons.mail_outline_rounded, size: 18),
+          label: const Text("Open Email App"),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: ZevColors.deepNavy,
+            side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Resend Timer Row
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              "Didn't receive code? ",
+              style: TextStyle(fontSize: 13, color: ZevColors.textSecondary),
+            ),
+            GestureDetector(
+              onTap: _resendCountdown == 0 ? _resendOtp : null,
+              child: Text(
+                _resendCountdown > 0
+                    ? "Resend in ${_resendCountdown}s"
+                    : "Resend Code",
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: _resendCountdown > 0
+                      ? const Color(0xFF94A3B8)
+                      : ZevColors.secondaryBlue,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildNextButton({
     required String label,
     required VoidCallback onPressed,
@@ -955,13 +1512,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   // ==========================================
-  // SUCCESS VIEW
+  // SUCCESS VIEW WITH OPTIONAL PASSKEY SETUP
   // ==========================================
   Widget _buildSuccessView() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const SizedBox(height: 32),
+        const SizedBox(height: 20),
         Container(
           width: 90,
           height: 90,
@@ -981,7 +1538,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 22),
         const Text(
           "Welcome to ZEV!",
           style: TextStyle(
@@ -992,20 +1549,140 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          "Your account @${_usernameCtrl.text.trim()} has been created successfully.",
+          "Your account @${_usernameCtrl.text.trim()} is verified and ready to go.",
           textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 14.5,
             color: ZevColors.textSecondary,
           ),
         ),
-        const SizedBox(height: 36),
+
+        const SizedBox(height: 24),
+
+        // Optional Passkey Enrollment Banner
+        if (_isPasskeySupported && !_passkeyEnrolledSuccess) ...[
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0FDF4),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFBBF7D0)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.fingerprint_rounded,
+                        color: Color(0xFF10B981),
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Enable 1-Tap Passkey?",
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: ZevColors.deepNavy,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            "Sign in with Face ID / Touch ID next time.",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: ZevColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isPasskeyEnrolling ? null : _enrollPasskeyFromSuccess,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _isPasskeyEnrolling
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text(
+                            "Activate Passkey Now",
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+        ] else if (_passkeyEnrolledSuccess) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFECFDF5),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF6EE7B7)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 20),
+                SizedBox(width: 10),
+                Text(
+                  "Passkey configured for 1-Tap Login!",
+                  style: TextStyle(
+                    color: Color(0xFF065F46),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+
+        // Final "Get Started" Navigation Button
         Container(
           width: double.infinity,
           height: 52,
           decoration: BoxDecoration(
             color: ZevColors.primaryBlue,
             borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: ZevColors.primaryBlue.withValues(alpha: 0.35),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
           child: ElevatedButton(
             onPressed: () {
@@ -1036,4 +1713,3 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
-

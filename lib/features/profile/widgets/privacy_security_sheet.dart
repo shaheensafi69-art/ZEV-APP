@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/theme/zev_theme.dart';
+import 'mfa_settings_sheet.dart';
 
 /// Next-Generation Account Privacy & Security Sheet for ZEV.
 /// Controls public/private account status, online presence visibility,
@@ -439,6 +440,19 @@ class _PrivacySecuritySheetState extends State<PrivacySecuritySheet> {
                     icon: Icons.key_rounded,
                     iconColor: const Color(0xFFF59E0B),
                     onTap: _showChangePasswordDialog,
+                    trailing: const Icon(Icons.chevron_right_rounded, color: ZevColors.textMuted),
+                  ),
+                  const SizedBox(height: 8),
+
+                  _buildSettingRow(
+                    title: "Two-Factor & Passkeys",
+                    subtitle: "Authenticator App (TOTP) • Biometrics",
+                    icon: Icons.shield_rounded,
+                    iconColor: const Color(0xFF00D4FF),
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      MfaSettingsSheet.show(context);
+                    },
                     trailing: const Icon(Icons.chevron_right_rounded, color: ZevColors.textMuted),
                   ),
                   const SizedBox(height: 8),
