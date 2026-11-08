@@ -35,8 +35,10 @@ class CreateReelScreen extends StatefulWidget {
           const begin = Offset(0.0, 1.0);
           const end = Offset.zero;
           const curve = Curves.easeOutCubic;
-          final tween =
-              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          final tween = Tween(
+            begin: begin,
+            end: end,
+          ).chain(CurveTween(curve: curve));
           return SlideTransition(
             position: animation.drive(tween),
             child: child,
@@ -131,7 +133,8 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
         final ln = res['last_name'] ?? '';
         final full = "$fn $ln".trim();
         setState(() {
-          _authorUsername = res['username'] ?? (full.isNotEmpty ? full : 'user');
+          _authorUsername =
+              res['username'] ?? (full.isNotEmpty ? full : 'user');
           _authorFullName = full.isNotEmpty ? full : 'ZEV Creator';
           _authorAvatar = res['avatar_url'] ?? '';
           _isVerified = res['is_verified'] == true;
@@ -187,7 +190,9 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
   void _insertHashtag(String tag) {
     HapticFeedback.selectionClick();
     final currentText = _captionCtrl.text;
-    final space = currentText.isNotEmpty && !currentText.endsWith(' ') ? ' ' : '';
+    final space = currentText.isNotEmpty && !currentText.endsWith(' ')
+        ? ' '
+        : '';
     _captionCtrl.text = "$currentText$space$tag ";
     _captionCtrl.selection = TextSelection.fromPosition(
       TextPosition(offset: _captionCtrl.text.length),
@@ -225,7 +230,8 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
         if (mounted) {
           setState(() {
             _isPublishing = false;
-            _errorMessage = safetyResult.errorMessage ??
+            _errorMessage =
+                safetyResult.errorMessage ??
                 "This video was flagged as inappropriate (+18) and cannot be posted.";
           });
           ScaffoldMessenger.of(context).showSnackBar(
@@ -277,8 +283,8 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
       final title = _titleCtrl.text.trim().isNotEmpty
           ? _titleCtrl.text.trim()
           : (caption.isNotEmpty
-              ? (caption.length > 40 ? caption.substring(0, 40) : caption)
-              : "Reel by @$_authorUsername");
+                ? (caption.length > 40 ? caption.substring(0, 40) : caption)
+                : "Reel by @$_authorUsername");
 
       // 3. Insert into reels table
       await supabase.from('reels').insert({
@@ -383,7 +389,11 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded, color: ZevColors.deepNavy, size: 26),
+          icon: const Icon(
+            Icons.close_rounded,
+            color: ZevColors.deepNavy,
+            size: 26,
+          ),
           onPressed: _showDiscardDialog,
         ),
         centerTitle: true,
@@ -400,8 +410,16 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildSegmentTab(index: 0, label: "Editor", icon: Icons.tune_rounded),
-                _buildSegmentTab(index: 1, label: "Preview", icon: Icons.remove_red_eye_rounded),
+                _buildSegmentTab(
+                  index: 0,
+                  label: "Editor",
+                  icon: Icons.tune_rounded,
+                ),
+                _buildSegmentTab(
+                  index: 1,
+                  label: "Preview",
+                  icon: Icons.remove_red_eye_rounded,
+                ),
               ],
             ),
           ),
@@ -559,8 +577,10 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                   ),
                   const SizedBox(height: 2),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: ZevColors.softSurface,
                       borderRadius: BorderRadius.circular(10),
@@ -569,12 +589,18 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.public_rounded,
-                            size: 12, color: ZevColors.primaryBlue),
+                        Icon(
+                          Icons.public_rounded,
+                          size: 12,
+                          color: ZevColors.primaryBlue,
+                        ),
                         SizedBox(width: 4),
                         Text(
                           "Public Reel",
-                          style: TextStyle(fontSize: 11, color: ZevColors.textMuted),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: ZevColors.textMuted,
+                          ),
                         ),
                       ],
                     ),
@@ -643,22 +669,28 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                       left: 10,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.7),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.timer_outlined,
-                                color: ZevColors.primaryBlue, size: 14),
+                            const Icon(
+                              Icons.timer_outlined,
+                              color: ZevColors.primaryBlue,
+                              size: 14,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               "${_videoDuration.inMinutes.toString().padLeft(2, '0')}:${(_videoDuration.inSeconds % 60).toString().padLeft(2, '0')}",
                               style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700),
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ],
                         ),
@@ -702,7 +734,9 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                         onTap: () => _pickVideo(ImageSource.gallery),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.black87,
                             borderRadius: BorderRadius.circular(14),
@@ -710,13 +744,18 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.swap_horiz_rounded,
-                                  color: Colors.white, size: 16),
+                              Icon(
+                                Icons.swap_horiz_rounded,
+                                color: Colors.white,
+                                size: 16,
+                              ),
                               SizedBox(width: 6),
                               Text(
                                 "Change video",
                                 style: TextStyle(
-                                    color: Colors.white, fontSize: 12),
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
                               ),
                             ],
                           ),
@@ -772,8 +811,11 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.music_note_rounded,
-                    color: ZevColors.primaryBlue, size: 20),
+                const Icon(
+                  Icons.music_note_rounded,
+                  color: ZevColors.primaryBlue,
+                  size: 20,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: TextField(
@@ -785,7 +827,10 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                     ),
                     decoration: const InputDecoration(
                       hintText: "Audio track name...",
-                      hintStyle: TextStyle(color: ZevColors.textMuted, fontSize: 13.5),
+                      hintStyle: TextStyle(
+                        color: ZevColors.textMuted,
+                        fontSize: 13.5,
+                      ),
                       border: InputBorder.none,
                       isDense: true,
                     ),
@@ -823,8 +868,10 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                   },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
                     decoration: BoxDecoration(
                       color: isSelected
                           ? ZevColors.primaryBlue
@@ -841,8 +888,9 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                         cat,
                         style: TextStyle(
                           fontSize: 12.5,
-                          fontWeight:
-                              isSelected ? FontWeight.w800 : FontWeight.w600,
+                          fontWeight: isSelected
+                              ? FontWeight.w800
+                              : FontWeight.w600,
                           color: isSelected
                               ? ZevColors.deepNavy
                               : ZevColors.textSecondary,
@@ -886,10 +934,7 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
               ),
               decoration: const InputDecoration(
                 hintText: "Write a captivating caption for your Reel...",
-                hintStyle: TextStyle(
-                  fontSize: 14,
-                  color: ZevColors.textMuted,
-                ),
+                hintStyle: TextStyle(fontSize: 14, color: ZevColors.textMuted),
                 border: InputBorder.none,
                 isDense: true,
               ),
@@ -909,8 +954,10 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                 return GestureDetector(
                   onTap: () => _insertHashtag(tag),
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: ZevColors.white,
                       borderRadius: BorderRadius.circular(12),
@@ -938,18 +985,24 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                 color: Colors.redAccent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                    color: Colors.redAccent.withValues(alpha: 0.3)),
+                  color: Colors.redAccent.withValues(alpha: 0.3),
+                ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline_rounded,
-                      color: Colors.redAccent, size: 20),
+                  const Icon(
+                    Icons.error_outline_rounded,
+                    color: Colors.redAccent,
+                    size: 20,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       _errorMessage!,
                       style: const TextStyle(
-                          color: Colors.redAccent, fontSize: 13),
+                        color: Colors.redAccent,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 ],
@@ -1106,8 +1159,11 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
             ),
             child: const Row(
               children: [
-                Icon(Icons.auto_awesome_rounded,
-                    color: ZevColors.primaryBlue, size: 16),
+                Icon(
+                  Icons.auto_awesome_rounded,
+                  color: ZevColors.primaryBlue,
+                  size: 16,
+                ),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(

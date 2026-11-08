@@ -109,10 +109,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(
-      length: _isMyProfile ? 4 : 3,
-      vsync: this,
-    );
+    _tabCtrl = TabController(length: _isMyProfile ? 4 : 3, vsync: this);
     _loadAllProfileData();
   }
 
@@ -266,13 +263,15 @@ class _ProfileScreenState extends State<ProfileScreen>
           authorId: _targetUserId,
           authorUsername: _profile['username'] ?? 'user',
           authorFullName:
-              "${_profile['first_name'] ?? ''} ${_profile['last_name'] ?? ''}".trim(),
+              "${_profile['first_name'] ?? ''} ${_profile['last_name'] ?? ''}"
+                  .trim(),
           authorAvatar: _profile['avatar_url'] ?? '',
           isVerified: _profile['is_verified'] == true,
           title: p['title'] ?? '',
           content: p['content'] ?? '',
           imageUrl: p['image_url'] ?? '',
-          createdAt: DateTime.tryParse(p['created_at'].toString()) ?? DateTime.now(),
+          createdAt:
+              DateTime.tryParse(p['created_at'].toString()) ?? DateTime.now(),
           categoryTag: catTag,
           likesCount: (p['likes_count'] as num?)?.toInt() ?? 0,
           isLikedByMe: false,
@@ -301,7 +300,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           userId: _targetUserId,
           authorUsername: _profile['username'] ?? 'user',
           authorFullName:
-              "${_profile['first_name'] ?? ''} ${_profile['last_name'] ?? ''}".trim(),
+              "${_profile['first_name'] ?? ''} ${_profile['last_name'] ?? ''}"
+                  .trim(),
           authorAvatar: _profile['avatar_url'] ?? '',
           isVerified: _profile['is_verified'] == true,
           videoUrl: r['video_url'] ?? '',
@@ -313,7 +313,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           viewsCount: r['views_count'] ?? 0,
           likesCount: r['likes_count'] ?? 0,
           commentsCount: r['comments_count'] ?? 0,
-          createdAt: DateTime.tryParse(r['created_at'].toString()) ?? DateTime.now(),
+          createdAt:
+              DateTime.tryParse(r['created_at'].toString()) ?? DateTime.now(),
         );
       }).toList();
 
@@ -357,7 +358,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           title: p['title'] ?? '',
           content: p['content'] ?? '',
           imageUrl: p['image_url'] ?? '',
-          createdAt: DateTime.tryParse(p['created_at'].toString()) ?? DateTime.now(),
+          createdAt:
+              DateTime.tryParse(p['created_at'].toString()) ?? DateTime.now(),
           likesCount: (p['likes_count'] as num?)?.toInt() ?? 0,
           isLikedByMe: false,
           commentsCount: (p['comments_count'] as num?)?.toInt() ?? 0,
@@ -405,7 +407,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           title: p['title'] ?? '',
           content: p['content'] ?? '',
           imageUrl: p['image_url'] ?? '',
-          createdAt: DateTime.tryParse(p['created_at'].toString()) ?? DateTime.now(),
+          createdAt:
+              DateTime.tryParse(p['created_at'].toString()) ?? DateTime.now(),
           likesCount: (p['likes_count'] as num?)?.toInt() ?? 0,
           isLikedByMe: false,
           commentsCount: (p['comments_count'] as num?)?.toInt() ?? 0,
@@ -424,7 +427,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     try {
       final res = await supabase
           .from('profiles')
-          .select('id, username, first_name, last_name, avatar_url, is_verified')
+          .select(
+            'id, username, first_name, last_name, avatar_url, is_verified',
+          )
           .neq('id', currentUserId ?? '')
           .limit(8);
 
@@ -475,15 +480,17 @@ class _ProfileScreenState extends State<ProfileScreen>
         } catch (_) {}
 
         unawaited(
-          NotificationService().sendNotificationToUser(
-            targetUserId: _targetUserId,
-            title: "New Follower",
-            message: "Started following your profile on ZEV",
-            notificationType: "follow",
-            senderId: currentUserId,
-          ).catchError((err) {
-            debugPrint("Notification dispatch notice: $err");
-          }),
+          NotificationService()
+              .sendNotificationToUser(
+                targetUserId: _targetUserId,
+                title: "New Follower",
+                message: "Started following your profile on ZEV",
+                notificationType: "follow",
+                senderId: currentUserId,
+              )
+              .catchError((err) {
+                debugPrint("Notification dispatch notice: $err");
+              }),
         );
       } else {
         await supabase
@@ -524,9 +531,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
-        constraints: BoxConstraints(
-          maxHeight: screenHeight * 0.88,
-        ),
+        constraints: BoxConstraints(maxHeight: screenHeight * 0.88),
         decoration: BoxDecoration(
           color: const Color(0xFFF1F5F9),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
@@ -617,7 +622,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                   isCompact: isCompact,
                   onTap: () {
                     Navigator.pop(ctx);
-                    CreatePostScreen.open(context, onPostCreated: _loadAllProfileData);
+                    CreatePostScreen.open(
+                      context,
+                      onPostCreated: _loadAllProfileData,
+                    );
                   },
                 ),
                 SizedBox(height: isCompact ? 8 : 10),
@@ -635,7 +643,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                   isCompact: isCompact,
                   onTap: () {
                     Navigator.pop(ctx);
-                    CreateReelScreen.open(context, onReelCreated: _loadAllProfileData);
+                    CreateReelScreen.open(
+                      context,
+                      onReelCreated: _loadAllProfileData,
+                    );
                   },
                 ),
                 SizedBox(height: isCompact ? 8 : 10),
@@ -653,7 +664,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                   isCompact: isCompact,
                   onTap: () {
                     Navigator.pop(ctx);
-                    CreateStoryScreen.open(context, onStoryCreated: _loadAllProfileData);
+                    CreateStoryScreen.open(
+                      context,
+                      onStoryCreated: _loadAllProfileData,
+                    );
                   },
                 ),
                 SizedBox(height: isCompact ? 8 : 10),
@@ -725,11 +739,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ),
                 ],
               ),
-              child: Icon(
-                icon,
-                color: Colors.white,
-                size: isCompact ? 20 : 22,
-              ),
+              child: Icon(icon, color: Colors.white, size: isCompact ? 20 : 22),
             ),
             SizedBox(width: isCompact ? 12 : 14),
 
@@ -810,8 +820,8 @@ class _ProfileScreenState extends State<ProfileScreen>
       context,
       userId: _targetUserId,
       username: _profile['username'] ?? 'user',
-      fullName:
-          "${_profile['first_name'] ?? ''} ${_profile['last_name'] ?? ''}".trim(),
+      fullName: "${_profile['first_name'] ?? ''} ${_profile['last_name'] ?? ''}"
+          .trim(),
       avatarUrl: _profile['avatar_url'] ?? '',
     );
   }
@@ -1024,7 +1034,11 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
             ),
             const Spacer(),
-            const Icon(Icons.chevron_right_rounded, color: ZevColors.textMuted, size: 20),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: ZevColors.textMuted,
+              size: 20,
+            ),
           ],
         ),
       ),
@@ -1068,7 +1082,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                   children: [
                     // Author Header
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                       child: Row(
                         children: [
                           CircleAvatar(
@@ -1078,7 +1095,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                                 ? NetworkImage(reel.authorAvatar)
                                 : null,
                             child: reel.authorAvatar.isEmpty
-                                ? const Icon(Icons.person, color: Colors.white54, size: 18)
+                                ? const Icon(
+                                    Icons.person,
+                                    color: Colors.white54,
+                                    size: 18,
+                                  )
                                 : null,
                           ),
                           const SizedBox(width: 10),
@@ -1137,7 +1158,10 @@ class _ProfileScreenState extends State<ProfileScreen>
 
                     // Quick Action Button
                     Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 16,
+                      ),
                       color: const Color(0xFF1E293B),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -1191,14 +1215,17 @@ class _ProfileScreenState extends State<ProfileScreen>
       highlight: highlight,
       isOwner: _isMyProfile,
       onDelete: () async {
-        await StoryHighlightService().deleteHighlight(_targetUserId, highlight.id);
+        await StoryHighlightService().deleteHighlight(
+          _targetUserId,
+          highlight.id,
+        );
         if (mounted) {
           setState(() {
             _highlights.removeWhere((h) => h.id == highlight.id);
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Highlight removed")),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text("Highlight removed")));
         }
       },
     );
@@ -1222,11 +1249,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(borderRadius),
-        border: border ??
-            Border.all(
-              color: Colors.white.withValues(alpha: 0.9),
-              width: 1.5,
-            ),
+        border:
+            border ??
+            Border.all(color: Colors.white.withValues(alpha: 0.9), width: 1.5),
         boxShadow: [
           // Darker soft drop shadow (bottom-right)
           BoxShadow(
@@ -1294,7 +1319,9 @@ class _ProfileScreenState extends State<ProfileScreen>
 
                       // 2. Profile Info Header (3D Avatar + 3 Clay Stats + Name + Bio)
                       Padding(
-                        padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: horizontalPadding,
+                        ),
                         child: _buildProfileHeader(
                           avatarUrl: avatarUrl,
                           fullName: fullName,
@@ -1309,7 +1336,9 @@ class _ProfileScreenState extends State<ProfileScreen>
 
                       // 3. Tactile Clay Action Buttons Row
                       Padding(
-                        padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: horizontalPadding,
+                        ),
                         child: _buildActionRow(isCompact),
                       ),
 
@@ -1317,7 +1346,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                       if (_showSuggestedCreators) ...[
                         const SizedBox(height: 12),
                         Padding(
-                          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: horizontalPadding,
+                          ),
                           child: _buildSuggestedCreatorsCarousel(),
                         ),
                       ],
@@ -1326,7 +1357,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                       if (_isMyProfile || _highlights.isNotEmpty) ...[
                         SizedBox(height: isCompact ? 12 : 16),
                         Padding(
-                          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: horizontalPadding,
+                          ),
                           child: _buildStoryHighlights(),
                         ),
                       ],
@@ -1339,9 +1372,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 // 6. Sticky Pinned Claymorphic Tab Bar Dock
                 SliverPersistentHeader(
                   pinned: true,
-                  delegate: _ProfileTabBarDelegate(
-                    tabBar: _buildTabBar(),
-                  ),
+                  delegate: _ProfileTabBarDelegate(tabBar: _buildTabBar()),
                 ),
               ];
             },
@@ -1367,7 +1398,11 @@ class _ProfileScreenState extends State<ProfileScreen>
   // ---------------------------------------------------------------------------
   // Sleek Claymorphic Top Bar
   // ---------------------------------------------------------------------------
-  Widget _buildTopBar(String username, bool isVerified, [bool isCompact = false]) {
+  Widget _buildTopBar(
+    String username,
+    bool isVerified, [
+    bool isCompact = false,
+  ]) {
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: isCompact ? 10 : 16,
@@ -1399,7 +1434,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                 Flexible(
                   child: GestureDetector(
                     onTap: _isMyProfile
-                        ? () => MultiAccountService.showAccountSwitcherSheet(context)
+                        ? () => MultiAccountService.showAccountSwitcherSheet(
+                            context,
+                          )
                         : null,
                     behavior: HitTestBehavior.opaque,
                     child: _buildClayCard(
@@ -1539,7 +1576,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                       shape: BoxShape.circle,
                       gradient: _hasActiveStory
                           ? const LinearGradient(
-                              colors: [Color(0xFFFBAA47), Color(0xFFD91A46), Color(0xFFA60F93)],
+                              colors: [
+                                Color(0xFFFBAA47),
+                                Color(0xFFD91A46),
+                                Color(0xFFA60F93),
+                              ],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             )
@@ -1549,7 +1590,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                           : Border.all(color: Colors.white, width: 2.5),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                          color: const Color(
+                            0xFF0F172A,
+                          ).withValues(alpha: 0.08),
                           blurRadius: 14,
                           offset: const Offset(2, 4),
                         ),
@@ -1596,7 +1639,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                           border: Border.all(color: Colors.white, width: 2.2),
                           boxShadow: [
                             BoxShadow(
-                              color: ZevColors.primaryBlue.withValues(alpha: 0.4),
+                              color: ZevColors.primaryBlue.withValues(
+                                alpha: 0.4,
+                              ),
                               blurRadius: 6,
                               offset: const Offset(0, 2),
                             ),
@@ -1853,7 +1898,9 @@ class _ProfileScreenState extends State<ProfileScreen>
               borderRadius: 14,
               depth: 3.2,
               padding: EdgeInsets.all(isCompact ? 9 : 11),
-              color: _showSuggestedCreators ? ZevColors.primaryBlue : Colors.white,
+              color: _showSuggestedCreators
+                  ? ZevColors.primaryBlue
+                  : Colors.white,
               child: Icon(
                 _showSuggestedCreators
                     ? Icons.person_remove_outlined
@@ -1886,7 +1933,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
                     : FittedBox(
                         fit: BoxFit.scaleDown,
@@ -1895,7 +1945,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                           style: TextStyle(
                             fontSize: isCompact ? 13 : 13.5,
                             fontWeight: FontWeight.w800,
-                            color: _isFollowing ? ZevColors.deepNavy : Colors.white,
+                            color: _isFollowing
+                                ? ZevColors.deepNavy
+                                : Colors.white,
                           ),
                         ),
                       ),
@@ -2047,16 +2099,23 @@ class _ProfileScreenState extends State<ProfileScreen>
                     child: ClipOval(
                       child: h.coverUrl.isNotEmpty
                           ? (h.coverUrl.toLowerCase().contains('.mp4') ||
-                                  h.coverUrl.toLowerCase().contains('.mov') ||
-                                  h.coverUrl.toLowerCase().contains('.webm')
-                              ? VideoCoverThumbnail(videoUrl: h.coverUrl)
-                              : ZevCachedImage.avatar(
-                                  imageUrl: h.coverUrl,
-                                  size: 56,
-                                ))
-                          : (h.items.isNotEmpty && h.items.first.mediaType == 'video'
-                              ? VideoCoverThumbnail(videoUrl: h.items.first.mediaUrl)
-                              : const Icon(Icons.star_rounded, color: ZevColors.primaryBlue, size: 28)),
+                                    h.coverUrl.toLowerCase().contains('.mov') ||
+                                    h.coverUrl.toLowerCase().contains('.webm')
+                                ? VideoCoverThumbnail(videoUrl: h.coverUrl)
+                                : ZevCachedImage.avatar(
+                                    imageUrl: h.coverUrl,
+                                    size: 56,
+                                  ))
+                          : (h.items.isNotEmpty &&
+                                    h.items.first.mediaType == 'video'
+                                ? VideoCoverThumbnail(
+                                    videoUrl: h.items.first.mediaUrl,
+                                  )
+                                : const Icon(
+                                    Icons.star_rounded,
+                                    color: ZevColors.primaryBlue,
+                                    size: 28,
+                                  )),
                     ),
                   ),
                 ),
@@ -2144,7 +2203,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                       ),
                     ),
                     SizedBox(width: 4),
-                    Icon(Icons.chevron_right_rounded, size: 18, color: ZevColors.textMuted),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: ZevColors.textMuted,
+                    ),
                   ],
                 ),
               ),
@@ -2207,9 +2270,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                       CircleAvatar(
                         radius: 26,
                         backgroundColor: ZevColors.softSurface,
-                        backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
+                        backgroundImage: avatar.isNotEmpty
+                            ? NetworkImage(avatar)
+                            : null,
                         child: avatar.isEmpty
-                            ? const Icon(Icons.person, color: ZevColors.textMuted)
+                            ? const Icon(
+                                Icons.person,
+                                color: ZevColors.textMuted,
+                              )
                             : null,
                       ),
                       const SizedBox(height: 6),
@@ -2239,10 +2307,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                             });
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                isFollowed ? Colors.white : const Color(0xFF0095F6),
-                            foregroundColor:
-                                isFollowed ? ZevColors.deepNavy : Colors.white,
+                            backgroundColor: isFollowed
+                                ? Colors.white
+                                : const Color(0xFF0095F6),
+                            foregroundColor: isFollowed
+                                ? ZevColors.deepNavy
+                                : Colors.white,
                             elevation: 0,
                             padding: EdgeInsets.zero,
                             shape: RoundedRectangleBorder(
@@ -2254,7 +2324,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                           ),
                           child: Text(
                             isFollowed ? "Following" : "Follow",
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),
@@ -2281,7 +2354,8 @@ class _ProfileScreenState extends State<ProfileScreen>
             ? "When you share photos, they will appear on your profile."
             : "No posts shared yet by @${_profile['username'] ?? 'user'}.",
         actionLabel: _isMyProfile ? "Share your first photo" : null,
-        onAction: () => CreatePostScreen.open(context, onPostCreated: _loadAllProfileData),
+        onAction: () =>
+            CreatePostScreen.open(context, onPostCreated: _loadAllProfileData),
       );
     }
 
@@ -2308,15 +2382,13 @@ class _ProfileScreenState extends State<ProfileScreen>
               borderRadius: BorderRadius.circular(12),
               child: post.imageUrl.isNotEmpty
                   ? (post.imageUrl.toLowerCase().endsWith('.mp4') ||
-                          post.imageUrl.toLowerCase().endsWith('.mov') ||
-                          post.imageUrl.toLowerCase().endsWith('.webm')
-                      ? ZevVideoThumbnail(
-                          videoUrl: post.imageUrl,
-                          borderRadius: BorderRadius.circular(12),
-                        )
-                      : ZevCachedImage.grid(
-                          imageUrl: post.imageUrl,
-                        ))
+                            post.imageUrl.toLowerCase().endsWith('.mov') ||
+                            post.imageUrl.toLowerCase().endsWith('.webm')
+                        ? ZevVideoThumbnail(
+                            videoUrl: post.imageUrl,
+                            borderRadius: BorderRadius.circular(12),
+                          )
+                        : ZevCachedImage.grid(imageUrl: post.imageUrl))
                   : Container(
                       padding: const EdgeInsets.all(8),
                       color: const Color(0xFFF8FAFC),
@@ -2350,7 +2422,8 @@ class _ProfileScreenState extends State<ProfileScreen>
             ? "Record and share short immersive videos with your community."
             : "No reels published by @${_profile['username'] ?? 'user'}.",
         actionLabel: _isMyProfile ? "Create your first Reel" : null,
-        onAction: () => CreateReelScreen.open(context, onReelCreated: _loadAllProfileData),
+        onAction: () =>
+            CreateReelScreen.open(context, onReelCreated: _loadAllProfileData),
       );
     }
 
@@ -2369,8 +2442,9 @@ class _ProfileScreenState extends State<ProfileScreen>
 
         return GestureDetector(
           onTap: () => _openReelDetail(reel),
-          onLongPress: () =>
-              _isMyProfile ? _showReelManageSheet(reel) : _showQuickReelPreview(reel),
+          onLongPress: () => _isMyProfile
+              ? _showReelManageSheet(reel)
+              : _showQuickReelPreview(reel),
           child: _buildClayCard(
             borderRadius: 14,
             depth: 2.8,
@@ -2427,9 +2501,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 fit: StackFit.expand,
                 children: [
                   post.imageUrl.isNotEmpty
-                      ? ZevCachedImage.grid(
-                          imageUrl: post.imageUrl,
-                        )
+                      ? ZevCachedImage.grid(imageUrl: post.imageUrl)
                       : Center(
                           child: Text(
                             post.content,
@@ -2441,7 +2513,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                   const Positioned(
                     top: 6,
                     right: 6,
-                    child: Icon(Icons.repeat_rounded, color: Colors.white, size: 16),
+                    child: Icon(
+                      Icons.repeat_rounded,
+                      color: Colors.white,
+                      size: 16,
+                    ),
                   ),
                 ],
               ),
@@ -2485,13 +2561,13 @@ class _ProfileScreenState extends State<ProfileScreen>
               borderRadius: BorderRadius.circular(12),
               child: post.imageUrl.isNotEmpty
                   ? (post.imageUrl.toLowerCase().endsWith('.mp4') ||
-                          post.imageUrl.toLowerCase().endsWith('.mov') ||
-                          post.imageUrl.toLowerCase().endsWith('.webm')
-                      ? ZevVideoThumbnail(
-                          videoUrl: post.imageUrl,
-                          borderRadius: BorderRadius.circular(12),
-                        )
-                      : ZevCachedImage.grid(imageUrl: post.imageUrl))
+                            post.imageUrl.toLowerCase().endsWith('.mov') ||
+                            post.imageUrl.toLowerCase().endsWith('.webm')
+                        ? ZevVideoThumbnail(
+                            videoUrl: post.imageUrl,
+                            borderRadius: BorderRadius.circular(12),
+                          )
+                        : ZevCachedImage.grid(imageUrl: post.imageUrl))
                   : Center(
                       child: Text(
                         post.content,
@@ -2558,7 +2634,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                 GestureDetector(
                   onTap: onAction,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: ZevColors.primaryBlue,
                       borderRadius: BorderRadius.circular(12),
@@ -2601,7 +2680,11 @@ class _ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => 52.0;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     return Container(
       color: const Color(0xFFF1F5F9),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),

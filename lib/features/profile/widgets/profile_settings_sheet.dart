@@ -71,7 +71,10 @@ class ProfileSettingsSheet extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("Cancel", style: TextStyle(color: ZevColors.textMuted)),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(color: ZevColors.textMuted),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -103,9 +106,7 @@ class ProfileSettingsSheet extends StatelessWidget {
     final screenHeight = MediaQuery.of(context).size.height;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     return Container(
-      constraints: BoxConstraints(
-        maxHeight: screenHeight * 0.88,
-      ),
+      constraints: BoxConstraints(maxHeight: screenHeight * 0.88),
       decoration: BoxDecoration(
         color: const Color(0xFFF1F5F9),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
@@ -175,7 +176,9 @@ class ProfileSettingsSheet extends StatelessWidget {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                            color: const Color(
+                              0xFF0F172A,
+                            ).withValues(alpha: 0.08),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),
@@ -307,7 +310,8 @@ class ProfileSettingsSheet extends StatelessWidget {
                         Navigator.pop(context);
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => const LoginScreen(isAddingAccount: true),
+                            builder: (_) =>
+                                const LoginScreen(isAddingAccount: true),
                           ),
                         );
                       },
@@ -410,7 +414,8 @@ class ProfileSettingsSheet extends StatelessWidget {
                   child: Center(
                     child: Icon(
                       icon,
-                      color: iconColor ??
+                      color:
+                          iconColor ??
                           (isDestructive
                               ? const Color(0xFFDC2626)
                               : ZevColors.deepNavy),
@@ -425,7 +430,8 @@ class ProfileSettingsSheet extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 14.5,
                       fontWeight: FontWeight.w700,
-                      color: titleColor ??
+                      color:
+                          titleColor ??
                           (isDestructive
                               ? const Color(0xFFDC2626)
                               : ZevColors.deepNavy),
