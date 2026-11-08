@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Helper to ensure the app runs in full-screen mode with the phone's
-/// navigation bar hidden (immersiveSticky mode).
+/// Helper to ensure the app runs in full edge-to-edge display mode
+/// compliant with Android 15 & modern iOS design guidelines.
 class SystemUiHelper {
   SystemUiHelper._();
 
-  /// Enforce full-screen immersive mode and hide system navigation bar.
+  /// Enforce true edge-to-edge mode with transparent system bars.
   static Future<void> enableFullScreen() async {
     try {
-      // Hide navigation bar and status bar with sticky immersive mode
+      // Enable modern edge-to-edge display mode
       await SystemChrome.setEnabledSystemUIMode(
-        SystemUiMode.immersiveSticky,
+        SystemUiMode.edgeToEdge,
       );
 
       // Make system bars fully transparent and edge-to-edge
