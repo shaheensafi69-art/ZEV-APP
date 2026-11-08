@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/services/multi_account_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_logo.dart';
@@ -98,19 +97,6 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   Future<void> _loadUserProfile() async {
     final user = supabase.auth.currentUser;
     if (user == null) {
-      try {
-        final accounts = await MultiAccountService.getSavedAccounts();
-        if (accounts.isNotEmpty && mounted) {
-          final firstAcc = accounts.first;
-          if (firstAcc.avatarUrl.isNotEmpty && _myAvatarUrl.isEmpty) {
-            setState(() {
-              _myAvatarUrl = firstAcc.avatarUrl;
-              _myUsername = firstAcc.username;
-              _myFullName = firstAcc.fullName;
-            });
-          }
-        }
-      } catch (_) {}
       return;
     }
 

@@ -4,11 +4,16 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
+import '../../features/auth/widgets/mfa_challenge_sheet.dart';
 import '../../features/main_navigation/screens/zev_main_layout.dart';
 import '../theme/zev_theme.dart';
 import '../widgets/zev_cached_image.dart';
+import '../widgets/zev_text_field.dart';
 import 'auth_helper.dart';
+import 'mfa_service.dart';
+import 'passkey_auth_service.dart';
 
 /// Represents a saved user account on the local device (Instagram-style).
 class SavedAccount {
@@ -83,7 +88,10 @@ class SavedAccount {
 
 /// Central Multi-Account Manager for ZEV.
 /// Enables users to create and manage 2, 3, or more accounts on the same device,
-/// and switch between them instantly just like Instagram.
+/// and switch between them seamlessly. Because Supabase free plan holds one active
+/// server session per client, account switching prompts for the password (with
+/// OS Keychain / Google Autofill support) or Passkey/Biometrics to ensure a 100%
+/// genuine, fully authenticated session without blank screens.
 class MultiAccountService {
   MultiAccountService._();
 
@@ -192,53 +200,21 @@ class MultiAccountService {
     }
   }
 
-  /// Switches active account locally and navigates into ZEV Main Layout
+  /// Switches to an account by prompting for password / Passkey to establish a real Supabase session
   static Future<void> switchToAccount(
     BuildContext context,
     SavedAccount account,
   ) async {
-    HapticFeedback.mediumImpact();
+    await promptLoginForAccount(context, account);
+  }
 
-    try {
-      // 1. Mark as logged in locally
-      await AuthHelper.markUserLoggedIn(
-        userId: account.userId,
-        role: account.role,
-      );
-
-      // 2. Update last active timestamp
-      final accounts = await getSavedAccounts();
-      final idx = accounts.indexWhere((a) => a.userId == account.userId);
-      if (idx >= 0) {
-        accounts[idx] = accounts[idx].copyWith(lastActive: DateTime.now());
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(
-          _keyAccounts,
-          jsonEncode(accounts.map((a) => a.toJson()).toList()),
-        );
-      }
-
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Switched to @${account.username}",
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: ZevColors.deepNavy,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        ),
-      );
-
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const ZevMainLayout()),
-        (route) => false,
-      );
-    } catch (e) {
-      debugPrint("Switch account error: $e");
-    }
+  /// Opens the elegant Claymorphic password/passkey login modal for the target account
+  static Future<bool> promptLoginForAccount(
+    BuildContext context,
+    SavedAccount account,
+  ) async {
+    HapticFeedback.lightImpact();
+    return await AccountLoginSheet.show(context, account: account);
   }
 
   /// Displays the luxury Instagram-style Multi-Account Switcher Bottom Sheet
@@ -300,44 +276,26 @@ class MultiAccountService {
                         letterSpacing: -0.3,
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: ZevColors.softSurface,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        "${accounts.length} ${accounts.length == 1 ? 'account' : 'accounts'}",
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: ZevColors.textSecondary,
-                        ),
-                      ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: ZevColors.textMuted, size: 20),
+                      onPressed: () => Navigator.pop(sheetContext),
                     ),
                   ],
                 ),
+                const SizedBox(height: 14),
 
-                const SizedBox(height: 16),
-
-                // Scrollable Content
                 Flexible(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Accounts List
                         if (accounts.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 20),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24),
                             child: Text(
-                              "No additional accounts saved yet.",
-                              style: TextStyle(
-                                fontSize: 13.5,
-                                color: ZevColors.textMuted,
-                                fontWeight: FontWeight.w500,
-                              ),
+                              "No saved accounts yet.",
+                              style: TextStyle(color: ZevColors.textMuted),
                             ),
                           )
                         else
@@ -354,7 +312,15 @@ class MultiAccountService {
                                 onTap: () {
                                   Navigator.pop(sheetContext);
                                   if (!isCurrent) {
-                                    switchToAccount(context, acc);
+                                    promptLoginForAccount(context, acc);
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text("You are currently using @${acc.username}"),
+                                        behavior: SnackBarBehavior.floating,
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
                                   }
                                 },
                                 child: Container(
@@ -543,6 +509,508 @@ class MultiAccountService {
           ),
         );
       },
+    );
+  }
+}
+
+/// Flagship Claymorphic Account Login Prompt Sheet.
+/// Displays account identity with password field supported by iOS Keychain & Google Autofill,
+/// and instant 1-tap Passkey / Face ID / Touch ID biometric sign-in.
+class AccountLoginSheet extends StatefulWidget {
+  final SavedAccount account;
+
+  const AccountLoginSheet({super.key, required this.account});
+
+  static Future<bool> show(BuildContext context, {required SavedAccount account}) async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: ZevColors.deepNavy.withValues(alpha: 0.6),
+      builder: (_) => AccountLoginSheet(account: account),
+    );
+    return result == true;
+  }
+
+  @override
+  State<AccountLoginSheet> createState() => _AccountLoginSheetState();
+}
+
+class _AccountLoginSheetState extends State<AccountLoginSheet> {
+  final TextEditingController _passwordCtrl = TextEditingController();
+  final FocusNode _passwordFocus = FocusNode();
+
+  bool _isLoading = false;
+  bool _showPassword = false;
+  String? _errorMsg;
+
+  bool _isPasskeySupported = false;
+  bool _isPasskeyEnrolled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPasskey();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _passwordFocus.requestFocus();
+    });
+  }
+
+  Future<void> _checkPasskey() async {
+    try {
+      final supported = await PasskeyAuthService.instance.isDeviceSupported();
+      final enrolled = await PasskeyAuthService.instance.isPasskeyEnrolled();
+      if (mounted) {
+        setState(() {
+          _isPasskeySupported = supported;
+          _isPasskeyEnrolled = enrolled;
+        });
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _passwordCtrl.dispose();
+    _passwordFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handlePasswordLogin() async {
+    final password = _passwordCtrl.text;
+    if (password.isEmpty) {
+      setState(() => _errorMsg = "Please enter your password.");
+      return;
+    }
+
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _isLoading = true;
+      _errorMsg = null;
+    });
+
+    try {
+      final authResponse = await Supabase.instance.client.auth.signInWithPassword(
+        email: widget.account.email,
+        password: password,
+      );
+
+      final user = authResponse.user;
+      if (user != null) {
+        // Check Multi-Factor Authentication requirement
+        if (MfaService.instance.isMfaRequired()) {
+          final factors = await MfaService.instance.getEnrolledFactors();
+          if (factors.isNotEmpty && mounted) {
+            final verified = await MfaChallengeSheet.show(
+              context,
+              factorId: factors.first.id,
+              accountEmail: widget.account.email,
+            );
+            if (!verified) {
+              setState(() {
+                _isLoading = false;
+                _errorMsg = "Two-Factor Authentication cancelled.";
+              });
+              return;
+            }
+          }
+        }
+
+        // Allow iOS Keychain and Google Autofill to save / update password
+        TextInput.finishAutofillContext(shouldSave: true);
+
+        // Mark user logged in locally and sync FCM
+        await AuthHelper.markUserLoggedIn(
+          userId: user.id,
+          role: widget.account.role,
+        );
+
+        // Update MultiAccountService with latest info
+        await MultiAccountService.saveCurrentAccount(
+          overrideUsername: widget.account.username,
+          overrideFullName: widget.account.fullName,
+          overrideAvatar: widget.account.avatarUrl,
+          overrideIsVerified: widget.account.isVerified,
+        );
+
+        if (!mounted) return;
+
+        Navigator.pop(context, true);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Switched to @${widget.account.username}",
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: ZevColors.deepNavy,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        );
+
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const ZevMainLayout()),
+          (route) => false,
+        );
+      }
+    } on AuthException catch (e) {
+      HapticFeedback.heavyImpact();
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMsg = e.message;
+        });
+      }
+    } catch (e) {
+      HapticFeedback.heavyImpact();
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMsg = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
+    }
+  }
+
+  Future<void> _handlePasskeyLogin() async {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _isLoading = true;
+      _errorMsg = null;
+    });
+
+    try {
+      final res = await PasskeyAuthService.instance.signInWithPasskey();
+      if (!res.success) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _errorMsg = res.errorMessage;
+          });
+        }
+        return;
+      }
+
+      // Check MFA if required
+      if (MfaService.instance.isMfaRequired()) {
+        final factors = await MfaService.instance.getEnrolledFactors();
+        if (factors.isNotEmpty && mounted) {
+          final verified = await MfaChallengeSheet.show(
+            context,
+            factorId: factors.first.id,
+            accountEmail: widget.account.email,
+          );
+          if (!verified) {
+            setState(() {
+              _isLoading = false;
+              _errorMsg = "Two-Factor Authentication cancelled.";
+            });
+            return;
+          }
+        }
+      }
+
+      if (mounted) {
+        Navigator.pop(context, true);
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const ZevMainLayout()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMsg = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x33080D1A),
+              blurRadius: 36,
+              offset: Offset(0, -10),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+            child: AutofillGroup(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Drag Handle
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Header with Account Avatar
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: ZevColors.primaryBlue, width: 2.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: ZevColors.primaryBlue.withValues(alpha: 0.25),
+                          blurRadius: 18,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(36),
+                      child: widget.account.avatarUrl.isNotEmpty
+                          ? ZevCachedImage.avatar(
+                              imageUrl: widget.account.avatarUrl,
+                              size: 72,
+                            )
+                          : Container(
+                              color: ZevColors.softSurface,
+                              child: Center(
+                                child: Text(
+                                  widget.account.username.isNotEmpty
+                                      ? widget.account.username[0].toUpperCase()
+                                      : 'Z',
+                                  style: const TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w900,
+                                    color: ZevColors.deepNavy,
+                                  ),
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Username & Verified Badge
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        "@${widget.account.username}",
+                        style: const TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                          color: ZevColors.deepNavy,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      if (widget.account.isVerified) ...[
+                        const SizedBox(width: 6),
+                        const Icon(
+                          Icons.verified_rounded,
+                          color: ZevColors.primaryBlue,
+                          size: 18,
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    widget.account.fullName.isNotEmpty
+                        ? widget.account.fullName
+                        : widget.account.email,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+
+                  // Error Message
+                  if (_errorMsg != null) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFFCA5A5)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline_rounded, size: 18, color: Color(0xFFDC2626)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _errorMsg!,
+                              style: const TextStyle(color: Color(0xFF991B1B), fontSize: 12.5),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+
+                  // Password Field with OS Autofill & Keychain
+                  ZevTextField(
+                    label: "Password",
+                    hint: "Enter password for @${widget.account.username}",
+                    controller: _passwordCtrl,
+                    focusNode: _passwordFocus,
+                    prefixIcon: Icons.lock_outline_rounded,
+                    isPassword: true,
+                    isObscured: !_showPassword,
+                    textInputAction: TextInputAction.done,
+                    autofillHints: const [AutofillHints.password],
+                    onSubmitted: (_) => _handlePasswordLogin(),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _showPassword
+                            ? Icons.visibility_off_rounded
+                            : Icons.visibility_rounded,
+                        size: 20,
+                        color: ZevColors.textMuted,
+                      ),
+                      onPressed: () => setState(() => _showPassword = !_showPassword),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Forgot Password Shortcut
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ForgotPasswordScreen(
+                              initialEmail: widget.account.email,
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        "Forgot password?",
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: ZevColors.secondaryBlue,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 1-Tap Log In Button
+                  Container(
+                    width: double.infinity,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF00D4FF), Color(0xFF0084FF)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF00D4FF).withValues(alpha: 0.35),
+                          blurRadius: 18,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _handlePasswordLogin,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                valueColor: AlwaysStoppedAnimation<Color>(ZevColors.deepNavy),
+                              ),
+                            )
+                          : Text(
+                              "Log In as @${widget.account.username}",
+                              style: const TextStyle(
+                                color: ZevColors.deepNavy,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                    ),
+                  ),
+
+                  // Optional Passkey / Biometrics Button
+                  if (_isPasskeySupported && _isPasskeyEnrolled) ...[
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _isLoading ? null : _handlePasskeyLogin,
+                      icon: const Icon(Icons.fingerprint_rounded, size: 20),
+                      label: const Text("Sign In with Passkey / Face ID"),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: ZevColors.deepNavy,
+                        side: BorderSide(
+                          color: const Color(0xFF00D4FF).withValues(alpha: 0.6),
+                          width: 1.5,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 10),
+
+                  // Cancel
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      "Cancel",
+                      style: TextStyle(
+                        color: ZevColors.textMuted,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

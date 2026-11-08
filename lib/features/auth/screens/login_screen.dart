@@ -464,25 +464,27 @@ class _LoginScreenState extends State<LoginScreen>
           itemBuilder: (context, index) {
             final acc = _savedAccounts[index];
 
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: const Color(0xFFE2E8F0),
-                  width: 1.4,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-                    blurRadius: 12,
-                    offset: const Offset(0, 3),
+            return GestureDetector(
+              onTap: () => MultiAccountService.promptLoginForAccount(context, acc),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: const Color(0xFFE2E8F0),
+                    width: 1.4,
                   ),
-                ],
-              ),
-              child: Row(
-                children: [
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                      blurRadius: 12,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
                   // Circular Avatar
                   Container(
                     width: 52,
@@ -600,8 +602,9 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                 ],
               ),
-            );
-          },
+            ),
+          );
+        },
         ),
 
         const SizedBox(height: 24),
