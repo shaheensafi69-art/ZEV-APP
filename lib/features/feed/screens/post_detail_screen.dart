@@ -309,6 +309,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         child: FeedPostCard(
           post: _post!,
           onCommentsUpdated: _fetchPostDetails,
+          onPostDeleted: () {
+            Navigator.of(context).pop(true);
+          },
         ),
       ),
     );

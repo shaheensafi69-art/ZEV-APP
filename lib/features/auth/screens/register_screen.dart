@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/auth_helper.dart';
 import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/google_sign_in_button.dart';
 import '../../../core/widgets/zev_text_field.dart';
 import '../../main_navigation/screens/zev_main_layout.dart';
 import 'login_screen.dart';
@@ -621,6 +622,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
         const SizedBox(height: 28),
 
         _buildNextButton(label: "Continue to Step 2", onPressed: _nextStep),
+
+        const SizedBox(height: 18),
+
+        // OR Divider
+        Row(
+          children: [
+            const Expanded(
+              child: Divider(color: Color(0xFFE2E8F0), thickness: 1.2),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Text(
+                "OR",
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: ZevColors.textSecondary.withValues(alpha: 0.7),
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+            const Expanded(
+              child: Divider(color: Color(0xFFE2E8F0), thickness: 1.2),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 18),
+
+        GoogleSignInButton(
+          text: "Sign up with Google",
+          onError: (msg) {
+            setState(() => _errorMsg = msg);
+          },
+        ),
       ],
     );
   }

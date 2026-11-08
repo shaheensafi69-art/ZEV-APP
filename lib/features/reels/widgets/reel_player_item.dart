@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../../core/services/content_deletion_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
@@ -23,6 +24,7 @@ class ReelPlayerItem extends StatefulWidget {
   final bool isActive;
   final bool isGlobalMuted;
   final VoidCallback onToggleMute;
+  final VoidCallback? onReelDeleted;
 
   const ReelPlayerItem({
     super.key,
@@ -30,6 +32,7 @@ class ReelPlayerItem extends StatefulWidget {
     required this.isActive,
     required this.isGlobalMuted,
     required this.onToggleMute,
+    this.onReelDeleted,
   });
 
   @override
@@ -404,6 +407,135 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
       commentsCount: widget.reel.commentsCount,
     );
     FeedShareSheet.show(context, post: postItem, isReel: true);
+  }
+
+  void _showReelOptions() {
+    HapticFeedback.lightImpact();
+    final bool canDelete = ContentDeletionService.canDeleteReel(widget.reel);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (bottomSheetContext) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border.all(color: Colors.white, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.12),
+              blurRadius: 30,
+              offset: const Offset(0, -6),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag Handle
+            Container(
+              width: 38,
+              height: 4.5,
+              decoration: BoxDecoration(
+                color: const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+            const SizedBox(height: 18),
+            _buildReelOptionTile(
+              icon: Icons.share_outlined,
+              title: "Share Reel",
+              color: ZevColors.deepNavy,
+              onTap: () {
+                Navigator.pop(bottomSheetContext);
+                _openShareSheet();
+              },
+            ),
+            const SizedBox(height: 10),
+            _buildReelOptionTile(
+              icon: Icons.link_rounded,
+              title: "Copy Link",
+              color: ZevColors.deepNavy,
+              onTap: () {
+                Navigator.pop(bottomSheetContext);
+                _showNotice("Link copied.");
+              },
+            ),
+            if (canDelete) ...[
+              const SizedBox(height: 10),
+              _buildReelOptionTile(
+                icon: Icons.delete_outline_rounded,
+                title: "Delete Reel",
+                color: const Color(0xFFDC2626),
+                onTap: () async {
+                  Navigator.pop(bottomSheetContext);
+                  await ContentDeletionService.confirmAndDeleteReel(
+                    context,
+                    reel: widget.reel,
+                    onDeleted: widget.onReelDeleted,
+                  );
+                },
+              ),
+            ] else ...[
+              const SizedBox(height: 10),
+              _buildReelOptionTile(
+                icon: Icons.flag_outlined,
+                title: "Report",
+                color: Colors.redAccent,
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  _showNotice("Thank you. Report received for review.");
+                },
+              ),
+            ],
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReelOptionTile({
+    required IconData icon,
+    required String title,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white, width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 14),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+            const Spacer(),
+            const Icon(Icons.chevron_right_rounded, color: ZevColors.textMuted, size: 20),
+          ],
+        ),
+      ),
+    );
   }
 
   String _formatDuration(Duration d) {
@@ -811,6 +943,17 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                       ],
                     ),
                   ),
+                ),
+                SizedBox(height: isCompact ? 8 : 11),
+
+                // More Options (3-Dots: Delete if owner / Share / Report)
+                _buildActionColumnItem(
+                  icon: Icons.more_horiz_rounded,
+                  iconColor: Colors.white,
+                  count: null,
+                  onTap: _showReelOptions,
+                  iconSize: isCompact ? 24 : 26,
+                  isCompact: isCompact,
                 ),
                 SizedBox(height: isCompact ? 8 : 11),
 

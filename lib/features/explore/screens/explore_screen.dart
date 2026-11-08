@@ -626,6 +626,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
               child: FeedPostCard(
                 post: item.post!,
                 onCommentsUpdated: _fetchExploreFeed,
+                onPostDeleted: () {
+                  Navigator.of(context).pop();
+                  _fetchExploreFeed();
+                },
               ),
             ),
           ),
@@ -1438,6 +1442,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
         return FeedPostCard(
           post: post,
           onCommentsUpdated: () {},
+          onPostDeleted: () {
+            setState(() {
+              _searchedPosts.removeWhere((p) => p.id == post.id);
+            });
+          },
         );
       },
     );

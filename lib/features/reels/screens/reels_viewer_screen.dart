@@ -356,6 +356,11 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
                 isActive: isPageActive,
                 isGlobalMuted: _isGlobalMuted,
                 onToggleMute: _toggleGlobalMute,
+                onReelDeleted: () {
+                  setState(() {
+                    _reels.removeWhere((r) => r.id == reel.id);
+                  });
+                },
               );
             },
           ),

@@ -586,10 +586,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
       children: [
         const SizedBox(height: 12),
 
-        // Shimmering 3D Padlock Icon
+        // Shimmering 3D App Icon Badge
         _buildHeroBadge(
           icon: Icons.lock_reset_rounded,
           gradientColors: [const Color(0xFF00D4FF), const Color(0xFF0284C7)],
+          showAppLogo: true,
         ),
 
         const SizedBox(height: 22),
@@ -1188,6 +1189,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   Widget _buildHeroBadge({
     required IconData icon,
     required List<Color> gradientColors,
+    bool showAppLogo = false,
   }) {
     return Container(
       width: 76,
@@ -1205,21 +1207,31 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
         ],
       ),
       child: Center(
-        child: Container(
-          width: 52,
-          height: 52,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: gradientColors,
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Center(
-            child: Icon(icon, color: Colors.white, size: 28),
-          ),
-        ),
+        child: showAppLogo
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.asset(
+                  'assets/icon/icon-192x192.png',
+                  width: 54,
+                  height: 54,
+                  fit: BoxFit.cover,
+                ),
+              )
+            : Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: gradientColors,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Center(
+                  child: Icon(icon, color: Colors.white, size: 28),
+                ),
+              ),
       ),
     );
   }

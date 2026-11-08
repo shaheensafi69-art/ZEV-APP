@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/services/content_deletion_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
@@ -26,11 +27,13 @@ import 'feed_share_sheet.dart';
 class FeedPostCard extends StatefulWidget {
   final FeedPostItem post;
   final VoidCallback? onCommentsUpdated;
+  final VoidCallback? onPostDeleted;
 
   const FeedPostCard({
     super.key,
     required this.post,
     this.onCommentsUpdated,
+    this.onPostDeleted,
   });
 
   @override
@@ -333,6 +336,7 @@ class _FeedPostCardState extends State<FeedPostCard>
       repostsCount: _repostsCount,
       onToggleLike: _toggleLike,
       onToggleRepost: _toggleRepost,
+      onPostDeleted: widget.onPostDeleted,
     );
   }
 
@@ -939,10 +943,12 @@ class _FeedPostCardState extends State<FeedPostCard>
   }
 
   void _showPostOptions() {
+    final bool canDelete = ContentDeletionService.canDeletePost(widget.post);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (_) => Container(
+      builder: (bottomSheetContext) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         decoration: BoxDecoration(
           color: const Color(0xFFF1F5F9),
@@ -974,7 +980,7 @@ class _FeedPostCardState extends State<FeedPostCard>
               title: "Share Post",
               color: ZevColors.deepNavy,
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(bottomSheetContext);
                 _openShareSheet();
               },
             ),
@@ -984,20 +990,37 @@ class _FeedPostCardState extends State<FeedPostCard>
               title: "Copy Link",
               color: ZevColors.deepNavy,
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(bottomSheetContext);
                 _showNotice("Link copied.");
               },
             ),
-            const SizedBox(height: 10),
-            _buildPostOptionTile(
-              icon: Icons.flag_outlined,
-              title: "Report",
-              color: Colors.redAccent,
-              onTap: () {
-                Navigator.pop(context);
-                _showNotice("Thank you. Report received for review.");
-              },
-            ),
+            if (canDelete) ...[
+              const SizedBox(height: 10),
+              _buildPostOptionTile(
+                icon: Icons.delete_outline_rounded,
+                title: "Delete Post",
+                color: const Color(0xFFDC2626),
+                onTap: () async {
+                  Navigator.pop(bottomSheetContext);
+                  await ContentDeletionService.confirmAndDeletePost(
+                    context,
+                    post: widget.post,
+                    onDeleted: widget.onPostDeleted,
+                  );
+                },
+              ),
+            ] else ...[
+              const SizedBox(height: 10),
+              _buildPostOptionTile(
+                icon: Icons.flag_outlined,
+                title: "Report",
+                color: Colors.redAccent,
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  _showNotice("Thank you. Report received for review.");
+                },
+              ),
+            ],
             const SizedBox(height: 16),
           ],
         ),

@@ -6,8 +6,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/services/content_safety_service.dart';
+import '../../../core/services/multi_account_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_cached_image.dart';
+import '../../main_navigation/screens/zev_main_layout.dart';
 
 /// Serene, Instagram-Grade Edit Profile Bottom Sheet for ZEV.
 /// Allows updating avatar (via Cloudflare R2), name, username, bio, and website.
@@ -167,6 +169,18 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
         ...widget.initialProfile,
         ...updatedData,
       });
+
+      // Update bottom navigation bar avatar in real-time
+      if (avatarUrl.isNotEmpty) {
+        ZevMainLayout.notifyAvatarChanged(avatarUrl);
+      }
+
+      // Keep multi-account local store in sync
+      MultiAccountService.saveCurrentAccount(
+        overrideUsername: username,
+        overrideAvatar: avatarUrl,
+        overrideFullName: '${_firstNameCtrl.text.trim()} ${_lastNameCtrl.text.trim()}'.trim(),
+      );
 
       if (mounted) {
         Navigator.pop(context);

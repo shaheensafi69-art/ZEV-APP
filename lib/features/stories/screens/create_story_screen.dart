@@ -364,121 +364,165 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
               top: 8,
               left: 14,
               right: 14,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Discard / Close Button
-                  GestureDetector(
-                    onTap: _showDiscardDialog,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: ZevColors.softSurface,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: ZevColors.border, width: 1.0),
-                      ),
-                      child: const Icon(
-                        Icons.close_rounded,
-                        color: ZevColors.deepNavy,
-                        size: 22,
-                      ),
-                    ),
-                  ),
-
-                  // Center Segmented Toggle: [ Studio | Preview ] (Light Mode)
-                  Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: ZevColors.softSurface,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: ZevColors.border,
-                        width: 1.0,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildSegmentTab(
-                          index: 0,
-                          label: "Studio",
-                          icon: Icons.brush_rounded,
+              child: SizedBox(
+                height: 42,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Center Segmented Toggle: [ Studio | Preview ]
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white, width: 1.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                        _buildSegmentTab(
-                          index: 1,
-                          label: "Preview",
-                          icon: Icons.remove_red_eye_rounded,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildSegmentTab(
+                              index: 0,
+                              label: "Studio",
+                              icon: Icons.brush_rounded,
+                            ),
+                            _buildSegmentTab(
+                              index: 1,
+                              label: "Preview",
+                              icon: Icons.remove_red_eye_rounded,
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
 
-                  // Top Tools (Only in Studio mode with media selected)
-                  if (_activeMode == 0 && _selectedImage != null)
-                    Row(
-                      children: [
-                        // Text Overlay Toggle
-                        GestureDetector(
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            setState(() => _isEditingText = !_isEditingText);
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: _isEditingText
-                                  ? ZevColors.primaryBlue
-                                  : ZevColors.softSurface,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: _isEditingText
-                                    ? ZevColors.primaryBlue
-                                    : ZevColors.border,
-                                width: 1.0,
+                    // Discard / Close Button on Left
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: GestureDetector(
+                        onTap: _showDiscardDialog,
+                        child: Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
                               ),
-                            ),
-                            child: Icon(
-                              Icons.title_rounded,
-                              color: ZevColors.deepNavy,
-                              size: 20,
-                            ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.close_rounded,
+                            color: ZevColors.deepNavy,
+                            size: 20,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                      ),
+                    ),
 
-                        // Filter Tint Cycle
-                        GestureDetector(
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            setState(() {
-                              _activeFilterIndex =
-                                  (_activeFilterIndex + 1) % _filterColors.length;
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: ZevColors.softSurface,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: _filterColors[_activeFilterIndex] != null
-                                    ? ZevColors.primaryBlue
-                                    : ZevColors.border,
-                                width: 1.2,
+                    // Top Tools on Right (When in Studio mode with media selected)
+                    if (_activeMode == 0 && _selectedImage != null)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Text Overlay Toggle
+                            GestureDetector(
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                setState(() => _isEditingText = !_isEditingText);
+                              },
+                              child: Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: _isEditingText
+                                      ? ZevColors.primaryBlue
+                                      : const Color(0xFFF1F5F9),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: _isEditingText
+                                        ? ZevColors.primaryBlue
+                                        : Colors.white,
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Center(
+                                  child: Icon(
+                                    Icons.title_rounded,
+                                    color: _isEditingText
+                                        ? Colors.white
+                                        : ZevColors.deepNavy,
+                                    size: 20,
+                                  ),
+                                ),
                               ),
                             ),
-                            child: const Icon(
-                              Icons.auto_awesome_rounded,
-                              color: ZevColors.deepNavy,
-                              size: 19,
+                            const SizedBox(width: 8),
+
+                            // Filter Tint Cycle
+                            GestureDetector(
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                setState(() {
+                                  _activeFilterIndex =
+                                      (_activeFilterIndex + 1) % _filterColors.length;
+                                });
+                              },
+                              child: Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: _filterColors[_activeFilterIndex] != null
+                                        ? ZevColors.primaryBlue
+                                        : Colors.white,
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.auto_awesome_rounded,
+                                    color: ZevColors.deepNavy,
+                                    size: 19,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
-                      ],
-                    )
-                  else
-                    const SizedBox(width: 44),
-                ],
+                      ),
+                  ],
+                ),
               ),
             ),
 
@@ -503,16 +547,21 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
         decoration: BoxDecoration(
-          color: isSelected ? ZevColors.white : Colors.transparent,
+          color: isSelected ? Colors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.08),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
+                  ),
+                  const BoxShadow(
+                    color: Colors.white,
+                    blurRadius: 2,
+                    offset: Offset(0, -1),
                   ),
                 ]
               : null,
@@ -523,15 +572,15 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
             Icon(
               icon,
               size: 15,
-              color: isSelected ? ZevColors.deepNavy : ZevColors.textMuted,
+              color: isSelected ? ZevColors.deepNavy : const Color(0xFF64748B),
             ),
-            const SizedBox(width: 5),
+            const SizedBox(width: 4),
             Text(
               label,
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? ZevColors.deepNavy : ZevColors.textMuted,
+                color: isSelected ? ZevColors.deepNavy : const Color(0xFF64748B),
               ),
             ),
           ],
@@ -804,13 +853,13 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
   Widget _buildEmptyStudioCanvas() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 80,
-              height: 80,
+              width: 86,
+              height: 86,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: const LinearGradient(
@@ -820,38 +869,43 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF00D4FF).withValues(alpha: 0.35),
-                    blurRadius: 24,
-                    offset: const Offset(0, 6),
+                    color: const Color(0xFF00D4FF).withValues(alpha: 0.38),
+                    blurRadius: 28,
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
               child: const Icon(
                 Icons.auto_stories_rounded,
                 color: Colors.white,
-                size: 38,
+                size: 42,
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 22),
             const Text(
               "Create a Story",
               style: TextStyle(
-                fontSize: 22,
+                fontSize: 24,
                 fontWeight: FontWeight.w900,
                 color: ZevColors.deepNavy,
+                letterSpacing: -0.5,
               ),
             ),
-            const SizedBox(height: 6),
-            const Text(
-              "Share photos and daily updates that automatically vanish after 24 hours.",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13.5,
-                color: ZevColors.textSecondary,
-                height: 1.4,
+            const SizedBox(height: 8),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                "Share photos and daily updates that automatically vanish after 24 hours.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  color: Color(0xFF64748B),
+                  height: 1.4,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 34),
 
             Row(
               children: [
@@ -860,6 +914,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                     icon: Icons.photo_library_rounded,
                     title: "Photo",
                     subtitle: "Choose photo",
+                    gradientColors: const [Color(0xFF00D4FF), Color(0xFF0284C7)],
                     onTap: () => _pickImage(ImageSource.gallery),
                   ),
                 ),
@@ -869,6 +924,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                     icon: Icons.video_library_rounded,
                     title: "Video",
                     subtitle: "Max 1:30",
+                    gradientColors: const [Color(0xFFE11D48), Color(0xFF9333EA)],
                     onTap: () => _pickVideo(ImageSource.gallery),
                   ),
                 ),
@@ -878,6 +934,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                     icon: Icons.camera_alt_rounded,
                     title: "Camera",
                     subtitle: "Snap right now",
+                    gradientColors: const [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
                     onTap: () => _pickImage(ImageSource.camera),
                   ),
                 ),
@@ -893,46 +950,84 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
     required IconData icon,
     required String title,
     required String subtitle,
+    required List<Color> gradientColors,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-        decoration: BoxDecoration(
-          color: ZevColors.softSurface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: ZevColors.border, width: 1.2),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: ZevColors.primaryBlue.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: ZevColors.primaryBlue, size: 26),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+          const BoxShadow(
+            color: Colors.white,
+            blurRadius: 4,
+            offset: Offset(0, -1),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onTap();
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 8),
+            child: Column(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: gradientColors,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: gradientColors.first.withValues(alpha: 0.35),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Icon(icon, color: Colors.white, size: 24),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    color: ZevColors.deepNavy,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: ZevColors.textMuted,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                color: ZevColors.deepNavy,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 12,
-                color: ZevColors.textMuted,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

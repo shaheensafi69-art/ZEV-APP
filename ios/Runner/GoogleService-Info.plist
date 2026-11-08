@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>467206192154-6opg0v3iafqhovalsjpngdb3gmtc6586.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyBG6k76jkU_6tT6NUi4JY7DEs4lq5_QRkg</string>
+	<key>GCM_SENDER_ID</key>
+	<string>467206192154</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.zevapp.app</string>
+	<key>PROJECT_ID</key>
+	<string>zevapp-3c6b5</string>
+	<key>STORAGE_BUCKET</key>
+	<string>zevapp-3c6b5.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:467206192154:ios:9a30149aa891ddc5fc25a3</string>
+</dict>
+</plist>
+

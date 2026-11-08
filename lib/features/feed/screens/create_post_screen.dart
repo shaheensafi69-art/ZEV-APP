@@ -262,76 +262,137 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ZevColors.white,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: ZevColors.white,
+        backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded, color: ZevColors.deepNavy, size: 26),
-          onPressed: () {
-            if (_canPublish) {
-              _showDiscardDialog();
-            } else {
-              Navigator.pop(context);
-            }
-          },
+        scrolledUnderElevation: 1,
+        shadowColor: const Color(0xFF0F172A).withValues(alpha: 0.06),
+        leadingWidth: 48,
+        titleSpacing: 0,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 10),
+          child: Center(
+            child: GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                if (_canPublish) {
+                  _showDiscardDialog();
+                } else {
+                  Navigator.pop(context);
+                }
+              },
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.close_rounded,
+                  color: ZevColors.deepNavy,
+                  size: 20,
+                ),
+              ),
+            ),
+          ),
         ),
         centerTitle: true,
-        // Center Segmented Toggle: [ Editor | Live Preview ]
+        // Center Segmented Toggle: [ Editor | Preview ]
         title: Container(
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
-            color: ZevColors.softSurface,
+            color: const Color(0xFFF1F5F9),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: ZevColors.border, width: 1.0),
+            border: Border.all(color: Colors.white, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildSegmentTab(index: 0, label: "Editor", icon: Icons.edit_note_rounded),
-              _buildSegmentTab(index: 1, label: "Live Preview", icon: Icons.visibility_outlined),
+              _buildSegmentTab(
+                index: 0,
+                label: "Editor",
+                icon: Icons.edit_note_rounded,
+              ),
+              _buildSegmentTab(
+                index: 1,
+                label: "Preview",
+                icon: Icons.visibility_outlined,
+              ),
             ],
           ),
         ),
         actions: [
           // Share / Publish Button
           Padding(
-            padding: const EdgeInsets.only(right: 14),
-            child: _isPublishing
-                ? const Center(
-                    child: SizedBox(
+            padding: const EdgeInsets.only(right: 12),
+            child: Center(
+              child: _isPublishing
+                  ? const SizedBox(
                       width: 22,
                       height: 22,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         color: ZevColors.primaryBlue,
                       ),
-                    ),
-                  )
-                : ElevatedButton(
-                    onPressed: _canPublish ? _publishPost : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _canPublish
-                          ? ZevColors.primaryBlue
-                          : ZevColors.softSurface,
-                      foregroundColor: _canPublish
-                          ? ZevColors.deepNavy
-                          : ZevColors.textMuted,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
+                    )
+                  : GestureDetector(
+                      onTap: _canPublish ? _publishPost : null,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: _canPublish
+                              ? const LinearGradient(
+                                  colors: [Color(0xFF00D4FF), Color(0xFF0284C7)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                )
+                              : null,
+                          color: _canPublish ? null : const Color(0xFFE2E8F0),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: _canPublish
+                              ? [
+                                  BoxShadow(
+                                    color: const Color(0xFF0284C7).withValues(alpha: 0.35),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Text(
+                          "Share",
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: _canPublish
+                                ? Colors.white
+                                : const Color(0xFF94A3B8),
+                          ),
+                        ),
                       ),
                     ),
-                    child: const Text(
-                      "Share",
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
+            ),
           ),
         ],
       ),
@@ -359,16 +420,21 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: isSelected ? ZevColors.white : Colors.transparent,
+          color: isSelected ? Colors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.08),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
+                  ),
+                  const BoxShadow(
+                    color: Colors.white,
+                    blurRadius: 2,
+                    offset: Offset(0, -1),
                   ),
                 ]
               : null,
@@ -378,16 +444,16 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           children: [
             Icon(
               icon,
-              size: 16,
-              color: isSelected ? ZevColors.deepNavy : ZevColors.textMuted,
+              size: 15,
+              color: isSelected ? ZevColors.deepNavy : const Color(0xFF64748B),
             ),
-            const SizedBox(width: 5),
+            const SizedBox(width: 4),
             Text(
               label,
               style: TextStyle(
-                fontSize: 12.5,
+                fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? ZevColors.deepNavy : ZevColors.textMuted,
+                color: isSelected ? ZevColors.deepNavy : const Color(0xFF64748B),
               ),
             ),
           ],
@@ -481,7 +547,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           ),
           const SizedBox(height: 8),
           SizedBox(
-            height: 36,
+            height: 38,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: _categories.length,
@@ -496,22 +562,49 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      gradient: isSelected ? ZevColors.brandGradientHorizontal : null,
-                      color: isSelected ? null : ZevColors.softSurface,
+                      gradient: isSelected
+                          ? const LinearGradient(
+                              colors: [Color(0xFF00D4FF), Color(0xFF0284C7)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : null,
+                      color: isSelected ? null : Colors.white,
                       borderRadius: BorderRadius.circular(18),
-                      border: isSelected
-                          ? null
-                          : Border.all(color: ZevColors.border, width: 1.0),
+                      border: Border.all(
+                        color: isSelected ? Colors.transparent : Colors.white,
+                        width: 1.2,
+                      ),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFF0284C7).withValues(alpha: 0.35),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ]
+                          : [
+                              BoxShadow(
+                                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                              const BoxShadow(
+                                color: Colors.white,
+                                blurRadius: 3,
+                                offset: Offset(0, -1),
+                              ),
+                            ],
                     ),
                     child: Center(
                       child: Text(
                         cat,
                         style: TextStyle(
                           fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: isSelected ? ZevColors.deepNavy : ZevColors.deepNavy,
+                          fontWeight: FontWeight.w800,
+                          color: isSelected ? Colors.white : ZevColors.deepNavy,
                         ),
                       ),
                     ),
@@ -526,9 +619,21 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-              color: ZevColors.softSurface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: ZevColors.border, width: 1.0),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+                const BoxShadow(
+                  color: Colors.white,
+                  blurRadius: 4,
+                  offset: Offset(0, -1),
+                ),
+              ],
             ),
             child: TextField(
               controller: _titleCtrl,
@@ -557,9 +662,21 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             constraints: const BoxConstraints(minHeight: 130),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: ZevColors.softSurface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: ZevColors.border, width: 1.0),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+                const BoxShadow(
+                  color: Colors.white,
+                  blurRadius: 4,
+                  offset: Offset(0, -1),
+                ),
+              ],
             ),
             child: TextField(
               controller: _contentCtrl,
@@ -599,16 +716,23 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: ZevColors.white,
+                      color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: ZevColors.border, width: 0.8),
+                      border: Border.all(color: Colors.white, width: 1.2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: Text(
                       tag,
                       style: const TextStyle(
                         fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: ZevColors.secondaryBlue,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0284C7),
                       ),
                     ),
                   ),
@@ -634,13 +758,20 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             Stack(
               children: [
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(18),
                   child: Container(
                     width: double.infinity,
                     constraints: const BoxConstraints(maxHeight: 420),
                     decoration: BoxDecoration(
-                      color: ZevColors.softSurface,
-                      border: Border.all(color: ZevColors.border),
+                      color: Colors.white,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
                     ),
                     child: Image.file(
                       _selectedImage!,
@@ -708,6 +839,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     icon: Icons.photo_library_outlined,
                     title: "Gallery",
                     subtitle: "Choose from device",
+                    gradientColors: const [Color(0xFF00D4FF), Color(0xFF0284C7)],
                     onTap: () => _pickImage(ImageSource.gallery),
                   ),
                 ),
@@ -717,6 +849,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     icon: Icons.camera_alt_outlined,
                     title: "Camera",
                     subtitle: "Take a photo now",
+                    gradientColors: const [Color(0xFF536DFE), Color(0xFF8B5CF6)],
                     onTap: () => _pickImage(ImageSource.camera),
                   ),
                 ),
@@ -758,45 +891,81 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     required String title,
     required String subtitle,
     required VoidCallback onTap,
+    required List<Color> gradientColors,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-        decoration: BoxDecoration(
-          color: ZevColors.softSurface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: ZevColors.border, width: 1.2),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: ZevColors.primaryBlue.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: ZevColors.primaryBlue, size: 24),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+          const BoxShadow(
+            color: Colors.white,
+            blurRadius: 4,
+            offset: Offset(0, -1),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onTap();
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 14),
+            child: Column(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: gradientColors,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: gradientColors.first.withValues(alpha: 0.35),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Icon(icon, color: Colors.white, size: 26),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    color: ZevColors.deepNavy,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: ZevColors.textMuted,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: ZevColors.deepNavy,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 11,
-                color: ZevColors.textMuted,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

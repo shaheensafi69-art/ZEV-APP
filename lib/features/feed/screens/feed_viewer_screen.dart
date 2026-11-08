@@ -1120,6 +1120,11 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                           key: ValueKey(post.id),
                           post: post,
                           onCommentsUpdated: _fetchPosts,
+                          onPostDeleted: () {
+                            setState(() {
+                              _posts.removeWhere((p) => p.id == post.id);
+                            });
+                          },
                         ),
                       );
 

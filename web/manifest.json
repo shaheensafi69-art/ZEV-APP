@@ -159,17 +159,22 @@
             "label": "ZEV on Mobile"
         }
     ],
+    "share_target": {
+        "action": "/?source=share_target",
+        "method": "GET",
+        "params": {
+            "title": "title",
+            "text": "text",
+            "url": "url"
+        }
+    },
+    "protocol_handlers": [
+        {
+            "protocol": "web+zev",
+            "url": "/?source=protocol&path=%s"
+        }
+    ],
     "icons": [
-        {
-            "src": "icons/Icon-96.png",
-            "sizes": "96x96",
-            "type": "image/png"
-        },
-        {
-            "src": "icons/Icon-144.png",
-            "sizes": "144x144",
-            "type": "image/png"
-        },
         {
             "src": "icons/Icon-192.png",
             "sizes": "192x192",
@@ -191,21 +196,6 @@
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"
-        }
-    ],
-    "share_target": {
-        "action": "/?source=share_target",
-        "method": "GET",
-        "params": {
-            "title": "title",
-            "text": "text",
-            "url": "url"
-        }
-    },
-    "protocol_handlers": [
-        {
-            "protocol": "web+zev",
-            "url": "/?source=protocol&path=%s"
         }
     ]
 }

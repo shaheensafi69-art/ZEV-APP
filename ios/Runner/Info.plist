@@ -27,7 +27,7 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>ZEV uses Face ID to securely unlock your account.</string>
 	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-6551903544426492~7497879858</string>
+	<string>ca-app-pub-6551903544426492~4786844584</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -77,6 +77,18 @@
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>zev</string>
+				<string>zevapp</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

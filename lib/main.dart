@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/services/admob_service.dart';
 import 'core/services/deep_link_service.dart';
+import 'core/services/google_auth_service.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/user_presence_service.dart';
 import 'core/theme/zev_theme.dart';
@@ -78,6 +79,7 @@ class _ZevAppState extends State<ZevApp> with WidgetsBindingObserver {
     SystemUiHelper.enableFullScreen();
     UserPresenceService.instance.startPresenceHeartbeat();
     DeepLinkService.instance.init();
+    GoogleAuthService.init();
   }
 
   @override

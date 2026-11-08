@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/services/multi_account_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_logo.dart';
@@ -28,6 +29,16 @@ class ZevMainLayout extends StatefulWidget {
   final int initialIndex;
   const ZevMainLayout({super.key, this.initialIndex = 0});
 
+  /// Global notifier for user's active avatar URL so any screen (EditProfileSheet, etc.)
+  /// can update the bottom bar in real-time.
+  static final ValueNotifier<String> userAvatarNotifier = ValueNotifier<String>('');
+
+  static void notifyAvatarChanged(String newAvatarUrl) {
+    if (newAvatarUrl.isNotEmpty) {
+      userAvatarNotifier.value = newAvatarUrl;
+    }
+  }
+
   @override
   State<ZevMainLayout> createState() => _ZevMainLayoutState();
 }
@@ -39,6 +50,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   String _myAvatarUrl = '';
   String _myUsername = '';
   String _myFullName = '';
+  StreamSubscription<AuthState>? _authSubscription;
 
   // Persistent cached tab widgets to prevent unnecessary rebuilds
   late final Widget _feedTab;
@@ -55,33 +67,102 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     );
     _exploreTab = const ExploreScreen();
     _profileTab = const ProfileScreen();
+
+    // Listen to static notifier updates
+    ZevMainLayout.userAvatarNotifier.addListener(_onAvatarNotifierChanged);
+
+    // Listen to Supabase auth state changes
+    _authSubscription = supabase.auth.onAuthStateChange.listen((data) {
+      if (mounted) {
+        _loadUserProfile();
+      }
+    });
+
     _loadUserProfile();
+  }
+
+  void _onAvatarNotifierChanged() {
+    final newUrl = ZevMainLayout.userAvatarNotifier.value;
+    if (newUrl.isNotEmpty && newUrl != _myAvatarUrl && mounted) {
+      setState(() => _myAvatarUrl = newUrl);
+    }
+  }
+
+  @override
+  void dispose() {
+    ZevMainLayout.userAvatarNotifier.removeListener(_onAvatarNotifierChanged);
+    _authSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadUserProfile() async {
     final user = supabase.auth.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      try {
+        final accounts = await MultiAccountService.getSavedAccounts();
+        if (accounts.isNotEmpty && mounted) {
+          final firstAcc = accounts.first;
+          if (firstAcc.avatarUrl.isNotEmpty && _myAvatarUrl.isEmpty) {
+            setState(() {
+              _myAvatarUrl = firstAcc.avatarUrl;
+              _myUsername = firstAcc.username;
+              _myFullName = firstAcc.fullName;
+            });
+          }
+        }
+      } catch (_) {}
+      return;
+    }
+
+    // Instant fallback from auth metadata (e.g. Google Sign-In avatar)
+    final metaAvatar = user.userMetadata?['avatar_url']?.toString() ??
+        user.userMetadata?['picture']?.toString() ??
+        '';
+    if (metaAvatar.isNotEmpty && _myAvatarUrl.isEmpty && mounted) {
+      setState(() => _myAvatarUrl = metaAvatar);
+    }
+
     try {
       final res = await supabase
           .from('profiles')
-          .select('avatar_url, username, full_name')
+          .select('avatar_url, username, first_name, last_name')
           .eq('id', user.id)
           .maybeSingle();
 
       if (res != null && mounted) {
+        final avatar = (res['avatar_url'] ?? '').toString().trim();
+        final username = (res['username'] ?? '').toString().trim();
+        final first = (res['first_name'] ?? '').toString().trim();
+        final last = (res['last_name'] ?? '').toString().trim();
+        final fullName = '$first $last'.trim();
+        final chosenAvatar = avatar.isNotEmpty ? avatar : metaAvatar;
+
         setState(() {
-          _myAvatarUrl = res['avatar_url'] ?? '';
-          _myUsername = res['username'] ?? '';
-          _myFullName = res['full_name'] ?? '';
+          if (chosenAvatar.isNotEmpty) {
+            _myAvatarUrl = chosenAvatar;
+          }
+          if (username.isNotEmpty) _myUsername = username;
+          if (fullName.isNotEmpty) _myFullName = fullName;
         });
+
+        if (chosenAvatar.isNotEmpty) {
+          ZevMainLayout.userAvatarNotifier.value = chosenAvatar;
+        }
+      } else if (metaAvatar.isNotEmpty && mounted) {
+        setState(() => _myAvatarUrl = metaAvatar);
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint("Error loading user profile in ZevMainLayout: $e");
+    }
   }
 
   void _onTabTapped(int index) {
     HapticFeedback.selectionClick();
     FocusScope.of(context).unfocus();
     setState(() => _currentIndex = index);
+    if (index == 4 || _myAvatarUrl.isEmpty) {
+      _loadUserProfile();
+    }
   }
 
   @override
@@ -639,8 +720,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                   : MainAxisAlignment.center,
               children: [
                 Container(
-                  width: 34,
-                  height: 34,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: isSelected
@@ -652,7 +733,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                         : null,
                     border: isSelected
                         ? null
-                        : Border.all(color: inactiveBorder, width: 1.4),
+                        : Border.all(color: inactiveBorder, width: 1.5),
                   ),
                   padding: EdgeInsets.all(isSelected ? 2.0 : 0.0),
                   child: Container(
@@ -660,18 +741,14 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                       shape: BoxShape.circle,
                       color: isReels ? Colors.black : ZevColors.white,
                     ),
-                    padding: const EdgeInsets.all(1.0),
+                    padding: const EdgeInsets.all(1.2),
                     child: ClipOval(
                       child: _myAvatarUrl.isNotEmpty
                           ? ZevCachedImage.avatar(
                               imageUrl: _myAvatarUrl,
-                              size: 26,
+                              size: 28,
                             )
-                          : Icon(
-                              Icons.person_rounded,
-                              size: 18,
-                              color: isReels ? Colors.white70 : ZevColors.textMuted,
-                            ),
+                          : _buildAvatarFallback(isReels: isReels),
                     ),
                   ),
                 ),
@@ -742,12 +819,17 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
 
   void _openCreateActionSheet() {
     HapticFeedback.mediumImpact();
+    final screenHeight = MediaQuery.sizeOf(context).height;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        constraints: BoxConstraints(
+          maxHeight: screenHeight * 0.85,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
           color: const Color(0xFFF1F5F9),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
@@ -763,91 +845,97 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
             ),
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Clay Drag Handle
-            Container(
-              width: 44,
-              height: 5,
-              decoration: BoxDecoration(
-                color: const Color(0xFFCBD5E1),
-                borderRadius: BorderRadius.circular(3),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.white,
-                    blurRadius: 4,
-                    offset: Offset(0, 1),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Clay Drag Handle
+                Container(
+                  width: 44,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(3),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.white,
+                        blurRadius: 4,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              "Create",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                color: ZevColors.deepNavy,
-                letterSpacing: -0.3,
-              ),
-            ),
-            const SizedBox(height: 18),
-            _buildCreateOptionTile(
-              icon: Icons.post_add_rounded,
-              title: "Share Post",
-              subtitle: "Publish photos and thoughts to your feed",
-              gradient: const LinearGradient(
-                colors: [Color(0xFF00D4FF), Color(0xFF536DFE)],
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                CreatePostScreen.open(
-                  context,
-                  onPostCreated: () {
-                    setState(() => _currentIndex = 0);
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  "Create",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: ZevColors.deepNavy,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildCreateOptionTile(
+                  icon: Icons.post_add_rounded,
+                  title: "Share Post",
+                  subtitle: "Publish photos and thoughts to your feed",
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF00D4FF), Color(0xFF536DFE)],
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    CreatePostScreen.open(
+                      context,
+                      onPostCreated: () {
+                        setState(() => _currentIndex = 0);
+                      },
+                    );
                   },
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildCreateOptionTile(
-              icon: Icons.flash_on_rounded,
-              title: "Add to Story",
-              subtitle: "Post a 24-hour photo or quick update",
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFF8800), Color(0xFFFF3366)],
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                CreateStoryScreen.open(
-                  context,
-                  onStoryCreated: () {
-                    setState(() => _currentIndex = 0);
+                ),
+                const SizedBox(height: 12),
+                _buildCreateOptionTile(
+                  icon: Icons.flash_on_rounded,
+                  title: "Add to Story",
+                  subtitle: "Post a 24-hour photo or quick update",
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF8800), Color(0xFFFF3366)],
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    CreateStoryScreen.open(
+                      context,
+                      onStoryCreated: () {
+                        setState(() => _currentIndex = 0);
+                      },
+                    );
                   },
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildCreateOptionTile(
-              icon: Icons.play_arrow_rounded,
-              title: "Create Reel",
-              subtitle: "Record or upload short-form videos",
-              gradient: const LinearGradient(
-                colors: [Color(0xFF7928CA), Color(0xFFFF0080)],
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                CreateReelScreen.open(
-                  context,
-                  onReelCreated: () {
-                    setState(() => _currentIndex = 3);
+                ),
+                const SizedBox(height: 12),
+                _buildCreateOptionTile(
+                  icon: Icons.play_arrow_rounded,
+                  title: "Create Reel",
+                  subtitle: "Record or upload short-form videos",
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF7928CA), Color(0xFFFF0080)],
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    CreateReelScreen.open(
+                      context,
+                      onReelCreated: () {
+                        setState(() => _currentIndex = 3);
+                      },
+                    );
                   },
-                );
-              },
+                ),
+                const SizedBox(height: 16),
+              ],
             ),
-            const SizedBox(height: 24),
-          ],
+          ),
         ),
       ),
     );
@@ -1054,7 +1142,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   Widget _buildProfileNavItem({required int index}) {
     final isSelected = _currentIndex == index;
     final isReels = _currentIndex == 3;
-    final inactiveBorder = isReels ? Colors.white24 : const Color(0xFFCBD5E1);
+    final inactiveBorder = isReels ? Colors.white30 : const Color(0xFFCBD5E1);
 
     return GestureDetector(
       onTap: () => _onTabTapped(index),
@@ -1062,46 +1150,59 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
       child: Center(
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: isSelected
-                        ? const LinearGradient(
-                            colors: [Color(0xFF00D4FF), Color(0xFF536DFE)],
+              AnimatedScale(
+                scale: isSelected ? 1.08 : 1.0,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: isSelected
+                        ? LinearGradient(
+                            colors: isReels
+                                ? [const Color(0xFF00D4FF), Colors.white]
+                                : [const Color(0xFF00D4FF), const Color(0xFF536DFE)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           )
                         : null,
-                  border: isSelected
-                      ? null
-                      : Border.all(color: inactiveBorder, width: 1.2),
-                ),
-                padding: EdgeInsets.all(isSelected ? 1.8 : 0.0),
-                child: Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isReels ? Colors.black : ZevColors.white,
+                    border: isSelected
+                        ? null
+                        : Border.all(color: inactiveBorder, width: 1.5),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: const Color(0xFF00D4FF).withValues(alpha: 0.45),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
                   ),
-                  padding: const EdgeInsets.all(1.0),
-                  child: ClipOval(
-                    child: _myAvatarUrl.isNotEmpty
-                        ? ZevCachedImage.avatar(
-                            imageUrl: _myAvatarUrl,
-                            size: 26,
-                          )
-                        : Icon(
-                            Icons.person_rounded,
-                            size: 16,
-                            color: isReels ? Colors.white70 : ZevColors.textMuted,
-                          ),
+                  padding: EdgeInsets.all(isSelected ? 2.0 : 0.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isReels ? const Color(0xFF0F172A) : Colors.white,
+                    ),
+                    padding: const EdgeInsets.all(1.2),
+                    child: ClipOval(
+                      child: _myAvatarUrl.isNotEmpty
+                          ? ZevCachedImage.avatar(
+                              imageUrl: _myAvatarUrl,
+                              size: 26,
+                            )
+                          : _buildAvatarFallback(isReels: isReels),
+                    ),
                   ),
                 ),
               ),
@@ -1129,6 +1230,40 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildAvatarFallback({required bool isReels}) {
+    if (_myUsername.isNotEmpty) {
+      final initial = _myUsername[0].toUpperCase();
+      return Container(
+        alignment: Alignment.center,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            colors: [Color(0xFF00D4FF), Color(0xFF536DFE)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Text(
+          initial,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      color: isReels ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+      child: Icon(
+        Icons.person_rounded,
+        size: 16,
+        color: isReels ? Colors.white70 : ZevColors.textMuted,
       ),
     );
   }

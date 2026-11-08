@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/services/content_deletion_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
 import '../../../core/utils/time_ago.dart';
@@ -20,6 +21,7 @@ class FullscreenMediaViewer extends StatefulWidget {
   final int repostsCount;
   final VoidCallback onToggleLike;
   final VoidCallback onToggleRepost;
+  final VoidCallback? onPostDeleted;
 
   const FullscreenMediaViewer({
     super.key,
@@ -30,6 +32,7 @@ class FullscreenMediaViewer extends StatefulWidget {
     required this.repostsCount,
     required this.onToggleLike,
     required this.onToggleRepost,
+    this.onPostDeleted,
   });
 
   static void open(
@@ -41,6 +44,7 @@ class FullscreenMediaViewer extends StatefulWidget {
     required int repostsCount,
     required VoidCallback onToggleLike,
     required VoidCallback onToggleRepost,
+    VoidCallback? onPostDeleted,
   }) {
     Navigator.of(context).push(
       PageRouteBuilder(
@@ -54,6 +58,7 @@ class FullscreenMediaViewer extends StatefulWidget {
           repostsCount: repostsCount,
           onToggleLike: onToggleLike,
           onToggleRepost: onToggleRepost,
+          onPostDeleted: onPostDeleted,
         ),
         transitionsBuilder: (context, animation, _, child) {
           return FadeTransition(opacity: animation, child: child);
@@ -259,6 +264,24 @@ class _FullscreenMediaViewerState extends State<FullscreenMediaViewer> {
                         FeedShareSheet.show(context, post: post);
                       },
                     ),
+                    if (ContentDeletionService.canDeletePost(post))
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          color: Color(0xFFEF4444),
+                          size: 23,
+                        ),
+                        onPressed: () async {
+                          await ContentDeletionService.confirmAndDeletePost(
+                            context,
+                            post: post,
+                            onDeleted: () {
+                              Navigator.of(context).pop();
+                              widget.onPostDeleted?.call();
+                            },
+                          );
+                        },
+                      ),
                   ],
                 ),
               ),

@@ -4,22 +4,37 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/auth_helper.dart';
+import '../../../core/services/multi_account_service.dart';
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/google_sign_in_button.dart';
+import '../../../core/widgets/zev_cached_image.dart';
+import '../../../core/widgets/zev_logo.dart';
 import '../../../core/widgets/zev_text_field.dart';
 import '../../main_navigation/screens/zev_main_layout.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 
-/// Next-Generation Instagram-Grade Login Screen for ZEV.
-/// Fully crafted with the official #00D4FF / #080D1A / #F5F8FC design system.
+/// Flagship Instagram-Grade Multi-Account Login Screen for ZEV.
+/// Engineered with:
+/// - Atmospheric ambient breathing glow matching the serene ZEV brand
+/// - Instagram-style Multi-Account Switcher (1-tap login to saved accounts)
+/// - Seamless account creation and switching (manage 2, 3, or more accounts)
+/// - Mathematically exact, razor-sharp official Google Sign-In integration
+/// - Claymorphic inputs, haptic feedback, and responsive layout
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final bool isAddingAccount;
+
+  const LoginScreen({
+    super.key,
+    this.isAddingAccount = false,
+  });
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
   final supabase = Supabase.instance.client;
 
   final TextEditingController _emailCtrl = TextEditingController();
@@ -28,13 +43,56 @@ class _LoginScreenState extends State<LoginScreen> {
   final FocusNode _emailFocus = FocusNode();
   final FocusNode _passwordFocus = FocusNode();
 
+  late final AnimationController _breatheController;
+  late final Animation<double> _breatheAnim;
+  late final Animation<double> _glowAnim;
+
+  List<SavedAccount> _savedAccounts = [];
+  bool _isLoadingAccounts = true;
+  bool _showSavedAccountsView = true;
+
   bool _isLoading = false;
   bool _showPassword = false;
   bool _rememberMe = true;
   String? _errorMsg;
 
   @override
+  void initState() {
+    super.initState();
+
+    // 1. Serene Breathing Animation
+    _breatheController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3800),
+    )..repeat(reverse: true);
+
+    _breatheAnim = Tween<double>(begin: -5.0, end: 5.0).animate(
+      CurvedAnimation(parent: _breatheController, curve: Curves.easeInOutSine),
+    );
+
+    _glowAnim = Tween<double>(begin: 0.18, end: 0.38).animate(
+      CurvedAnimation(parent: _breatheController, curve: Curves.easeInOutSine),
+    );
+
+    // 2. Load Multi-Account saved list
+    _loadSavedAccounts();
+  }
+
+  Future<void> _loadSavedAccounts() async {
+    final list = await MultiAccountService.getSavedAccounts();
+    if (mounted) {
+      setState(() {
+        _savedAccounts = list;
+        _isLoadingAccounts = false;
+        // If user explicitly clicked "Add Account" or no accounts are saved, show form
+        _showSavedAccountsView = list.isNotEmpty && !widget.isAddingAccount;
+      });
+    }
+  }
+
+  @override
   void dispose() {
+    _breatheController.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _emailFocus.dispose();
@@ -69,39 +127,65 @@ class _LoginScreenState extends State<LoginScreen> {
       if (user != null) {
         TextInput.finishAutofillContext(shouldSave: true);
 
-        // Fetch user role
+        // Fetch user profile info
         String userRole = 'student';
+        String username = '';
+        String fullName = '';
+        String avatarUrl = '';
+        bool isVerified = false;
+
         try {
           final profileRes = await supabase
               .from('profiles')
-              .select('role')
+              .select()
               .eq('id', user.id)
               .maybeSingle();
 
-          if (profileRes != null && profileRes['role'] != null) {
-            userRole = profileRes['role'].toString();
+          if (profileRes != null) {
+            userRole = profileRes['role']?.toString() ?? 'student';
+            username = profileRes['username']?.toString() ?? '';
+            final first = profileRes['first_name']?.toString() ?? '';
+            final last = profileRes['last_name']?.toString() ?? '';
+            fullName = '$first $last'.trim();
+            avatarUrl = profileRes['avatar_url']?.toString() ?? '';
+            isVerified = profileRes['is_verified'] == true;
           }
         } catch (roleErr) {
-          debugPrint("Profile role fetch warning: $roleErr");
+          debugPrint("Profile fetch warning: $roleErr");
         }
 
-        // Store local session in SharedPreferences and register single FCM token (zev_fmc)
+        // 1. Mark user logged in locally and sync FCM
         await AuthHelper.markUserLoggedIn(userId: user.id, role: userRole);
+
+        // 2. Save account into Instagram-style multi-account storage
+        if (_rememberMe) {
+          await MultiAccountService.saveCurrentAccount(
+            overrideUsername: username,
+            overrideFullName: fullName,
+            overrideAvatar: avatarUrl,
+            overrideIsVerified: isVerified,
+          );
+        }
 
         if (!mounted) return;
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text("Logged in successfully! Welcome to ZEV."),
+            content: Text(
+              username.isNotEmpty
+                  ? "Welcome back, @$username!"
+                  : "Logged in successfully to ZEV.",
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
             backgroundColor: ZevColors.deepNavy,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
             ),
           ),
         );
 
-        // Navigate to Instagram Home Dashboard
+        // Navigate to Zev Main Dashboard
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const ZevMainLayout()),
           (route) => false,
@@ -129,550 +213,806 @@ class _LoginScreenState extends State<LoginScreen> {
     ForgotPasswordScreen.open(context, email: _emailCtrl.text.trim());
   }
 
+  void _handleGoogleSuccess() async {
+    // Save to multi-account upon Google Login
+    await MultiAccountService.saveCurrentAccount();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
     return Scaffold(
-      backgroundColor: ZevColors.white,
-      appBar: AppBar(
-        backgroundColor: ZevColors.white,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: ZevColors.deepNavy,
-            size: 20,
-          ),
-          onPressed: () => Navigator.maybePop(context),
-          tooltip: "Back",
-        ),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 480),
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: AutofillGroup(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          const SizedBox(height: 8),
-
-                          // Brand 3D Mini Icon
-                          Container(
-                            width: 76,
-                            height: 76,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(22),
-                              border: Border.all(
-                                color: ZevColors.border,
-                                width: 2.0,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: ZevColors.primaryBlue.withValues(alpha: 0.25),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 8),
-                                ),
-                              ],
-                            ),
-                            padding: const EdgeInsets.all(2),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(18),
-                              child: Image.asset(
-                                'assets/icon/icon-192x192.png',
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => const Icon(
-                                  Icons.bolt_rounded,
-                                  size: 38,
-                                  color: ZevColors.primaryBlue,
-                                ),
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 20),
-
-                          const Text(
-                            "Welcome Back",
-                            style: TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.w900,
-                              color: ZevColors.deepNavy,
-                              letterSpacing: -0.6,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            "Sign in to continue connecting and sharing",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: ZevColors.textSecondary,
-                            ),
-                          ),
-
-                          const SizedBox(height: 28),
-
-                          // Error Banner
-                          if (_errorMsg != null) ...[
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFEF2F2),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: const Color(0xFFFCA5A5),
-                                  width: 1.0,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.error_outline_rounded,
-                                    size: 19,
-                                    color: Color(0xFFDC2626),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      _errorMsg!,
-                                      style: const TextStyle(
-                                        color: Color(0xFF991B1B),
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-
-                          // Email Field
-                          ZevTextField(
-                            label: "Email Address",
-                            hint: "name@example.com",
-                            controller: _emailCtrl,
-                            focusNode: _emailFocus,
-                            prefixIcon: Icons.alternate_email_rounded,
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            autofillHints: const [AutofillHints.email],
-                            onSubmitted: (_) => _passwordFocus.requestFocus(),
-                          ),
-
-                          const SizedBox(height: 16),
-
-                          // Password Field
-                          ZevTextField(
-                            label: "Password",
-                            hint: "••••••••",
-                            controller: _passwordCtrl,
-                            focusNode: _passwordFocus,
-                            prefixIcon: Icons.lock_outline_rounded,
-                            isPassword: true,
-                            isObscured: !_showPassword,
-                            autofillHints: const [AutofillHints.password],
-                            textInputAction: TextInputAction.done,
-                            onSubmitted: (_) => _handleLogin(),
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                _showPassword
-                                    ? Icons.visibility_off_rounded
-                                    : Icons.visibility_rounded,
-                                size: 20,
-                                color: ZevColors.textMuted,
-                              ),
-                              onPressed: () {
-                                setState(() => _showPassword = !_showPassword);
-                              },
-                            ),
-                          ),
-
-                          const SizedBox(height: 12),
-
-                          // Remember Me & Forgot Password Row
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: Checkbox(
-                                      value: _rememberMe,
-                                      activeColor: ZevColors.primaryBlue,
-                                      checkColor: ZevColors.deepNavy,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      side: const BorderSide(
-                                        color: ZevColors.border,
-                                        width: 1.5,
-                                      ),
-                                      onChanged: (v) {
-                                        setState(() => _rememberMe = v ?? true);
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  GestureDetector(
-                                    onTap: () {
-                                      setState(() => _rememberMe = !_rememberMe);
-                                    },
-                                    child: const Text(
-                                      "Remember Me",
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: ZevColors.textSecondary,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              TextButton(
-                                onPressed: _handleForgotPassword,
-                                style: TextButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                ),
-                                child: const Text(
-                                  "Forgot password?",
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: ZevColors.secondaryBlue,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 28),
-
-                          // Primary Log In Button
-                          Container(
-                            width: double.infinity,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              color: ZevColors.primaryBlue,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: ZevColors.primaryBlue.withValues(alpha: 0.35),
-                                  blurRadius: 18,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: ElevatedButton(
-                              onPressed: _isLoading ? null : _handleLogin,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                shadowColor: Colors.transparent,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                              ),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      width: 22,
-                                      height: 22,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.5,
-                                        valueColor: AlwaysStoppedAnimation<Color>(
-                                          ZevColors.deepNavy,
-                                        ),
-                                      ),
-                                    )
-                                  : const Text(
-                                      "Log In",
-                                      style: TextStyle(
-                                        color: ZevColors.deepNavy,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 0.3,
-                                      ),
-                                    ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 28),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            // Docked Bottom Instagram Footer: Sign Up Link
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              decoration: const BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: ZevColors.border, width: 1.2),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    "Don't have an account? ",
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      color: ZevColors.textSecondary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const RegisterScreen(),
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: Stack(
+        children: [
+          // Ambient Zen Gradient 1: Cyan Glow (Top Right)
+          Positioned(
+            top: -size.width * 0.35,
+            right: -size.width * 0.3,
+            child: AnimatedBuilder(
+              animation: _breatheController,
+              builder: (context, _) {
+                return Container(
+                  width: size.width * 1.25,
+                  height: size.width * 1.25,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        const Color(0xFF00D4FF).withValues(
+                          alpha: _glowAnim.value * 0.45,
                         ),
-                      );
-                    },
-                    child: const Text(
-                      "Sign up",
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w800,
-                        color: ZevColors.secondaryBlue,
+                        const Color(0xFFE0F2FE).withValues(alpha: 0.25),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.45, 1.0],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // Ambient Zen Gradient 2: Sky Indigo Glow (Bottom Left)
+          Positioned(
+            bottom: -size.width * 0.35,
+            left: -size.width * 0.3,
+            child: AnimatedBuilder(
+              animation: _breatheController,
+              builder: (context, _) {
+                return Container(
+                  width: size.width * 1.15,
+                  height: size.width * 1.15,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        const Color(0xFF536DFE).withValues(
+                          alpha: _glowAnim.value * 0.22,
+                        ),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.65],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // Main Responsive Content
+          SafeArea(
+            child: Column(
+              children: [
+                // Top App Bar
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          color: ZevColors.deepNavy,
+                          size: 20,
+                        ),
+                        onPressed: () => Navigator.maybePop(context),
+                        tooltip: "Back",
+                      ),
+                      const ZevLogo(height: 28),
+                      const SizedBox(width: 48), // balance leading icon
+                    ],
+                  ),
+                ),
+
+                Expanded(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 480),
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: _isLoadingAccounts
+                            ? const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(40),
+                                  child: CircularProgressIndicator(
+                                    color: ZevColors.primaryBlue,
+                                  ),
+                                ),
+                              )
+                            : (_showSavedAccountsView
+                                ? _buildInstagramSavedAccountsView()
+                                : _buildStandardLoginForm()),
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
-}
 
-/// Reset Password Bottom Sheet.
-class _ForgotPasswordSheet extends StatefulWidget {
-  final String initialEmail;
-  const _ForgotPasswordSheet({required this.initialEmail});
+  /// 1. Instagram-Style Saved Accounts Switcher View
+  Widget _buildInstagramSavedAccountsView() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const SizedBox(height: 10),
 
-  @override
-  State<_ForgotPasswordSheet> createState() => _ForgotPasswordSheetState();
-}
+        // Floating 3D Hero Brand Icon
+        AnimatedBuilder(
+          animation: _breatheController,
+          builder: (context, _) {
+            return Transform.translate(
+              offset: Offset(0, _breatheAnim.value),
+              child: Container(
+                width: 92,
+                height: 92,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(28),
+                  color: Colors.white,
+                  border: Border.all(color: Colors.white, width: 3.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF00D4FF).withValues(
+                        alpha: _glowAnim.value * 0.9,
+                      ),
+                      blurRadius: 26,
+                      offset: const Offset(0, 10),
+                    ),
+                    BoxShadow(
+                      color: const Color(0xFF080D1A).withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.all(3),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Image.asset(
+                    'assets/icon/icon-512x512.png',
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
 
-class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
-  final supabase = Supabase.instance.client;
-  late final TextEditingController _resetEmailCtrl;
-  bool _isLoading = false;
-  bool _isSent = false;
-  String? _sheetError;
+        const SizedBox(height: 24),
 
-  @override
-  void initState() {
-    super.initState();
-    _resetEmailCtrl = TextEditingController(text: widget.initialEmail);
+        const Text(
+          "Continue with Saved Account",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.w900,
+            color: ZevColors.deepNavy,
+            letterSpacing: -0.6,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          "Select an account to log in instantly",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 14,
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        // List of Saved Accounts (Instagram-Style)
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _savedAccounts.length,
+          separatorBuilder: (context, index) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            final acc = _savedAccounts[index];
+
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFFE2E8F0),
+                  width: 1.4,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  // Circular Avatar
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(26),
+                      child: acc.avatarUrl.isNotEmpty
+                          ? ZevCachedImage.avatar(
+                              imageUrl: acc.avatarUrl,
+                              size: 52,
+                            )
+                          : Container(
+                              color: ZevColors.primaryBlue.withValues(alpha: 0.2),
+                              child: Center(
+                                child: Text(
+                                  acc.username.isNotEmpty
+                                      ? acc.username[0].toUpperCase()
+                                      : 'Z',
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w900,
+                                    color: ZevColors.deepNavy,
+                                  ),
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+
+                  // Account Info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                "@${acc.username}",
+                                style: const TextStyle(
+                                  fontSize: 15.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: ZevColors.deepNavy,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (acc.isVerified) ...[
+                              const SizedBox(width: 5),
+                              const Icon(
+                                Icons.verified_rounded,
+                                color: ZevColors.primaryBlue,
+                                size: 16,
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          acc.fullName.isNotEmpty ? acc.fullName : acc.email,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w500,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // 1-Tap Log In Button
+                  ElevatedButton(
+                    onPressed: () => MultiAccountService.switchToAccount(context, acc),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ZevColors.primaryBlue,
+                      foregroundColor: ZevColors.deepNavy,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      "Log In",
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 4),
+
+                  // More / Remove Action
+                  IconButton(
+                    icon: const Icon(
+                      Icons.more_vert_rounded,
+                      color: ZevColors.textMuted,
+                      size: 20,
+                    ),
+                    onPressed: () => _showRemoveAccountDialog(acc),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+
+        const SizedBox(height: 24),
+
+        // Switch to Manual Login
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: OutlinedButton(
+            onPressed: () {
+              setState(() => _showSavedAccountsView = false);
+            },
+            style: OutlinedButton.styleFrom(
+              backgroundColor: Colors.white,
+              side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            child: const Text(
+              "Log into Another Account",
+              style: TextStyle(
+                color: ZevColors.deepNavy,
+                fontSize: 14.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 14),
+
+        // Create New Account Option
+        TextButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const RegisterScreen()),
+            );
+          },
+          child: RichText(
+            text: const TextSpan(
+              style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+              children: [
+                TextSpan(text: "Don't have an account? "),
+                TextSpan(
+                  text: "Sign Up",
+                  style: TextStyle(
+                    color: ZevColors.secondaryBlue,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 24),
+      ],
+    );
   }
 
-  @override
-  void dispose() {
-    _resetEmailCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _sendPasswordReset() async {
-    final email = _resetEmailCtrl.text.trim();
-    if (email.isEmpty || !email.contains('@')) {
-      setState(() => _sheetError = "Please enter a valid email address.");
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _sheetError = null;
-    });
-
-    try {
-      await supabase.auth.resetPasswordForEmail(email);
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _isSent = true;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _sheetError = e.toString().replaceFirst('Exception: ', '');
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+  void _showRemoveAccountDialog(SavedAccount account) {
+    HapticFeedback.lightImpact();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Text(
+          "Remove @${account.username}?",
+          style: const TextStyle(
+            color: ZevColors.deepNavy,
+            fontWeight: FontWeight.w800,
+            fontSize: 17,
+          ),
+        ),
+        content: const Text(
+          "You will need to enter your username and password the next time you log in.",
+          style: TextStyle(color: Color(0xFF64748B), fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(color: ZevColors.textMuted, fontWeight: FontWeight.w700),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await MultiAccountService.removeAccount(account.userId);
+              await _loadSavedAccounts();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text("Remove"),
+          ),
+        ],
       ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+    );
+  }
+
+  /// 2. Standard Credentials & Google Login Form
+  Widget _buildStandardLoginForm() {
+    return AutofillGroup(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Container(
-            width: 44,
-            height: 4,
-            decoration: BoxDecoration(
-              color: ZevColors.border,
-              borderRadius: BorderRadius.circular(2),
-            ),
+          const SizedBox(height: 6),
+
+          // Floating 3D Mini Icon
+          AnimatedBuilder(
+            animation: _breatheController,
+            builder: (context, _) {
+              return Transform.translate(
+                offset: Offset(0, _breatheAnim.value * 0.7),
+                child: Container(
+                  width: 76,
+                  height: 76,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.white, width: 2.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF00D4FF).withValues(
+                          alpha: _glowAnim.value * 0.8,
+                        ),
+                        blurRadius: 22,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(2),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.asset(
+                      'assets/icon/icon-192x192.png',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
+
           const SizedBox(height: 20),
+
           const Text(
-            "Reset Password",
+            "Welcome Back",
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 27,
               fontWeight: FontWeight.w900,
               color: ZevColors.deepNavy,
+              letterSpacing: -0.7,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           const Text(
-            "Enter your registered email and we'll send a recovery link.",
+            "Sign in to continue connecting and sharing",
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 13.5,
-              color: ZevColors.textSecondary,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF64748B),
             ),
           ),
-          const SizedBox(height: 20),
-          if (_isSent) ...[
+
+          const SizedBox(height: 26),
+
+          // Error Banner
+          if (_errorMsg != null) ...[
             Container(
-              padding: const EdgeInsets.all(16),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: ZevColors.softSurface,
+                color: const Color(0xFFFEF2F2),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: ZevColors.border),
+                border: Border.all(color: const Color(0xFFFCA5A5), width: 1.2),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(
-                    Icons.check_circle_rounded,
-                    color: Color(0xFF10B981),
-                    size: 24,
+                  const Icon(
+                    Icons.error_outline_rounded,
+                    size: 20,
+                    color: Color(0xFFDC2626),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      "Reset link sent! Please check your inbox and follow the link.",
-                      style: TextStyle(
+                      _errorMsg!,
+                      style: const TextStyle(
+                        color: Color(0xFF991B1B),
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: ZevColors.deepNavy,
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ZevColors.primaryBlue,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+            const SizedBox(height: 18),
+          ],
+
+          // Email Field
+          ZevTextField(
+            label: "Email Address",
+            hint: "name@example.com",
+            controller: _emailCtrl,
+            focusNode: _emailFocus,
+            prefixIcon: Icons.alternate_email_rounded,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.email],
+            onSubmitted: (_) => _passwordFocus.requestFocus(),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Password Field
+          ZevTextField(
+            label: "Password",
+            hint: "••••••••",
+            controller: _passwordCtrl,
+            focusNode: _passwordFocus,
+            prefixIcon: Icons.lock_outline_rounded,
+            isPassword: true,
+            isObscured: !_showPassword,
+            autofillHints: const [AutofillHints.password],
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _handleLogin(),
+            suffixIcon: IconButton(
+              icon: Icon(
+                _showPassword
+                    ? Icons.visibility_off_rounded
+                    : Icons.visibility_rounded,
+                size: 20,
+                color: ZevColors.textMuted,
+              ),
+              onPressed: () {
+                setState(() => _showPassword = !_showPassword);
+              },
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // Remember Me & Forgot Password Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: Checkbox(
+                      value: _rememberMe,
+                      activeColor: ZevColors.primaryBlue,
+                      checkColor: ZevColors.deepNavy,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      side: const BorderSide(
+                        color: Color(0xFFCBD5E1),
+                        width: 1.5,
+                      ),
+                      onChanged: (v) {
+                        setState(() => _rememberMe = v ?? true);
+                      },
+                    ),
                   ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () {
+                      setState(() => _rememberMe = !_rememberMe);
+                    },
+                    child: const Text(
+                      "Remember Me",
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF475569),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              TextButton(
+                onPressed: _handleForgotPassword,
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: const Text(
-                  "Done",
+                  "Forgot password?",
                   style: TextStyle(
-                    color: ZevColors.deepNavy,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: ZevColors.secondaryBlue,
                   ),
                 ),
               ),
-            ),
-          ] else ...[
-            if (_sheetError != null) ...[
-              Text(
-                _sheetError!,
-                style: const TextStyle(
-                  color: Color(0xFFDC2626),
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 12),
             ],
-            ZevTextField(
-              label: "Email",
-              hint: "name@example.com",
-              controller: _resetEmailCtrl,
-              prefixIcon: Icons.email_outlined,
-              keyboardType: TextInputType.emailAddress,
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _sendPasswordReset,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ZevColors.primaryBlue,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
+          ),
+
+          const SizedBox(height: 26),
+
+          // Primary Log In Button
+          Container(
+            width: double.infinity,
+            height: 54,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF00D4FF), Color(0xFF0084FF)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF00D4FF).withValues(alpha: 0.38),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
                 ),
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: ZevColors.deepNavy,
-                        ),
-                      )
-                    : const Text(
-                        "Send Recovery Link",
-                        style: TextStyle(
-                          color: ZevColors.deepNavy,
-                          fontWeight: FontWeight.w800,
+              ],
+            ),
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : _handleLogin,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          ZevColors.deepNavy,
                         ),
                       ),
+                    )
+                  : const Text(
+                      "Log In",
+                      style: TextStyle(
+                        color: ZevColors.deepNavy,
+                        fontSize: 16.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Clean OR Divider
+          Row(
+            children: [
+              const Expanded(
+                child: Divider(
+                  color: Color(0xFFE2E8F0),
+                  thickness: 1.2,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Text(
+                  "OR",
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF94A3B8),
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+              const Expanded(
+                child: Divider(
+                  color: Color(0xFFE2E8F0),
+                  thickness: 1.2,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // Official Razor-Sharp Google Sign-In Button
+          GoogleSignInButton(
+            text: "Continue with Google",
+            onSuccess: _handleGoogleSuccess,
+            onError: (msg) {
+              setState(() => _errorMsg = msg);
+            },
+          ),
+
+          // Return to Saved Accounts Option if any exist
+          if (_savedAccounts.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            TextButton.icon(
+              onPressed: () {
+                setState(() => _showSavedAccountsView = true);
+              },
+              icon: const Icon(Icons.people_alt_outlined, size: 18, color: ZevColors.deepNavy),
+              label: Text(
+                "Switch to saved accounts (${_savedAccounts.length})",
+                style: const TextStyle(
+                  color: ZevColors.deepNavy,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
+                ),
               ),
             ),
           ],
+
+          const SizedBox(height: 20),
+
+          // Sign Up Route
+          TextButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const RegisterScreen()),
+              );
+            },
+            child: RichText(
+              text: const TextSpan(
+                style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+                children: [
+                  TextSpan(text: "Don't have an account? "),
+                  TextSpan(
+                    text: "Sign Up",
+                    style: TextStyle(
+                      color: ZevColors.secondaryBlue,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
         ],
       ),
     );
