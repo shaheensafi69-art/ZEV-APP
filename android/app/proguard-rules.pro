@@ -74,6 +74,11 @@
 -dontwarn okio.**
 -dontwarn javax.annotation.**
 
+# Google Play Core & Deferred Components (Referenced by Flutter Engine)
+-dontwarn com.google.android.play.core.**
+-dontwarn com.google.android.gms.**
+-dontwarn org.checkerframework.**
+
 # Keep all method channels & event channels intact
 -keepclassmembers class * {
     @androidx.annotation.Keep <fields>;
