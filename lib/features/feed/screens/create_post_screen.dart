@@ -308,35 +308,38 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           ),
         ),
         centerTitle: true,
-        // Center Segmented Toggle: [ Editor | Preview ]
-        title: Container(
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF1F5F9),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white, width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildSegmentTab(
-                index: 0,
-                label: "Editor",
-                icon: Icons.edit_note_rounded,
-              ),
-              _buildSegmentTab(
-                index: 1,
-                label: "Preview",
-                icon: Icons.visibility_outlined,
-              ),
-            ],
+        // Center Segmented Toggle: [ Editor | Preview ] (Responsive Scaledown)
+        title: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildSegmentTab(
+                  index: 0,
+                  label: "Editor",
+                  icon: Icons.edit_note_rounded,
+                ),
+                _buildSegmentTab(
+                  index: 1,
+                  label: "Preview",
+                  icon: Icons.visibility_outlined,
+                ),
+              ],
+            ),
           ),
         ),
         actions: [

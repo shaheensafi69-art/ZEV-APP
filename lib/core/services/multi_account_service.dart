@@ -731,10 +731,14 @@ class _AccountLoginSheetState extends State<AccountLoginSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final screenHeight = MediaQuery.of(context).size.height;
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
       child: Container(
+        constraints: BoxConstraints(
+          maxHeight: screenHeight * 0.90,
+        ),
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
@@ -748,8 +752,9 @@ class _AccountLoginSheetState extends State<AccountLoginSheet> {
         ),
         child: SafeArea(
           top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
             child: AutofillGroup(
               child: Column(
                 mainAxisSize: MainAxisSize.min,

@@ -517,6 +517,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     HapticFeedback.lightImpact();
     final screenHeight = MediaQuery.of(context).size.height;
     final isCompact = MediaQuery.of(context).size.width < 380;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     showModalBottomSheet(
       context: context,
@@ -524,7 +525,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
         constraints: BoxConstraints(
-          maxHeight: screenHeight * 0.85,
+          maxHeight: screenHeight * 0.88,
         ),
         decoration: BoxDecoration(
           color: const Color(0xFFF1F5F9),
@@ -545,9 +546,11 @@ class _ProfileScreenState extends State<ProfileScreen>
           top: false,
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
-            padding: EdgeInsets.symmetric(
-              horizontal: isCompact ? 16 : 20,
-              vertical: 14,
+            padding: EdgeInsets.fromLTRB(
+              isCompact ? 16 : 20,
+              14,
+              isCompact ? 16 : 20,
+              20 + bottomPadding,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,

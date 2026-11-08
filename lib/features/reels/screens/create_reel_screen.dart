@@ -387,20 +387,23 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
           onPressed: _showDiscardDialog,
         ),
         centerTitle: true,
-        // Segmented Toggle: [ Editor | Live Preview ] (Light Mode)
-        title: Container(
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            color: ZevColors.softSurface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: ZevColors.border, width: 1.0),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildSegmentTab(index: 0, label: "Editor", icon: Icons.tune_rounded),
-              _buildSegmentTab(index: 1, label: "Live Preview", icon: Icons.remove_red_eye_rounded),
-            ],
+        // Segmented Toggle: [ Editor | Preview ] (Responsive Scaledown)
+        title: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: ZevColors.softSurface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: ZevColors.border, width: 1.0),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildSegmentTab(index: 0, label: "Editor", icon: Icons.tune_rounded),
+                _buildSegmentTab(index: 1, label: "Preview", icon: Icons.remove_red_eye_rounded),
+              ],
+            ),
           ),
         ),
         actions: [

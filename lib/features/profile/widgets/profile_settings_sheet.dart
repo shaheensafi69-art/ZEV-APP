@@ -101,9 +101,10 @@ class ProfileSettingsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
     return Container(
       constraints: BoxConstraints(
-        maxHeight: screenHeight * 0.85,
+        maxHeight: screenHeight * 0.88,
       ),
       decoration: BoxDecoration(
         color: const Color(0xFFF1F5F9),
@@ -203,7 +204,7 @@ class ProfileSettingsSheet extends StatelessWidget {
             Flexible(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+                padding: EdgeInsets.fromLTRB(16, 4, 16, 28 + bottomPadding),
                 child: Column(
                   children: [
                     // 1. Edit profile
