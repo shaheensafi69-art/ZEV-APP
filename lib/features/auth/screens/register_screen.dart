@@ -23,7 +23,21 @@ import 'login_screen.dart';
 /// 4. Email OTP & Activation Link Verification (with live email link listener & 6-digit PIN)
 /// Plus automatic Passkey / Biometrics setup upon registration completion!
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  final String? initialReferralCode;
+
+  const RegisterScreen({
+    super.key,
+    this.initialReferralCode,
+  });
+
+  static Future<void> open(BuildContext context, {String? referralCode}) {
+    return Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RegisterScreen(initialReferralCode: referralCode),
+      ),
+    );
+  }
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -62,6 +76,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _showConfirmPassword = false;
   bool _agreedToTerms = true;
 
+  // Referral Code Controllers
+  final TextEditingController _referralCodeCtrl = TextEditingController();
+  bool _isCheckingReferral = false;
+  Map<String, dynamic>? _referrerProfile;
+  String? _referralStatusMsg;
+  Timer? _referralDebounce;
+
   // Step 4 Controllers: Email OTP & Link Verification
   String? _pendingUserId;
   final List<TextEditingController> _otpCtrls =
@@ -82,7 +103,77 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void initState() {
     super.initState();
     _usernameCtrl.addListener(_onUsernameChanged);
+    _referralCodeCtrl.addListener(_onReferralChanged);
     _checkPasskeySupport();
+
+    if (widget.initialReferralCode != null &&
+        widget.initialReferralCode!.trim().isNotEmpty) {
+      _referralCodeCtrl.text = widget.initialReferralCode!.trim().toLowerCase();
+      _validateReferralCode(_referralCodeCtrl.text);
+    }
+  }
+
+  void _onReferralChanged() {
+    _referralDebounce?.cancel();
+    final raw = _referralCodeCtrl.text.trim();
+    if (raw.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _referrerProfile = null;
+          _referralStatusMsg = null;
+          _isCheckingReferral = false;
+        });
+      }
+      return;
+    }
+
+    _referralDebounce = Timer(const Duration(milliseconds: 500), () {
+      _validateReferralCode(raw);
+    });
+  }
+
+  Future<void> _validateReferralCode(String code) async {
+    final cleanCode = code.trim().toLowerCase();
+    if (cleanCode.isEmpty) return;
+
+    if (mounted) {
+      setState(() {
+        _isCheckingReferral = true;
+        _referralStatusMsg = null;
+      });
+    }
+
+    try {
+      final res = await supabase
+          .from('profiles')
+          .select('id, username, first_name, last_name, avatar_url, is_verified')
+          .or('referral_code.eq.$cleanCode,username.eq.$cleanCode')
+          .maybeSingle();
+
+      if (!mounted) return;
+
+      if (res != null) {
+        final name = "${res['first_name'] ?? ''} ${res['last_name'] ?? ''}".trim();
+        final display = name.isNotEmpty ? "$name (@${res['username']})" : "@${res['username']}";
+        setState(() {
+          _referrerProfile = res;
+          _referralStatusMsg = "Invited by $display";
+          _isCheckingReferral = false;
+        });
+      } else {
+        setState(() {
+          _referrerProfile = null;
+          _referralStatusMsg = "Referral code not found (optional)";
+          _isCheckingReferral = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isCheckingReferral = false;
+        });
+      }
+    }
   }
 
   Future<void> _checkPasskeySupport() async {
@@ -95,9 +186,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() {
     _usernameDebounce?.cancel();
+    _referralDebounce?.cancel();
     _resendTimer?.cancel();
     _authListener?.cancel();
     _usernameCtrl.removeListener(_onUsernameChanged);
+    _referralCodeCtrl.removeListener(_onReferralChanged);
+    _referralCodeCtrl.dispose();
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _dobCtrl.dispose();
@@ -542,7 +636,63 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'avatar_url': avatarUrl,
         'bio': _bioCtrl.text.trim(),
         'role': 'student',
+        'referral_code': username,
+        'referral_count': 0,
       });
+
+      // 2.1 Process Referral Attribution if invitation code was entered
+      final inviteCode = _referralCodeCtrl.text.trim().toLowerCase();
+      if (inviteCode.isNotEmpty) {
+        try {
+          final referrer = _referrerProfile ??
+              await supabase
+                  .from('profiles')
+                  .select('id, referral_count, username')
+                  .or('referral_code.eq.$inviteCode,username.eq.$inviteCode')
+                  .maybeSingle();
+
+          if (referrer != null && referrer['id']?.toString() != userId) {
+            final referrerId = referrer['id'].toString();
+
+            // Record in referrals table
+            try {
+              await supabase.from('referrals').insert({
+                'referrer_id': referrerId,
+                'referred_id': userId,
+                'referral_code': inviteCode,
+                'created_at': DateTime.now().toIso8601String(),
+              });
+            } catch (refErr) {
+              debugPrint("Referrals table insert notice: $refErr");
+            }
+
+            // Increment inviter's referral count
+            try {
+              final oldCount = (referrer['referral_count'] as num?)?.toInt() ?? 0;
+              await supabase
+                  .from('profiles')
+                  .update({'referral_count': oldCount + 1})
+                  .eq('id', referrerId);
+            } catch (countErr) {
+              debugPrint("Referral count update notice: $countErr");
+            }
+
+            // Send In-App notification to inviter
+            try {
+              await supabase.from('user_notifications').insert({
+                'user_id': referrerId,
+                'title': 'New Friend Joined! 🎉',
+                'message': '@$username just joined ZEV using your referral link!',
+                'notification_type': 'referral',
+                'app_source': 'zev',
+                'is_read': false,
+              });
+            } catch (_) {}
+          }
+        } catch (attributionErr) {
+          debugPrint("Referral attribution warning: $attributionErr");
+        }
+      }
 
       // 3. Mark user logged in locally
       await AuthHelper.markUserLoggedIn(userId: userId, role: 'student');
@@ -1126,7 +1276,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           prefixIcon: Icons.lock_reset_rounded,
           isPassword: true,
           isObscured: !_showConfirmPassword,
-          textInputAction: TextInputAction.done,
+          textInputAction: TextInputAction.next,
           suffixIcon: IconButton(
             icon: Icon(
               _showConfirmPassword
@@ -1138,6 +1288,121 @@ class _RegisterScreenState extends State<RegisterScreen> {
             onPressed: () => setState(
               () => _showConfirmPassword = !_showConfirmPassword,
             ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Referral / Invitation Code Section
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: _referrerProfile != null
+                  ? const Color(0xFF10B981).withValues(alpha: 0.5)
+                  : const Color(0xFFE2E8F0),
+              width: _referrerProfile != null ? 1.5 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.card_giftcard_rounded,
+                        size: 16, color: Color(0xFF0284C7)),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    "Referral Code (Optional)",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const Spacer(),
+                  if (_referrerProfile != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        "VERIFIED INVITER",
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF10B981),
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ZevTextField(
+                label: "Friend's Username or Code",
+                hint: "e.g. shaheensafi011",
+                controller: _referralCodeCtrl,
+                prefixIcon: Icons.group_add_rounded,
+                textInputAction: TextInputAction.done,
+                suffixIcon: _isCheckingReferral
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: Center(
+                          child: SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      )
+                    : (_referrerProfile != null
+                        ? const Icon(Icons.check_circle_rounded,
+                            color: Color(0xFF10B981), size: 20)
+                        : null),
+              ),
+              if (_referralStatusMsg != null) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(
+                      _referrerProfile != null
+                          ? Icons.check_circle_outline_rounded
+                          : Icons.info_outline_rounded,
+                      size: 14,
+                      color: _referrerProfile != null
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFF64748B),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _referralStatusMsg!,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: _referrerProfile != null
+                              ? const Color(0xFF10B981)
+                              : const Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
           ),
         ),
 

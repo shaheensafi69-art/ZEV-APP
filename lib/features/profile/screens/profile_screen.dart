@@ -21,14 +21,15 @@ import '../services/story_highlight_service.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_video_thumbnail.dart';
 import '../widgets/create_highlight_sheet.dart';
-import '../widgets/edit_profile_sheet.dart';
 import '../widgets/highlight_viewer_screen.dart';
-import '../widgets/profile_settings_sheet.dart';
-import '../widgets/share_profile_sheet.dart';
 import '../widgets/user_follows_sheet.dart';
+import 'user_follows_screen.dart';
 import '../widgets/video_cover_thumbnail.dart';
 import '../../chat/screens/chat_conversation_screen.dart';
 import '../../discover/screens/discover_screen.dart';
+import 'edit_profile_screen.dart';
+import 'profile_settings_screen.dart';
+import 'share_profile_screen.dart';
 
 /// Next-Generation Claymorphic Profile Screen for ZEV Social Network.
 /// Engineered with tactile 3D elevated clay surfaces, multi-layer shadows,
@@ -787,48 +788,60 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   void _openSettingsMenu() {
     HapticFeedback.lightImpact();
-    ProfileSettingsSheet.show(
+    Navigator.push(
       context,
-      profile: _profile,
-      onOpenEditProfile: _openEditProfile,
-      onOpenShareProfile: _openShareProfile,
-      onOpenSaved: () {
-        if (_isMyProfile && _tabCtrl.length >= 4) {
-          _tabCtrl.animateTo(3);
-        }
-      },
-      onProfileUpdated: (updated) {
-        setState(() => _profile = updated);
-      },
-    );
+      MaterialPageRoute(
+        builder: (_) => ProfileSettingsScreen(
+          profile: _profile,
+          onOpenSaved: () {
+            if (_isMyProfile && _tabCtrl.length >= 4) {
+              _tabCtrl.animateTo(3);
+            }
+          },
+          onProfileUpdated: (updated) {
+            setState(() => _profile = updated);
+          },
+        ),
+      ),
+    ).then((_) => _loadAllProfileData());
   }
 
-  void _openEditProfile() {
+  void _openEditProfile() async {
     HapticFeedback.lightImpact();
-    EditProfileSheet.show(
+    final updated = await Navigator.push<Map<String, dynamic>>(
       context,
-      initialProfile: _profile,
-      onProfileUpdated: (updated) {
-        setState(() => _profile = updated);
-      },
+      MaterialPageRoute(
+        builder: (_) => EditProfileScreen(
+          initialProfile: _profile,
+        ),
+      ),
     );
+    if (updated != null) {
+      setState(() => _profile = updated);
+      _loadAllProfileData();
+    }
   }
 
   void _openShareProfile() {
     HapticFeedback.lightImpact();
-    ShareProfileSheet.show(
+    Navigator.push(
       context,
-      userId: _targetUserId,
-      username: _profile['username'] ?? 'user',
-      fullName: "${_profile['first_name'] ?? ''} ${_profile['last_name'] ?? ''}"
-          .trim(),
-      avatarUrl: _profile['avatar_url'] ?? '',
+      MaterialPageRoute(
+        builder: (_) => ShareProfileScreen(
+          userId: _targetUserId,
+          username: _profile['username'] ?? 'user',
+          fullName:
+              "${_profile['first_name'] ?? ''} ${_profile['last_name'] ?? ''}"
+                  .trim(),
+          avatarUrl: _profile['avatar_url'] ?? '',
+        ),
+      ),
     );
   }
 
   void _openFollowersSheet(int tabIndex) {
     HapticFeedback.lightImpact();
-    UserFollowsSheet.show(
+    UserFollowsScreen.open(
       context,
       userId: _targetUserId,
       username: _profile['username'] ?? 'user',

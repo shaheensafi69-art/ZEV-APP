@@ -64,6 +64,8 @@
                 <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/post"/>
                 <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/@"/>
                 <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/@"/>
+                <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/join"/>
+                <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/join"/>
             </intent-filter>
 
             <!-- ZEV Standard Web Deep Links (Fallback for all devices) -->
@@ -79,6 +81,8 @@
                 <data android:scheme="http" android:host="zevapp.com" android:pathPrefix="/post"/>
                 <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/@"/>
                 <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/@"/>
+                <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/join"/>
+                <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/join"/>
                 <data android:scheme="https" android:host="media.zevapp.com" android:pathPrefix="/zev/feed"/>
             </intent-filter>
 
@@ -95,6 +99,8 @@
                 <data android:scheme="zev" android:host="auth"/>
                 <data android:scheme="zev" android:host="login"/>
                 <data android:scheme="zev" android:host="reset-password"/>
+                <data android:scheme="zev" android:host="join"/>
+                <data android:scheme="zevapp" android:host="join"/>
                 <data android:scheme="zevapp"/>
             </intent-filter>
         </activity>

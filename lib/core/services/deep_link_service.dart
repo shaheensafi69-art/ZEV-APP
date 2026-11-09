@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/auth/screens/forgot_password_screen.dart';
+import '../../features/auth/screens/register_screen.dart';
 import '../../features/chat/screens/chat_conversation_screen.dart';
 import '../../features/feed/screens/post_detail_screen.dart';
 import '../../features/notifications/screens/notifications_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
+import '../../features/profile/screens/zev_blue_verification_screen.dart';
 import '../../features/reels/models/reel_item.dart';
 import '../../features/reels/widgets/reel_player_item.dart';
 import '../../main.dart';
@@ -104,6 +106,11 @@ class DeepLinkService {
 
     // Case 1: Custom Scheme "zev://..." or "zevapp://..."
     if (scheme == 'zev' || scheme == 'zevapp') {
+      if (host == 'join' || (pathSegments.isNotEmpty && pathSegments[0] == 'join')) {
+        final ref = uri.queryParameters['ref'] ?? '';
+        _openJoinReferral(navContext, ref);
+        return;
+      }
       if (host == 'post' && pathSegments.isNotEmpty) {
         _openPost(navContext, pathSegments.first);
         return;
@@ -152,6 +159,13 @@ class DeepLinkService {
 
     // Case 2: Web Domain "zevapp.com" or "www.zevapp.com"
     if (host.contains('zevapp.com')) {
+      // /join?ref=...
+      if (pathSegments.isNotEmpty && pathSegments[0] == 'join') {
+        final ref = uri.queryParameters['ref'] ?? '';
+        _openJoinReferral(navContext, ref);
+        return;
+      }
+
       // Profile @username: e.g. /@shaheensafi011
       if (pathSegments.isNotEmpty && pathSegments.first.startsWith('@')) {
         final username = pathSegments.first.substring(1);
@@ -311,6 +325,50 @@ class DeepLinkService {
       }
     } catch (e) {
       debugPrint('[DeepLinkService] Media fallback error: $e');
+    }
+  }
+
+  Future<void> _openJoinReferral(BuildContext context, String referralCode) async {
+    final cleanRef = referralCode.trim().toLowerCase();
+    final currentUser = Supabase.instance.client.auth.currentUser;
+
+    if (currentUser == null) {
+      RegisterScreen.open(context, referralCode: cleanRef);
+    } else {
+      try {
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select('*')
+            .eq('id', currentUser.id)
+            .maybeSingle();
+
+        if (context.mounted) {
+          if (profile != null) {
+            ZevBlueVerificationScreen.open(context, userProfile: profile);
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: const Color(0xFF0284C7),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      cleanRef.isNotEmpty
+                          ? "You are already a member! Switched to your referral hub."
+                          : "Welcome back! Here is your referral & verification hub.",
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+      } catch (_) {}
     }
   }
 }

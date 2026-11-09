@@ -9,6 +9,7 @@ import 'help_support_sheet.dart';
 import 'notification_settings_sheet.dart';
 import 'privacy_security_sheet.dart';
 import 'user_activity_sheet.dart';
+import '../screens/zev_blue_verification_screen.dart';
 
 /// Instagram-Grade Settings & Options Sheet for ZEV Profile.
 /// Opened via the top-right hamburger menu (☰).
@@ -210,6 +211,24 @@ class ProfileSettingsSheet extends StatelessWidget {
                 padding: EdgeInsets.fromLTRB(16, 4, 16, 28 + bottomPadding),
                 child: Column(
                   children: [
+                    // 0. ZEV Blue Verification & Referral Hub
+                    _buildMenuItem(
+                      icon: Icons.verified_rounded,
+                      title: "ZEV Blue & Referral Program",
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ZevBlueVerificationScreen(
+                              userProfile: profile,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 8),
+
                     // 1. Edit profile
                     _buildMenuItem(
                       icon: Icons.edit_outlined,
