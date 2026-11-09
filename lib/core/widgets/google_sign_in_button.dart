@@ -34,6 +34,9 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
 
     try {
       await GoogleAuthService.signInWithGoogle(
+        onCancel: () {
+          if (mounted) setState(() => _isLoading = false);
+        },
         onError: (err) {
           if (mounted) {
             setState(() => _isLoading = false);

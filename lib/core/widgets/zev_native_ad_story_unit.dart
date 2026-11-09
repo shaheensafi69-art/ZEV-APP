@@ -37,57 +37,69 @@ class _ZevNativeAdStoryUnitState extends State<ZevNativeAdStoryUnit> {
       return;
     }
 
-    _nativeAd = NativeAd(
-      adUnitId: AdmobService.nativeAdUnitId,
-      request: const AdRequest(),
-      listener: NativeAdListener(
-        onAdLoaded: (ad) {
-          if (mounted) {
-            setState(() {
-              _isAdLoaded = true;
-              _adFailed = false;
-            });
-            widget.onAdLoaded?.call();
-          }
-        },
-        onAdFailedToLoad: (ad, error) {
-          debugPrint('[ZevNativeAdStoryUnit] Ad failed to load: ${error.message} (code ${error.code})');
-          ad.dispose();
-          if (mounted) {
-            setState(() {
-              _nativeAd = null;
-              _isAdLoaded = false;
-              _adFailed = true;
-            });
-            widget.onAdFailed?.call();
-          }
-        },
-      ),
-      nativeTemplateStyle: NativeTemplateStyle(
-        templateType: TemplateType.medium,
-        mainBackgroundColor: const Color(0xFF0F172A),
-        cornerRadius: 22.0,
-        callToActionTextStyle: NativeTemplateTextStyle(
-          textColor: Colors.black,
-          backgroundColor: const Color(0xFF00D4FF),
-          style: NativeTemplateFontStyle.bold,
-          size: 15.0,
+    try {
+      _nativeAd = NativeAd(
+        adUnitId: AdmobService.nativeAdUnitId,
+        request: const AdRequest(),
+        listener: NativeAdListener(
+          onAdLoaded: (ad) {
+            if (mounted) {
+              setState(() {
+                _isAdLoaded = true;
+                _adFailed = false;
+              });
+              widget.onAdLoaded?.call();
+            }
+          },
+          onAdFailedToLoad: (ad, error) {
+            debugPrint('[ZevNativeAdStoryUnit] Ad failed to load: ${error.message} (code ${error.code})');
+            ad.dispose();
+            if (mounted) {
+              setState(() {
+                _nativeAd = null;
+                _isAdLoaded = false;
+                _adFailed = true;
+              });
+              widget.onAdFailed?.call();
+            }
+          },
         ),
-        primaryTextStyle: NativeTemplateTextStyle(
-          textColor: Colors.white,
-          style: NativeTemplateFontStyle.bold,
-          size: 15.0,
+        nativeTemplateStyle: NativeTemplateStyle(
+          templateType: TemplateType.medium,
+          mainBackgroundColor: const Color(0xFF0F172A),
+          cornerRadius: 22.0,
+          callToActionTextStyle: NativeTemplateTextStyle(
+            textColor: Colors.black,
+            backgroundColor: const Color(0xFF00D4FF),
+            style: NativeTemplateFontStyle.bold,
+            size: 15.0,
+          ),
+          primaryTextStyle: NativeTemplateTextStyle(
+            textColor: Colors.white,
+            style: NativeTemplateFontStyle.bold,
+            size: 15.0,
+          ),
+          secondaryTextStyle: NativeTemplateTextStyle(
+            textColor: const Color(0xFF94A3B8),
+            size: 12.5,
+          ),
+          tertiaryTextStyle: NativeTemplateTextStyle(
+            textColor: const Color(0xFF64748B),
+            size: 11.5,
+          ),
         ),
-        secondaryTextStyle: NativeTemplateTextStyle(
-          textColor: const Color(0xFF94A3B8),
-          size: 12.5,
-        ),
-        tertiaryTextStyle: NativeTemplateTextStyle(
-          textColor: const Color(0xFF64748B),
-          size: 11.5,
-        ),
-      ),
-    )..load();
+      )..load();
+    } catch (e) {
+      debugPrint('[ZevNativeAdStoryUnit] Ad initialization warning: $e');
+      if (mounted) {
+        setState(() {
+          _nativeAd = null;
+          _isAdLoaded = false;
+          _adFailed = true;
+        });
+        widget.onAdFailed?.call();
+      }
+    }
   }
 
   @override

@@ -14,19 +14,40 @@
     *;
 }
 
-# Flutter Plugin interfaces
--keep class * implements io.flutter.embedding.engine.plugins.FlutterPlugin {
-    *;
-}
--keep class * implements io.flutter.embedding.engine.plugins.activity.ActivityAware {
-    *;
-}
+# Flutter Plugin interfaces & Message Codecs
+-keep class * implements io.flutter.embedding.engine.plugins.FlutterPlugin { *; }
+-keep class * implements io.flutter.embedding.engine.plugins.activity.ActivityAware { *; }
 -keepclassmembers class * implements io.flutter.plugin.common.StandardMessageCodec { *; }
+-keepclassmembers class * implements io.flutter.plugin.common.BinaryMessenger { *; }
+-keepclassmembers class * implements io.flutter.plugin.common.MethodChannel$MethodCallHandler { *; }
 
-# Pigeon Communication Channels (Crucial for shared_preferences, firebase_core, local_auth)
+# Pigeon Communication Channels & SharedPreferences (Crucial for all storage, auth, and engine channels)
 -keep class dev.flutter.pigeon.** { *; }
+-keep interface dev.flutter.pigeon.** { *; }
+-keepclassmembers class dev.flutter.pigeon.** { *; }
+-keepclassmembers interface dev.flutter.pigeon.** { *; }
 -keep class **.Pigeon** { *; }
+
 -keep class io.flutter.plugins.sharedpreferences.** { *; }
+-keep interface io.flutter.plugins.sharedpreferences.** { *; }
+-keepclassmembers class io.flutter.plugins.sharedpreferences.** { *; }
+-keepclassmembers interface io.flutter.plugins.sharedpreferences.** { *; }
+
+# AndroidX DataStore & Preferences (Underpinning shared_preferences_android 2.4+)
+-keep class androidx.datastore.** { *; }
+-keep interface androidx.datastore.** { *; }
+-keepclassmembers class androidx.datastore.** { *; }
+-dontwarn androidx.datastore.**
+
+-keep class androidx.preference.** { *; }
+-keep interface androidx.preference.** { *; }
+-keepclassmembers class androidx.preference.** { *; }
+-dontwarn androidx.preference.**
+
+-keep class kotlinx.coroutines.** { *; }
+-keep interface kotlinx.coroutines.** { *; }
+-keepclassmembers class kotlinx.coroutines.** { *; }
+-dontwarn kotlinx.coroutines.**
 
 # Firebase Core & Messaging
 -keep class com.google.firebase.** { *; }
@@ -39,9 +60,13 @@
 -dontwarn com.google.android.ads.nativetemplates.**
 -keep class com.google.android.gms.internal.ads.** { *; }
 
-# Google Sign In & Play Services Auth
+# Google Sign In & Play Services Auth (Native One-Tap & Account Picker)
 -keep class com.google.android.gms.auth.api.signin.** { *; }
+-keep class com.google.android.gms.auth.** { *; }
 -keep class io.flutter.plugins.googlesignin.** { *; }
+-keep interface io.flutter.plugins.googlesignin.** { *; }
+-keepclassmembers class io.flutter.plugins.googlesignin.** { *; }
+-keepclassmembers interface io.flutter.plugins.googlesignin.** { *; }
 
 # Local Auth & Biometrics / Credential Manager
 -keep class io.flutter.plugins.localauth.** { *; }
