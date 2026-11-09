@@ -15,11 +15,14 @@
 }
 
 # Flutter Plugin interfaces & Message Codecs
+-keep class io.flutter.plugin.common.** { *; }
+-keep interface io.flutter.plugin.common.** { *; }
 -keep class * implements io.flutter.embedding.engine.plugins.FlutterPlugin { *; }
 -keep class * implements io.flutter.embedding.engine.plugins.activity.ActivityAware { *; }
 -keepclassmembers class * implements io.flutter.plugin.common.StandardMessageCodec { *; }
 -keepclassmembers class * implements io.flutter.plugin.common.BinaryMessenger { *; }
 -keepclassmembers class * implements io.flutter.plugin.common.MethodChannel$MethodCallHandler { *; }
+-keepclassmembers class * implements io.flutter.plugin.common.BasicMessageChannel$MessageHandler { *; }
 
 # Pigeon Communication Channels & SharedPreferences (Crucial for all storage, auth, and engine channels)
 -keep class dev.flutter.pigeon.** { *; }

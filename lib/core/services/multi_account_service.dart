@@ -731,16 +731,13 @@ class _AccountLoginSheetState extends State<AccountLoginSheet> {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    final viewInsets = mediaQuery.viewInsets;
-    final maxAvailableHeight = mediaQuery.size.height - viewInsets.bottom - mediaQuery.padding.top - 24;
+    final bottomInset = mediaQuery.viewInsets.bottom;
 
-    return AnimatedPadding(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      padding: EdgeInsets.only(bottom: viewInsets.bottom),
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
       child: Container(
         constraints: BoxConstraints(
-          maxHeight: maxAvailableHeight > 240 ? maxAvailableHeight : 240,
+          maxHeight: mediaQuery.size.height * 0.88,
         ),
         decoration: const BoxDecoration(
           color: Colors.white,
@@ -757,7 +754,7 @@ class _AccountLoginSheetState extends State<AccountLoginSheet> {
           top: false,
           child: SingleChildScrollView(
             physics: const ClampingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
             child: AutofillGroup(
               child: Column(
                 mainAxisSize: MainAxisSize.min,

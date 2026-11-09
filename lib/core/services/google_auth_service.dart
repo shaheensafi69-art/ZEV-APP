@@ -111,15 +111,8 @@ class GoogleAuthService {
       try {
         googleUser = await googleSignIn.signIn();
       } catch (nativeErr) {
-        debugPrint("Native Google Sign-In notice ($nativeErr). Falling back to OAuth...");
-        final res = await supabase.auth.signInWithOAuth(
-          OAuthProvider.google,
-          redirectTo: 'zev://auth/callback',
-          authScreenLaunchMode: LaunchMode.externalApplication,
-        );
-        if (!res) {
-          onError?.call("Could not complete Google Sign-In.");
-        }
+        debugPrint("Native Google Sign-In error: $nativeErr");
+        onError?.call("Google Sign-In failed: $nativeErr");
         return;
       }
 
@@ -134,15 +127,7 @@ class GoogleAuthService {
       final accessToken = googleAuth.accessToken;
 
       if (idToken == null || idToken.isEmpty) {
-        debugPrint("Google Sign-In: idToken is null, falling back to OAuth...");
-        final res = await supabase.auth.signInWithOAuth(
-          OAuthProvider.google,
-          redirectTo: 'zev://auth/callback',
-          authScreenLaunchMode: LaunchMode.externalApplication,
-        );
-        if (!res) {
-          onError?.call("Could not complete Google Sign-In.");
-        }
+        onError?.call("Could not retrieve Google ID token. Please try again.");
         return;
       }
 

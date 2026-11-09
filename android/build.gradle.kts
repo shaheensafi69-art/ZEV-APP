@@ -1,16 +1,41 @@
 allprojects {
     repositories {
+        maven { url = uri("${rootProject.projectDir}/local_repo") }
         google()
         mavenCentral()
     }
+    configurations.all {
+        resolutionStrategy {
+            force("androidx.lifecycle:lifecycle-livedata-core:2.8.7")
+            force("androidx.lifecycle:lifecycle-viewmodel:2.8.7")
+            force("androidx.lifecycle:lifecycle-common:2.8.7")
+            force("androidx.lifecycle:lifecycle-runtime:2.8.7")
+            force("com.google.android.gms:play-services-basement:18.2.0")
+            force("androidx.browser:browser:1.8.0")
+            force("androidx.annotation:annotation-experimental:1.4.1")
+        }
+    }
     buildscript {
         repositories {
+            maven { url = uri("${rootProject.projectDir}/local_repo") }
             google()
             mavenCentral()
         }
         configurations.all {
             resolutionStrategy {
                 force("com.android.tools.build:gradle:8.11.1")
+            }
+        }
+    }
+
+    // Restrict download.flutter.io to ONLY io.flutter artifacts so it never intercepts Google Play Services
+    afterEvaluate {
+        repositories.configureEach {
+            if (this is MavenArtifactRepository && url.toString().contains("download.flutter.io")) {
+                content {
+                    includeGroup("io.flutter")
+                    includeGroupByRegex("io\\.flutter\\..*")
+                }
             }
         }
     }
