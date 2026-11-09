@@ -58,7 +58,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _emailCtrl = TextEditingController();
   final TextEditingController _passwordCtrl = TextEditingController();
   final TextEditingController _confirmPasswordCtrl = TextEditingController();
-  final TextEditingController _refCodeCtrl = TextEditingController();
   bool _showPassword = false;
   bool _showConfirmPassword = false;
   bool _agreedToTerms = true;
@@ -109,7 +108,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmPasswordCtrl.dispose();
-    _refCodeCtrl.dispose();
     for (final c in _otpCtrls) {
       c.dispose();
     }
@@ -510,23 +508,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _resendTimer?.cancel();
 
     try {
-      // 1. Check referral code if provided
-      String? validReferrerId;
-      if (_refCodeCtrl.text.trim().isNotEmpty) {
-        try {
-          final refData = await supabase
-              .from('profiles')
-              .select('id')
-              .eq('referral_code', _refCodeCtrl.text.trim().toUpperCase())
-              .maybeSingle();
-
-          if (refData != null) {
-            validReferrerId = refData['id'];
-          }
-        } catch (_) {}
-      }
-
-      // 2. Upload avatar if selected
+      // 1. Upload avatar if selected
       String avatarUrl = "";
       if (_avatarFile != null) {
         final ext = _avatarFile!.path.split('.').last;
@@ -542,7 +524,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       }
 
-      // 3. Upsert User Profile
+      // 2. Upsert User Profile
       final username = _usernameCtrl.text.trim().toLowerCase();
       final firstName = _firstNameCtrl.text.trim();
       final lastName = _lastNameCtrl.text.trim();
@@ -560,13 +542,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'avatar_url': avatarUrl,
         'bio': _bioCtrl.text.trim(),
         'role': 'student',
-        'referred_by': validReferrerId,
       });
 
-      // 4. Mark user logged in locally
+      // 3. Mark user logged in locally
       await AuthHelper.markUserLoggedIn(userId: userId, role: 'student');
 
-      // 5. Save into Instagram-style multi-account switcher
+      // 4. Save into Instagram-style multi-account switcher
       await MultiAccountService.saveCurrentAccount(
         overrideUsername: username,
         overrideFullName: '$firstName $lastName'.trim(),
@@ -1145,7 +1126,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           prefixIcon: Icons.lock_reset_rounded,
           isPassword: true,
           isObscured: !_showConfirmPassword,
-          textInputAction: TextInputAction.next,
+          textInputAction: TextInputAction.done,
           suffixIcon: IconButton(
             icon: Icon(
               _showConfirmPassword
@@ -1158,16 +1139,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               () => _showConfirmPassword = !_showConfirmPassword,
             ),
           ),
-        ),
-
-        const SizedBox(height: 16),
-
-        ZevTextField(
-          label: "Referral Code (Optional)",
-          hint: "e.g. ZEV2026",
-          controller: _refCodeCtrl,
-          prefixIcon: Icons.card_giftcard_rounded,
-          textInputAction: TextInputAction.done,
         ),
 
         const SizedBox(height: 16),

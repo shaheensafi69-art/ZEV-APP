@@ -28,55 +28,65 @@ class _ZevNativeAdReelUnitState extends State<ZevNativeAdReelUnit> {
   void _loadNativeAd() {
     if (kIsWeb) return;
 
-    _nativeAd = NativeAd(
-      adUnitId: AdmobService.nativeAdUnitId,
-      request: const AdRequest(),
-      listener: NativeAdListener(
-        onAdLoaded: (ad) {
-          if (mounted) {
-            setState(() {
-              _isAdLoaded = true;
-              _adFailed = false;
-            });
-          }
-        },
-        onAdFailedToLoad: (ad, error) {
-          debugPrint('[ZevNativeAdReelUnit] Ad failed to load: ${error.message} (code ${error.code})');
-          ad.dispose();
-          if (mounted) {
-            setState(() {
-              _nativeAd = null;
-              _isAdLoaded = false;
-              _adFailed = true;
-            });
-          }
-        },
-      ),
-      nativeTemplateStyle: NativeTemplateStyle(
-        templateType: TemplateType.medium,
-        mainBackgroundColor: const Color(0xFF0F172A),
-        cornerRadius: 20.0,
-        callToActionTextStyle: NativeTemplateTextStyle(
-          textColor: Colors.black,
-          backgroundColor: const Color(0xFF00D4FF),
-          style: NativeTemplateFontStyle.bold,
-          size: 16.0,
+    try {
+      _nativeAd = NativeAd(
+        adUnitId: AdmobService.nativeAdUnitId,
+        request: const AdRequest(),
+        listener: NativeAdListener(
+          onAdLoaded: (ad) {
+            if (mounted) {
+              setState(() {
+                _isAdLoaded = true;
+                _adFailed = false;
+              });
+            }
+          },
+          onAdFailedToLoad: (ad, error) {
+            debugPrint('[ZevNativeAdReelUnit] Ad failed to load: ${error.message} (code ${error.code})');
+            ad.dispose();
+            if (mounted) {
+              setState(() {
+                _nativeAd = null;
+                _isAdLoaded = false;
+                _adFailed = true;
+              });
+            }
+          },
         ),
-        primaryTextStyle: NativeTemplateTextStyle(
-          textColor: Colors.white,
-          style: NativeTemplateFontStyle.bold,
-          size: 16.0,
+        nativeTemplateStyle: NativeTemplateStyle(
+          templateType: TemplateType.medium,
+          mainBackgroundColor: const Color(0xFF0F172A),
+          cornerRadius: 20.0,
+          callToActionTextStyle: NativeTemplateTextStyle(
+            textColor: Colors.black,
+            backgroundColor: const Color(0xFF00D4FF),
+            style: NativeTemplateFontStyle.bold,
+            size: 16.0,
+          ),
+          primaryTextStyle: NativeTemplateTextStyle(
+            textColor: Colors.white,
+            style: NativeTemplateFontStyle.bold,
+            size: 16.0,
+          ),
+          secondaryTextStyle: NativeTemplateTextStyle(
+            textColor: const Color(0xFF94A3B8),
+            size: 13.0,
+          ),
+          tertiaryTextStyle: NativeTemplateTextStyle(
+            textColor: const Color(0xFF64748B),
+            size: 12.0,
+          ),
         ),
-        secondaryTextStyle: NativeTemplateTextStyle(
-          textColor: const Color(0xFF94A3B8),
-          size: 13.0,
-        ),
-        tertiaryTextStyle: NativeTemplateTextStyle(
-          textColor: const Color(0xFF64748B),
-          size: 12.0,
-        ),
-      ),
-    )..load();
+      )..load();
+    } catch (e) {
+      debugPrint('[ZevNativeAdReelUnit] Ad initialization warning: $e');
+      if (mounted) {
+        setState(() {
+          _adFailed = true;
+          _isAdLoaded = false;
+        });
+      }
+    }
   }
 
   @override

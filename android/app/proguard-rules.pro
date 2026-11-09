@@ -35,6 +35,9 @@
 # Google Mobile Ads
 -keep class com.google.android.gms.ads.** { *; }
 -keep class io.flutter.plugins.googlemobileads.** { *; }
+-keep class com.google.android.ads.nativetemplates.** { *; }
+-dontwarn com.google.android.ads.nativetemplates.**
+-keep class com.google.android.gms.internal.ads.** { *; }
 
 # Google Sign In & Play Services Auth
 -keep class com.google.android.gms.auth.api.signin.** { *; }
@@ -47,6 +50,9 @@
 
 # Video Player & ExoPlayer / Media3
 -keep class androidx.media3.** { *; }
+-dontwarn androidx.media3.**
+-keep class com.google.android.exoplayer2.** { *; }
+-dontwarn com.google.android.exoplayer2.**
 -keep class io.flutter.plugins.videoplayer.** { *; }
 
 # Audio Players & Audio Recording
@@ -55,6 +61,7 @@
 
 # FFmpeg & Video Compression
 -keep class com.arthenica.ffmpegkit.** { *; }
+-keep class com.example.easy_compressor.** { *; }
 -keep class com.tinify.easy_compressor.** { *; }
 
 # Speech To Text & Text To Speech
@@ -64,6 +71,12 @@
 # File Picker & Image Picker
 -keep class com.mr.flutter.plugin.filepicker.** { *; }
 -keep class io.flutter.plugins.imagepicker.** { *; }
+
+# Gal (Gallery Saver) & Plus Plugins
+-keep class studio.midoridesign.gal.** { *; }
+-keep class dev.fluttercommunity.plus.** { *; }
+-keep class com.baseflow.permissionhandler.** { *; }
+-keep class com.tekartik.sqflite.** { *; }
 
 # App Links / Deep Links
 -keep class com.llfbandit.app_links.** { *; }
