@@ -78,6 +78,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>GIDClientID</key>
+	<string>467206192154-kcmjgeh1ashtoq02k6cqut56trj6rhqg.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>467206192154-kcmjgeh1ashtoq02k6cqut56trj6rhqg.apps.googleusercontent.com</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -87,6 +91,7 @@
 			<array>
 				<string>zev</string>
 				<string>zevapp</string>
+				<string>com.googleusercontent.apps.467206192154-kcmjgeh1ashtoq02k6cqut56trj6rhqg</string>
 			</array>
 		</dict>
 	</array>

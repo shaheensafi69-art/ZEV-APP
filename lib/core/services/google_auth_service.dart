@@ -76,8 +76,24 @@ class GoogleAuthService {
 
       // 2. Native Google Sign-In on Android & iOS
       final webClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID'] ??
-          '467206192154-6opg0v3iafqhovalsjpngdb3gmtc6586.apps.googleusercontent.com';
-      final iosClientId = dotenv.env['GOOGLE_IOS_CLIENT_ID'];
+          '467206192154-kcmjgeh1ashtoq02k6cqut56trj6rhqg.apps.googleusercontent.com';
+      final iosClientId = dotenv.env['GOOGLE_IOS_CLIENT_ID'] ??
+          '467206192154-kcmjgeh1ashtoq02k6cqut56trj6rhqg.apps.googleusercontent.com';
+
+      // On macOS, Windows, Linux desktop, use OAuth web flow directly
+      if (defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.linux) {
+        final res = await supabase.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: 'zev://auth/callback',
+          authScreenLaunchMode: LaunchMode.externalApplication,
+        );
+        if (!res) {
+          onError?.call("Could not open Google sign-in window.");
+        }
+        return;
+      }
 
       final GoogleSignIn googleSignIn = GoogleSignIn(
         clientId: (defaultTargetPlatform == TargetPlatform.iOS) ? iosClientId : null,
@@ -91,7 +107,22 @@ class GoogleAuthService {
       } catch (_) {}
 
       // Pops up the native Android One-Tap Account Picker bottom sheet (ChatGPT-style!)
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      GoogleSignInAccount? googleUser;
+      try {
+        googleUser = await googleSignIn.signIn();
+      } catch (nativeErr) {
+        debugPrint("Native Google Sign-In notice ($nativeErr). Falling back to OAuth...");
+        final res = await supabase.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: 'zev://auth/callback',
+          authScreenLaunchMode: LaunchMode.externalApplication,
+        );
+        if (!res) {
+          onError?.call("Could not complete Google Sign-In.");
+        }
+        return;
+      }
+
       if (googleUser == null) {
         // User closed or dismissed the bottom sheet
         onCancel?.call();

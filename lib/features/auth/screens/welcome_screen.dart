@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/apple_sign_in_button.dart';
 import '../../../core/widgets/google_sign_in_button.dart';
 import '../../../core/widgets/zev_logo.dart';
 import 'login_screen.dart';
@@ -323,6 +325,28 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                               );
                             },
                           ),
+
+                          // Apple Sign-In Action on iOS & macOS
+                          if (!kIsWeb &&
+                              (defaultTargetPlatform == TargetPlatform.iOS ||
+                                  defaultTargetPlatform == TargetPlatform.macOS)) ...[
+                            const SizedBox(height: 12),
+                            AppleSignInButton(
+                              text: "Continue with Apple",
+                              onError: (msg) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(msg),
+                                    behavior: SnackBarBehavior.floating,
+                                    backgroundColor: const Color(0xFFDC2626),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
 
                           const SizedBox(height: 12),
 

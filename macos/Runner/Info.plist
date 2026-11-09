@@ -26,6 +26,10 @@
 	<string>$(PRODUCT_COPYRIGHT)</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
+	<key>GIDClientID</key>
+	<string>467206192154-kcmjgeh1ashtoq02k6cqut56trj6rhqg.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>467206192154-kcmjgeh1ashtoq02k6cqut56trj6rhqg.apps.googleusercontent.com</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

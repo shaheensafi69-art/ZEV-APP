@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -8,6 +9,7 @@ import '../../../core/services/mfa_service.dart';
 import '../../../core/services/multi_account_service.dart';
 import '../../../core/services/passkey_auth_service.dart';
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/apple_sign_in_button.dart';
 import '../../../core/widgets/google_sign_in_button.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_logo.dart';
@@ -1013,6 +1015,20 @@ class _LoginScreenState extends State<LoginScreen>
               setState(() => _errorMsg = msg);
             },
           ),
+
+          // Apple Sign-In on iOS & macOS
+          if (!kIsWeb &&
+              (defaultTargetPlatform == TargetPlatform.iOS ||
+                  defaultTargetPlatform == TargetPlatform.macOS)) ...[
+            const SizedBox(height: 12),
+            AppleSignInButton(
+              text: "Continue with Apple",
+              onSuccess: _handleGoogleSuccess,
+              onError: (msg) {
+                setState(() => _errorMsg = msg);
+              },
+            ),
+          ],
 
           // 1-Tap Passkey / Biometrics Button
           if (_isPasskeySupported && _isPasskeyEnrolled) ...[
