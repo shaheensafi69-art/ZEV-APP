@@ -10,7 +10,7 @@ allprojects {
             force("androidx.lifecycle:lifecycle-viewmodel:2.8.7")
             force("androidx.lifecycle:lifecycle-common:2.8.7")
             force("androidx.lifecycle:lifecycle-runtime:2.8.7")
-            force("com.google.android.gms:play-services-basement:18.2.0")
+            force("com.google.android.gms:play-services-basement:18.9.0")
             force("androidx.browser:browser:1.8.0")
             force("androidx.annotation:annotation-experimental:1.4.1")
         }
