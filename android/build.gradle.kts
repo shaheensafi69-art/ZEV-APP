@@ -3,6 +3,17 @@ allprojects {
         google()
         mavenCentral()
     }
+    buildscript {
+        repositories {
+            google()
+            mavenCentral()
+        }
+        configurations.all {
+            resolutionStrategy {
+                force("com.android.tools.build:gradle:8.11.1")
+            }
+        }
+    }
 }
 
 val newBuildDir: Directory =
