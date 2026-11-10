@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../core/theme/zev_theme.dart';
 import '../../../../core/widgets/zev_cached_image.dart';
 import '../../../feed/screens/post_detail_screen.dart';
 

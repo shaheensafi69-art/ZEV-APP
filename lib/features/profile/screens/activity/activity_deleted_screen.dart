@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-
-import '../../../../core/theme/zev_theme.dart';
 
 /// Instagram-Grade Recently Deleted Media Screen for ZEV.
 /// Displays items deleted in the last 30 days with restore and permanent delete options.

@@ -1745,7 +1745,7 @@ class _CheckoutModalSheetState extends State<_CheckoutModalSheet> {
             ),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
-              value: _paymentMethod,
+              initialValue: _paymentMethod,
               decoration: InputDecoration(
                 filled: true,
                 fillColor: const Color(0xFFF8FAFC),

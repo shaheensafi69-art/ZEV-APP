@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../core/theme/zev_theme.dart';
-
 /// Full Dedicated Screen for Notification Preferences on ZEV.
 /// Allows granular configuration of likes, comments, stories, DMs and follow alerts
 /// with authentic Claymorphic styling.

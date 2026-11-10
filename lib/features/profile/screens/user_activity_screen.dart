@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/theme/zev_theme.dart';
 import 'activity/activity_archive_screen.dart';
 import 'activity/activity_comments_screen.dart';
 import 'activity/activity_content_screen.dart';

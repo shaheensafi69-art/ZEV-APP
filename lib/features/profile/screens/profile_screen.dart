@@ -22,7 +22,6 @@ import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_video_thumbnail.dart';
 import '../widgets/create_highlight_sheet.dart';
 import '../widgets/highlight_viewer_screen.dart';
-import '../widgets/user_follows_sheet.dart';
 import 'user_follows_screen.dart';
 import '../widgets/video_cover_thumbnail.dart';
 import '../../chat/screens/chat_conversation_screen.dart';

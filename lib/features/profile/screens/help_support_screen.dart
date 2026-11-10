@@ -1,12 +1,10 @@
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/telegram_notification_service.dart';
-import '../../../core/theme/zev_theme.dart';
 
 /// Flagship Instagram-Grade Help & Support Hub for ZEV.
 /// Features:
