@@ -83,7 +83,6 @@
                 <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/@"/>
                 <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/join"/>
                 <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/join"/>
-                <data android:scheme="https" android:host="media.zevapp.com" android:pathPrefix="/zev/feed"/>
             </intent-filter>
 
             <!-- ZEV Custom Scheme Fallback (zev://post/..., zev://reel/..., zev://chat/..., zev://notifications) -->
