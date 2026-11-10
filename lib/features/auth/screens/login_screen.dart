@@ -153,21 +153,32 @@ class _LoginScreenState extends State<LoginScreen>
       final user = authResponse.user;
 
       if (user != null) {
-        // Check Multi-Factor Authentication requirement
-        if (MfaService.instance.isMfaRequired()) {
-          final factors = await MfaService.instance.getEnrolledFactors();
-          if (factors.isNotEmpty && mounted) {
-            final verified = await MfaChallengeSheet.show(
-              context,
-              factorId: factors.first.id,
-              accountEmail: email,
-            );
-            if (!verified) {
-              setState(() {
-                _isLoading = false;
-                _errorMsg = "Two-Factor Authentication cancelled. Login incomplete.";
-              });
-              return;
+        // Check Multi-Factor Authentication (Authenticator TOTP) requirement
+        final hasMfa = MfaService.instance.isMfaRequired() ||
+            (await MfaService.instance.hasEnrolledMfa());
+
+        if (hasMfa) {
+          final isTrusted =
+              await MfaService.instance.isCurrentDeviceTrusted(user.id);
+          if (!isTrusted) {
+            // New or untrusted device -> Challenge user once with 6-digit Authenticator code
+            final factors = await MfaService.instance.getEnrolledFactors();
+            if (factors.isNotEmpty && mounted) {
+              final verified = await MfaChallengeSheet.show(
+                context,
+                factorId: factors.first.id,
+                accountEmail: email,
+              );
+              if (!verified) {
+                setState(() {
+                  _isLoading = false;
+                  _errorMsg =
+                      "Two-Factor Authentication cancelled. Login incomplete.";
+                });
+                return;
+              }
+              // Verification passed -> Save this device as trusted!
+              await MfaService.instance.trustCurrentDevice(user.id);
             }
           }
         }

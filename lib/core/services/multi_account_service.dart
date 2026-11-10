@@ -597,21 +597,29 @@ class _AccountLoginSheetState extends State<AccountLoginSheet> {
 
       final user = authResponse.user;
       if (user != null) {
-        // Check Multi-Factor Authentication requirement
-        if (MfaService.instance.isMfaRequired()) {
-          final factors = await MfaService.instance.getEnrolledFactors();
-          if (factors.isNotEmpty && mounted) {
-            final verified = await MfaChallengeSheet.show(
-              context,
-              factorId: factors.first.id,
-              accountEmail: widget.account.email,
-            );
-            if (!verified) {
-              setState(() {
-                _isLoading = false;
-                _errorMsg = "Two-Factor Authentication cancelled.";
-              });
-              return;
+        // Check Multi-Factor Authentication requirement with Trusted Device verification
+        final hasMfa = MfaService.instance.isMfaRequired() ||
+            (await MfaService.instance.hasEnrolledMfa());
+
+        if (hasMfa) {
+          final isTrusted =
+              await MfaService.instance.isCurrentDeviceTrusted(user.id);
+          if (!isTrusted) {
+            final factors = await MfaService.instance.getEnrolledFactors();
+            if (factors.isNotEmpty && mounted) {
+              final verified = await MfaChallengeSheet.show(
+                context,
+                factorId: factors.first.id,
+                accountEmail: widget.account.email,
+              );
+              if (!verified) {
+                setState(() {
+                  _isLoading = false;
+                  _errorMsg = "Two-Factor Authentication cancelled.";
+                });
+                return;
+              }
+              await MfaService.instance.trustCurrentDevice(user.id);
             }
           }
         }
@@ -692,21 +700,29 @@ class _AccountLoginSheetState extends State<AccountLoginSheet> {
         return;
       }
 
-      // Check MFA if required
-      if (MfaService.instance.isMfaRequired()) {
-        final factors = await MfaService.instance.getEnrolledFactors();
-        if (factors.isNotEmpty && mounted) {
-          final verified = await MfaChallengeSheet.show(
-            context,
-            factorId: factors.first.id,
-            accountEmail: widget.account.email,
-          );
-          if (!verified) {
-            setState(() {
-              _isLoading = false;
-              _errorMsg = "Two-Factor Authentication cancelled.";
-            });
-            return;
+      // Check MFA with Trusted Device verification
+      final hasMfa = MfaService.instance.isMfaRequired() ||
+          (await MfaService.instance.hasEnrolledMfa());
+
+      if (hasMfa) {
+        final isTrusted =
+            await MfaService.instance.isCurrentDeviceTrusted(widget.account.userId);
+        if (!isTrusted) {
+          final factors = await MfaService.instance.getEnrolledFactors();
+          if (factors.isNotEmpty && mounted) {
+            final verified = await MfaChallengeSheet.show(
+              context,
+              factorId: factors.first.id,
+              accountEmail: widget.account.email,
+            );
+            if (!verified) {
+              setState(() {
+                _isLoading = false;
+                _errorMsg = "Two-Factor Authentication cancelled.";
+              });
+              return;
+            }
+            await MfaService.instance.trustCurrentDevice(widget.account.userId);
           }
         }
       }

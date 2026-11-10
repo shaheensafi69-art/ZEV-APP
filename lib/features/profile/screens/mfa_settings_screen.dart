@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/mfa_service.dart';
 import '../../../core/services/passkey_auth_service.dart';
-import '../../../core/theme/zev_theme.dart';
 
 /// Full Dedicated Screen for Security & Two-Factor Authentication on ZEV.
 /// Allows users to enroll or unenroll TOTP Authenticator apps (Google Authenticator,
@@ -33,6 +32,10 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
   bool _isPasskeySupported = false;
   bool _isPasskeyEnrolled = false;
 
+  // Trusted Devices state
+  List<Map<String, dynamic>> _trustedDevices = [];
+  String _currentDeviceId = '';
+
   // Enrollment flow state
   bool _isEnrolling = false;
   String? _enrollFactorId;
@@ -56,11 +59,16 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
   Future<void> _loadSecurityStatus() async {
     setState(() => _isLoading = true);
     try {
+      final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
       final factors = await MfaService.instance.getEnrolledFactors();
       final hasPasskeySupport =
           await PasskeyAuthService.instance.isDeviceSupported();
       final hasPasskey =
           await PasskeyAuthService.instance.isPasskeyEnrolled();
+
+      final currentDeviceId = await MfaService.instance.getOrCreateDeviceId();
+      final trustedDevices =
+          userId.isNotEmpty ? await MfaService.instance.getTrustedDevices(userId) : <Map<String, dynamic>>[];
 
       if (mounted) {
         setState(() {
@@ -68,11 +76,45 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
           _activeFactor = factors.isNotEmpty ? factors.first : null;
           _isPasskeySupported = hasPasskeySupport;
           _isPasskeyEnrolled = hasPasskey;
+          _currentDeviceId = currentDeviceId;
+          _trustedDevices = trustedDevices;
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _revokeDevice(String deviceId) async {
+    final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+    if (userId.isEmpty) return;
+
+    HapticFeedback.lightImpact();
+    await MfaService.instance.revokeDevice(userId, deviceId);
+    await _loadSecurityStatus();
+  }
+
+  Future<void> _revokeAllOtherDevices() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+    if (userId.isEmpty) return;
+
+    HapticFeedback.mediumImpact();
+    await MfaService.instance.revokeAllOtherDevices(userId);
+    await _loadSecurityStatus();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFF0F172A),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          content: const Text(
+            "All other devices revoked. They will require 2FA next time.",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          ),
+        ),
+      );
     }
   }
 
@@ -120,6 +162,11 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
         factorId: _enrollFactorId!,
         code: code,
       );
+
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (currentUserId != null) {
+        await MfaService.instance.trustCurrentDevice(currentUserId);
+      }
 
       HapticFeedback.heavyImpact();
       if (mounted) {
@@ -741,6 +788,225 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
                         ],
                       ),
                     ),
+
+                    if (_hasMfa) ...[
+                      const SizedBox(height: 24),
+                      const Padding(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                        child: Text(
+                          "TRUSTED DEVICES (VERIFIED ONCE)",
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF94A3B8),
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.95),
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF0F172A)
+                                  .withValues(alpha: 0.04),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF10B981)
+                                        .withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: const Icon(Icons.devices_rounded,
+                                      color: Color(0xFF10B981), size: 22),
+                                ),
+                                const SizedBox(width: 12),
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "Device Verification Hub",
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 14.5,
+                                          color: Color(0xFF0F172A),
+                                        ),
+                                      ),
+                                      SizedBox(height: 2),
+                                      Text(
+                                        "New devices must enter your 6-digit Authenticator code once.",
+                                        style: TextStyle(
+                                            fontSize: 11.5,
+                                            color: Color(0xFF64748B)),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            const Divider(color: Color(0xFFF1F5F9), height: 1),
+                            const SizedBox(height: 12),
+                            if (_trustedDevices.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8),
+                                child: Text(
+                                  "This device is currently authorized and active.",
+                                  style: TextStyle(
+                                      fontSize: 12.5,
+                                      color: Color(0xFF475569)),
+                                ),
+                              )
+                            else
+                              ..._trustedDevices.map((dev) {
+                                final isCurrent =
+                                    dev['device_id'] == _currentDeviceId;
+                                final name =
+                                    dev['device_name']?.toString() ??
+                                        'Authorized Device';
+                                final platform =
+                                    dev['platform']?.toString().toLowerCase() ??
+                                        'mobile';
+
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        platform == 'ios'
+                                            ? Icons.apple_rounded
+                                            : (platform == 'macos'
+                                                ? Icons.laptop_mac_rounded
+                                                : Icons.phone_android_rounded),
+                                        size: 20,
+                                        color: const Color(0xFF475569),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Flexible(
+                                                  child: Text(
+                                                    name,
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      fontSize: 13,
+                                                      color: Color(0xFF0F172A),
+                                                    ),
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                                if (isCurrent) ...[
+                                                  const SizedBox(width: 6),
+                                                  Container(
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 6,
+                                                        vertical: 1),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(
+                                                              0xFF10B981)
+                                                          .withValues(
+                                                              alpha: 0.12),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              6),
+                                                    ),
+                                                    child: const Text(
+                                                      "THIS DEVICE",
+                                                      style: TextStyle(
+                                                        fontSize: 9,
+                                                        fontWeight:
+                                                            FontWeight.w900,
+                                                        color:
+                                                            Color(0xFF10B981),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                            const Text(
+                                              "Trusted • Verified via 2FA",
+                                              style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: Color(0xFF64748B)),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (!isCurrent)
+                                        IconButton(
+                                          icon: const Icon(Icons.close_rounded,
+                                              size: 18,
+                                              color: Color(0xFF94A3B8)),
+                                          tooltip: "Revoke trust",
+                                          onPressed: () => _revokeDevice(
+                                              dev['device_id']?.toString() ??
+                                                  ''),
+                                        ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            if (_trustedDevices.length > 1) ...[
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: _revokeAllOtherDevices,
+                                  icon: const Icon(
+                                      Icons.security_update_warning_rounded,
+                                      size: 16,
+                                      color: Color(0xFFEF4444)),
+                                  label: const Text(
+                                    "Log Out & Revoke All Other Devices",
+                                    style: TextStyle(
+                                      color: Color(0xFFEF4444),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    side: BorderSide(
+                                        color: const Color(0xFFEF4444)
+                                            .withValues(alpha: 0.4)),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
