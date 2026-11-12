@@ -38,11 +38,24 @@ flutter build web --release \
   ${FIREBASE_VAPID_KEY:+--dart-define="FIREBASE_VAPID_KEY=${FIREBASE_VAPID_KEY}"}
 
 echo "📋 Copying PWA assets (sw.js, manifest.json, offline.html, screenshots, app-ads.txt) to build/web..."
+rm -rf build/web/screenshots
 cp -r web/screenshots build/web/ 2>/dev/null || true
 cp web/sw.js build/web/ 2>/dev/null || true
 cp web/offline.html build/web/ 2>/dev/null || true
 cp web/manifest.json build/web/ 2>/dev/null || true
 cp web/app-ads.txt build/web/ 2>/dev/null || true
 cp app-ads.txt build/web/ 2>/dev/null || true
+
+# Prevent deprecated flutter_service_worker.js from overriding /sw.js at scope '/'
+rm -f build/web/flutter_service_worker.js
+node -e '
+const fs = require("fs");
+const p = "build/web/flutter_bootstrap.js";
+if (fs.existsSync(p)) {
+  const src = fs.readFileSync(p, "utf8");
+  const patched = src.replace(/_flutter\.loader\.load\(\{[\s\S]*$/, "_flutter.loader.load({});\n");
+  fs.writeFileSync(p, patched, "utf8");
+}
+' 2>/dev/null || true
 
 echo "✅ Build complete! Output ready in build/web"

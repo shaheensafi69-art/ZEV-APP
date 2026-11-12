@@ -1,13 +1,10 @@
 // ZEV Progressive Web App Service Worker
 // Fully compliant with W3C Service Worker specification and PWABuilder requirements.
 
-const CACHE_NAME = "zev-cache-v1";
+const CACHE_NAME = "zev-cache-v2";
 const OFFLINE_URL = "/offline.html";
 
 const PRECACHE_ASSETS = [
-  "/",
-  "/index.html",
-  "/manifest.json",
   "/favicon.png",
   "/offline.html",
   "/icons/Icon-192.png",
@@ -88,14 +85,46 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Handle static assets
+  // Handle static & app-shell assets
   const url = new URL(event.request.url);
   // Avoid caching Supabase API or third-party dynamic APIs
   if (url.origin === self.location.origin) {
+    const path = url.pathname;
+    const isNetworkFirstAsset =
+      path === "/" ||
+      path === "/index.html" ||
+      path === "/manifest.json" ||
+      path === "/version.json" ||
+      path === "/flutter_bootstrap.js" ||
+      path === "/main.dart.js" ||
+      path === "/sw.js" ||
+      path.startsWith("/screenshots/") ||
+      path.endsWith(".js") ||
+      path.endsWith(".json") ||
+      path.endsWith(".wasm") ||
+      path.endsWith(".mjs");
+
+    if (isNetworkFirstAsset) {
+      event.respondWith(
+        fetch(event.request, { cache: "no-cache" })
+          .then((networkResponse) => {
+            if (networkResponse && networkResponse.status === 200) {
+              const copy = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(event.request, copy);
+              });
+            }
+            return networkResponse;
+          })
+          .catch(() => caches.match(event.request))
+      );
+      return;
+    }
+
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
         if (cachedResponse) {
-          // Return cache and update cache in background (stale-while-revalidate for static assets)
+          // Return cache and update cache in background (stale-while-revalidate for icons/fonts)
           fetch(event.request).then((networkResponse) => {
             if (networkResponse && networkResponse.status === 200) {
               caches.open(CACHE_NAME).then((cache) => {

@@ -74,8 +74,9 @@
             "type": "application/json",
             "screenshots": [
                 {
-                    "src": "screenshots/desktop-wide.png",
-                    "sizes": "1376x768",
+                    "src": "screenshots/8.jpeg",
+                    "sizes": "1600x800",
+                    "type": "image/jpeg",
                     "label": "ZEV Widget Preview"
                 }
             ],
@@ -145,18 +146,60 @@
     ],
     "screenshots": [
         {
-            "src": "screenshots/desktop-wide.png",
-            "sizes": "1376x768",
-            "type": "image/png",
-            "form_factor": "wide",
-            "label": "ZEV on Desktop"
+            "src": "screenshots/1.jpeg",
+            "sizes": "738x1600",
+            "type": "image/jpeg",
+            "form_factor": "narrow",
+            "label": "ZEV Profile & Stories"
         },
         {
-            "src": "screenshots/mobile-narrow.png",
-            "sizes": "768x1376",
-            "type": "image/png",
+            "src": "screenshots/2.jpeg",
+            "sizes": "738x1600",
+            "type": "image/jpeg",
             "form_factor": "narrow",
-            "label": "ZEV on Mobile"
+            "label": "Your Profile, Your Identity"
+        },
+        {
+            "src": "screenshots/3.jpeg",
+            "sizes": "738x1600",
+            "type": "image/jpeg",
+            "form_factor": "narrow",
+            "label": "Your Feed, Your World"
+        },
+        {
+            "src": "screenshots/4.jpeg",
+            "sizes": "738x1600",
+            "type": "image/jpeg",
+            "form_factor": "narrow",
+            "label": "Welcome to ZEV"
+        },
+        {
+            "src": "screenshots/5.jpeg",
+            "sizes": "738x1600",
+            "type": "image/jpeg",
+            "form_factor": "narrow",
+            "label": "Explore, Connect & Be Inspired"
+        },
+        {
+            "src": "screenshots/6.jpeg",
+            "sizes": "1024x1536",
+            "type": "image/jpeg",
+            "form_factor": "narrow",
+            "label": "A Global Community at Your Fingertips"
+        },
+        {
+            "src": "screenshots/7.jpeg",
+            "sizes": "1024x1536",
+            "type": "image/jpeg",
+            "form_factor": "narrow",
+            "label": "More Than a Social App"
+        },
+        {
+            "src": "screenshots/8.jpeg",
+            "sizes": "1600x800",
+            "type": "image/jpeg",
+            "form_factor": "wide",
+            "label": "ZEV - Connect, Share & Discover"
         }
     ],
     "share_target": {

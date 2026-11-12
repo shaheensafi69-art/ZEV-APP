@@ -52,9 +52,26 @@
   <!-- Service Worker Registration for PWABuilder & Offline Reliability -->
   <script>
     if ('serviceWorker' in navigator) {
+      var refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        navigator.serviceWorker.getRegistrations().then(function (registrations) {
+          registrations.forEach(function (reg) {
+            var worker = reg.active || reg.waiting || reg.installing;
+            if (worker && worker.scriptURL && worker.scriptURL.indexOf('flutter_service_worker.js') !== -1) {
+              reg.unregister();
+            }
+          });
+        }).catch(function () { });
+
+        navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' })
           .then(function (registration) {
+            registration.update().catch(function () { });
             console.log('ZEV ServiceWorker registration successful with scope:', registration.scope);
           })
           .catch(function (error) {
