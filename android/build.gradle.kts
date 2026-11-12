@@ -3,6 +3,8 @@ allprojects {
         maven { url = uri("${rootProject.projectDir}/local_repo") }
         google()
         mavenCentral()
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
     }
     configurations.all {
         resolutionStrategy {
@@ -20,6 +22,8 @@ allprojects {
             maven { url = uri("${rootProject.projectDir}/local_repo") }
             google()
             mavenCentral()
+            maven { url = uri("https://maven.aliyun.com/repository/google") }
+            maven { url = uri("https://maven.aliyun.com/repository/public") }
         }
         configurations.all {
             resolutionStrategy {
@@ -41,6 +45,8 @@ allprojects {
     }
 }
 
+extra["compileSdkVersion"] = 36
+
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
         .dir("../../build")
@@ -53,6 +59,20 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+}
+subprojects {
+    plugins.withId("com.android.library") {
+        val appExt = project(":app")
+            .extensions
+            .findByName("android")
+            as? com.android.build.api.dsl.CommonExtension<*, *, *, *, *, *>
+        val appNdk = appExt?.ndkVersion
+        if (!appNdk.isNullOrBlank()) {
+            extensions.configure<com.android.build.api.dsl.LibraryExtension> {
+                ndkVersion = appNdk
+            }
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

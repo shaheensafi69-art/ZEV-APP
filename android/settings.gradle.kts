@@ -14,12 +14,16 @@ pluginManagement {
         google()
         mavenCentral()
         gradlePluginPortal()
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
     }
 
     resolutionStrategy {
         eachPlugin {
             if (requested.id.id.startsWith("com.android.")) {
                 useModule("com.android.tools.build:gradle:8.11.1")
+            } else if (requested.id.id == "com.google.gms.google-services") {
+                useModule("com.google.gms:google-services:${requested.version}")
             }
         }
     }
