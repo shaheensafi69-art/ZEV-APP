@@ -1,12 +1,14 @@
 // ZEV Progressive Web App Service Worker
 // Fully compliant with W3C Service Worker specification and PWABuilder requirements.
 
-const CACHE_NAME = "zev-cache-v2";
+const CACHE_NAME = "zev-cache-v3";
 const OFFLINE_URL = "/offline.html";
 
 const PRECACHE_ASSETS = [
   "/favicon.png",
+  "/apple-touch-icon.png",
   "/offline.html",
+  "/icons/apple-touch-icon.png",
   "/icons/Icon-192.png",
   "/icons/Icon-512.png"
 ];
@@ -98,6 +100,10 @@ self.addEventListener("fetch", (event) => {
       path === "/flutter_bootstrap.js" ||
       path === "/main.dart.js" ||
       path === "/sw.js" ||
+      path === "/favicon.png" ||
+      path === "/apple-touch-icon.png" ||
+      path === "/apple-touch-icon-precomposed.png" ||
+      path.startsWith("/icons/") ||
       path.startsWith("/screenshots/") ||
       path.endsWith(".js") ||
       path.endsWith(".json") ||

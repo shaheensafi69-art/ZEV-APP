@@ -40,6 +40,9 @@ flutter build web --release \
 echo "📋 Copying PWA assets (sw.js, manifest.json, offline.html, screenshots, app-ads.txt) to build/web..."
 rm -rf build/web/screenshots
 cp -r web/screenshots build/web/ 2>/dev/null || true
+cp -r web/icons build/web/ 2>/dev/null || true
+cp web/apple-touch-icon*.png build/web/ 2>/dev/null || true
+cp web/favicon.png build/web/ 2>/dev/null || true
 cp web/sw.js build/web/ 2>/dev/null || true
 cp web/offline.html build/web/ 2>/dev/null || true
 cp web/manifest.json build/web/ 2>/dev/null || true

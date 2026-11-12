@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:easy_compressor/easy_compressor.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -108,9 +109,11 @@ class _CreateHighlightSheetState extends State<CreateHighlightSheet>
 
       setState(() => _isCreating = true);
 
-      final photoFile = File(picked.path);
+      final photoBytes = await picked.readAsBytes();
+      final photoFile = kIsWeb ? null : File(picked.path);
       final safetyResult = await ContentSafetyService.instance.checkImageSafety(
         file: photoFile,
+        bytes: photoBytes,
       );
       if (!safetyResult.isSafe) {
         if (mounted) {
@@ -128,7 +131,8 @@ class _CreateHighlightSheetState extends State<CreateHighlightSheet>
         return;
       }
 
-      final ext = picked.path.split('.').last;
+      final rawName = picked.name.isNotEmpty ? picked.name : picked.path;
+      final ext = rawName.contains('.') ? rawName.split('.').last : 'jpg';
       final fileName =
           'highlight_${widget.userId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
 
@@ -136,6 +140,7 @@ class _CreateHighlightSheetState extends State<CreateHighlightSheet>
         bucket: 'stories',
         path: fileName,
         file: photoFile,
+        bytes: photoBytes,
       );
 
       final item = StoryHighlightItem(
@@ -169,51 +174,59 @@ class _CreateHighlightSheetState extends State<CreateHighlightSheet>
       );
       if (picked == null) return;
 
-      File videoFile = File(picked.path);
+      File? videoFile = kIsWeb ? null : File(picked.path);
+      Uint8List? videoBytes = kIsWeb ? await picked.readAsBytes() : null;
 
-      // Check duration
-      Duration? videoDuration;
-      try {
-        final ctrl = VideoPlayerController.file(videoFile);
-        await ctrl.initialize();
-        videoDuration = ctrl.value.duration;
-        await ctrl.dispose();
-      } catch (_) {}
+      // Check duration (native platforms)
+      if (!kIsWeb && videoFile != null) {
+        Duration? videoDuration;
+        try {
+          final ctrl = VideoPlayerController.file(videoFile);
+          await ctrl.initialize();
+          videoDuration = ctrl.value.duration;
+          await ctrl.dispose();
+        } catch (_) {}
 
-      // Enforce 1:30 (90 seconds) limit with WhatsApp-style trimmer
-      if (videoDuration != null && videoDuration > const Duration(seconds: 90)) {
-        if (!mounted) return;
-        final trimmed = await VideoTrimmerSheet.show(
-          context,
-          videoFile: videoFile,
-          maxDuration: const Duration(seconds: 90),
-        );
-        if (trimmed == null) return; // user cancelled
-        videoFile = trimmed;
+        // Enforce 1:30 (90 seconds) limit with WhatsApp-style trimmer
+        if (videoDuration != null && videoDuration > const Duration(seconds: 90)) {
+          if (!mounted) return;
+          final trimmed = await VideoTrimmerSheet.show(
+            context,
+            videoFile: videoFile,
+            maxDuration: const Duration(seconds: 90),
+          );
+          if (trimmed == null) return; // user cancelled
+          videoFile = trimmed;
+        }
       }
 
       setState(() => _isCreating = true);
 
-      final safetyResult = await ContentSafetyService.instance.checkVideoSafety(
-        videoFile,
-      );
-      if (!safetyResult.isSafe) {
-        if (mounted) {
-          setState(() => _isCreating = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                safetyResult.errorMessage ??
-                    "Video flagged as inappropriate (+18).",
+      if (!kIsWeb && videoFile != null) {
+        final safetyResult = await ContentSafetyService.instance.checkVideoSafety(
+          videoFile,
+        );
+        if (!safetyResult.isSafe) {
+          if (mounted) {
+            setState(() => _isCreating = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  safetyResult.errorMessage ??
+                      "Video flagged as inappropriate (+18).",
+                ),
+                backgroundColor: Colors.redAccent,
               ),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
+            );
+          }
+          return;
         }
-        return;
       }
 
-      final ext = videoFile.path.split('.').last;
+      final rawName = !kIsWeb && videoFile != null
+          ? videoFile.path
+          : (picked.name.isNotEmpty ? picked.name : picked.path);
+      final ext = rawName.contains('.') ? rawName.split('.').last : 'mp4';
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName =
           'highlight_vid_${widget.userId}_$timestamp.$ext';
@@ -222,27 +235,30 @@ class _CreateHighlightSheetState extends State<CreateHighlightSheet>
         bucket: 'stories',
         path: fileName,
         file: videoFile,
+        bytes: videoBytes,
       );
 
-      // Generate real JPEG thumbnail for highlight cover
+      // Generate real JPEG thumbnail for highlight cover on native platforms
       String? thumbUrl;
-      try {
-        final thumbBytes = await EasyCompressor().getThumbnail(
-          videoFile.path,
-          position: const Duration(milliseconds: 500),
-          quality: 80,
-          maxHeight: 720,
-        );
-        if (thumbBytes != null && thumbBytes.isNotEmpty) {
-          thumbUrl = await CloudflareStorageService.instance.upload(
-            bucket: 'stories',
-            path: 'thumb_${widget.userId}_$timestamp.jpg',
-            bytes: thumbBytes,
-            contentType: 'image/jpeg',
+      if (!kIsWeb && videoFile != null) {
+        try {
+          final thumbBytes = await EasyCompressor().getThumbnail(
+            videoFile.path,
+            position: const Duration(milliseconds: 500),
+            quality: 80,
+            maxHeight: 720,
           );
+          if (thumbBytes != null && thumbBytes.isNotEmpty) {
+            thumbUrl = await CloudflareStorageService.instance.upload(
+              bucket: 'stories',
+              path: 'thumb_${widget.userId}_$timestamp.jpg',
+              bytes: thumbBytes,
+              contentType: 'image/jpeg',
+            );
+          }
+        } catch (thumbErr) {
+          debugPrint("Highlight thumbnail generation notice: $thumbErr");
         }
-      } catch (thumbErr) {
-        debugPrint("Highlight thumbnail generation notice: $thumbErr");
       }
 
       final item = StoryHighlightItem(
