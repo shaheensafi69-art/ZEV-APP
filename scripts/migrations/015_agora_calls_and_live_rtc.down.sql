@@ -7,3 +7,4 @@ DROP TABLE IF EXISTS public.call_sessions;
 ALTER TABLE public.live_streams
   DROP COLUMN IF EXISTS agora_channel,
   DROP COLUMN IF EXISTS rtc_provider;
+

@@ -16,6 +16,7 @@ import '../../../core/services/notification_service.dart';
 import '../../../core/services/social_graph_service.dart';
 import '../../../core/services/user_presence_service.dart';
 import '../../../core/theme/zev_theme.dart';
+import '../../calls/screens/call_screen.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../models/direct_message_model.dart';
 import '../services/chat_cache_service.dart';
@@ -1639,6 +1640,50 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         ),
       ),
       actions: [
+        if (!_isGroup && widget.peerId.isNotEmpty && !_isBlocked) ...[
+          IconButton(
+            tooltip: 'Voice Call',
+            icon: const Icon(
+              Icons.call_rounded,
+              color: ZevColors.deepNavy,
+              size: 20,
+            ),
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              CallScreen.startOutgoing(
+                context,
+                peerId: widget.peerId,
+                peerUsername: widget.peerUsername,
+                peerFullName: widget.peerFullName,
+                peerAvatar: widget.peerAvatar,
+                isPeerVerified: widget.isPeerVerified,
+                conversationId: _conversationId.isNotEmpty ? _conversationId : null,
+                isVideo: false,
+              );
+            },
+          ),
+          IconButton(
+            tooltip: 'Video Call',
+            icon: const Icon(
+              Icons.videocam_rounded,
+              color: ZevColors.deepNavy,
+              size: 22,
+            ),
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              CallScreen.startOutgoing(
+                context,
+                peerId: widget.peerId,
+                peerUsername: widget.peerUsername,
+                peerFullName: widget.peerFullName,
+                peerAvatar: widget.peerAvatar,
+                isPeerVerified: widget.isPeerVerified,
+                conversationId: _conversationId.isNotEmpty ? _conversationId : null,
+                isVideo: true,
+              );
+            },
+          ),
+        ],
         IconButton(
           tooltip: 'Search Messages',
           icon: const Icon(

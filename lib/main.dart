@@ -11,6 +11,7 @@ import 'core/services/deep_link_service.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/secure_local_storage.dart';
 import 'core/services/user_presence_service.dart';
+import 'core/services/zev_rtc_service.dart';
 import 'core/theme/zev_theme.dart';
 import 'core/utils/system_ui_helper.dart';
 import 'features/splash/screens/zev_splash_screen.dart';
@@ -104,6 +105,7 @@ class _ZevAppState extends State<ZevApp> with WidgetsBindingObserver {
       unawaited(AuthSessionManager.instance.ensureValidSession());
       unawaited(AuthHelper.syncCurrentUserFcmTokenIfLoggedIn());
       NotificationService().startRealtimeNotifications();
+      ZevRtcService.instance.startIncomingCallListener();
       UserPresenceService.instance.updatePresence(isOnline: true);
       AppSessionTrackerService.instance.onAppResumed();
     } else if (state == AppLifecycleState.paused ||

@@ -335,3 +335,4 @@ $$;
 GRANT SELECT, INSERT, UPDATE ON public.call_sessions TO authenticated;
 GRANT EXECUTE ON FUNCTION public.initiate_call_session(uuid, text, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.respond_call_session(uuid, text, text) TO authenticated;
+

@@ -1,10 +1,15 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../core/services/social_graph_service.dart';
+import '../../../core/services/zev_rtc_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/time_ago.dart';
 import '../../../core/widgets/zev_cached_image.dart';
@@ -22,9 +27,9 @@ class _FloatingReaction {
   });
 }
 
-/// Interactive ZEV Live Chat & Presence Room (Supabase Realtime).
-/// 100% Light Clearmorphic interface with real-time comments, emoji reactions,
-/// live participant presence, host room termination, and zero simulated video.
+/// Interactive ZEV Live Video, Audio & Real-Time Chat Room (Agora RTC + Supabase Realtime).
+/// 100% Light Clearmorphic interface with live Agora broadcasting, audience playback,
+/// real-time comments, emoji reactions, live participant presence, and host termination.
 class LiveRoomScreen extends StatefulWidget {
   final Map<String, dynamic> stream;
   final Map<String, dynamic> hostProfile;
@@ -85,6 +90,20 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
 
   RealtimeChannel? _roomChannel;
 
+  // Agora RTC Interactive Live Broadcasting state
+  RtcEngine? _rtcEngine;
+  RtcEngineEventHandler? _rtcHandler;
+  VideoViewController? _localBroadcasterController;
+  VideoViewController? _remoteHostController;
+  int? _remoteHostUid;
+  bool _remoteHostVideoOn = true;
+  bool _rtcJoined = false;
+  bool _isRtcConnecting = false;
+  bool _isMicMuted = false;
+  bool _isCameraOff = false;
+  bool _isVideoExpanded = false;
+  String? _rtcError;
+
   static const List<String> _quickEmojis = [
     '❤️',
     '🔥',
@@ -122,12 +141,36 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
     if (channel != null) {
       unawaited(channel.unsubscribe());
     }
+    unawaited(_teardownAgora());
     if (!widget.isHost && _streamId.isNotEmpty) {
       unawaited(_leaveStreamQuietly());
     }
     _commentCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _teardownAgora() async {
+    _localBroadcasterController?.dispose();
+    _localBroadcasterController = null;
+    _remoteHostController?.dispose();
+    _remoteHostController = null;
+
+    final eng = _rtcEngine;
+    final handler = _rtcHandler;
+    _rtcEngine = null;
+    _rtcHandler = null;
+    if (eng != null) {
+      try {
+        if (handler != null) eng.unregisterEventHandler(handler);
+      } catch (_) {}
+      try {
+        await eng.leaveChannel();
+      } catch (_) {}
+      try {
+        await eng.release();
+      } catch (_) {}
+    }
   }
 
   Future<void> _leaveStreamQuietly() async {
@@ -177,6 +220,199 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
 
     await _loadInitialComments();
     _subscribeRealtime();
+    if (!_isEnded) {
+      unawaited(_initAgoraLive());
+    }
+  }
+
+  Future<bool> _requestBroadcastPermissions() async {
+    if (!widget.isHost) return true;
+    if (kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.android &&
+            defaultTargetPlatform != TargetPlatform.iOS)) {
+      return true;
+    }
+    final cam = await Permission.camera.request();
+    final mic = await Permission.microphone.request();
+    return cam.isGranted && mic.isGranted;
+  }
+
+  Future<void> _initAgoraLive() async {
+    if (_streamId.isEmpty || _isEnded || _isRtcConnecting || _rtcEngine != null) {
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _isRtcConnecting = true;
+        _rtcError = null;
+      });
+    }
+
+    try {
+      final permsOk = await _requestBroadcastPermissions();
+      if (!permsOk) {
+        if (mounted) {
+          setState(() {
+            _isRtcConnecting = false;
+            _rtcError = 'Camera & Microphone permission required to broadcast video.';
+          });
+        }
+        return;
+      }
+
+      final creds = await ZevRtcService.instance.fetchLiveToken(streamId: _streamId);
+      if (!mounted || _isEnded) return;
+
+      final resolvedAppId =
+          creds.appId.isNotEmpty ? creds.appId : AppConfig.agoraAppId;
+      if (resolvedAppId.isEmpty || creds.token.isEmpty) {
+        throw Exception('Agora Live credentials unavailable.');
+      }
+
+      final engine = createAgoraRtcEngine();
+      await engine.initialize(
+        RtcEngineContext(
+          appId: resolvedAppId,
+          channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
+        ),
+      );
+
+      final hostRole = (widget.isHost && creds.isPublisher)
+          ? ClientRoleType.clientRoleBroadcaster
+          : ClientRoleType.clientRoleAudience;
+
+      final handler = RtcEngineEventHandler(
+        onError: (ErrorCodeType err, String msg) {
+          debugPrint('[LiveRoomScreen][Agora] onError $err $msg');
+        },
+        onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
+          if (!mounted) return;
+          setState(() {
+            _rtcJoined = true;
+            _isRtcConnecting = false;
+          });
+        },
+        onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
+          if (!mounted || widget.isHost || remoteUid == 0) return;
+          setState(() {
+            _remoteHostUid = remoteUid;
+            _remoteHostVideoOn = true;
+            _remoteHostController?.dispose();
+            _remoteHostController = VideoViewController.remote(
+              rtcEngine: engine,
+              canvas: VideoCanvas(
+                uid: remoteUid,
+                renderMode: RenderModeType.renderModeHidden,
+              ),
+              connection: connection,
+            );
+          });
+        },
+        onUserOffline: (
+          RtcConnection connection,
+          int remoteUid,
+          UserOfflineReasonType reason,
+        ) {
+          if (!mounted) return;
+          if (_remoteHostUid == remoteUid) {
+            setState(() {
+              _remoteHostUid = null;
+              _remoteHostController?.dispose();
+              _remoteHostController = null;
+            });
+          }
+        },
+        onUserMuteVideo: (RtcConnection connection, int remoteUid, bool muted) {
+          if (!mounted) return;
+          if (_remoteHostUid == remoteUid) {
+            setState(() => _remoteHostVideoOn = !muted);
+          }
+        },
+      );
+
+      engine.registerEventHandler(handler);
+      _rtcEngine = engine;
+      _rtcHandler = handler;
+
+      await engine.enableVideo();
+      await engine.enableAudio();
+      await engine.setClientRole(role: hostRole);
+
+      if (hostRole == ClientRoleType.clientRoleBroadcaster) {
+        try {
+          await engine.setVideoEncoderConfiguration(
+            const VideoEncoderConfiguration(
+              dimensions: VideoDimensions(width: 720, height: 1280),
+              frameRate: 24,
+              bitrate: 1500,
+            ),
+          );
+        } catch (_) {}
+        try {
+          await engine.startPreview();
+        } catch (_) {}
+        if (mounted) {
+          setState(() {
+            _localBroadcasterController = VideoViewController(
+              rtcEngine: engine,
+              canvas: const VideoCanvas(
+                uid: 0,
+                renderMode: RenderModeType.renderModeHidden,
+              ),
+            );
+          });
+        }
+      }
+
+      await engine.joinChannel(
+        token: creds.token,
+        channelId: creds.channelName,
+        uid: creds.uid,
+        options: ChannelMediaOptions(
+          channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
+          clientRoleType: hostRole,
+          publishCameraTrack: hostRole == ClientRoleType.clientRoleBroadcaster,
+          publishMicrophoneTrack:
+              hostRole == ClientRoleType.clientRoleBroadcaster,
+          autoSubscribeAudio: true,
+          autoSubscribeVideo: true,
+        ),
+      );
+    } catch (e) {
+      debugPrint('[LiveRoomScreen] Agora init notice: $e');
+      if (mounted) {
+        setState(() {
+          _isRtcConnecting = false;
+          _rtcError = e.toString().replaceFirst('Exception: ', '').trim();
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleLiveMic() async {
+    HapticFeedback.selectionClick();
+    final next = !_isMicMuted;
+    setState(() => _isMicMuted = next);
+    try {
+      await _rtcEngine?.muteLocalAudioStream(next);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleLiveCam() async {
+    HapticFeedback.selectionClick();
+    final nextOff = !_isCameraOff;
+    setState(() => _isCameraOff = nextOff);
+    try {
+      await _rtcEngine?.muteLocalVideoStream(nextOff);
+      await _rtcEngine?.enableLocalVideo(!nextOff);
+    } catch (_) {}
+  }
+
+  Future<void> _switchLiveCamera() async {
+    HapticFeedback.selectionClick();
+    try {
+      await _rtcEngine?.switchCamera();
+    } catch (_) {}
   }
 
   Future<void> _loadInitialComments() async {
@@ -280,9 +516,10 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
             callback: (payload) {
               final next = payload.newRecord;
               if (!mounted || next.isEmpty) return;
+              final nextStatus = next['status']?.toString();
               setState(() {
-                if (next['status'] != null) {
-                  _status = next['status'].toString();
+                if (nextStatus != null) {
+                  _status = nextStatus;
                 }
                 if (next['viewer_count'] is num) {
                   _viewerCount = (next['viewer_count'] as num).toInt();
@@ -294,6 +531,9 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
                   );
                 }
               });
+              if (nextStatus != null && nextStatus != 'live') {
+                unawaited(_teardownAgora());
+              }
             },
           )
           .onPostgresChanges(
@@ -495,6 +735,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
 
     setState(() => _isEndingRoom = true);
     try {
+      await _teardownAgora();
       await _supabase.rpc(
         'end_live_stream',
         params: {'p_stream_id': _streamId},
@@ -515,6 +756,207 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
       }
       return false;
     }
+  }
+
+  Widget _buildLiveVideoStage({
+    required String hostAvatar,
+    required String hostUsername,
+    required String thumbnailUrl,
+  }) {
+    final screenH = MediaQuery.sizeOf(context).height;
+    final stageHeight = _isVideoExpanded
+        ? (screenH * 0.42).clamp(240.0, 380.0)
+        : 205.0;
+
+    final showHostLocal = widget.isHost &&
+        _localBroadcasterController != null &&
+        !_isCameraOff;
+    final showRemoteVideo = !widget.isHost &&
+        _remoteHostController != null &&
+        _remoteHostVideoOn;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      width: double.infinity,
+      height: stageHeight,
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A101E),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (showHostLocal)
+              AgoraVideoView(
+                key: const ValueKey('live_host_local'),
+                controller: _localBroadcasterController!,
+              )
+            else if (showRemoteVideo)
+              AgoraVideoView(
+                key: ValueKey('live_remote_$_remoteHostUid'),
+                controller: _remoteHostController!,
+              )
+            else
+              Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (thumbnailUrl.isNotEmpty)
+                    Opacity(
+                      opacity: 0.35,
+                      child: ZevCachedImage(
+                        imageUrl: thumbnailUrl,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          const Color(0xFF0F172A).withValues(alpha: 0.65),
+                          const Color(0xFF090D16).withValues(alpha: 0.9),
+                        ],
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ZevCachedImage.avatar(imageUrl: hostAvatar, size: 58),
+                        const SizedBox(height: 10),
+                        Text(
+                          _rtcError != null
+                              ? _rtcError!
+                              : _isRtcConnecting
+                                  ? 'Connecting live broadcast...'
+                                  : widget.isHost && _isCameraOff
+                                      ? 'Your camera is turned off'
+                                      : (_rtcJoined
+                                          ? 'Waiting for @$hostUsername video...'
+                                          : 'Joining live stream...'),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+            // Top-left Live signal badge
+            Positioned(
+              top: 10,
+              left: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.52),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _rtcJoined
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFFF59E0B),
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      widget.isHost ? 'BROADCASTING' : 'LIVE VIDEO',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Top-right Expand & Host Media Controls
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.isHost) ...[
+                    _stageControlIcon(
+                      icon: _isMicMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                      active: !_isMicMuted,
+                      onTap: _toggleLiveMic,
+                    ),
+                    const SizedBox(width: 6),
+                    _stageControlIcon(
+                      icon: _isCameraOff
+                          ? Icons.videocam_off_rounded
+                          : Icons.videocam_rounded,
+                      active: !_isCameraOff,
+                      onTap: _toggleLiveCam,
+                    ),
+                    const SizedBox(width: 6),
+                    _stageControlIcon(
+                      icon: Icons.cameraswitch_rounded,
+                      active: true,
+                      onTap: _switchLiveCamera,
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  _stageControlIcon(
+                    icon: _isVideoExpanded
+                        ? Icons.close_fullscreen_rounded
+                        : Icons.open_in_full_rounded,
+                    active: true,
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _isVideoExpanded = !_isVideoExpanded);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _stageControlIcon({
+    required IconData icon,
+    required bool active,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: active
+              ? Colors.black.withValues(alpha: 0.56)
+              : ZevColors.errorRed.withValues(alpha: 0.9),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        ),
+        child: Icon(icon, color: Colors.white, size: 17),
+      ),
+    );
   }
 
   void _showParticipantsSheet() {
@@ -890,7 +1332,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
                         ],
                       ),
                       Text(
-                        'Interactive Live Chat & Presence • $category',
+                        'Live Video Broadcast • $category',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -999,7 +1441,15 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (thumbnailUrl.isNotEmpty) ...[
+                      // Agora Real-Time Live Video Stage
+                      if (!_isEnded) ...[
+                        _buildLiveVideoStage(
+                          hostAvatar: hostAvatar,
+                          hostUsername: hostUsername,
+                          thumbnailUrl: thumbnailUrl,
+                        ),
+                        const SizedBox(height: 10),
+                      ] else if (thumbnailUrl.isNotEmpty) ...[
                         ClipRRect(
                           borderRadius: BorderRadius.circular(16),
                           child: SizedBox(
@@ -1097,7 +1547,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Interactive ZEV Live Chat & Presence Room (Realtime) • Started ${TimeAgo.fromIsoString(startedAt)}',
+                        'Live Video & Interactive Chat • Started ${TimeAgo.fromIsoString(startedAt)}',
                         style: const TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w600,

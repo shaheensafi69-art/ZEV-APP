@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/badge_counter_service.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/services/zev_rtc_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_logo.dart';
@@ -78,18 +79,21 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     // Listen to static notifier updates
     ZevMainLayout.userAvatarNotifier.addListener(_onAvatarNotifierChanged);
 
-    // Start centralized badge counter & real-time push alert listeners
+    // Start centralized badge counter, real-time push & incoming call listeners
     BadgeCounterService.instance.startListening();
     NotificationService().startRealtimeNotifications();
+    ZevRtcService.instance.startIncomingCallListener();
 
     // Listen to Supabase auth state changes
     _authSubscription = supabase.auth.onAuthStateChange.listen((data) {
       if (data.session != null) {
         BadgeCounterService.instance.startListening();
         NotificationService().startRealtimeNotifications();
+        ZevRtcService.instance.startIncomingCallListener();
       } else {
         BadgeCounterService.instance.stopListening();
         NotificationService().stopRealtimeNotifications();
+        ZevRtcService.instance.stopIncomingCallListener();
       }
       if (mounted) {
         _loadUserProfile();

@@ -9,6 +9,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../features/calls/screens/call_screen.dart';
 import '../../features/chat/screens/chat_conversation_screen.dart';
 import '../../features/chat/screens/chat_list_screen.dart';
 import '../../features/feed/screens/post_detail_screen.dart';
@@ -25,6 +26,7 @@ import 'api_client.dart';
 import 'auth_helper.dart';
 import 'badge_counter_service.dart';
 import 'deep_link_service.dart';
+import 'zev_rtc_service.dart';
 
 /// Top-level background message handler required by Firebase Messaging.
 @pragma('vm:entry-point')
@@ -250,6 +252,11 @@ class NotificationService {
                 message.data['link'] ??
                 '')
             .toString();
+        if ((type == 'voice_call' || type == 'video_call') &&
+            isAppInForeground &&
+            ZevRtcService.instance.activeCallId != null) {
+          return;
+        }
         final title = (message.notification?.title ??
                 message.data['title'] ??
                 'ZEV Activity')
@@ -728,6 +735,24 @@ class NotificationService {
     debugPrint(
       'ZEV Routing notification click: type=$type, linkUrl=$linkUrl, senderId=$senderId',
     );
+
+    // 0. Incoming Voice / Video Call
+    if (type == 'voice_call' ||
+        type == 'video_call' ||
+        linkUrl.startsWith('/call/')) {
+      final callId = linkUrl
+          .replaceFirst(RegExp(r'^/call/'), '')
+          .replaceFirst(RegExp(r'^call/'), '')
+          .trim();
+      if (callId.isNotEmpty) {
+        unawaited(CallScreen.openById(navContext, callSessionId: callId));
+        return;
+      }
+      if (senderId.isNotEmpty) {
+        ChatConversationScreen.open(navContext, peerId: senderId);
+        return;
+      }
+    }
 
     // 1. Direct Message / Group Chat / Group Invitation
     if (type.contains('chat') ||

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../features/auth/screens/register_screen.dart';
+import '../../features/calls/screens/call_screen.dart';
 import '../../features/chat/screens/chat_conversation_screen.dart';
 import '../../features/feed/screens/post_detail_screen.dart';
 import '../../features/notifications/screens/notifications_screen.dart';
@@ -141,6 +142,10 @@ class DeepLinkService {
         await _openChat(navContext, pathSegments.first);
         return;
       }
+      if (host == 'call' && pathSegments.isNotEmpty) {
+        await CallScreen.openById(navContext, callSessionId: pathSegments.first);
+        return;
+      }
       if (host == 'profile' && pathSegments.isNotEmpty) {
         _openProfile(navContext, pathSegments.first);
         return;
@@ -201,6 +206,11 @@ class DeepLinkService {
 
       if (pathSegments.length >= 2 && pathSegments[0] == 'chat') {
         await _openChat(navContext, pathSegments[1]);
+        return;
+      }
+
+      if (pathSegments.length >= 2 && pathSegments[0] == 'call') {
+        await CallScreen.openById(navContext, callSessionId: pathSegments[1]);
         return;
       }
 

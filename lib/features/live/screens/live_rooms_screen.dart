@@ -232,7 +232,7 @@ class _LiveRoomsScreenState extends State<LiveRoomsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Start Live Chat & Presence Room',
+                              'Start Live Video Broadcast',
                               style: TextStyle(
                                 fontSize: 16.5,
                                 fontWeight: FontWeight.w900,
@@ -240,7 +240,7 @@ class _LiveRoomsScreenState extends State<LiveRoomsScreen> {
                               ),
                             ),
                             Text(
-                              'Real-time group chat, emoji reactions & live presence',
+                              'Live video & audio streaming with real-time chat & reactions',
                               style: TextStyle(
                                 fontSize: 11.5,
                                 color: ZevColors.textSecondary,
@@ -657,7 +657,7 @@ class _LiveRoomsScreenState extends State<LiveRoomsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Interactive ZEV Live Chat & Presence Rooms',
+                          'ZEV Interactive Live Video Rooms',
                           style: TextStyle(
                             fontSize: 14.5,
                             fontWeight: FontWeight.w900,
@@ -666,7 +666,7 @@ class _LiveRoomsScreenState extends State<LiveRoomsScreen> {
                         ),
                         SizedBox(height: 3),
                         Text(
-                          'Powered by Supabase Realtime for live community chat, floating reactions, and real-time participant lists.',
+                          'Go live with real-time video & audio broadcasting, interactive chat, floating reactions, and live viewer presence.',
                           style: TextStyle(
                             fontSize: 12,
                             color: ZevColors.textSecondary,
@@ -982,7 +982,7 @@ class _LiveRoomsScreenState extends State<LiveRoomsScreen> {
             Row(
               children: [
                 Text(
-                  isHost ? 'Re-enter your live room' : 'Join live chat',
+                  isHost ? 'Re-enter your live room' : 'Watch & join live',
                   style: const TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w800,

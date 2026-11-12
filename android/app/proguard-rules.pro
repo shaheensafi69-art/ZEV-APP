@@ -120,6 +120,12 @@
 -dontwarn com.google.android.gms.**
 -dontwarn org.checkerframework.**
 
+# Agora RTC Engine (Voice/Video Calls & Live Broadcasting)
+-keepattributes *Annotation*
+-keep class io.agora.** { *; }
+-dontwarn io.agora.**
+-dontwarn com.google.devtools.build.android.desugar.runtime.ThrowableExtension
+
 # Keep all method channels & event channels intact
 -keepclassmembers class * {
     @androidx.annotation.Keep <fields>;
