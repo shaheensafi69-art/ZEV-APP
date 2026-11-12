@@ -10,6 +10,7 @@ SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL:-https://zjwmioalrhkyfbzhdnnw.supabase.
 SUPABASE_ANON_KEY="${NEXT_PUBLIC_SUPABASE_ANON_KEY:-sb_publishable_mhRdQoBdG-Ha0_nQ4dHIVw_MrXwmR5z}"
 ZEV_API_URL="${ZEV_API_BASE_URL:-https://www.zevapp.com}"
 R2_DOMAIN="${CLOUDFLARE_R2_PUBLIC_DOMAIN:-https://media.zevapp.com}"
+AGORA_APP_ID_DEF="${NEXT_PUBLIC_AGORA_APP_ID:-e85b079d64d04f659792de8eb3770595}"
 
 # 1. Check if flutter is available, otherwise download shallow clone
 if ! command -v flutter &> /dev/null; then
@@ -35,6 +36,7 @@ flutter build web --release \
   --dart-define="NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}" \
   --dart-define="ZEV_API_BASE_URL=${ZEV_API_URL}" \
   --dart-define="CLOUDFLARE_R2_PUBLIC_DOMAIN=${R2_DOMAIN}" \
+  --dart-define="NEXT_PUBLIC_AGORA_APP_ID=${AGORA_APP_ID_DEF}" \
   ${FIREBASE_VAPID_KEY:+--dart-define="FIREBASE_VAPID_KEY=${FIREBASE_VAPID_KEY}"}
 
 echo "📋 Copying PWA assets (sw.js, manifest.json, offline.html, screenshots, app-ads.txt) to build/web..."

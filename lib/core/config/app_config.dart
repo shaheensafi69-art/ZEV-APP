@@ -33,6 +33,11 @@ class AppConfig {
     defaultValue: '',
   );
 
+  static const String agoraAppId = String.fromEnvironment(
+    'NEXT_PUBLIC_AGORA_APP_ID',
+    defaultValue: 'e85b079d64d04f659792de8eb3770595',
+  );
+
   static const String admobAndroidAppId = String.fromEnvironment(
     'ADMOB_ANDROID_APP_ID',
     defaultValue: 'ca-app-pub-6551903544426492~5253464669',
