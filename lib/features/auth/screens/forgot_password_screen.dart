@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/services/auth_session_manager.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_text_field.dart';
 
@@ -305,14 +306,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     });
 
     try {
+      final uid = supabase.auth.currentUser?.id;
       await supabase.auth.updateUser(
         UserAttributes(password: password),
       );
 
-      // Sign out to enforce clean login with new password
-      try {
-        await supabase.auth.signOut();
-      } catch (_) {}
+      if (uid != null && uid.isNotEmpty) {
+        await AuthSessionManager.instance.recordSecurityEvent(
+          userId: uid,
+          eventType: 'password_reset',
+        );
+      }
+
+      // Sign out current device cleanly to enforce login with new password
+      await AuthSessionManager.instance.signOutCurrentDevice();
 
       if (mounted) {
         setState(() => _isLoading = false);

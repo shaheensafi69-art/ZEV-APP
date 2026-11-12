@@ -1,152 +1,290 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../models/chat_conversation_item.dart';
 import '../models/direct_message_model.dart';
 
-/// High-performance in-memory cache service for ZEV direct messages and conversations.
-/// Guarantees instant (0ms) screen rendering, elimination of loading flickers,
-/// and buttery-smooth 120 FPS transitions when opening chat lists or conversation threads.
+/// In-memory cache + SharedPreferences persistent offline outbox for ZEV Chat.
+/// Guarantees 0ms conversation rendering, zero duplicate messages, and
+/// durable offline message queuing with automatic/manual retry.
 class ChatCacheService {
   ChatCacheService._();
   static final ChatCacheService instance = ChatCacheService._();
 
-  // Cached inbox conversations
+  static const int _maxCachedThreads = 40;
+  static const int _maxMessagesPerThread = 160;
+
   List<ChatConversationItem> _cachedInbox = [];
-
-  // Cached active friends & notes
   List<Map<String, dynamic>> _cachedActiveFriends = [];
-
-  // Cached message threads by peer user id
-  final Map<String, List<DirectMessageModel>> _threadsByPeer = {};
-
-  // Cached user profiles (username, avatar, presence, etc.)
+  final Map<String, List<DirectMessageModel>> _threads = {};
   final Map<String, Map<String, dynamic>> _profileCache = {};
+  final Map<String, String> _peerToConversationId = {};
 
-  // Getters
+  // Persistent failed / pending outgoing messages keyed by userId
+  String? _loadedOutboxUserId;
+  final List<DirectMessageModel> _outbox = [];
+
   List<ChatConversationItem> get cachedInbox => List.unmodifiable(_cachedInbox);
   List<Map<String, dynamic>> get cachedActiveFriends =>
       List.unmodifiable(_cachedActiveFriends);
   bool get hasCachedInbox => _cachedInbox.isNotEmpty;
 
-  /// Retrieves cached messages for a given peer ID (returns empty list if none)
-  List<DirectMessageModel> getThread(String peerId) {
-    return _threadsByPeer[peerId] ?? [];
+  void linkPeerConversation(String peerId, String conversationId) {
+    if (peerId.isEmpty || conversationId.isEmpty) return;
+    _peerToConversationId[peerId] = conversationId;
   }
 
-  bool hasThread(String peerId) =>
-      _threadsByPeer.containsKey(peerId) && _threadsByPeer[peerId]!.isNotEmpty;
+  String _resolveKey(String key) => _peerToConversationId[key] ?? key;
 
-  /// Saves or refreshes the inbox conversations list in cache
+  List<DirectMessageModel> getThread(String threadKey) {
+    final primary = _threads[threadKey];
+    if (primary != null && primary.isNotEmpty) return primary;
+    final linked = _peerToConversationId[threadKey];
+    if (linked != null && _threads[linked] != null) return _threads[linked]!;
+    return [];
+  }
+
+  bool hasThread(String threadKey) => getThread(threadKey).isNotEmpty;
+
   void setInbox(List<ChatConversationItem> items) {
     _cachedInbox = List.from(items);
+    for (final c in items) {
+      if (!c.isGroup && c.peerId.isNotEmpty && c.conversationId.isNotEmpty) {
+        _peerToConversationId[c.peerId] = c.conversationId;
+      }
+    }
   }
 
-  /// Saves active friends & notes tray in cache
   void setActiveFriends(List<Map<String, dynamic>> friends) {
     _cachedActiveFriends = List.from(friends);
   }
 
-  /// Sets entire message list for a peer
-  void setThread(String peerId, List<DirectMessageModel> messages) {
-    _threadsByPeer[peerId] = List.from(messages);
+  void setThread(String threadKey, List<DirectMessageModel> messages) {
+    final resolved = _resolveKey(threadKey);
+    if (_threads.length >= _maxCachedThreads && !_threads.containsKey(resolved)) {
+      _threads.remove(_threads.keys.first);
+    }
+    final deduped = <String, DirectMessageModel>{};
+    for (final m in messages) {
+      if (m.id.isNotEmpty) deduped[m.id] = m;
+    }
+    final sorted = deduped.values.toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    _threads[resolved] = sorted.take(_maxMessagesPerThread).toList();
   }
 
-  /// Prepends an optimistic or incoming message to the thread
-  void addMessage(String peerId, DirectMessageModel msg) {
-    final list = _threadsByPeer.putIfAbsent(peerId, () => []);
+  void addMessage(String threadKey, DirectMessageModel msg) {
+    final resolved = _resolveKey(threadKey);
+    final list = _threads.putIfAbsent(resolved, () => []);
     final existingIdx = list.indexWhere((m) => m.id == msg.id);
     if (existingIdx != -1) {
       list[existingIdx] = msg;
     } else {
       list.insert(0, msg);
+      if (list.length > _maxMessagesPerThread) {
+        list.removeRange(_maxMessagesPerThread, list.length);
+      }
     }
-
-    // Also update the inbox conversation preview if present
-    _updateInboxWithNewMessage(peerId, msg);
+    _updateInboxWithNewMessage(resolved, msg);
   }
 
-  /// Updates an existing message (e.g. status transition from sent -> delivered -> read)
-  void updateMessage(String peerId, DirectMessageModel msg) {
-    final list = _threadsByPeer[peerId];
+  void replaceTempMessage(
+    String threadKey,
+    String tempId,
+    DirectMessageModel confirmedMsg,
+  ) {
+    final resolved = _resolveKey(threadKey);
+    final list = _threads.putIfAbsent(resolved, () => []);
+    list.removeWhere((m) => m.id == tempId || m.id == confirmedMsg.id);
+    list.insert(0, confirmedMsg);
+    _updateInboxWithNewMessage(resolved, confirmedMsg);
+  }
+
+  void updateMessage(String threadKey, DirectMessageModel msg) {
+    final resolved = _resolveKey(threadKey);
+    final list = _threads[resolved];
     if (list != null) {
       final idx = list.indexWhere((m) => m.id == msg.id);
       if (idx != -1) {
         list[idx] = msg;
       }
     }
-
-    // Update inbox item if this was the last message
-    final inboxIdx = _cachedInbox.indexWhere((c) => c.peerId == peerId);
+    final inboxIdx = _cachedInbox.indexWhere(
+      (c) => c.conversationId == resolved || c.peerId == threadKey,
+    );
     if (inboxIdx != -1 && _cachedInbox[inboxIdx].lastMessageId == msg.id) {
       _cachedInbox[inboxIdx] = _cachedInbox[inboxIdx].copyWith(
+        lastMessageText:
+            msg.isDeletedForEveryone ? 'Message deleted' : msg.messageText,
         isLastMessageDelivered: msg.isDelivered,
         isLastMessageRead: msg.isRead,
       );
     }
   }
 
-  /// Removes a message from cache (e.g. on deletion)
-  void removeMessage(String peerId, String messageId) {
-    final list = _threadsByPeer[peerId];
-    if (list != null) {
-      list.removeWhere((m) => m.id == messageId);
-    }
+  void removeMessage(String threadKey, String messageId) {
+    final resolved = _resolveKey(threadKey);
+    _threads[resolved]?.removeWhere((m) => m.id == messageId);
   }
 
-  /// Marks all incoming messages from this peer as read in cache
-  void markThreadRead(String peerId) {
-    final list = _threadsByPeer[peerId];
+  void markThreadRead(String threadKey, {String? currentUserId}) {
+    final resolved = _resolveKey(threadKey);
+    final list = _threads[resolved];
     if (list != null) {
       for (int i = 0; i < list.length; i++) {
         final m = list[i];
-        if (m.senderId == peerId && !m.isRead) {
+        final isIncoming =
+            currentUserId != null ? m.senderId != currentUserId : m.senderId == threadKey;
+        if (isIncoming && !m.isRead) {
           list[i] = m.copyWith(isRead: true, isDelivered: true);
         }
       }
     }
 
-    // Reset unread count in inbox
-    final inboxIdx = _cachedInbox.indexWhere((c) => c.peerId == peerId);
+    final inboxIdx = _cachedInbox.indexWhere(
+      (c) => c.conversationId == resolved || c.peerId == threadKey,
+    );
     if (inboxIdx != -1) {
-      _cachedInbox[inboxIdx] = _cachedInbox[inboxIdx].copyWith(
-        unreadCount: 0,
-      );
+      _cachedInbox[inboxIdx] = _cachedInbox[inboxIdx].copyWith(unreadCount: 0);
     }
   }
 
-  /// Internal helper to synchronize inbox preview with latest message
-  void _updateInboxWithNewMessage(String peerId, DirectMessageModel msg) {
-    final idx = _cachedInbox.indexWhere((c) => c.peerId == peerId);
+  void _updateInboxWithNewMessage(String resolvedKey, DirectMessageModel msg) {
+    final idx = _cachedInbox.indexWhere(
+      (c) => c.conversationId == resolvedKey || (!c.isGroup && c.peerId == resolvedKey),
+    );
     if (idx != -1) {
       final existing = _cachedInbox[idx];
-      final isMine = msg.senderId != peerId;
+      final myId = Supabase.instance.client.auth.currentUser?.id;
+      final isMine = myId != null
+          ? msg.senderId == myId
+          : (!existing.isGroup && msg.senderId != existing.peerId);
       _cachedInbox[idx] = existing.copyWith(
         lastMessageId: msg.id,
         lastMessageText: msg.messageText,
+        lastMessageType: msg.effectiveType,
         lastAttachmentUrl: msg.attachmentUrl,
         lastAttachmentType: msg.attachmentType,
+        lastSenderId: msg.senderId,
         isLastMessageMine: isMine,
         isLastMessageDelivered: msg.isDelivered,
         isLastMessageRead: msg.isRead,
         lastMessageAt: msg.createdAt,
         unreadCount: isMine ? existing.unreadCount : (existing.unreadCount + 1),
       );
-      // Re-sort inbox so active thread bubbles to top
-      _cachedInbox.sort((a, b) => b.lastMessageAt.compareTo(a.lastMessageAt));
+      _sortInbox();
     }
   }
 
-  /// Cache profile metadata
+  void _sortInbox() {
+    _cachedInbox.sort((a, b) {
+      if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+      return b.lastMessageAt.compareTo(a.lastMessageAt);
+    });
+  }
+
   void cacheProfile(String userId, Map<String, dynamic> profile) {
     _profileCache[userId] = profile;
   }
 
   Map<String, dynamic>? getCachedProfile(String userId) => _profileCache[userId];
 
-  /// Clear entire cache (on sign out)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PERSISTENT OFFLINE OUTBOX QUEUE (SharedPreferences)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  String _outboxKey(String userId) => 'zev_chat_outbox_$userId';
+
+  Future<List<DirectMessageModel>> loadOutbox(String userId) async {
+    if (userId.isEmpty) return [];
+    if (_loadedOutboxUserId == userId) {
+      return List.unmodifiable(_outbox);
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_outboxKey(userId));
+      _outbox.clear();
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          for (final item in decoded) {
+            if (item is Map) {
+              _outbox.add(
+                DirectMessageModel.fromMap(Map<String, dynamic>.from(item)),
+              );
+            }
+          }
+        }
+      }
+      _loadedOutboxUserId = userId;
+    } catch (e) {
+      debugPrint('[ChatCacheService] loadOutbox notice: $e');
+    }
+    return List.unmodifiable(_outbox);
+  }
+
+  Future<List<DirectMessageModel>> getOutboxForThread({
+    required String userId,
+    String? conversationId,
+    String? peerId,
+  }) async {
+    final all = await loadOutbox(userId);
+    return all.where((m) {
+      if (conversationId != null &&
+          conversationId.isNotEmpty &&
+          m.conversationId == conversationId) {
+        return true;
+      }
+      if (peerId != null && peerId.isNotEmpty && m.receiverId == peerId) {
+        return true;
+      }
+      return false;
+    }).toList();
+  }
+
+  Future<void> upsertOutboxMessage(
+    String userId,
+    DirectMessageModel msg,
+  ) async {
+    if (userId.isEmpty) return;
+    await loadOutbox(userId);
+    final idx = _outbox.indexWhere((m) => m.id == msg.id);
+    if (idx != -1) {
+      _outbox[idx] = msg;
+    } else {
+      _outbox.add(msg);
+    }
+    await _persistOutbox(userId);
+  }
+
+  Future<void> removeOutboxMessage(String userId, String messageId) async {
+    if (userId.isEmpty) return;
+    await loadOutbox(userId);
+    _outbox.removeWhere((m) => m.id == messageId);
+    await _persistOutbox(userId);
+  }
+
+  Future<void> _persistOutbox(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _outboxKey(userId),
+        jsonEncode(_outbox.map((m) => m.toMap()).toList()),
+      );
+    } catch (e) {
+      debugPrint('[ChatCacheService] _persistOutbox notice: $e');
+    }
+  }
+
   void clear() {
     _cachedInbox.clear();
     _cachedActiveFriends.clear();
-    _threadsByPeer.clear();
+    _threads.clear();
     _profileCache.clear();
+    _peerToConversationId.clear();
+    _outbox.clear();
+    _loadedOutboxUserId = null;
   }
 }
-

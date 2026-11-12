@@ -1,13 +1,15 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/services/badge_counter_service.dart';
 import '../../../core/services/feed_algorithm_service.dart';
-import '../../../core/services/notification_service.dart';
+import '../../../core/services/social_graph_service.dart';
+import '../../../core/services/zev_ads_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_native_ad_card.dart';
+import '../../../core/widgets/zev_skeleton.dart';
 import '../models/feed_post_item.dart';
 import '../widgets/feed_post_card.dart';
 import '../widgets/feed_stories_tray.dart';
@@ -17,6 +19,7 @@ import '../../profile/screens/profile_screen.dart';
 import '../../notifications/screens/notifications_screen.dart';
 import '../../chat/screens/chat_list_screen.dart';
 import '../../discover/screens/discover_screen.dart';
+import '../../live/screens/live_rooms_screen.dart';
 import 'create_post_screen.dart';
 
 /// Next-Generation Instagram-Grade Home Feed Screen for ZEV.
@@ -40,71 +43,30 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
   final supabase = Supabase.instance.client;
 
   bool _isLoading = true;
+  bool _isLoadingMore = false;
+  bool _hasMorePosts = true;
+  bool _followingOnly = false;
+  DateTime? _cursorCreatedAt;
+  String? _cursorId;
+  int _fetchGeneration = 0;
+  static const int _pageSize = 20;
+  final Set<String> _loadedPostIds = <String>{};
   String? _errorMsg;
   List<FeedPostItem> _posts = [];
+  ActiveFriendStory? _myActiveStory;
   List<ActiveFriendStory> _stories = [];
   List<Map<String, dynamic>> _suggestedUsers = [];
   final Set<String> _followedSuggestedIds = {};
+  final Set<String> _requestedSuggestedIds = {};
   bool _dismissSuggestedCarousel = false;
   String _myAvatarUrl = '';
-  bool _hasUnreadNotifications = false;
-  RealtimeChannel? _notificationsRealtimeChannel;
 
   @override
   void initState() {
     super.initState();
     _loadMyProfile();
     _fetchFeedData();
-    _checkUnreadNotifications();
-    _subscribeToUnreadNotifications();
-  }
-
-  @override
-  void dispose() {
-    _notificationsRealtimeChannel?.unsubscribe();
-    super.dispose();
-  }
-
-  Future<void> _checkUnreadNotifications() async {
-    final currentUserId = supabase.auth.currentUser?.id;
-    if (currentUserId == null) return;
-    try {
-      final res = await supabase
-          .from('user_notifications')
-          .select('id')
-          .eq('user_id', currentUserId)
-          .eq('is_read', false)
-          .not('notification_type', 'in', '("chat","message","direct_message")')
-          .limit(1);
-      if (mounted) {
-        setState(() {
-          _hasUnreadNotifications = (res as List).isNotEmpty;
-        });
-      }
-    } catch (_) {}
-  }
-
-  void _subscribeToUnreadNotifications() {
-    final currentUserId = supabase.auth.currentUser?.id;
-    if (currentUserId == null) return;
-    try {
-      _notificationsRealtimeChannel = supabase
-          .channel('public:user_notifications_unread:$currentUserId')
-          .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'user_notifications',
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'user_id',
-              value: currentUserId,
-            ),
-            callback: (_) {
-              _checkUnreadNotifications();
-            },
-          )
-          .subscribe();
-    } catch (_) {}
+    BadgeCounterService.instance.startListening();
   }
 
   Future<void> _loadMyProfile() async {
@@ -140,26 +102,53 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
   Future<void> _fetchSuggestedUsers() async {
     final currentUserId = supabase.auth.currentUser?.id;
     try {
-      final res = await supabase
-          .from('profiles')
-          .select(
-            'id, username, first_name, last_name, avatar_url, is_verified',
-          )
-          .neq('id', currentUserId ?? '')
-          .limit(8);
+      final results = await Future.wait<dynamic>([
+        SocialGraphService.instance.fetchSafetyFilters(),
+        supabase
+            .from('profiles')
+            .select(
+              'id, username, first_name, last_name, avatar_url, is_verified',
+            )
+            .neq('id', currentUserId ?? '')
+            .limit(20),
+        if (currentUserId != null)
+          supabase
+              .from('user_follows')
+              .select('following_id')
+              .eq('follower_id', currentUserId),
+      ]);
 
-      final list = (res as List).map((p) {
-        final fn = p['first_name'] ?? '';
-        final ln = p['last_name'] ?? '';
-        final full = "$fn $ln".trim();
-        return {
-          'id': p['id'].toString(),
-          'username': p['username'] ?? (full.isNotEmpty ? full : 'user'),
-          'name': full.isNotEmpty ? full : (p['username'] ?? 'User'),
-          'avatar_url': p['avatar_url'] ?? '',
-          'is_verified': p['is_verified'] == true,
-        };
-      }).toList();
+      final filters = results[0] as UserSafetyFilters;
+      final res = results[1] as List;
+      final alreadyFollowing = <String>{};
+      if (results.length > 2) {
+        for (final f in (results[2] as List)) {
+          final fid = f['following_id']?.toString() ?? '';
+          if (fid.isNotEmpty) alreadyFollowing.add(fid);
+        }
+      }
+
+      final list = res
+          .where((p) {
+            final id = p['id']?.toString() ?? '';
+            return id.isNotEmpty &&
+                !filters.blockedUserIds.contains(id) &&
+                !alreadyFollowing.contains(id);
+          })
+          .take(8)
+          .map((p) {
+            final fn = p['first_name'] ?? '';
+            final ln = p['last_name'] ?? '';
+            final full = "$fn $ln".trim();
+            return {
+              'id': p['id'].toString(),
+              'username': p['username'] ?? (full.isNotEmpty ? full : 'user'),
+              'name': full.isNotEmpty ? full : (p['username'] ?? 'User'),
+              'avatar_url': p['avatar_url'] ?? '',
+              'is_verified': p['is_verified'] == true,
+            };
+          })
+          .toList();
 
       if (mounted) {
         setState(() => _suggestedUsers = list);
@@ -170,231 +159,143 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
   }
 
   Future<void> _fetchStories() async {
+    final currentUserId = supabase.auth.currentUser?.id;
     try {
-      final nowStr = DateTime.now().toIso8601String();
-      final res = await supabase
-          .from('user_stories')
-          .select('id, user_id, media_url, media_type, caption, expires_at')
-          .gt('expires_at', nowStr)
-          .order('created_at', ascending: false)
-          .limit(20);
+      final results = await Future.wait<dynamic>([
+        SocialGraphService.instance.fetchSafetyFilters(),
+        supabase.rpc('get_story_feed_trays'),
+      ]);
 
-      final rawList = List<Map<String, dynamic>>.from(res as List);
-      final userIds = rawList
-          .map((s) => s['user_id']?.toString() ?? '')
-          .toSet()
-          .toList();
+      final filters = results[0] as UserSafetyFilters;
+      final rawRows = (results[1] is List)
+          ? List<Map<String, dynamic>>.from(
+              (results[1] as List).map((e) => Map<String, dynamic>.from(e as Map)),
+            )
+          : <Map<String, dynamic>>[];
 
-      Map<String, Map<String, dynamic>> profilesMap = {};
-      if (userIds.isNotEmpty) {
-        final profs = await supabase
-            .from('profiles')
-            .select('id, username, avatar_url')
-            .inFilter('id', userIds);
-        for (var p in (profs as List)) {
-          profilesMap[p['id'].toString()] = Map<String, dynamic>.from(p);
+      ActiveFriendStory? myStory;
+      final List<ActiveFriendStory> friendStories = [];
+
+      for (final row in rawRows) {
+        final uId = row['user_id']?.toString() ?? '';
+        if (uId.isEmpty) continue;
+        final isMe = currentUserId != null && uId == currentUserId;
+        if (!isMe && filters.storyExcludedUserIds.contains(uId)) continue;
+
+        final item = ActiveFriendStory(
+          userId: uId,
+          username: (row['username']?.toString() ?? '').isNotEmpty
+              ? row['username'].toString()
+              : 'user',
+          avatarUrl: row['avatar_url']?.toString() ?? '',
+          storiesCount: (row['stories_count'] as num?)?.toInt() ?? 1,
+          isMe: isMe,
+          hasUnseen: row['has_unseen'] == true,
+          hasCloseFriendStory: row['has_close_friend_story'] == true,
+        );
+
+        if (isMe) {
+          myStory = item;
+        } else {
+          friendStories.add(item);
         }
       }
 
-      final storiesList = userIds.map((uId) {
-        final p = profilesMap[uId] ?? {};
-        return ActiveFriendStory(
-          userId: uId,
-          username: p['username'] ?? 'user',
-          avatarUrl: p['avatar_url'] ?? '',
-          storiesCount: rawList.where((s) => s['user_id'] == uId).length,
-        );
-      }).toList();
-
       if (mounted) {
-        setState(() => _stories = storiesList);
+        setState(() {
+          _myActiveStory = myStory;
+          _stories = friendStories;
+        });
       }
     } catch (e) {
       debugPrint("Stories query warning: $e");
     }
   }
 
-  Future<void> _fetchPosts() async {
+  Future<void> _fetchPosts({bool loadMore = false}) async {
     final currentUserId = supabase.auth.currentUser?.id;
+    if (loadMore) {
+      if (_isLoadingMore || !_hasMorePosts) return;
+      if (mounted) setState(() => _isLoadingMore = true);
+    }
+
+    final int generation = loadMore ? _fetchGeneration : ++_fetchGeneration;
+    final DateTime? reqCursorCreatedAt = loadMore ? _cursorCreatedAt : null;
+    final String? reqCursorId = loadMore ? _cursorId : null;
 
     try {
-      // 1. Fetch candidate pool of posts from discussion_posts
-      final postsRes = await supabase
-          .from('discussion_posts')
-          .select('id, student_id, title, content, image_url, created_at')
-          .order('created_at', ascending: false)
-          .limit(60);
+      final rawRes = await supabase.rpc(
+        'get_feed_posts_page',
+        params: {
+          'p_cursor_created_at': reqCursorCreatedAt?.toUtc().toIso8601String(),
+          'p_cursor_id': reqCursorId,
+          'p_limit': _pageSize,
+          'p_following_only': _followingOnly,
+        },
+      );
 
-      final rawPosts = List<Map<String, dynamic>>.from(postsRes as List);
-      if (rawPosts.isEmpty) {
-        if (mounted) setState(() => _posts = []);
-        return;
-      }
+      if (generation != _fetchGeneration) return;
 
-      final postIds = rawPosts.map((p) => p['id'].toString()).toList();
-      final authorIds = rawPosts
-          .map((p) => p['student_id']?.toString() ?? '')
-          .toSet()
-          .toList();
+      final rawRows = (rawRes is List)
+          ? rawRes.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : <Map<String, dynamic>>[];
 
-      // 2. Batch fetch author profiles
-      Map<String, Map<String, dynamic>> profilesMap = {};
-      if (authorIds.isNotEmpty) {
-        final profRes = await supabase
-            .from('profiles')
-            .select(
-              'id, username, first_name, last_name, avatar_url, is_verified',
-            )
-            .inFilter('id', authorIds);
-
-        for (var p in (profRes as List)) {
-          profilesMap[p['id'].toString()] = Map<String, dynamic>.from(p);
-        }
-      }
-
-      // 3. Batch fetch likes counts and my like status
-      Map<String, int> likesCountMap = {};
-      Set<String> myLikedPostIds = {};
-
-      if (postIds.isNotEmpty) {
-        try {
-          final likesRes = await supabase
-              .from('discussion_likes')
-              .select('post_id, student_id')
-              .inFilter('post_id', postIds);
-
-          for (var l in (likesRes as List)) {
-            final pId = l['post_id']?.toString() ?? '';
-            final uId = l['student_id']?.toString() ?? '';
-            likesCountMap[pId] = (likesCountMap[pId] ?? 0) + 1;
-            if (currentUserId != null && uId == currentUserId) {
-              myLikedPostIds.add(pId);
-            }
-          }
-        } catch (_) {}
-      }
-
-      // 4. Batch fetch comments count
-      Map<String, int> commentsCountMap = {};
-      if (postIds.isNotEmpty) {
-        try {
-          final commRes = await supabase
-              .from('discussion_comments')
-              .select('post_id')
-              .inFilter('post_id', postIds);
-
-          for (var c in (commRes as List)) {
-            final pId = c['post_id']?.toString() ?? '';
-            commentsCountMap[pId] = (commentsCountMap[pId] ?? 0) + 1;
-          }
-        } catch (_) {}
-      }
-
-      // 5. Batch fetch reposts count and my repost status
-      Map<String, int> repostsCountMap = {};
-      Set<String> myRepostedPostIds = {};
-      if (postIds.isNotEmpty) {
-        try {
-          final repRes = await supabase
-              .from('post_reposts')
-              .select('post_id, user_id')
-              .inFilter('post_id', postIds);
-
-          for (var r in (repRes as List)) {
-            final pId = r['post_id']?.toString() ?? '';
-            final uId = r['user_id']?.toString() ?? '';
-            repostsCountMap[pId] = (repostsCountMap[pId] ?? 0) + 1;
-            if (currentUserId != null && uId == currentUserId) {
-              myRepostedPostIds.add(pId);
-            }
-          }
-        } catch (_) {}
-      }
-
-      // 6. Batch fetch my following status for post authors
-      Set<String> myFollowedAuthorIds = {};
-      if (currentUserId != null && authorIds.isNotEmpty) {
-        try {
-          final followRes = await supabase
-              .from('user_follows')
-              .select('following_id')
-              .eq('follower_id', currentUserId)
-              .inFilter('following_id', authorIds);
-
-          for (var f in (followRes as List)) {
-            final fId = f['following_id']?.toString() ?? '';
-            if (fId.isNotEmpty) myFollowedAuthorIds.add(fId);
-          }
-        } catch (_) {
-          // Fallback to student_friends if needed
-          try {
-            final friendRes = await supabase
-                .from('student_friends')
-                .select('friend_id')
-                .eq('user_id', currentUserId)
-                .inFilter('friend_id', authorIds);
-
-            for (var fr in (friendRes as List)) {
-              final frId = fr['friend_id']?.toString() ?? '';
-              if (frId.isNotEmpty) myFollowedAuthorIds.add(frId);
-            }
-          } catch (_) {}
-        }
-      }
-
-      // 7. Build models
-      final List<FeedPostItem> items = [];
-      for (var p in rawPosts) {
-        final id = p['id'].toString();
-        final aId = p['student_id']?.toString() ?? '';
-        final profile = profilesMap[aId] ?? {};
-
-        final fn = profile['first_name'] ?? '';
-        final ln = profile['last_name'] ?? '';
-        final full = "$fn $ln".trim();
-
-        items.add(
-          FeedPostItem(
-            id: id,
-            authorId: aId,
-            authorUsername:
-                profile['username'] ?? (full.isNotEmpty ? full : 'user'),
-            authorFullName: full,
-            authorAvatar: profile['avatar_url'] ?? '',
-            isVerified: profile['is_verified'] == true,
-            title: p['title'] ?? '',
-            content: p['content'] ?? '',
-            imageUrl: p['image_url'] ?? '',
-            createdAt:
-                DateTime.tryParse(p['created_at']?.toString() ?? '') ??
-                DateTime.now(),
-            likesCount: likesCountMap[id] ?? 0,
-            isLikedByMe: myLikedPostIds.contains(id),
-            commentsCount: commentsCountMap[id] ?? 0,
-            repostsCount: repostsCountMap[id] ?? 0,
-            isRepostedByMe: myRepostedPostIds.contains(id),
-            isAuthorFollowed: myFollowedAuthorIds.contains(aId),
-          ),
+      DateTime? nextCursorCreatedAt = reqCursorCreatedAt;
+      String? nextCursorId = reqCursorId;
+      if (rawRows.isNotEmpty) {
+        final lastRow = rawRows.last;
+        nextCursorCreatedAt = DateTime.tryParse(
+          lastRow['created_at']?.toString() ?? '',
         );
+        nextCursorId = lastRow['id']?.toString();
+      }
+      final bool hasMore = rawRows.length >= _pageSize && nextCursorId != null;
+
+      if (!loadMore) {
+        _loadedPostIds.clear();
       }
 
-      // 8. Apply Instagram-grade Algorithmic Feed Mix
-      final mixedPosts = FeedAlgorithmService.instance.mixPosts(
-        items,
+      final List<FeedPostItem> pageItems = [];
+      for (final p in rawRows) {
+        final id = p['id']?.toString() ?? '';
+        if (id.isEmpty || _loadedPostIds.contains(id)) continue;
+        _loadedPostIds.add(id);
+        pageItems.add(FeedPostItem.fromRpcMap(p));
+      }
+
+      final mixedPage = FeedAlgorithmService.instance.mixPosts(
+        pageItems,
         currentUserId: currentUserId,
       );
 
-      if (mounted) {
+      if (mounted && generation == _fetchGeneration) {
         setState(() {
-          _posts = mixedPosts;
+          if (loadMore) {
+            _posts = [..._posts, ...mixedPage];
+          } else {
+            _posts = mixedPage;
+          }
+          _cursorCreatedAt = nextCursorCreatedAt;
+          _cursorId = nextCursorId;
+          _hasMorePosts = hasMore;
+          _isLoadingMore = false;
           _errorMsg = null;
         });
       }
     } catch (e) {
       debugPrint("Fetch posts error: $e");
-      if (mounted) setState(() => _errorMsg = e.toString());
+      if (mounted && generation == _fetchGeneration) {
+        setState(() {
+          _isLoadingMore = false;
+          if (!loadMore) {
+            _errorMsg = e.toString();
+          }
+        });
+      }
     }
   }
+
+  Future<void> _loadMorePosts() => _fetchPosts(loadMore: true);
 
   void _openCreatePostModal() {
     final user = supabase.auth.currentUser;
@@ -439,46 +340,34 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
       return;
     }
 
-    final isCurrentlyFollowed = _followedSuggestedIds.contains(targetUserId);
-
+    final status = await SocialGraphService.instance.toggleFollow(targetUserId);
+    if (!mounted) return;
     setState(() {
-      if (isCurrentlyFollowed) {
-        _followedSuggestedIds.remove(targetUserId);
-      } else {
-        _followedSuggestedIds.add(targetUserId);
+      switch (status) {
+        case FollowToggleStatus.following:
+          _followedSuggestedIds.add(targetUserId);
+          _requestedSuggestedIds.remove(targetUserId);
+          _showNotice("Following $name");
+          break;
+        case FollowToggleStatus.requested:
+          _followedSuggestedIds.remove(targetUserId);
+          _requestedSuggestedIds.add(targetUserId);
+          _showNotice("Follow request sent to $name");
+          break;
+        case FollowToggleStatus.unfollowed:
+        case FollowToggleStatus.cancelled:
+          _followedSuggestedIds.remove(targetUserId);
+          _requestedSuggestedIds.remove(targetUserId);
+          _showNotice("Unfollowed $name");
+          break;
+        case FollowToggleStatus.blocked:
+          _showNotice("Cannot follow this account.");
+          break;
+        case FollowToggleStatus.error:
+          _showNotice("Could not update follow status.");
+          break;
       }
     });
-
-    try {
-      if (isCurrentlyFollowed) {
-        await supabase.from('student_friends').delete().match({
-          'user_id': currentUserId,
-          'friend_id': targetUserId,
-        });
-        _showNotice("Unfollowed $name");
-      } else {
-        await supabase.from('student_friends').upsert({
-          'user_id': currentUserId,
-          'friend_id': targetUserId,
-          'status': 'accepted',
-          'created_at': DateTime.now().toIso8601String(),
-        });
-        _showNotice("Following $name");
-
-        // Record notification
-        unawaited(
-          NotificationService().sendNotificationToUser(
-            targetUserId: targetUserId,
-            title: "New Follower",
-            message: "Started following your profile on ZEV",
-            notificationType: "follow",
-            senderId: currentUserId,
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint("Follow suggestion error: $e");
-    }
   }
 
   Widget _buildSuggestedCarousel() {
@@ -565,6 +454,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                 final user = _suggestedUsers[i];
                 final id = user['id'] as String;
                 final isFollowed = _followedSuggestedIds.contains(id);
+                final isRequested = _requestedSuggestedIds.contains(id);
                 final avatarUrl = user['avatar_url'] as String? ?? '';
                 final name = user['name'] as String? ?? 'User';
 
@@ -701,17 +591,17 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                 onPressed: () =>
                                     _toggleFollowSuggestedUser(id, name),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: isFollowed
+                                  backgroundColor: (isFollowed || isRequested)
                                       ? const Color(0xFFE2E8F0)
                                       : const Color(0xFF0095F6),
-                                  foregroundColor: isFollowed
+                                  foregroundColor: (isFollowed || isRequested)
                                       ? ZevColors.deepNavy
                                       : Colors.white,
                                   elevation: 0,
                                   padding: EdgeInsets.zero,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(10),
-                                    side: isFollowed
+                                    side: (isFollowed || isRequested)
                                         ? BorderSide.none
                                         : const BorderSide(
                                             color: Colors.white,
@@ -720,11 +610,15 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                   ),
                                 ),
                                 child: Text(
-                                  isFollowed ? "Following" : "Follow",
+                                  isFollowed
+                                      ? "Following"
+                                      : isRequested
+                                          ? "Requested"
+                                          : "Follow",
                                   style: TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w700,
-                                    color: isFollowed
+                                    color: (isFollowed || isRequested)
                                         ? ZevColors.deepNavy
                                         : Colors.white,
                                   ),
@@ -788,14 +682,28 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
       body: SafeArea(
         child: RefreshIndicator(
           color: ZevColors.primaryBlue,
-          onRefresh: _fetchFeedData,
-          child: CustomScrollView(
-            // ignore: deprecated_member_use
-            cacheExtent: 1200.0,
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics(),
-            ),
-            slivers: [
+          onRefresh: () {
+            ZevAdsService.instance.clearSlotCache();
+            return _fetchFeedData();
+          },
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              if (!_isLoading &&
+                  !_isLoadingMore &&
+                  _hasMorePosts &&
+                  notification.metrics.pixels >=
+                      notification.metrics.maxScrollExtent - 600) {
+                _loadMorePosts();
+              }
+              return false;
+            },
+            child: CustomScrollView(
+              // ignore: deprecated_member_use
+              cacheExtent: 1200.0,
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              slivers: [
               // 1. Next-Gen Claymorphic Top Navigation Bar
               SliverAppBar(
                 floating: true,
@@ -805,53 +713,225 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                 surfaceTintColor: Colors.transparent,
                 elevation: 0,
                 centerTitle: false,
-                title: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(5),
+                title: PopupMenuButton<bool>(
+                  tooltip: 'Switch Feed Mode',
+                  color: Colors.white,
+                  elevation: 10,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    side: const BorderSide(color: ZevColors.border),
+                  ),
+                  initialValue: _followingOnly,
+                  onSelected: (followOnly) {
+                    if (followOnly == _followingOnly) return;
+                    HapticFeedback.selectionClick();
+                    setState(() {
+                      _followingOnly = followOnly;
+                      _isLoading = true;
+                      _posts = [];
+                      _cursorCreatedAt = null;
+                      _cursorId = null;
+                      _hasMorePosts = true;
+                      _loadedPostIds.clear();
+                    });
+                    _fetchPosts().whenComplete(() {
+                      if (mounted) setState(() => _isLoading = false);
+                    });
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem<bool>(
+                      value: false,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.auto_awesome_rounded,
+                            size: 18,
+                            color: !_followingOnly
+                                ? ZevColors.secondaryBlue
+                                : ZevColors.textMuted,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'For You',
+                            style: TextStyle(
+                              fontWeight: !_followingOnly
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                              color: ZevColors.deepNavy,
+                            ),
+                          ),
+                          if (!_followingOnly) ...[
+                            const Spacer(),
+                            const Icon(
+                              Icons.check_rounded,
+                              size: 17,
+                              color: ZevColors.secondaryBlue,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem<bool>(
+                      value: true,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.people_alt_rounded,
+                            size: 18,
+                            color: _followingOnly
+                                ? ZevColors.secondaryBlue
+                                : ZevColors.textMuted,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Following',
+                            style: TextStyle(
+                              fontWeight: _followingOnly
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                              color: ZevColors.deepNavy,
+                            ),
+                          ),
+                          if (_followingOnly) ...[
+                            const Spacer(),
+                            const Icon(
+                              Icons.check_rounded,
+                              size: 17,
+                              color: ZevColors.secondaryBlue,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white, width: 1.2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF0F172A)
+                                  .withValues(alpha: 0.05),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Image.asset(
+                          'assets/icon/icon-192x192.png',
+                          height: 24,
+                          width: 24,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const Icon(
+                            Icons.bolt_rounded,
+                            color: ZevColors.primaryBlue,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        "ZEV",
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: ZevColors.deepNavy,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      if (_followingOnly) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: ZevColors.border),
+                          ),
+                          child: const Text(
+                            'Following',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: ZevColors.secondaryBlue,
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(width: 3),
+                      const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 20,
+                        color: ZevColors.deepNavy,
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  // Interactive ZEV Live Chat & Presence Rooms Pill
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      LiveRoomsScreen.open(context);
+                    },
+                    child: Container(
+                      height: 36,
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 3,
+                        vertical: 10,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(999),
                         border: Border.all(color: Colors.white, width: 1.2),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                            color: const Color(0xFF0F172A)
+                                .withValues(alpha: 0.05),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
+                          const BoxShadow(
+                            color: Colors.white,
+                            blurRadius: 4,
+                            offset: Offset(0, -1),
+                          ),
                         ],
                       ),
-                      child: Image.asset(
-                        'assets/icon/icon-192x192.png',
-                        height: 24,
-                        width: 24,
-                        errorBuilder: (context, error, stackTrace) => const Icon(
-                          Icons.bolt_rounded,
-                          color: ZevColors.primaryBlue,
-                          size: 24,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: const BoxDecoration(
+                              color: ZevColors.errorRed,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          const Text(
+                            'Live',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: ZevColors.deepNavy,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      "ZEV",
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: ZevColors.deepNavy,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      size: 20,
-                      color: ZevColors.deepNavy,
-                    ),
-                  ],
-                ),
-                actions: [
+                  ),
+
                   // Create Post (+) Button
                   _buildClayAppbarButton(
                     tooltip: "Create Post",
@@ -863,55 +943,143 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                     ),
                   ),
 
-                  // Heart / Activity Button with dynamic notification dot
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      _buildClayAppbarButton(
-                        tooltip: "Notifications",
-                        onTap: () async {
-                          HapticFeedback.lightImpact();
-                          setState(() => _hasUnreadNotifications = false);
-                          if (widget.onOpenNotifications != null) {
-                            widget.onOpenNotifications!();
-                          } else {
-                            await NotificationsScreen.open(context);
-                          }
-                          _checkUnreadNotifications();
-                        },
-                        child: const Icon(
-                          Icons.favorite_border_rounded,
-                          color: ZevColors.deepNavy,
-                          size: 21,
-                        ),
-                      ),
-                      if (_hasUnreadNotifications)
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFF3040),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 1.5),
+                  // Heart / Activity Button with live synced numeric badge
+                  ValueListenableBuilder<int>(
+                    valueListenable:
+                        BadgeCounterService.instance.unreadNotificationsCount,
+                    builder: (context, count, _) {
+                      final hasUnread = count > 0;
+                      final badgeText = count > 99 ? '99+' : '$count';
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.center,
+                        children: [
+                          _buildClayAppbarButton(
+                            tooltip: "Notifications",
+                            onTap: () async {
+                              HapticFeedback.lightImpact();
+                              BadgeCounterService.instance
+                                  .markNotificationsReadOptimistic();
+                              if (widget.onOpenNotifications != null) {
+                                widget.onOpenNotifications!();
+                              } else {
+                                await NotificationsScreen.open(context);
+                                BadgeCounterService.instance.refreshCounts();
+                              }
+                            },
+                            child: const Icon(
+                              Icons.favorite_border_rounded,
+                              color: ZevColors.deepNavy,
+                              size: 21,
                             ),
                           ),
-                        ),
-                    ],
+                          if (hasUnread)
+                            Positioned(
+                              top: 2,
+                              right: 0,
+                              child: IgnorePointer(
+                                child: Container(
+                                  constraints: const BoxConstraints(
+                                    minWidth: 16,
+                                    minHeight: 16,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 1,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFF3040),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      badgeText,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w800,
+                                        height: 1.1,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
                   ),
 
-                  // Direct Messages (Paper Plane / Chat)
-                  _buildClayAppbarButton(
-                    tooltip: "Messages",
-                    onTap: widget.onOpenMessages ??
-                        () => ChatListScreen.open(context),
-                    child: const Icon(
-                      Icons.send_rounded,
-                      color: ZevColors.deepNavy,
-                      size: 19,
-                    ),
+                  // Direct Messages (Paper Plane / Chat) with live unread badge
+                  ValueListenableBuilder<int>(
+                    valueListenable:
+                        BadgeCounterService.instance.unreadMessagesCount,
+                    builder: (context, count, _) {
+                      final hasUnread = count > 0;
+                      final badgeText = count > 99 ? '99+' : '$count';
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.center,
+                        children: [
+                          _buildClayAppbarButton(
+                            tooltip: "Messages",
+                            onTap: () async {
+                              if (widget.onOpenMessages != null) {
+                                widget.onOpenMessages!();
+                              } else {
+                                await ChatListScreen.open(context);
+                                BadgeCounterService.instance.refreshCounts();
+                              }
+                            },
+                            child: const Icon(
+                              Icons.send_rounded,
+                              color: ZevColors.deepNavy,
+                              size: 19,
+                            ),
+                          ),
+                          if (hasUnread)
+                            Positioned(
+                              top: 2,
+                              right: 0,
+                              child: IgnorePointer(
+                                child: Container(
+                                  constraints: const BoxConstraints(
+                                    minWidth: 16,
+                                    minHeight: 16,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 1,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFF3040),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      badgeText,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w800,
+                                        height: 1.1,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(width: 8),
                 ],
@@ -921,28 +1089,36 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
               SliverToBoxAdapter(
                 child: FeedStoriesTray(
                   myAvatarUrl: _myAvatarUrl,
+                  myActiveStory: _myActiveStory,
                   stories: _stories,
                   onAddStory: _openCreateStoryModal,
-                  onStoryTap: (story) {
-                    StoryViewerScreen.open(
+                  onStoryTap: (story) async {
+                    final allStories = <ActiveFriendStory>[
+                      ?_myActiveStory,
+                      ..._stories,
+                    ];
+                    final idx = allStories.indexWhere(
+                      (s) => s.userId == story.userId,
+                    );
+                    await StoryViewerScreen.open(
                       context,
                       friendStory: story,
-                      allFriendStories: _stories,
-                      initialFriendIndex: _stories.indexOf(story),
+                      allFriendStories: allStories,
+                      initialFriendIndex: idx < 0 ? 0 : idx,
                     );
+                    if (mounted) {
+                      _fetchStories();
+                    }
                   },
                 ),
               ),
 
               // 3. Posts Stream / Feed List
               if (_isLoading)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: ZevColors.primaryBlue,
-                    ),
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (_, _) => const ZevFeedCardSkeleton(),
+                    childCount: 3,
                   ),
                 )
               else if (_errorMsg != null)
@@ -1044,9 +1220,11 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                               ),
                             ),
                             const SizedBox(height: 18),
-                            const Text(
-                              "Welcome to your Feed",
-                              style: TextStyle(
+                            Text(
+                              _followingOnly
+                                  ? "No posts from Following yet"
+                                  : "Welcome to your Feed",
+                              style: const TextStyle(
                                 fontSize: 19,
                                 fontWeight: FontWeight.w900,
                                 color: ZevColors.deepNavy,
@@ -1054,10 +1232,12 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            const Text(
-                              "When creators and friends share stories, photos, and thoughts, they will appear here.",
+                            Text(
+                              _followingOnly
+                                  ? "Follow creators you like or switch back to For You to explore the community."
+                                  : "When creators and friends share stories, photos, and thoughts, they will appear here.",
                               textAlign: TextAlign.center,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 13.5,
                                 color: ZevColors.textSecondary,
                                 height: 1.4,
@@ -1065,7 +1245,24 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                             ),
                             const SizedBox(height: 22),
                             GestureDetector(
-                              onTap: _openCreatePostModal,
+                              onTap: _followingOnly
+                                  ? () {
+                                      setState(() {
+                                        _followingOnly = false;
+                                        _isLoading = true;
+                                        _posts = [];
+                                        _cursorCreatedAt = null;
+                                        _cursorId = null;
+                                        _hasMorePosts = true;
+                                        _loadedPostIds.clear();
+                                      });
+                                      _fetchPosts().whenComplete(() {
+                                        if (mounted) {
+                                          setState(() => _isLoading = false);
+                                        }
+                                      });
+                                    }
+                                  : _openCreatePostModal,
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                                 decoration: BoxDecoration(
@@ -1087,14 +1284,22 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                                     ),
                                   ],
                                 ),
-                                child: const Row(
+                                child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.add_rounded, size: 20, color: Colors.white),
-                                    SizedBox(width: 8),
+                                    Icon(
+                                      _followingOnly
+                                          ? Icons.auto_awesome_rounded
+                                          : Icons.add_rounded,
+                                      size: 20,
+                                      color: Colors.white,
+                                    ),
+                                    const SizedBox(width: 8),
                                     Text(
-                                      "Create First Post",
-                                      style: TextStyle(
+                                      _followingOnly
+                                          ? "Switch to For You"
+                                          : "Create First Post",
+                                      style: const TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w800,
                                         color: Colors.white,
@@ -1120,6 +1325,22 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                           key: ValueKey(post.id),
                           post: post,
                           onCommentsUpdated: _fetchPosts,
+                          onPostUpdated: (updated) {
+                            setState(() {
+                              final idx = _posts.indexWhere((p) => p.id == updated.id);
+                              if (idx != -1) _posts[idx] = updated;
+                            });
+                          },
+                          onHideOrMute: () {
+                            FeedAlgorithmService.instance.recordNegativeFeedback(
+                              postId: post.id,
+                              authorId: post.authorId,
+                            );
+                            setState(() {
+                              _posts.removeWhere((p) => p.id == post.id);
+                            });
+                            _fetchPosts();
+                          },
                           onPostDeleted: () {
                             setState(() {
                               _posts.removeWhere((p) => p.id == post.id);
@@ -1140,7 +1361,12 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                           children: [
                             card,
                             _buildSuggestedCarousel(),
-                            if (showNativeAd) const ZevNativeAdCard(),
+                            if (showNativeAd)
+                              ZevNativeAdCard(
+                                key: ValueKey('feed_ad_${post.id}'),
+                                placement: 'feed',
+                                slotKey: 'feed_${post.id}',
+                              ),
                           ],
                         );
                       }
@@ -1150,7 +1376,11 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             card,
-                            const ZevNativeAdCard(),
+                            ZevNativeAdCard(
+                              key: ValueKey('feed_ad_${post.id}'),
+                              placement: 'feed',
+                              slotKey: 'feed_${post.id}',
+                            ),
                           ],
                         );
                       }
@@ -1163,12 +1393,18 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                   ),
                 ),
 
+              if (_isLoadingMore)
+                const SliverToBoxAdapter(
+                  child: ZevFeedCardSkeleton(),
+                ),
+
               // Bottom Spacer to comfortably clear the floating navigation dock
               const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }

@@ -1,0 +1,41 @@
+-- 005_atomic_counters_reconcile.down.sql
+DROP FUNCTION IF EXISTS public.reconcile_all_counters();
+DROP FUNCTION IF EXISTS public.record_reel_view(uuid);
+DROP FUNCTION IF EXISTS public.mark_conversation_read(uuid);
+DROP FUNCTION IF EXISTS public.accept_follow_request(uuid);
+
+DROP TRIGGER IF EXISTS trg_cnt_reel_hashtags ON public.reel_hashtags;
+DROP FUNCTION IF EXISTS public.trg_cnt_reel_hashtags();
+DROP TRIGGER IF EXISTS trg_cnt_post_hashtags ON public.post_hashtags;
+DROP FUNCTION IF EXISTS public.trg_cnt_post_hashtags();
+DROP TRIGGER IF EXISTS trg_cnt_story_replies ON public.story_replies;
+DROP FUNCTION IF EXISTS public.trg_cnt_story_replies();
+DROP TRIGGER IF EXISTS trg_cnt_story_likes ON public.story_likes;
+DROP FUNCTION IF EXISTS public.trg_cnt_story_likes();
+DROP TRIGGER IF EXISTS trg_cnt_story_views ON public.story_views;
+DROP FUNCTION IF EXISTS public.trg_cnt_story_views();
+DROP TRIGGER IF EXISTS trg_cnt_comment_likes ON public.comment_likes;
+DROP FUNCTION IF EXISTS public.trg_cnt_comment_likes();
+DROP TRIGGER IF EXISTS trg_cnt_profile_reels ON public.reels;
+DROP FUNCTION IF EXISTS public.trg_cnt_profile_reels();
+DROP TRIGGER IF EXISTS trg_cnt_profile_posts ON public.discussion_posts;
+DROP FUNCTION IF EXISTS public.trg_cnt_profile_posts();
+DROP TRIGGER IF EXISTS trg_cnt_user_follows ON public.user_follows;
+DROP FUNCTION IF EXISTS public.trg_cnt_user_follows();
+DROP TRIGGER IF EXISTS trg_cnt_reel_views ON public.reel_views;
+DROP FUNCTION IF EXISTS public.trg_cnt_reel_views();
+DROP TRIGGER IF EXISTS trg_cnt_reel_bookmarks ON public.reel_bookmarks;
+DROP FUNCTION IF EXISTS public.trg_cnt_reel_bookmarks();
+DROP TRIGGER IF EXISTS trg_cnt_reel_comments ON public.reel_comments;
+DROP FUNCTION IF EXISTS public.trg_cnt_reel_comments();
+DROP TRIGGER IF EXISTS trg_cnt_reel_likes ON public.reel_likes;
+DROP FUNCTION IF EXISTS public.trg_cnt_reel_likes();
+DROP TRIGGER IF EXISTS trg_cnt_discussion_bookmarks ON public.discussion_bookmarks;
+DROP FUNCTION IF EXISTS public.trg_cnt_discussion_bookmarks();
+DROP TRIGGER IF EXISTS trg_cnt_post_reposts ON public.post_reposts;
+DROP FUNCTION IF EXISTS public.trg_cnt_post_reposts();
+DROP TRIGGER IF EXISTS trg_cnt_discussion_comments ON public.discussion_comments;
+DROP FUNCTION IF EXISTS public.trg_cnt_discussion_comments();
+DROP TRIGGER IF EXISTS trg_cnt_discussion_likes ON public.discussion_likes;
+DROP FUNCTION IF EXISTS public.trg_cnt_discussion_likes();
+

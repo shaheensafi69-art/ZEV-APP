@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,12 +6,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/cloudflare_storage_service.dart';
+import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 
-/// Ultra-Modern, 100% Tactile Claymorphic "Edit Profile" Screen for ZEV.
-/// Engineered with authentic dual-shadow 3D clay elevation, fully adaptive
-/// responsive geometry for ultra-compact to large phone screens, zero overflow,
-/// and complete Instagram Pro creator attributes.
+/// Ultra-Modern, 100% Tactile Light Clearmorphic "Edit Profile" Screen for ZEV.
+/// Supports debounced `is_username_available` RPC + 14-day cooldown,
+/// location editing, multi-link `user_links` CRUD (up to 5 links),
+/// and safe Cloudflare R2 avatar replacement with old-object cleanup.
 class EditProfileScreen extends StatefulWidget {
   final Map<String, dynamic> initialProfile;
 
@@ -32,6 +34,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _usernameCtrl;
   late final TextEditingController _pronounsCtrl;
   late final TextEditingController _bioCtrl;
+  late final TextEditingController _locationCtrl;
   late final TextEditingController _websiteCtrl;
   late final TextEditingController _publicEmailCtrl;
   late final TextEditingController _publicPhoneCtrl;
@@ -43,6 +46,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   File? _newAvatarFile;
   String _currentAvatarUrl = '';
+  String _initialAvatarUrl = '';
+  String _initialUsername = '';
+  int _usernameCooldownDaysLeft = 0;
+
+  Timer? _usernameDebounce;
+  bool _isCheckingUsername = false;
+  bool? _isUsernameAvailable;
+  String? _usernameStatusText;
+
+  List<Map<String, dynamic>> _userLinks = [];
+  final Set<String> _deletedLinkIds = {};
+  bool _isLoadingLinks = true;
+
   bool _isSaving = false;
   String? _errorMessage;
 
@@ -80,9 +96,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final p = widget.initialProfile;
     _firstNameCtrl = TextEditingController(text: p['first_name'] ?? '');
     _lastNameCtrl = TextEditingController(text: p['last_name'] ?? '');
+    _initialUsername = (p['username'] ?? '').toString().trim().toLowerCase();
     _usernameCtrl = TextEditingController(text: p['username'] ?? '');
     _pronounsCtrl = TextEditingController(text: p['pronouns'] ?? '');
     _bioCtrl = TextEditingController(text: p['bio'] ?? '');
+    _locationCtrl = TextEditingController(text: p['location'] ?? '');
     _websiteCtrl = TextEditingController(text: p['website'] ?? '');
     _publicEmailCtrl =
         TextEditingController(text: p['public_email'] ?? p['email'] ?? '');
@@ -99,20 +117,262 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _showCategoryOnProfile = p['show_category_on_profile'] ?? true;
     _showContactInfo = p['show_contact_info'] ?? true;
 
-    _currentAvatarUrl = p['avatar_url'] ?? '';
+    _initialAvatarUrl = (p['avatar_url'] ?? '').toString();
+    _currentAvatarUrl = _initialAvatarUrl;
+
+    final changedAtRaw = p['username_changed_at']?.toString();
+    if (changedAtRaw != null && changedAtRaw.isNotEmpty) {
+      final changedAt = DateTime.tryParse(changedAtRaw);
+      if (changedAt != null) {
+        final daysSince = DateTime.now().toUtc().difference(changedAt.toUtc()).inDays;
+        if (daysSince < 14) {
+          _usernameCooldownDaysLeft = 14 - daysSince;
+        }
+      }
+    }
+
+    _usernameCtrl.addListener(_onUsernameChanged);
+    _fetchUserLinks();
   }
 
   @override
   void dispose() {
+    _usernameDebounce?.cancel();
+    _usernameCtrl.removeListener(_onUsernameChanged);
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _usernameCtrl.dispose();
     _pronounsCtrl.dispose();
     _bioCtrl.dispose();
+    _locationCtrl.dispose();
     _websiteCtrl.dispose();
     _publicEmailCtrl.dispose();
     _publicPhoneCtrl.dispose();
     super.dispose();
+  }
+
+  void _onUsernameChanged() {
+    _usernameDebounce?.cancel();
+    final raw = _usernameCtrl.text.trim().toLowerCase().replaceAll('@', '');
+    if (raw == _initialUsername) {
+      setState(() {
+        _isCheckingUsername = false;
+        _isUsernameAvailable = null;
+        _usernameStatusText = null;
+      });
+      return;
+    }
+
+    if (_usernameCooldownDaysLeft > 0) {
+      setState(() {
+        _isCheckingUsername = false;
+        _isUsernameAvailable = false;
+        _usernameStatusText =
+            'Username locked for $_usernameCooldownDaysLeft more day${_usernameCooldownDaysLeft == 1 ? '' : 's'}';
+      });
+      return;
+    }
+
+    if (!RegExp(r'^[a-z0-9_.]{3,30}$').hasMatch(raw)) {
+      setState(() {
+        _isCheckingUsername = false;
+        _isUsernameAvailable = false;
+        _usernameStatusText = 'Use 3-30 lowercase letters, numbers, _ or .';
+      });
+      return;
+    }
+
+    setState(() {
+      _isCheckingUsername = true;
+      _isUsernameAvailable = null;
+      _usernameStatusText = 'Checking availability...';
+    });
+
+    _usernameDebounce = Timer(const Duration(milliseconds: 450), () async {
+      try {
+        final res = await supabase.rpc(
+          'is_username_available',
+          params: {'p_username': raw},
+        );
+        if (!mounted) return;
+        final currentRaw =
+            _usernameCtrl.text.trim().toLowerCase().replaceAll('@', '');
+        if (currentRaw != raw) return;
+        final available = res == true;
+        setState(() {
+          _isCheckingUsername = false;
+          _isUsernameAvailable = available;
+          _usernameStatusText = available
+              ? '@$raw is available'
+              : '@$raw is already taken';
+        });
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _isCheckingUsername = false;
+          _isUsernameAvailable = null;
+          _usernameStatusText = null;
+        });
+      }
+    });
+  }
+
+  Future<void> _fetchUserLinks() async {
+    final userId = widget.initialProfile['id']?.toString() ??
+        supabase.auth.currentUser?.id;
+    if (userId == null) {
+      if (mounted) setState(() => _isLoadingLinks = false);
+      return;
+    }
+    try {
+      final res = await supabase
+          .from('user_links')
+          .select('id, title, url, sort_order')
+          .eq('user_id', userId)
+          .order('sort_order', ascending: true);
+      if (mounted) {
+        setState(() {
+          _userLinks = List<Map<String, dynamic>>.from(res as List);
+          _isLoadingLinks = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Fetch user_links notice: $e');
+      if (mounted) setState(() => _isLoadingLinks = false);
+    }
+  }
+
+  Future<void> _showAddOrEditLinkSheet({int? editIndex}) async {
+    if (editIndex == null && _userLinks.length >= 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You can add up to 5 profile links.'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: ZevColors.deepNavy,
+        ),
+      );
+      return;
+    }
+
+    final existing = editIndex != null ? _userLinks[editIndex] : null;
+    final titleCtrl = TextEditingController(
+      text: (existing?['title'] ?? '').toString(),
+    );
+    final urlCtrl = TextEditingController(
+      text: (existing?['url'] ?? '').toString(),
+    );
+
+    final result = await showModalBottomSheet<Map<String, String>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+        ),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: ZevColors.softSurface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: ZevColors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  editIndex == null ? 'Add Profile Link' : 'Edit Profile Link',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: ZevColors.deepNavy,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildClayInputField(
+                  label: 'Title (optional)',
+                  controller: titleCtrl,
+                  hint: 'e.g. Portfolio, YouTube, Store',
+                  isSmall: false,
+                ),
+                const SizedBox(height: 10),
+                _buildClayInputField(
+                  label: 'URL',
+                  controller: urlCtrl,
+                  hint: 'https://example.com',
+                  prefixIcon: Icons.link_rounded,
+                  keyboardType: TextInputType.url,
+                  isSmall: false,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    var url = urlCtrl.text.trim();
+                    if (url.isEmpty) return;
+                    if (!url.startsWith('http://') &&
+                        !url.startsWith('https://')) {
+                      url = 'https://$url';
+                    }
+                    final title = titleCtrl.text.trim().isNotEmpty
+                        ? titleCtrl.text.trim()
+                        : Uri.tryParse(url)?.host.replaceFirst('www.', '') ??
+                            url;
+                    Navigator.pop(ctx, {'title': title, 'url': url});
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: ZevColors.secondaryBlue,
+                    foregroundColor: ZevColors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: Text(
+                    editIndex == null ? 'Add Link' : 'Update Link',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        if (editIndex != null) {
+          _userLinks[editIndex] = {
+            ..._userLinks[editIndex],
+            'title': result['title'],
+            'url': result['url'],
+          };
+        } else {
+          _userLinks.add({
+            'title': result['title'],
+            'url': result['url'],
+            'sort_order': _userLinks.length,
+          });
+        }
+      });
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -294,10 +554,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         supabase.auth.currentUser?.id;
     if (userId == null) return;
 
-    final newUsername = _usernameCtrl.text.trim().toLowerCase();
+    final newUsername =
+        _usernameCtrl.text.trim().toLowerCase().replaceAll('@', '');
     if (newUsername.isEmpty) {
       setState(() => _errorMessage = "Username cannot be empty");
       return;
+    }
+
+    if (newUsername != _initialUsername) {
+      if (_usernameCooldownDaysLeft > 0) {
+        setState(
+          () => _errorMessage =
+              "You can change your username again in $_usernameCooldownDaysLeft day${_usernameCooldownDaysLeft == 1 ? '' : 's'}.",
+        );
+        return;
+      }
+      if (!RegExp(r'^[a-z0-9_.]{3,30}$').hasMatch(newUsername)) {
+        setState(
+          () => _errorMessage =
+              "Username must be 3-30 characters using lowercase letters, numbers, _ or .",
+        );
+        return;
+      }
     }
 
     setState(() {
@@ -307,53 +585,56 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     HapticFeedback.mediumImpact();
 
     try {
-      // 1. Check username availability if changed
-      final currentUsername =
-          widget.initialProfile['username']?.toString().toLowerCase() ?? '';
-      if (newUsername != currentUsername) {
-        final existing = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('username', newUsername)
-            .neq('id', userId)
-            .maybeSingle();
-
-        if (existing != null) {
-          setState(() {
-            _isSaving = false;
-            _errorMessage = "Username @$newUsername is already taken";
-          });
+      // 1. Check username availability if changed via authoritative RPC
+      final usernameChanged = newUsername != _initialUsername;
+      if (usernameChanged) {
+        final avail = await supabase.rpc(
+          'is_username_available',
+          params: {'p_username': newUsername},
+        );
+        if (avail != true) {
+          if (mounted) {
+            setState(() {
+              _isSaving = false;
+              _isUsernameAvailable = false;
+              _usernameStatusText = "@$newUsername is already taken";
+              _errorMessage = "Username @$newUsername is already taken";
+            });
+          }
           return;
         }
       }
 
-      // 2. Upload avatar if selected
+      // 2. Upload avatar if selected (fail loudly instead of swallowing error)
       String finalAvatarUrl = _currentAvatarUrl;
       if (_newAvatarFile != null) {
-        try {
-          final ext = _newAvatarFile!.path.split('.').last;
-          final fileName =
-              'avatar_${userId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
-          final uploaded = await CloudflareStorageService.instance.upload(
-            bucket: 'avatars',
-            path: fileName,
-            file: _newAvatarFile,
-          );
-          if (uploaded.isNotEmpty) {
-            finalAvatarUrl = uploaded;
-          }
-        } catch (uploadErr) {
-          debugPrint("Avatar upload warning: $uploadErr");
+        final ext = _newAvatarFile!.path.contains('.')
+            ? _newAvatarFile!.path.split('.').last
+            : 'jpg';
+        final fileName =
+            'avatar_${userId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+        final uploaded = await CloudflareStorageService.instance.upload(
+          bucket: 'avatars',
+          path: fileName,
+          file: _newAvatarFile,
+          maxImageDimension: 800,
+          imageQuality: 85,
+        );
+        if (uploaded.isEmpty) {
+          throw Exception('Avatar upload returned empty URL');
         }
+        finalAvatarUrl = uploaded;
       }
 
-      // 3. Update Supabase profiles table with all Instagram Pro fields
-      final updateData = {
+      // 3. Update Supabase profiles table
+      final nowIso = DateTime.now().toUtc().toIso8601String();
+      final updateData = <String, dynamic>{
         'first_name': _firstNameCtrl.text.trim(),
         'last_name': _lastNameCtrl.text.trim(),
         'username': newUsername,
         'pronouns': _pronounsCtrl.text.trim(),
         'bio': _bioCtrl.text.trim(),
+        'location': _locationCtrl.text.trim(),
         'website': _websiteCtrl.text.trim(),
         'category': _selectedCategory,
         'gender': _selectedGender,
@@ -362,10 +643,51 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         'public_email': _publicEmailCtrl.text.trim(),
         'public_phone': _publicPhoneCtrl.text.trim(),
         'avatar_url': finalAvatarUrl,
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': nowIso,
       };
+      if (usernameChanged) {
+        updateData['username_changed_at'] = nowIso;
+      }
 
       await supabase.from('profiles').update(updateData).eq('id', userId);
+
+      // 4. Sync user_links (up to 5 links)
+      if (_deletedLinkIds.isNotEmpty) {
+        await supabase
+            .from('user_links')
+            .delete()
+            .eq('user_id', userId)
+            .inFilter('id', _deletedLinkIds.toList());
+      }
+      for (var i = 0; i < _userLinks.length; i++) {
+        final link = _userLinks[i];
+        final title = (link['title'] ?? '').toString().trim();
+        final url = (link['url'] ?? '').toString().trim();
+        if (url.isEmpty) continue;
+        final linkId = link['id']?.toString();
+        if (linkId != null && linkId.isNotEmpty) {
+          await supabase
+              .from('user_links')
+              .update({'title': title, 'url': url, 'sort_order': i})
+              .eq('id', linkId)
+              .eq('user_id', userId);
+        } else {
+          await supabase.from('user_links').insert({
+            'user_id': userId,
+            'title': title,
+            'url': url,
+            'sort_order': i,
+          });
+        }
+      }
+
+      // 5. Clean up old R2 avatar only after DB save succeeded
+      if (_initialAvatarUrl.isNotEmpty &&
+          finalAvatarUrl != _initialAvatarUrl) {
+        unawaited(
+          CloudflareStorageService.instance.deleteByUrl(_initialAvatarUrl),
+        );
+      }
 
       // Return the updated profile map to parent
       final mergedProfile = Map<String, dynamic>.from(widget.initialProfile)
@@ -668,6 +990,56 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             prefixText: "@ ",
                             isSmall: isSmall,
                           ),
+                          if (_isCheckingUsername ||
+                              _usernameStatusText != null ||
+                              _usernameCooldownDaysLeft > 0) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                if (_isCheckingUsername)
+                                  const SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 1.8,
+                                      color: ZevColors.secondaryBlue,
+                                    ),
+                                  )
+                                else if (_isUsernameAvailable != null)
+                                  Icon(
+                                    _isUsernameAvailable!
+                                        ? Icons.check_circle_rounded
+                                        : Icons.info_outline_rounded,
+                                    size: 14,
+                                    color: _isUsernameAvailable!
+                                        ? ZevColors.successGreen
+                                        : ZevColors.errorRed,
+                                  )
+                                else
+                                  const Icon(
+                                    Icons.lock_clock_outlined,
+                                    size: 14,
+                                    color: ZevColors.textMuted,
+                                  ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    _usernameStatusText ??
+                                        'Username can be changed once every 14 days ($_usernameCooldownDaysLeft day${_usernameCooldownDaysLeft == 1 ? '' : 's'} remaining)',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: _isUsernameAvailable == true
+                                          ? ZevColors.successGreen
+                                          : (_isUsernameAvailable == false
+                                                ? ZevColors.errorRed
+                                                : ZevColors.textSecondary),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                           const SizedBox(height: 12),
 
                           // Pronouns Input & Quick Selection Chips
@@ -738,6 +1110,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             maxLines: 3,
                             isSmall: isSmall,
                           ),
+                          const SizedBox(height: 12),
+
+                          // Location
+                          _buildClayInputField(
+                            label: "Location",
+                            controller: _locationCtrl,
+                            hint: "City, Country",
+                            prefixIcon: Icons.location_on_outlined,
+                            isSmall: isSmall,
+                          ),
                         ],
                       ),
                     ),
@@ -753,15 +1135,177 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       depth: 3.5,
                       padding: EdgeInsets.all(isSmall ? 12 : 16),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           _buildClayInputField(
-                            label: "Links / Website",
+                            label: "Primary Website",
                             controller: _websiteCtrl,
                             hint: "https://yourwebsite.com",
                             prefixIcon: Icons.link_rounded,
                             keyboardType: TextInputType.url,
                             isSmall: isSmall,
                           ),
+                          const SizedBox(height: 12),
+
+                          // Profile Links (user_links up to 5)
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Profile Links (${_userLinks.length}/5)',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: ZevColors.textSecondary,
+                                ),
+                              ),
+                              if (_userLinks.length < 5)
+                                GestureDetector(
+                                  onTap: () => _showAddOrEditLinkSheet(),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: ZevColors.secondaryBlue
+                                          .withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.add_rounded,
+                                          size: 14,
+                                          color: ZevColors.secondaryBlue,
+                                        ),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'Add Link',
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: ZevColors.secondaryBlue,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          if (_isLoadingLinks)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: ZevColors.primaryBlue,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else if (_userLinks.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            for (var i = 0; i < _userLinks.length; i++)
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 9,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: ZevColors.softSurface,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: ZevColors.border),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.public_rounded,
+                                      size: 16,
+                                      color: ZevColors.secondaryBlue,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            (_userLinks[i]['title'] ?? '')
+                                                    .toString()
+                                                    .isNotEmpty
+                                                ? _userLinks[i]['title']
+                                                    .toString()
+                                                : (_userLinks[i]['url'] ?? '')
+                                                    .toString(),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w800,
+                                              color: ZevColors.deepNavy,
+                                            ),
+                                          ),
+                                          Text(
+                                            (_userLinks[i]['url'] ?? '')
+                                                .toString(),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: ZevColors.textMuted,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    IconButton(
+                                      onPressed: () =>
+                                          _showAddOrEditLinkSheet(editIndex: i),
+                                      icon: const Icon(
+                                        Icons.edit_outlined,
+                                        size: 17,
+                                        color: ZevColors.textSecondary,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(
+                                        minWidth: 30,
+                                        minHeight: 30,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      onPressed: () {
+                                        setState(() {
+                                          final existingId =
+                                              _userLinks[i]['id']?.toString();
+                                          if (existingId != null &&
+                                              existingId.isNotEmpty) {
+                                            _deletedLinkIds.add(existingId);
+                                          }
+                                          _userLinks.removeAt(i);
+                                        });
+                                      },
+                                      icon: const Icon(
+                                        Icons.delete_outline_rounded,
+                                        size: 17,
+                                        color: ZevColors.errorRed,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(
+                                        minWidth: 30,
+                                        minHeight: 30,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
                           const SizedBox(height: 12),
 
                           // Clay Dropdown: Category

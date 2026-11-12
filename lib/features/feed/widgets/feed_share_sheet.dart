@@ -4,7 +4,11 @@ import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/services/social_graph_service.dart';
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/zev_cached_image.dart';
+import '../../chat/services/chat_service.dart';
+import '../../chat/widgets/new_chat_sheet.dart';
 import '../models/feed_post_item.dart';
 
 /// Serene, Instagram-Grade Share Sheet for ZEV.
@@ -47,6 +51,7 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
   List<Map<String, dynamic>> _allFriends = [];
   List<Map<String, dynamic>> _filteredFriends = [];
   final Set<String> _sentFriendIds = {};
+  final Set<String> _sendingFriendIds = {};
   bool _isLoadingFriends = true;
 
   @override
@@ -80,24 +85,33 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
   Future<void> _fetchFriends() async {
     final user = supabase.auth.currentUser;
     try {
-      final res = await supabase
-          .from('profiles')
-          .select('id, username, first_name, last_name, avatar_url, is_verified')
-          .neq('id', user?.id ?? '')
-          .limit(20);
+      final results = await Future.wait<dynamic>([
+        SocialGraphService.instance.fetchSafetyFilters(),
+        supabase
+            .from('profiles')
+            .select('id, username, first_name, last_name, avatar_url, is_verified')
+            .neq('id', user?.id ?? '')
+            .limit(30),
+      ]);
 
-      final list = (res as List).map((p) {
-        final fn = p['first_name'] ?? '';
-        final ln = p['last_name'] ?? '';
-        final full = "$fn $ln".trim();
-        return {
-          'id': p['id'].toString(),
-          'username': p['username'] ?? (full.isNotEmpty ? full : 'user'),
-          'name': full.isNotEmpty ? full : (p['username'] ?? 'User'),
-          'avatar_url': p['avatar_url'] ?? '',
-          'is_verified': p['is_verified'] == true,
-        };
-      }).toList();
+      final filters = results[0] as UserSafetyFilters;
+      final res = results[1] as List;
+
+      final list = res
+          .where((p) => !filters.blockedUserIds.contains(p['id']?.toString() ?? ''))
+          .map((p) {
+            final fn = p['first_name'] ?? '';
+            final ln = p['last_name'] ?? '';
+            final full = "$fn $ln".trim();
+            return {
+              'id': p['id'].toString(),
+              'username': p['username'] ?? (full.isNotEmpty ? full : 'user'),
+              'name': full.isNotEmpty ? full : (p['username'] ?? 'User'),
+              'avatar_url': p['avatar_url'] ?? '',
+              'is_verified': p['is_verified'] == true,
+            };
+          })
+          .toList();
 
       if (mounted) {
         setState(() {
@@ -112,19 +126,89 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
     }
   }
 
-  void _sendToFriend(String friendId, String friendName) {
+  Future<void> _sendToFriend(String friendId, String friendName) async {
+    if (_sendingFriendIds.contains(friendId) || _sentFriendIds.contains(friendId)) {
+      return;
+    }
     HapticFeedback.lightImpact();
     setState(() {
+      _sendingFriendIds.add(friendId);
       _sentFriendIds.add(friendId);
+    });
+
+    final preview = widget.post.title.isNotEmpty
+        ? widget.post.title
+        : widget.post.content;
+
+    final ok = await ChatService.instance.sendSharedContentToUser(
+      peerId: friendId,
+      contentId: widget.post.id,
+      isReel: widget.isReel,
+      authorUsername: widget.post.authorUsername,
+      previewText: preview,
+      thumbnailUrl:
+          widget.post.imageUrl.isNotEmpty ? widget.post.imageUrl : null,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _sendingFriendIds.remove(friendId);
+      if (!ok) _sentFriendIds.remove(friendId);
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text("Sent to @$friendName"),
+        content: Text(
+          ok
+              ? 'Sent to @$friendName'
+              : 'Could not send to @$friendName. You may be restricted or blocked.',
+        ),
+        backgroundColor: ok ? ZevColors.deepNavy : ZevColors.errorRed,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        duration: const Duration(seconds: 1),
+        duration: const Duration(seconds: 2),
       ),
+    );
+  }
+
+  void _openCreateGroupAndShare() {
+    HapticFeedback.lightImpact();
+    final preview = widget.post.title.isNotEmpty
+        ? widget.post.title
+        : widget.post.content;
+
+    NewChatSheet.show(
+      context,
+      initialGroupMode: true,
+      onSelectUser: (userId, username, avatarUrl, fullName, isVerified) {
+        _sendToFriend(userId, username);
+      },
+      onCreateGroup: (conversationId, title) async {
+        final ok = await ChatService.instance.sendSharedContentToConversation(
+          conversationId: conversationId,
+          isGroup: true,
+          contentId: widget.post.id,
+          isReel: widget.isReel,
+          authorUsername: widget.post.authorUsername,
+          previewText: preview,
+          thumbnailUrl:
+              widget.post.imageUrl.isNotEmpty ? widget.post.imageUrl : null,
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              ok
+                  ? 'Shared to group "$title"'
+                  : 'Group "$title" created, but share failed.',
+            ),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -171,7 +255,11 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text("Post link copied to clipboard"),
+        content: Text(
+          widget.isReel
+              ? "Reel link copied to clipboard"
+              : "Post link copied to clipboard",
+        ),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: const Duration(seconds: 2),
@@ -330,12 +418,7 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                       color: ZevColors.deepNavy,
                       size: 22,
                     ),
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Create Group Chat coming up!")),
-                      );
-                    },
+                    onPressed: _openCreateGroupAndShare,
                   ),
                 ),
               ],
@@ -398,20 +481,21 @@ class _FeedShareSheetState extends State<FeedShareSheet> {
                                           width: 1.5,
                                         ),
                                       ),
-                                      child: CircleAvatar(
-                                        radius: 36,
-                                        backgroundColor: ZevColors.softSurface,
-                                        backgroundImage: avatar.isNotEmpty
-                                            ? NetworkImage(avatar)
-                                            : null,
-                                        child: avatar.isEmpty
-                                            ? const Icon(
+                                      child: avatar.isNotEmpty
+                                          ? ZevCachedImage.avatar(
+                                              imageUrl: avatar,
+                                              size: 72,
+                                            )
+                                          : const CircleAvatar(
+                                              radius: 36,
+                                              backgroundColor:
+                                                  ZevColors.softSurface,
+                                              child: Icon(
                                                 Icons.person_rounded,
                                                 size: 36,
                                                 color: ZevColors.textMuted,
-                                              )
-                                            : null,
-                                      ),
+                                              ),
+                                            ),
                                     ),
                                     if (isSent)
                                       Positioned.fill(

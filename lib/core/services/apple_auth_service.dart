@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'google_auth_service.dart';
+import 'post_auth_service.dart';
 
 /// Central Sign In with Apple Dispatcher for ZEV.
 /// Fully compatible with iOS, macOS, Android, and Web.
@@ -78,7 +78,10 @@ class AppleAuthService {
       }
 
       // 5. Check profile completion and route to ZevMainLayout or Onboarding
-      await GoogleAuthService.handlePostAuthCheck(explicitUser: user);
+      await PostAuthService.handlePostAuthCheck(
+        explicitUser: user,
+        eventType: 'apple_login',
+      );
     } on SignInWithAppleAuthorizationException catch (e) {
       if (e.code == AuthorizationErrorCode.canceled) {
         onCancel?.call();

@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/auth_helper.dart';
+import '../../../core/services/auth_session_manager.dart';
+import '../../../core/services/deep_link_service.dart';
 import '../../../core/theme/zev_theme.dart';
+import '../../../main.dart';
+import '../../auth/screens/account_standing_screen.dart';
 import '../../auth/screens/welcome_screen.dart';
 import '../../main_navigation/screens/zev_main_layout.dart';
 
@@ -112,11 +115,24 @@ class _ZevSplashScreenState extends State<ZevSplashScreen>
     if (!mounted) return;
 
     Widget targetScreen = const WelcomeScreen();
+    String? standingNotice;
+
     try {
-      final session = Supabase.instance.client.auth.currentSession;
+      final session = await AuthSessionManager.instance.ensureValidSession();
       if (session != null) {
-        targetScreen = const ZevMainLayout();
-        unawaited(AuthHelper.syncZevFcmToken(session.user.id));
+        final standing = await AuthSessionManager.instance.checkAccountStanding(
+          session.user.id,
+        );
+        if (standing.isAllowed) {
+          targetScreen = const ZevMainLayout();
+          unawaited(AuthHelper.syncZevFcmToken(session.user.id));
+        } else if (standing.status == AccountStandingStatus.banned) {
+          targetScreen = AccountStandingScreen(standing: standing);
+        } else {
+          standingNotice = standing.reason ??
+              'This account is suspended or deactivated.';
+          await AuthSessionManager.instance.signOutCurrentDevice();
+        }
       }
     } catch (e) {
       debugPrint('Auth check error in splash: $e');
@@ -138,6 +154,31 @@ class _ZevSplashScreenState extends State<ZevSplashScreen>
         },
       ),
     );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      DeepLinkService.instance.markAppReady();
+      if (standingNotice != null && standingNotice.isNotEmpty) {
+        final messengerCtx = appNavigatorKey.currentContext;
+        if (messengerCtx != null && messengerCtx.mounted) {
+          ScaffoldMessenger.of(messengerCtx).showSnackBar(
+            SnackBar(
+              backgroundColor: const Color(0xFFDC2626),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              content: Text(
+                standingNotice,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          );
+        }
+      }
+    });
   }
 
   @override

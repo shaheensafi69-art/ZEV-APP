@@ -2,14 +2,20 @@ import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../features/auth/screens/welcome_screen.dart';
 import '../../main.dart';
+import '../config/app_config.dart';
+import 'auth_session_manager.dart';
+import 'badge_counter_service.dart';
+import 'mfa_service.dart';
+import 'notification_service.dart';
 
-/// Central auth helper for managing user sign-in, sign-out states,
-/// and single authoritative FCM (zev_fmc) token registration.
+/// Central auth helper for managing user sign-in, device-scoped sign-out,
+/// and authoritative FCM token registration (`profiles.fcm_token`, `user_devices`,
+/// and `push_subscriptions`).
 class AuthHelper {
   AuthHelper._();
 
@@ -18,10 +24,10 @@ class AuthHelper {
   static const String keyCachedUserRole = 'cached_user_role';
   static const String keyLoggedInUserId = 'logged_in_user_id';
 
-  /// Record successful user sign-in in SharedPreferences and register single FCM token.
+  /// Record successful user sign-in in SharedPreferences and synchronize this device's FCM token.
   static Future<void> markUserLoggedIn({
     required String userId,
-    required String role,
+    String role = 'user',
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -31,102 +37,142 @@ class AuthHelper {
       await prefs.setString(keyCachedUserRole, role);
       await prefs.setString(keyLoggedInUserId, userId);
 
-      // Register single FCM token specifically for ZEV (zev_fmc) upon login
+      // Register current device FCM token upon login
       unawaited(syncZevFcmToken(userId));
     } catch (e) {
-      debugPrint("AuthHelper markUserLoggedIn notice: $e");
+      debugPrint('AuthHelper markUserLoggedIn notice: $e');
     }
   }
 
-  /// Safely generate and synchronize the single ZEV FCM token for the user.
-  /// Guarantees that only ONE active push subscription exists in `push_subscriptions`
-  /// and updates `profiles.zev_fmc` (and `zev_fcm`, `fcm_token`) to prevent duplicate push notifications.
-  static Future<void> syncZevFcmToken(String userId) async {
+  /// Synchronizes the current device's FCM token to `profiles.fcm_token`,
+  /// `user_devices` (multi-device registry), and `push_subscriptions` without
+  /// clobbering other active devices belonging to the same user.
+  static Future<void> syncZevFcmToken(
+    String userId, {
+    String? explicitToken,
+    bool forceSync = false,
+  }) async {
+    if (userId.isEmpty) return;
+
     if (kIsWeb ||
         (defaultTargetPlatform != TargetPlatform.android &&
             defaultTargetPlatform != TargetPlatform.iOS)) {
-      debugPrint("ZEV FCM token generation skipped on non-mobile platform.");
+      debugPrint('ZEV FCM token registration skipped on non-mobile platform.');
       return;
     }
 
     try {
-      final messaging = FirebaseMessaging.instance;
+      await NotificationService().ensureInitialized();
 
-      // 1. Request notification permissions from device
-      await messaging.requestPermission(
-        alert: true,
-        announcement: false,
-        badge: true,
-        carPlay: false,
-        criticalAlert: false,
-        provisional: false,
-        sound: true,
-      );
-
-      // 2. Fetch the device FCM token
-      final vapidKey = dotenv.env['FIREBASE_VAPID_KEY'];
-      final token = await messaging.getToken(
-        vapidKey: kIsWeb ? vapidKey : null,
-      );
+      String? token = explicitToken;
+      if (token == null || token.isEmpty) {
+        final messaging = FirebaseMessaging.instance;
+        final vapidKey = AppConfig.firebaseVapidKey;
+        token = await messaging.getToken(
+          vapidKey: (kIsWeb && vapidKey.isNotEmpty) ? vapidKey : null,
+        );
+      }
 
       if (token == null || token.isEmpty) {
-        debugPrint("ZEV FCM token is empty, skipping registration.");
+        debugPrint('ZEV FCM token is empty, skipping registration.');
         return;
       }
 
       final prefs = await SharedPreferences.getInstance();
-      final lastSavedToken = prefs.getString('zev_fmc_token_$userId');
-      if (lastSavedToken == token) {
-        debugPrint("ZEV FCM token already up-to-date for user: $userId");
+      await prefs.remove('zev_fmc_token_$userId'); // clean legacy pref key
+
+      final cacheKey = 'zev_last_fcm_token_$userId';
+      final lastSavedToken = prefs.getString(cacheKey);
+      if (lastSavedToken == token && explicitToken == null && !forceSync) {
+        // Touch device heartbeat timestamp cleanly without full duplicate writes
+        try {
+          final deviceId = await MfaService.instance.getOrCreateDeviceId();
+          await Supabase.instance.client
+              .from('user_devices')
+              .update({
+                'is_active': true,
+                'app_version': '1.0.0+9',
+                'last_seen_at': DateTime.now().toUtc().toIso8601String(),
+              })
+              .match({'user_id': userId, 'device_id': deviceId});
+        } catch (_) {}
         return;
       }
 
       final supabase = Supabase.instance.client;
+      final deviceId = await MfaService.instance.getOrCreateDeviceId();
+      final deviceName = await MfaService.instance.getDeviceName();
+      final platform = defaultTargetPlatform.name.toLowerCase();
+      final nowIso = DateTime.now().toUtc().toIso8601String();
 
-      // 3. Remove any previous duplicate subscriptions for this user in ZEV app
-      // to guarantee only 1 push notification is ever dispatched per event.
+      // 1. Primary multi-device registration (`user_devices`)
+      bool syncedAtLeastOne = false;
       try {
-        await supabase
-            .from('push_subscriptions')
-            .delete()
-            .match({'user_id': userId, 'app_name': 'zev'});
-      } catch (cleanErr) {
-        debugPrint("Push subscription cleanup notice: $cleanErr");
+        await supabase.from('user_devices').upsert({
+          'user_id': userId,
+          'device_id': deviceId,
+          'fcm_token': token,
+          'platform': platform,
+          'device_name': deviceName,
+          'app_version': '1.0.0+9',
+          'is_active': true,
+          'last_seen_at': nowIso,
+          'token_updated_at': nowIso,
+          'updated_at': nowIso,
+        }, onConflict: 'user_id,device_id');
+        syncedAtLeastOne = true;
+      } catch (devErr) {
+        debugPrint('user_devices upsert notice: $devErr');
       }
 
-      final deviceType = defaultTargetPlatform.name.toLowerCase();
-      final deviceName = '${defaultTargetPlatform.name} Device';
+      // 2. Single-device push_subscriptions upsert (never deletes other devices)
+      try {
+        await supabase.from('push_subscriptions').upsert({
+          'user_id': userId,
+          'fcm_token': token,
+          'app_name': 'zev',
+          'device_type': platform,
+          'device_name': deviceName,
+          'is_active': true,
+          'updated_at': nowIso,
+        }, onConflict: 'fcm_token');
+        syncedAtLeastOne = true;
+      } catch (subErr) {
+        debugPrint('push_subscriptions upsert notice: $subErr');
+      }
 
-      // 4. Upsert single authoritative push subscription
-      await supabase.from('push_subscriptions').upsert({
-        'user_id': userId,
-        'fcm_token': token,
-        'app_name': 'zev',
-        'device_type': deviceType,
-        'device_name': deviceName,
-        'is_active': true,
-        'updated_at': DateTime.now().toIso8601String(),
-      }, onConflict: 'fcm_token');
+      // 3. Authoritative single column on profiles (fcm_token)
+      try {
+        await supabase
+            .from('profiles')
+            .update({'fcm_token': token, 'updated_at': nowIso})
+            .eq('id', userId);
+        syncedAtLeastOne = true;
+      } catch (profErr) {
+        debugPrint('profiles.fcm_token update notice: $profErr');
+      }
 
-      // 5. Update profiles table with zev_fmc (custom for ZEV app), zev_fcm, and fcm_token
-      await supabase
-          .from('profiles')
-          .update({
-            'zev_fmc': token,
-            'zev_fcm': token,
-            'fcm_token': token,
-          })
-          .eq('id', userId);
-
-      // 6. Cache token locally to avoid repeated network calls
-      await prefs.setString('zev_fmc_token_$userId', token);
-      debugPrint("Single ZEV FCM token successfully registered for user $userId (saved in zev_fmc)");
+      // 4. Cache locally only if registration succeeded
+      if (syncedAtLeastOne) {
+        await prefs.setString(cacheKey, token);
+      }
+      debugPrint(
+        'ZEV FCM token registered cleanly for user $userId (device=$deviceId)',
+      );
     } catch (e) {
-      debugPrint("Error registering ZEV FCM token in AuthHelper: $e");
+      debugPrint('Error registering ZEV FCM token in AuthHelper: $e');
     }
   }
 
-  /// Get the currently logged-in user id from local cache.
+  /// Syncs current authenticated user's FCM token if logged in (throttled heartbeat).
+  static Future<void> syncCurrentUserFcmTokenIfLoggedIn() async {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid != null && uid.isNotEmpty) {
+      await syncZevFcmToken(uid);
+    }
+  }
+
+  /// Get the currently logged-in user id from local cache or active session.
   static Future<String?> getLoggedInUserId() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -151,50 +197,20 @@ class AuthHelper {
     }
   }
 
-  /// Reliable and instant account sign-out with token deactivation.
-  static Future<void> logout(BuildContext context) async {
+  /// Device-scoped sign-out that preserves other active devices' push tokens.
+  static Future<void> logout(
+    BuildContext context, {
+    bool allDevices = false,
+  }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(keyUserLoggedIn, false);
-      await prefs.setBool(keyUserExplicitlyLoggedOut, true);
-      await prefs.remove(keyCachedUserRole);
-
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user != null) {
-        await prefs.remove('cached_user_role_${user.id}');
-        await prefs.remove(keyLoggedInUserId);
-        await prefs.remove('zev_fmc_token_${user.id}');
-
-        // Clean up push subscription & nullify zev_fmc in profiles
-        try {
-          await Supabase.instance.client
-              .from('push_subscriptions')
-              .delete()
-              .match({'user_id': user.id, 'app_name': 'zev'});
-
-          await Supabase.instance.client
-              .from('profiles')
-              .update({'zev_fmc': null, 'zev_fcm': null})
-              .eq('id', user.id);
-        } catch (_) {}
+      BadgeCounterService.instance.stopListening();
+      if (allDevices) {
+        await AuthSessionManager.instance.signOutAllDevices();
+      } else {
+        await AuthSessionManager.instance.signOutCurrentDevice();
       }
-
-      // Fast local signout
-      try {
-        await Supabase.instance.client.auth
-            .signOut(scope: SignOutScope.local)
-            .timeout(const Duration(seconds: 2));
-      } catch (e) {
-        debugPrint("Local sign-out notice: $e");
-      }
-
-      // Background remote signout
-      Supabase.instance.client.auth.signOut().catchError((err) {
-        debugPrint("Remote sign-out notice: $err");
-        return null;
-      });
     } catch (e) {
-      debugPrint("AuthHelper logout error: $e");
+      debugPrint('AuthHelper logout error: $e');
     } finally {
       final navKey = appNavigatorKey.currentState;
       if (navKey != null) {
@@ -211,4 +227,3 @@ class AuthHelper {
     }
   }
 }
-

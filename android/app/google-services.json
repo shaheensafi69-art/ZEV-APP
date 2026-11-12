@@ -12,7 +12,20 @@
           "package_name": "com.zevapp.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "467206192154-6opg0v3iafqhovalsjpngdb3gmtc6586.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.zevapp.app",
+            "certificate_hash": "fc97d5ec8b6f690a4b2715e84ca971a2fa730a53"
+          }
+        },
+        {
+          "client_id": "467206192154-kcmjgeh1ashtoq02k6cqut56trj6rhqg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBwbaVJ_8LCkWlCZer5DfijbyCwYsBkckA"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "467206192154-kcmjgeh1ashtoq02k6cqut56trj6rhqg.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

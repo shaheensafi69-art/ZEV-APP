@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/zev_theme.dart';
+import 'zev_skeleton.dart';
 
 /// Flagship High-Performance Cached Image for ZEV.
 /// Optimizations:
@@ -131,10 +132,10 @@ class ZevCachedImage extends StatelessWidget {
       fadeOutDuration: const Duration(milliseconds: 100),
       placeholder: (context, url) =>
           placeholder ??
-          Container(
+          ZevSkeleton(
             width: width,
             height: height,
-            color: const Color(0xFFF1F5F9),
+            borderRadius: borderRadius ?? BorderRadius.zero,
           ),
       errorWidget: (context, url, error) => errorWidget ?? _buildFallback(),
     );

@@ -3,6 +3,10 @@ import 'package:flutter/services.dart';
 
 import '../../../core/services/auth_helper.dart';
 import '../../../core/services/multi_account_service.dart';
+import '../../../core/theme/zev_theme.dart';
+import '../../ads/screens/ads_manager_screen.dart';
+import '../../feed/screens/drafts_scheduled_screen.dart';
+import 'creator_insights_screen.dart';
 import 'edit_profile_screen.dart';
 import 'help_support_screen.dart';
 import 'mfa_settings_screen.dart';
@@ -102,15 +106,15 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     final avatarUrl = _profile['avatar_url'] ?? '';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: ZevColors.softSurface,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: ZevColors.white,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back_ios_new_rounded,
-            color: Color(0xFF0F172A),
+            color: ZevColors.deepNavy,
             size: 20,
           ),
           onPressed: () => Navigator.pop(context),
@@ -118,7 +122,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         title: const Text(
           "Settings and activity",
           style: TextStyle(
-            color: Color(0xFF0F172A),
+            color: ZevColors.deepNavy,
             fontWeight: FontWeight.w900,
             fontSize: 18,
             letterSpacing: -0.3,
@@ -357,9 +361,34 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
               subtitle: "Likes, comments, and interactions history",
               onTap: () => UserActivityScreen.open(context, profile: _profile),
             ),
+            _buildSettingsTile(
+              icon: Icons.schedule_send_rounded,
+              title: "Drafts & Scheduled Posts",
+              subtitle: "Publish saved drafts or manage upcoming scheduled posts",
+              onTap: () => DraftsScheduledScreen.open(context),
+            ),
             const SizedBox(height: 18),
 
-            // Section 2: Privacy & Security
+            // Section 2: Monetization & Advertising
+            _buildSectionHeader("Monetization & Advertising"),
+            _buildSettingsTile(
+              icon: Icons.insights_rounded,
+              title: "Creator Insights & Dashboard",
+              subtitle: "Views, engagement rate, top content & referral progress",
+              onTap: () => CreatorInsightsScreen.open(
+                context,
+                userProfile: _profile,
+              ),
+            ),
+            _buildSettingsTile(
+              icon: Icons.campaign_rounded,
+              title: "Ads Manager",
+              subtitle: "Create sponsored campaigns, targeting, analytics & billing",
+              onTap: () => AdsManagerScreen.open(context),
+            ),
+            const SizedBox(height: 18),
+
+            // Section 3: Privacy & Security
             _buildSectionHeader("Privacy & Security"),
             _buildSettingsTile(
               icon: Icons.lock_outline_rounded,

@@ -5,17 +5,18 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/auth_helper.dart';
+import '../../../core/services/auth_session_manager.dart';
 import '../../../core/services/mfa_service.dart';
 import '../../../core/services/multi_account_service.dart';
 import '../../../core/services/passkey_auth_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/apple_sign_in_button.dart';
-import '../../../core/widgets/google_sign_in_button.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_logo.dart';
 import '../../../core/widgets/zev_text_field.dart';
 import '../../main_navigation/screens/zev_main_layout.dart';
 import '../widgets/mfa_challenge_sheet.dart';
+import 'account_standing_screen.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 
@@ -185,8 +186,34 @@ class _LoginScreenState extends State<LoginScreen>
 
         TextInput.finishAutofillContext(shouldSave: true);
 
+        final standing =
+            await AuthSessionManager.instance.checkAccountStanding(user.id);
+        if (standing.status == AccountStandingStatus.banned) {
+          if (mounted) {
+            setState(() => _isLoading = false);
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (_) => AccountStandingScreen(standing: standing),
+              ),
+              (route) => false,
+            );
+          }
+          return;
+        }
+        if (!standing.isAllowed) {
+          await AuthSessionManager.instance.signOutCurrentDevice();
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _errorMsg = standing.reason ??
+                  'This account is suspended or deactivated.';
+            });
+          }
+          return;
+        }
+
         // Fetch user profile info
-        String userRole = 'student';
+        String userRole = 'user';
         String username = '';
         String fullName = '';
         String avatarUrl = '';
@@ -200,7 +227,7 @@ class _LoginScreenState extends State<LoginScreen>
               .maybeSingle();
 
           if (profileRes != null) {
-            userRole = profileRes['role']?.toString() ?? 'student';
+            userRole = profileRes['role']?.toString() ?? 'user';
             username = profileRes['username']?.toString() ?? '';
             final first = profileRes['first_name']?.toString() ?? '';
             final last = profileRes['last_name']?.toString() ?? '';
@@ -212,8 +239,14 @@ class _LoginScreenState extends State<LoginScreen>
           debugPrint("Profile fetch warning: $roleErr");
         }
 
-        // 1. Mark user logged in locally and sync FCM
+        // 1. Mark user logged in locally, sync FCM, and log login session
         await AuthHelper.markUserLoggedIn(userId: user.id, role: userRole);
+        unawaited(
+          AuthSessionManager.instance.recordSecurityEvent(
+            userId: user.id,
+            eventType: 'password_login',
+          ),
+        );
 
         // 2. Save account into Instagram-style multi-account storage
         if (_rememberMe) {
@@ -253,9 +286,12 @@ class _LoginScreenState extends State<LoginScreen>
       }
     } on AuthException catch (e) {
       HapticFeedback.heavyImpact();
+      final lower = e.message.toLowerCase();
       setState(() {
         _isLoading = false;
-        _errorMsg = e.message;
+        _errorMsg = lower.contains('banned')
+            ? 'This account is suspended. Please contact support@zevapp.com to appeal or review your account standing.'
+            : e.message;
       });
     } catch (e) {
       HapticFeedback.heavyImpact();
@@ -271,8 +307,8 @@ class _LoginScreenState extends State<LoginScreen>
     ForgotPasswordScreen.open(context, email: _emailCtrl.text.trim());
   }
 
-  void _handleGoogleSuccess() async {
-    // Save to multi-account upon Google Login
+  void _handleSocialAuthSuccess() async {
+    // Save to multi-account upon Apple/external Login
     await MultiAccountService.saveCurrentAccount();
   }
 
@@ -984,57 +1020,52 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
 
-          const SizedBox(height: 20),
+          if ((!kIsWeb &&
+                  (defaultTargetPlatform == TargetPlatform.iOS ||
+                      defaultTargetPlatform == TargetPlatform.macOS)) ||
+              (_isPasskeySupported && _isPasskeyEnrolled)) ...[
+            const SizedBox(height: 20),
 
-          // Clean OR Divider
-          Row(
-            children: [
-              const Expanded(
-                child: Divider(
-                  color: Color(0xFFE2E8F0),
-                  thickness: 1.2,
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: Text(
-                  "OR",
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF94A3B8),
-                    letterSpacing: 0.8,
+            // Clean OR Divider
+            Row(
+              children: [
+                const Expanded(
+                  child: Divider(
+                    color: Color(0xFFE2E8F0),
+                    thickness: 1.2,
                   ),
                 ),
-              ),
-              const Expanded(
-                child: Divider(
-                  color: Color(0xFFE2E8F0),
-                  thickness: 1.2,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Text(
+                    "OR",
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF94A3B8),
+                      letterSpacing: 0.8,
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
+                const Expanded(
+                  child: Divider(
+                    color: Color(0xFFE2E8F0),
+                    thickness: 1.2,
+                  ),
+                ),
+              ],
+            ),
 
-          const SizedBox(height: 20),
-
-          // Official Razor-Sharp Google Sign-In Button
-          GoogleSignInButton(
-            text: "Continue with Google",
-            onSuccess: _handleGoogleSuccess,
-            onError: (msg) {
-              setState(() => _errorMsg = msg);
-            },
-          ),
+            const SizedBox(height: 20),
+          ],
 
           // Apple Sign-In on iOS & macOS
           if (!kIsWeb &&
               (defaultTargetPlatform == TargetPlatform.iOS ||
                   defaultTargetPlatform == TargetPlatform.macOS)) ...[
-            const SizedBox(height: 12),
             AppleSignInButton(
               text: "Continue with Apple",
-              onSuccess: _handleGoogleSuccess,
+              onSuccess: _handleSocialAuthSuccess,
               onError: (msg) {
                 setState(() => _errorMsg = msg);
               },
@@ -1109,6 +1140,16 @@ class _LoginScreenState extends State<LoginScreen>
     try {
       final res = await PasskeyAuthService.instance.signInWithPasskey();
       if (!res.success) {
+        if (res.standing?.status == AccountStandingStatus.banned && mounted) {
+          setState(() => _isLoading = false);
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (_) => AccountStandingScreen(standing: res.standing!),
+            ),
+            (route) => false,
+          );
+          return;
+        }
         if (mounted) {
           setState(() {
             _isLoading = false;

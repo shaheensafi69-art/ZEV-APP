@@ -62,6 +62,14 @@
                 <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/reel"/>
                 <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/post"/>
                 <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/post"/>
+                <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/chat"/>
+                <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/chat"/>
+                <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/profile"/>
+                <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/profile"/>
+                <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/notifications"/>
+                <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/notifications"/>
+                <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/reset-password"/>
+                <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/reset-password"/>
                 <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/@"/>
                 <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/@"/>
                 <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/join"/>
@@ -79,6 +87,14 @@
                 <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/post"/>
                 <data android:scheme="http" android:host="www.zevapp.com" android:pathPrefix="/post"/>
                 <data android:scheme="http" android:host="zevapp.com" android:pathPrefix="/post"/>
+                <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/chat"/>
+                <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/chat"/>
+                <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/profile"/>
+                <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/profile"/>
+                <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/notifications"/>
+                <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/notifications"/>
+                <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/reset-password"/>
+                <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/reset-password"/>
                 <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/@"/>
                 <data android:scheme="https" android:host="zevapp.com" android:pathPrefix="/@"/>
                 <data android:scheme="https" android:host="www.zevapp.com" android:pathPrefix="/join"/>

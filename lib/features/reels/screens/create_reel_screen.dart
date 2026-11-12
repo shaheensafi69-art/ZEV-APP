@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:easy_compressor/easy_compressor.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
 
@@ -64,7 +65,18 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
   bool _isVideoInitialized = false;
   Duration _videoDuration = Duration.zero;
 
+  // Instagram-style Cover / Thumbnail state
+  File? _customCoverImage;
+  String? _generatedPreviewCoverPath;
+  int _coverPositionMs = 500;
+  Uint8List? _selectedCoverBytes;
+  List<Uint8List?> _coverStripFrames = [];
+  bool _isLoadingCoverStrip = false;
+  Timer? _coverPreviewDebounce;
+
   bool _isPublishing = false;
+  double _uploadProgress = 0.0;
+  String _uploadStage = '';
   String? _errorMessage;
 
   // Author details
@@ -111,6 +123,7 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
 
   @override
   void dispose() {
+    _coverPreviewDebounce?.cancel();
     _titleCtrl.dispose();
     _captionCtrl.dispose();
     _audioCtrl.dispose();
@@ -161,11 +174,17 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
   }
 
   Future<void> _initializePickedVideo(File file) async {
+    _coverPreviewDebounce?.cancel();
     _videoPreviewCtrl?.dispose();
     setState(() {
       _selectedVideo = file;
       _isVideoInitialized = false;
       _errorMessage = null;
+      _customCoverImage = null;
+      _generatedPreviewCoverPath = null;
+      _selectedCoverBytes = null;
+      _coverStripFrames = [];
+      _coverPositionMs = 500;
     });
 
     try {
@@ -176,15 +195,142 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
       ctrl.play();
 
       if (mounted) {
+        final dur = ctrl.value.duration;
+        final initialPos = dur.inMilliseconds > 0
+            ? 500.clamp(0, (dur.inMilliseconds - 50).clamp(0, dur.inMilliseconds))
+            : 0;
         setState(() {
           _videoPreviewCtrl = ctrl;
           _isVideoInitialized = true;
-          _videoDuration = ctrl.value.duration;
+          _videoDuration = dur;
+          _coverPositionMs = initialPos;
         });
+        unawaited(_loadCoverFrameAt(file, initialPos));
+        unawaited(_generateCoverStrip(file, dur));
+      } else {
+        await ctrl.dispose();
       }
     } catch (e) {
       debugPrint("Video preview init warning: $e");
+      unawaited(_loadCoverFrameAt(file, 0));
     }
+  }
+
+  Future<void> _loadCoverFrameAt(File videoFile, int positionMs) async {
+    try {
+      Uint8List? bytes = await EasyCompressor().getThumbnail(
+        videoFile.path,
+        position: Duration(milliseconds: positionMs),
+        quality: 80,
+        maxHeight: 540,
+      );
+      if ((bytes == null || bytes.isEmpty) && positionMs > 0) {
+        bytes = await EasyCompressor().getThumbnail(
+          videoFile.path,
+          position: Duration.zero,
+          quality: 80,
+          maxHeight: 540,
+        );
+      }
+      if (bytes != null && bytes.isNotEmpty && mounted && _selectedVideo?.path == videoFile.path) {
+        String? previewPath;
+        try {
+          final tempDir = await getTemporaryDirectory();
+          final previewFile = File(
+            '${tempDir.path}/zev_reel_cover_preview_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          );
+          await previewFile.writeAsBytes(bytes, flush: false);
+          previewPath = previewFile.path;
+        } catch (_) {}
+
+        if (mounted && _selectedVideo?.path == videoFile.path) {
+          setState(() {
+            _selectedCoverBytes = bytes;
+            if (previewPath != null) _generatedPreviewCoverPath = previewPath;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Cover frame preview notice: $e");
+    }
+  }
+
+  Future<void> _generateCoverStrip(File videoFile, Duration duration) async {
+    const int stripCount = 6;
+    final totalMs = duration.inMilliseconds;
+    if (totalMs <= 0) return;
+
+    if (mounted) setState(() => _isLoadingCoverStrip = true);
+    final frames = List<Uint8List?>.filled(stripCount, null);
+
+    try {
+      for (int i = 0; i < stripCount; i++) {
+        if (!mounted || _selectedVideo?.path != videoFile.path) break;
+        final posMs = ((totalMs * (i + 0.5)) / stripCount).round().clamp(
+          0,
+          (totalMs - 30).clamp(0, totalMs),
+        );
+        final bytes = await EasyCompressor().getThumbnail(
+          videoFile.path,
+          position: Duration(milliseconds: posMs),
+          quality: 60,
+          maxHeight: 180,
+        );
+        frames[i] = bytes;
+        if (mounted && _selectedVideo?.path == videoFile.path) {
+          setState(() {
+            _coverStripFrames = List<Uint8List?>.of(frames);
+            _selectedCoverBytes ??= bytes;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Cover strip generation notice: $e");
+    } finally {
+      if (mounted && _selectedVideo?.path == videoFile.path) {
+        setState(() => _isLoadingCoverStrip = false);
+      }
+    }
+  }
+
+  Future<void> _pickCustomCoverImage() async {
+    HapticFeedback.selectionClick();
+    try {
+      final picked = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1080,
+        maxHeight: 1920,
+        imageQuality: 88,
+      );
+      if (picked != null && mounted) {
+        final file = File(picked.path);
+        final bytes = await file.readAsBytes();
+        if (mounted) {
+          setState(() {
+            _customCoverImage = file;
+            _selectedCoverBytes = bytes;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Custom cover pick notice: $e");
+    }
+  }
+
+  void _onCoverSliderChanged(double value) {
+    final posMs = value.round();
+    setState(() {
+      _customCoverImage = null;
+      _coverPositionMs = posMs;
+    });
+    final video = _selectedVideo;
+    if (video == null) return;
+    _coverPreviewDebounce?.cancel();
+    _coverPreviewDebounce = Timer(const Duration(milliseconds: 140), () {
+      if (mounted && _selectedVideo?.path == video.path) {
+        unawaited(_loadCoverFrameAt(video, posMs));
+      }
+    });
   }
 
   void _insertHashtag(String tag) {
@@ -218,6 +364,8 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
     HapticFeedback.mediumImpact();
     setState(() {
       _isPublishing = true;
+      _uploadProgress = 0.0;
+      _uploadStage = 'Checking video safety...';
       _errorMessage = null;
     });
 
@@ -230,6 +378,8 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
         if (mounted) {
           setState(() {
             _isPublishing = false;
+            _uploadProgress = 0.0;
+            _uploadStage = '';
             _errorMessage =
                 safetyResult.errorMessage ??
                 "This video was flagged as inappropriate (+18) and cannot be posted.";
@@ -247,36 +397,84 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
         return;
       }
 
+      if (mounted) {
+        setState(() {
+          _uploadStage = 'Uploading Reel video...';
+          _uploadProgress = 0.05;
+        });
+      }
+
       final ext = _selectedVideo!.path.split('.').last;
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = 'reel_${user.id}_$timestamp.$ext';
 
-      // 1. Upload video to Cloudflare R2
+      // 1. Upload video to Cloudflare R2 with real progress & retry backoff
       final videoUrl = await CloudflareStorageService.instance.upload(
         bucket: 'reels',
         path: fileName,
         file: _selectedVideo,
+        onProgress: (p) {
+          if (mounted) {
+            setState(() {
+              _uploadProgress = (p * 0.85).clamp(0.0, 0.85);
+              _uploadStage = 'Uploading video (${(p * 100).round()}%)...';
+            });
+          }
+        },
       );
 
-      // 2. Generate and upload real thumbnail
+      // 2. Upload chosen cover image or extract frame at creator-selected cover timestamp
+      if (mounted) {
+        setState(() {
+          _uploadStage = 'Generating Reel thumbnail...';
+          _uploadProgress = 0.88;
+        });
+      }
       String thumbnailUrl = '';
       try {
-        final thumbBytes = await EasyCompressor().getThumbnail(
+        Uint8List? thumbBytes;
+        if (_customCoverImage != null && await _customCoverImage!.exists()) {
+          thumbBytes = await _customCoverImage!.readAsBytes();
+        }
+        thumbBytes ??= await EasyCompressor().getThumbnail(
           _selectedVideo!.path,
-          position: const Duration(milliseconds: 500),
-          quality: 80,
+          position: Duration(milliseconds: _coverPositionMs),
+          quality: 82,
           maxHeight: 720,
         );
+        if ((thumbBytes == null || thumbBytes.isEmpty) && _coverPositionMs != 0) {
+          thumbBytes = await EasyCompressor().getThumbnail(
+            _selectedVideo!.path,
+            position: Duration.zero,
+            quality: 82,
+            maxHeight: 720,
+          );
+        }
+        thumbBytes ??= _selectedCoverBytes;
+
         if (thumbBytes != null && thumbBytes.isNotEmpty) {
           thumbnailUrl = await CloudflareStorageService.instance.upload(
             bucket: 'reels',
             path: 'thumb_${user.id}_$timestamp.jpg',
             bytes: thumbBytes,
             contentType: 'image/jpeg',
+            compressImage: false,
+            onProgress: (p) {
+              if (mounted) {
+                setState(() => _uploadProgress = 0.88 + p * 0.1);
+              }
+            },
           );
         }
       } catch (thumbErr) {
         debugPrint("Reel thumbnail generation notice: $thumbErr");
+      }
+
+      if (mounted) {
+        setState(() {
+          _uploadStage = 'Publishing Reel...';
+          _uploadProgress = 0.99;
+        });
       }
 
       final caption = _captionCtrl.text.trim();
@@ -324,6 +522,8 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
       if (mounted) {
         setState(() {
           _isPublishing = false;
+          _uploadProgress = 0.0;
+          _uploadStage = '';
           _errorMessage = e.toString().replaceFirst('Exception: ', '');
         });
       }
@@ -704,11 +904,17 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                       child: GestureDetector(
                         onTap: () {
                           HapticFeedback.lightImpact();
+                          _coverPreviewDebounce?.cancel();
                           _videoPreviewCtrl?.dispose();
                           setState(() {
                             _selectedVideo = null;
                             _videoPreviewCtrl = null;
                             _isVideoInitialized = false;
+                            _customCoverImage = null;
+                            _generatedPreviewCoverPath = null;
+                            _selectedCoverBytes = null;
+                            _coverStripFrames = [];
+                            _coverPositionMs = 500;
                           });
                         },
                         child: Container(
@@ -788,6 +994,11 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                 ),
               ],
             ),
+
+          if (_selectedVideo != null) ...[
+            const SizedBox(height: 18),
+            _buildCoverThumbnailPicker(),
+          ],
 
           const SizedBox(height: 20),
 
@@ -977,13 +1188,63 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
             ),
           ),
 
+          if (_isPublishing) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: ZevColors.softSurface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: ZevColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _uploadStage.isNotEmpty ? _uploadStage : 'Uploading Reel...',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: ZevColors.deepNavy,
+                        ),
+                      ),
+                      Text(
+                        '${(_uploadProgress * 100).round()}%',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: ZevColors.secondaryBlue,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: _uploadProgress > 0 ? _uploadProgress : null,
+                      minHeight: 6,
+                      backgroundColor: Colors.white,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        ZevColors.primaryBlue,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           if (_errorMessage != null) ...[
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.redAccent.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+                color: Colors.redAccent.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: Colors.redAccent.withValues(alpha: 0.3),
                 ),
@@ -1005,12 +1266,288 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _isPublishing ? null : _publishReel,
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: ZevColors.deepNavy,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'Retry',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                    ),
+                  ),
                 ],
               ),
             ),
           ],
 
           const SizedBox(height: 60),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCoverThumbnailPicker() {
+    final totalMs = _videoDuration.inMilliseconds > 0
+        ? _videoDuration.inMilliseconds
+        : 1000;
+    final sliderValue = _coverPositionMs.clamp(0, totalMs).toDouble();
+    final hasCustom = _customCoverImage != null;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: ZevColors.softSurface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: ZevColors.border, width: 1.0),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.photo_library_outlined,
+                color: ZevColors.secondaryBlue,
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text(
+                  "REEL COVER & THUMBNAIL",
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: ZevColors.textMuted,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: _pickCustomCoverImage,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: ZevColors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: ZevColors.border),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.add_photo_alternate_outlined,
+                        size: 14,
+                        color: ZevColors.secondaryBlue,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        hasCustom ? "Change Photo" : "Add from Gallery",
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: ZevColors.deepNavy,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // 9:16 Cover Preview Thumbnail
+              Container(
+                width: 64,
+                height: 104,
+                decoration: BoxDecoration(
+                  color: ZevColors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: ZevColors.primaryBlue.withValues(alpha: 0.65),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: ZevColors.deepNavy.withValues(alpha: 0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10.5),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (_customCoverImage != null)
+                        Image.file(_customCoverImage!, fit: BoxFit.cover)
+                      else if (_selectedCoverBytes != null)
+                        Image.memory(
+                          _selectedCoverBytes!,
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                        )
+                      else
+                        const Center(
+                          child: SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: ZevColors.primaryBlue,
+                            ),
+                          ),
+                        ),
+                      Positioned(
+                        left: 4,
+                        right: 4,
+                        bottom: 4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.65),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            "COVER",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      hasCustom
+                          ? "Custom gallery cover selected"
+                          : "Slide to pick a cover frame (${(_coverPositionMs / 1000).toStringAsFixed(1)}s)",
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: ZevColors.deepNavy,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Filmstrip with frame scrub overlay
+                    SizedBox(
+                      height: 48,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Positioned.fill(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: ZevColors.white,
+                                  border: Border.all(color: ZevColors.border),
+                                ),
+                                child: _coverStripFrames.isEmpty
+                                    ? Center(
+                                        child: Text(
+                                          _isLoadingCoverStrip
+                                              ? "Extracting frames..."
+                                              : "Frame strip",
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: ZevColors.textMuted,
+                                          ),
+                                        ),
+                                      )
+                                    : Row(
+                                        children: _coverStripFrames.map((f) {
+                                          return Expanded(
+                                            child: f != null
+                                                ? Image.memory(
+                                                    f,
+                                                    height: 48,
+                                                    fit: BoxFit.cover,
+                                                    gaplessPlayback: true,
+                                                  )
+                                                : Container(
+                                                    color: ZevColors.softSurface,
+                                                  ),
+                                          );
+                                        }).toList(),
+                                      ),
+                              ),
+                            ),
+                          ),
+                          SliderTheme(
+                            data: SliderTheme.of(context).copyWith(
+                              trackHeight: 4,
+                              activeTrackColor:
+                                  ZevColors.primaryBlue.withValues(alpha: 0.85),
+                              inactiveTrackColor: Colors.transparent,
+                              thumbColor: ZevColors.white,
+                              overlayColor:
+                                  ZevColors.primaryBlue.withValues(alpha: 0.2),
+                              thumbShape: const RoundSliderThumbShape(
+                                enabledThumbRadius: 9,
+                              ),
+                            ),
+                            child: Slider(
+                              value: sliderValue,
+                              min: 0,
+                              max: totalMs.toDouble(),
+                              onChanged: _onCoverSliderChanged,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (hasCustom) ...[
+                      const SizedBox(height: 6),
+                      GestureDetector(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() => _customCoverImage = null);
+                          if (_selectedVideo != null) {
+                            unawaited(
+                              _loadCoverFrameAt(_selectedVideo!, _coverPositionMs),
+                            );
+                          }
+                        },
+                        child: const Text(
+                          "Use video frame instead",
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: ZevColors.secondaryBlue,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -1107,6 +1644,7 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
       authorAvatar: _authorAvatar,
       isVerified: _isVerified,
       videoUrl: _selectedVideo!.path,
+      thumbnailUrl: _customCoverImage?.path ?? _generatedPreviewCoverPath,
       title: _titleCtrl.text.trim().isNotEmpty
           ? _titleCtrl.text.trim()
           : "Preview Reel",

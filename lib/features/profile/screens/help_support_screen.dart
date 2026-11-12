@@ -1,10 +1,10 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/telegram_notification_service.dart';
+import '../widgets/appeal_restriction_sheet.dart';
 
 /// Flagship Instagram-Grade Help & Support Hub for ZEV.
 /// Features:
@@ -365,27 +365,26 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                                 errorMsg = null;
                               });
 
-                              final ticketNum =
-                                  1000 + Random().nextInt(9000);
-                              final ticketId = "ZEV-$ticketNum";
-                              final currentUser = supabase.auth.currentUser;
-                              final userId = currentUser?.id ?? 'anonymous';
-                              final username =
-                                  currentUser?.userMetadata?['username'] ??
-                                      'user';
-
-                              // 1. Dispatch alert to Admin Telegram
-                              await TelegramNotificationService
-                                  .sendSupportTicketNotification(
-                                ticketId: ticketId,
-                                userId: userId,
-                                username: username.toString(),
+                              // 1. Create persistent support ticket in DB & dispatch Admin Telegram
+                              final result = await TelegramNotificationService
+                                  .submitSupportTicket(
                                 category: selectedTopic,
                                 description: text,
                                 email: contactEmail,
                               );
 
-                              // 2. Save ticket in local SharedPreferences for history
+                              if (!result.ok) {
+                                setModalState(() {
+                                  isSubmitting = false;
+                                  errorMsg = result.error ??
+                                      'Could not submit report. Please check your connection and try again.';
+                                });
+                                return;
+                              }
+
+                              final ticketId = result.ticketId ?? 'ZEV-TICKET';
+
+                              // 2. Cache ticket in SharedPreferences for quick offline history
                               try {
                                 final prefs =
                                     await SharedPreferences.getInstance();
@@ -1042,6 +1041,14 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
             // 5. SAFETY & COMMUNITY RULES
             // ==========================================
             _buildSectionHeader("COMMUNITY & SAFETY"),
+
+            _buildActionCard(
+              icon: Icons.gavel_rounded,
+              title: "Appeal a Restriction",
+              subtitle: "Review account standing notices and submit an appeal",
+              onTap: () => AppealRestrictionSheet.show(context),
+            ),
+            const SizedBox(height: 9),
 
             _buildActionCard(
               icon: Icons.shield_rounded,

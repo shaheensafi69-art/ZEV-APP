@@ -27,6 +27,9 @@ class ZevColors {
   static const Color textPrimary = deepNavy;
   static const Color textSecondary = Color(0xFF4A5568);
   static const Color textMuted = Color(0xFF718096);
+  static const Color errorRed = Color(0xFFDC2626);
+  static const Color successGreen = Color(0xFF10B981);
+  static const Color warningAmber = Color(0xFFF59E0B);
 
   // Brand Gradients
   static const LinearGradient brandGradient = LinearGradient(

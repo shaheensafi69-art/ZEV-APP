@@ -4,3 +4,14 @@ node_modules/
 .idea/
 .vscode/
 flutter-sdk/
+.env*
+backups/
+*firebase-adminsdk*.json
+*service-account*.json
+android/
+ios/
+macos/
+linux/
+windows/
+electron/
+.git/

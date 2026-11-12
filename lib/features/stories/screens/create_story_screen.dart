@@ -10,6 +10,7 @@ import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/services/content_safety_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
+import '../widgets/close_friends_sheet.dart';
 import '../widgets/video_trimmer_sheet.dart';
 
 /// Flagship Instagram-Grade Story Creation Studio for ZEV.
@@ -61,6 +62,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
   VideoPlayerController? _videoCtrl;
   bool _isVideoInitialized = false;
   bool _isPublishing = false;
+  double _uploadProgress = 0.0;
+  String _uploadStage = '';
   String? _errorMessage;
 
   // Text overlay state
@@ -82,6 +85,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
   // Author details
   String _authorUsername = 'Your Story';
   String _authorAvatar = '';
+  bool _isCloseFriends = false;
 
   // Timer animation for simulated Live Preview progress bar
   late final AnimationController _previewTimerAnim;
@@ -159,9 +163,13 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
 
       // Verify duration
       final tempCtrl = VideoPlayerController.file(videoFile);
-      await tempCtrl.initialize();
-      final duration = tempCtrl.value.duration;
-      await tempCtrl.dispose();
+      late final Duration duration;
+      try {
+        await tempCtrl.initialize();
+        duration = tempCtrl.value.duration;
+      } finally {
+        await tempCtrl.dispose();
+      }
 
       // Enforce 1:30 (90 seconds) limit with WhatsApp-style trimmer
       if (duration.inSeconds > 90) {
@@ -177,9 +185,14 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
 
       await _videoCtrl?.dispose();
       final newCtrl = VideoPlayerController.file(videoFile);
-      await newCtrl.initialize();
-      newCtrl.setLooping(true);
-      newCtrl.play();
+      try {
+        await newCtrl.initialize();
+        await newCtrl.setLooping(true);
+        await newCtrl.play();
+      } catch (e) {
+        await newCtrl.dispose();
+        rethrow;
+      }
 
       if (mounted) {
         setState(() {
@@ -189,9 +202,16 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
           _isVideoInitialized = true;
           _errorMessage = null;
         });
+      } else {
+        await newCtrl.dispose();
       }
     } catch (e) {
       debugPrint("Story video picker error: $e");
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Could not load selected video. Please try another.';
+        });
+      }
     }
   }
 
@@ -214,6 +234,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
     HapticFeedback.mediumImpact();
     setState(() {
       _isPublishing = true;
+      _uploadProgress = 0.0;
+      _uploadStage = _isVideo ? 'Preparing story video...' : 'Checking story safety...';
       _errorMessage = null;
     });
 
@@ -227,6 +249,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
           if (mounted) {
             setState(() {
               _isPublishing = false;
+              _uploadProgress = 0.0;
+              _uploadStage = '';
               _errorMessage = safetyResult.errorMessage ??
                   "This story was flagged as inappropriate (+18) and cannot be posted.";
             });
@@ -244,6 +268,15 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
         }
       }
 
+      if (mounted) {
+        setState(() {
+          _uploadProgress = 0.05;
+          _uploadStage = _isVideo
+              ? 'Uploading story video...'
+              : 'Optimizing & uploading story...';
+        });
+      }
+
       final ext = _selectedImage!.path.split('.').last.toLowerCase();
       final fileName =
           'story_${user.id}_${DateTime.now().millisecondsSinceEpoch}.$ext';
@@ -253,7 +286,24 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
         bucket: 'stories',
         path: fileName,
         file: _selectedImage,
+        compressImage: !_isVideo,
+        onProgress: (p) {
+          if (mounted) {
+            setState(() {
+              _uploadProgress = p;
+              _uploadStage =
+                  'Uploading ${_isVideo ? 'video' : 'photo'} (${(p * 100).round()}%)...';
+            });
+          }
+        },
       );
+
+      if (mounted) {
+        setState(() {
+          _uploadProgress = 1.0;
+          _uploadStage = 'Publishing story...';
+        });
+      }
 
       // 2. Insert into user_stories table with 24-hour expiration
       final now = DateTime.now();
@@ -264,6 +314,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
         'media_url': mediaUrl,
         'media_type': _isVideo ? 'video' : 'image',
         'caption': _captionCtrl.text.trim(),
+        'visibility': _isCloseFriends ? 'close_friends' : 'public',
         'created_at': now.toIso8601String(),
         'expires_at': expiresAt,
       });
@@ -288,6 +339,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
       if (mounted) {
         setState(() {
           _isPublishing = false;
+          _uploadProgress = 0.0;
+          _uploadStage = '';
           _errorMessage = e.toString().replaceFirst('Exception: ', '');
         });
       }
@@ -727,6 +780,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
           ),
         ),
 
+        // Audience Picker Row (Everyone vs Close Friends + Edit List)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: _buildAudienceSelectorRow(),
+        ),
+
         // Bottom Story Action Bar (Light Mode)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
@@ -778,15 +837,24 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                     ),
                     child: Ink(
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF00D4FF), Color(0xFF536DFE)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                        gradient: _isCloseFriends
+                            ? const LinearGradient(
+                                colors: [Color(0xFF10B981), Color(0xFF00D4FF)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              )
+                            : const LinearGradient(
+                                colors: [Color(0xFF00D4FF), Color(0xFF536DFE)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF00D4FF).withValues(alpha: 0.35),
+                            color: (_isCloseFriends
+                                    ? const Color(0xFF10B981)
+                                    : const Color(0xFF00D4FF))
+                                .withValues(alpha: 0.35),
                             blurRadius: 14,
                             offset: const Offset(0, 4),
                           ),
@@ -806,21 +874,30 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                             : Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  CircleAvatar(
-                                    radius: 12,
-                                    backgroundColor: Colors.white24,
-                                    backgroundImage: _authorAvatar.isNotEmpty
-                                        ? NetworkImage(_authorAvatar)
-                                        : null,
-                                    child: _authorAvatar.isEmpty
-                                        ? const Icon(Icons.person,
-                                            size: 14, color: Colors.white)
-                                        : null,
-                                  ),
+                                  if (_isCloseFriends)
+                                    const Icon(
+                                      Icons.star_rounded,
+                                      size: 18,
+                                      color: Colors.white,
+                                    )
+                                  else
+                                    CircleAvatar(
+                                      radius: 12,
+                                      backgroundColor: Colors.white24,
+                                      backgroundImage: _authorAvatar.isNotEmpty
+                                          ? NetworkImage(_authorAvatar)
+                                          : null,
+                                      child: _authorAvatar.isEmpty
+                                          ? const Icon(Icons.person,
+                                              size: 14, color: Colors.white)
+                                          : null,
+                                    ),
                                   const SizedBox(width: 8),
-                                  const Text(
-                                    "Share to Your Story",
-                                    style: TextStyle(
+                                  Text(
+                                    _isCloseFriends
+                                        ? "Share to Close Friends"
+                                        : "Share to Your Story",
+                                    style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 14,
                                       fontWeight: FontWeight.w800,
@@ -837,15 +914,248 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
           ),
         ),
 
-        if (_errorMessage != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Text(
-              _errorMessage!,
-              style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+        if (_isPublishing) _buildUploadProgressBanner(),
+
+        if (_errorMessage != null) _buildErrorRetryBanner(),
+      ],
+    );
+  }
+
+  Widget _buildAudienceSelectorRow() {
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: ZevColors.softSurface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: ZevColors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _isCloseFriends = false);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: !_isCloseFriends ? ZevColors.white : Colors.transparent,
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(
+                    color: !_isCloseFriends ? ZevColors.border : Colors.transparent,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.public_rounded,
+                      size: 15,
+                      color: !_isCloseFriends
+                          ? ZevColors.secondaryBlue
+                          : ZevColors.textMuted,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Everyone',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: !_isCloseFriends
+                            ? ZevColors.deepNavy
+                            : ZevColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-      ],
+          const SizedBox(width: 6),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _isCloseFriends = true);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: _isCloseFriends
+                      ? ZevColors.successGreen.withValues(alpha: 0.14)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(
+                    color: _isCloseFriends
+                        ? ZevColors.successGreen.withValues(alpha: 0.45)
+                        : Colors.transparent,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.star_rounded,
+                      size: 16,
+                      color: _isCloseFriends
+                          ? ZevColors.successGreen
+                          : ZevColors.textMuted,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Close Friends',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: _isCloseFriends
+                            ? ZevColors.successGreen
+                            : ZevColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: () async {
+              HapticFeedback.lightImpact();
+              await CloseFriendsSheet.show(context);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: ZevColors.white,
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: ZevColors.border),
+              ),
+              child: const Icon(
+                Icons.tune_rounded,
+                size: 16,
+                color: ZevColors.deepNavy,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUploadProgressBanner() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: ZevColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ZevColors.border, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: ZevColors.deepNavy.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  _uploadStage.isNotEmpty ? _uploadStage : 'Uploading story...',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: ZevColors.deepNavy,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${(_uploadProgress * 100).round()}%',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: ZevColors.secondaryBlue,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: _uploadProgress > 0 ? _uploadProgress : null,
+              minHeight: 6,
+              backgroundColor: ZevColors.softSurface,
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                ZevColors.primaryBlue,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorRetryBanner() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: ZevColors.errorRed.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: ZevColors.errorRed.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.error_outline_rounded,
+            color: ZevColors.errorRed,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _errorMessage ?? 'Story upload failed.',
+              style: const TextStyle(
+                color: ZevColors.errorRed,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: _isPublishing ? null : _publishStory,
+            style: TextButton.styleFrom(
+              backgroundColor: ZevColors.white,
+              foregroundColor: ZevColors.deepNavy,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: const BorderSide(color: ZevColors.border),
+              ),
+            ),
+            child: const Text(
+              'Retry',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1265,6 +1575,10 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
           ),
         ),
 
+        if (_isPublishing) _buildUploadProgressBanner(),
+
+        if (_errorMessage != null) _buildErrorRetryBanner(),
+
         // Bottom Action Button to Publish directly from Preview (Light Mode)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -1273,10 +1587,22 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
             height: 48,
             child: ElevatedButton.icon(
               onPressed: _isPublishing ? null : _publishStory,
-              icon: const Icon(Icons.send_rounded, size: 18),
-              label: const Text(
-                "Looks Awesome! Share Story Now",
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+              icon: _isPublishing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: ZevColors.deepNavy,
+                      ),
+                    )
+                  : const Icon(Icons.send_rounded, size: 18),
+              label: Text(
+                _isPublishing
+                    ? "Publishing Story..."
+                    : "Looks Awesome! Share Story Now",
+                style:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: ZevColors.primaryBlue,

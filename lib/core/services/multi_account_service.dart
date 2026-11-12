@@ -32,7 +32,7 @@ class SavedAccount {
     required this.fullName,
     required this.email,
     required this.avatarUrl,
-    this.role = 'student',
+    this.role = 'user',
     this.isVerified = false,
     required this.lastActive,
   });
@@ -55,7 +55,7 @@ class SavedAccount {
       fullName: json['fullName']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
       avatarUrl: json['avatarUrl']?.toString() ?? '',
-      role: json['role']?.toString() ?? 'student',
+      role: json['role']?.toString() ?? 'user',
       isVerified: json['isVerified'] == true,
       lastActive: json['lastActive'] != null
           ? DateTime.tryParse(json['lastActive'].toString()) ?? DateTime.now()
@@ -129,7 +129,7 @@ class MultiAccountService {
       String username = overrideUsername ?? '';
       String fullName = overrideFullName ?? '';
       String avatarUrl = overrideAvatar ?? '';
-      String role = 'student';
+      String role = 'user';
       bool isVerified = overrideIsVerified ?? false;
 
       // Fetch latest profile info if not provided
@@ -147,7 +147,7 @@ class MultiAccountService {
           fullName = '$first $last'.trim();
           if (fullName.isEmpty) fullName = username;
           avatarUrl = res['avatar_url']?.toString() ?? '';
-          role = res['role']?.toString() ?? 'student';
+          role = res['role']?.toString() ?? 'user';
           if (overrideIsVerified == null) {
             isVerified = res['is_verified'] == true;
           }

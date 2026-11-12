@@ -1,22 +1,25 @@
-import 'package:flutter/foundation.dart';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/services/api_client.dart';
+import '../../../core/services/auth_helper.dart';
 import '../../../core/services/mfa_service.dart';
 import '../../../core/services/passkey_auth_service.dart';
+import '../../../core/services/social_graph_service.dart';
+import '../../../core/services/user_presence_service.dart';
+import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/zev_cached_image.dart';
+import '../widgets/appeal_restriction_sheet.dart';
 import 'mfa_settings_screen.dart';
 
-/// Flagship Instagram-Grade Account Privacy & Security Hub for ZEV.
-/// Fully connected to Supabase and device storage. Features:
-/// 1. Real Private Account toggle synced with Supabase `profiles` table.
-/// 2. Password change with mandatory Current Password verification via Supabase Auth.
-/// 3. Activity status and Story sharing toggles persisted across app launches.
-/// 4. Blocked Accounts management with unblock actions.
-/// 5. Active Sessions / Login Activity with remote logout (`SignOutScope.others`).
-/// 6. Two-Factor Authentication status indicator linked to `MfaSettingsScreen`.
-/// 7. Data Download & Archive request flow.
+/// Flagship Light Clearmorphic Account Privacy & Security Hub for ZEV.
+/// Backed by Supabase `profiles`, `user_privacy_settings`, `user_blocks`,
+/// `user_mutes`, `user_sessions`, and `/api/v1/account/*` endpoints.
 class PrivacySecurityScreen extends StatefulWidget {
   final Map<String, dynamic> profile;
   final ValueChanged<Map<String, dynamic>>? onProfileUpdated;
@@ -52,33 +55,87 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
 
   late bool _isPrivate;
   bool _showActivityStatus = true;
-  bool _allowStorySharing = true;
+  String _allowMessagesFrom = 'everyone';
+  String _allowMentionsFrom = 'everyone';
+  String _allowTagsFrom = 'everyone';
+  String _allowStoryRepliesFrom = 'everyone';
+
   bool _isSavingPrivacy = false;
   bool _is2faActive = false;
   int _blockedUsersCount = 0;
   List<Map<String, dynamic>> _blockedUsersList = [];
+  int _mutedUsersCount = 0;
+  List<Map<String, dynamic>> _mutedUsersList = [];
 
   @override
   void initState() {
     super.initState();
     _isPrivate = widget.profile['is_private'] == true;
-    _loadStoredPreferences();
+    _loadPrivacySettings();
     _check2faStatus();
     _loadBlockedUsers();
+    _loadMutedUsers();
   }
 
-  Future<void> _loadStoredPreferences() async {
+  Future<void> _loadPrivacySettings() async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return;
     try {
-      final prefs = await SharedPreferences.getInstance();
-      if (mounted) {
+      final row = await supabase
+          .from('user_privacy_settings')
+          .select()
+          .eq('user_id', userId)
+          .maybeSingle();
+      if (row != null && mounted) {
         setState(() {
-          _showActivityStatus =
-              prefs.getBool('pref_privacy_activity_status') ?? true;
-          _allowStorySharing =
-              prefs.getBool('pref_privacy_story_sharing') ?? true;
+          if (row['is_private_account'] != null) {
+            _isPrivate = row['is_private_account'] == true;
+          }
+          _showActivityStatus = row['hide_online_status'] != true;
+          _allowMessagesFrom =
+              _normalizeAudience(row['allow_messages_from']);
+          _allowMentionsFrom =
+              _normalizeAudience(row['allow_mentions_from']);
+          _allowTagsFrom = _normalizeAudience(row['allow_tags_from']);
+          _allowStoryRepliesFrom =
+              _normalizeAudience(row['allow_story_replies_from']);
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Load user_privacy_settings notice: $e');
+    }
+  }
+
+  String _normalizeAudience(dynamic val) {
+    final s = (val ?? '').toString().trim().toLowerCase();
+    if (s == 'followers' || s == 'nobody') return s;
+    return 'everyone';
+  }
+
+  String _audienceLabel(String val) {
+    switch (val) {
+      case 'followers':
+        return 'Followers';
+      case 'nobody':
+        return 'Nobody';
+      default:
+        return 'Everyone';
+    }
+  }
+
+  Future<void> _persistPrivacySettings() async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return;
+    await supabase.from('user_privacy_settings').upsert({
+      'user_id': userId,
+      'is_private_account': _isPrivate,
+      'hide_online_status': !_showActivityStatus,
+      'allow_messages_from': _allowMessagesFrom,
+      'allow_mentions_from': _allowMentionsFrom,
+      'allow_tags_from': _allowTagsFrom,
+      'allow_story_replies_from': _allowStoryRepliesFrom,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'user_id');
   }
 
   Future<void> _check2faStatus() async {
@@ -95,22 +152,23 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
   }
 
   Future<void> _loadBlockedUsers() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final blockedIds = prefs.getStringList('zev_blocked_users_list') ?? [];
-      if (mounted) {
-        setState(() {
-          _blockedUsersCount = blockedIds.length;
-          _blockedUsersList = blockedIds.map((id) {
-            return {
-              'id': id,
-              'username': 'blocked_user_$id',
-              'name': 'Restricted Profile',
-            };
-          }).toList();
-        });
-      }
-    } catch (_) {}
+    final blocked = await SocialGraphService.instance.fetchBlockedUsers();
+    if (mounted) {
+      setState(() {
+        _blockedUsersList = blocked;
+        _blockedUsersCount = blocked.length;
+      });
+    }
+  }
+
+  Future<void> _loadMutedUsers() async {
+    final muted = await SocialGraphService.instance.fetchMutedUsers();
+    if (mounted) {
+      setState(() {
+        _mutedUsersList = muted;
+        _mutedUsersCount = muted.length;
+      });
+    }
   }
 
   // ===========================================================================
@@ -127,10 +185,13 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
     });
 
     try {
-      await supabase
-          .from('profiles')
-          .update({'is_private': value})
-          .eq('id', userId);
+      await Future.wait([
+        supabase
+            .from('profiles')
+            .update({'is_private': value})
+            .eq('id', userId),
+        _persistPrivacySettings(),
+      ]);
 
       final updated = Map<String, dynamic>.from(widget.profile);
       updated['is_private'] = value;
@@ -158,23 +219,24 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                 ),
               ],
             ),
-            backgroundColor: const Color(0xFF0F172A),
+            backgroundColor: ZevColors.deepNavy,
             behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _isPrivate = !value; // Revert on failure
+          _isPrivate = !value;
           _isSavingPrivacy = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Failed to update privacy settings: $e"),
-            backgroundColor: const Color(0xFFEF4444),
+            backgroundColor: ZevColors.errorRed,
           ),
         );
       }
@@ -182,84 +244,183 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
   }
 
   // ===========================================================================
-  // 2. ACTIVITY STATUS TOGGLE
+  // 2. ACTIVITY STATUS & INTERACTION AUDIENCE CONTROLS
   // ===========================================================================
   Future<void> _toggleActivityStatus(bool val) async {
     HapticFeedback.selectionClick();
+    final previous = _showActivityStatus;
     setState(() => _showActivityStatus = val);
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('pref_privacy_activity_status', val);
-
-      final userId = supabase.auth.currentUser?.id;
-      if (userId != null) {
-        try {
-          await supabase
-              .from('profiles')
-              .update({'show_activity_status': val})
-              .eq('id', userId);
-        } catch (_) {}
-      }
-    } catch (_) {}
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            val
-                ? "Activity status visible to friends you follow"
-                : "Activity status hidden from everyone",
-            style: const TextStyle(fontWeight: FontWeight.w700),
+      await _persistPrivacySettings();
+      await UserPresenceService.instance.setHideOnlineStatus(!val);
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              val
+                  ? "Activity status visible according to your privacy rules"
+                  : "Activity status hidden from everyone",
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            duration: const Duration(seconds: 1),
+            backgroundColor: ZevColors.deepNavy,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
-          duration: const Duration(seconds: 1),
-          backgroundColor: const Color(0xFF0F172A),
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _showActivityStatus = previous);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Could not update activity status: $e"),
+            backgroundColor: ZevColors.errorRed,
+          ),
+        );
+      }
     }
   }
 
-  // ===========================================================================
-  // 3. STORY SHARING TOGGLE
-  // ===========================================================================
-  Future<void> _toggleStorySharing(bool val) async {
-    HapticFeedback.selectionClick();
-    setState(() => _allowStorySharing = val);
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('pref_privacy_story_sharing', val);
-
-      final userId = supabase.auth.currentUser?.id;
-      if (userId != null) {
-        try {
-          await supabase
-              .from('profiles')
-              .update({'allow_story_sharing': val})
-              .eq('id', userId);
-        } catch (_) {}
-      }
-    } catch (_) {}
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            val
-                ? "Story sharing in direct messages allowed"
-                : "Story sharing in direct messages blocked",
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-          duration: const Duration(seconds: 1),
-          backgroundColor: const Color(0xFF0F172A),
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  Future<void> _showAudiencePicker({
+    required String title,
+    required String subtitle,
+    required String currentValue,
+    required ValueChanged<String> onSelected,
+  }) async {
+    HapticFeedback.lightImpact();
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: ZevColors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
-      );
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: ZevColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: ZevColors.deepNavy,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  color: ZevColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              for (final opt in [
+                (
+                  key: 'everyone',
+                  label: 'Everyone',
+                  desc: 'Any user on ZEV',
+                  icon: Icons.public_rounded,
+                ),
+                (
+                  key: 'followers',
+                  label: 'Followers',
+                  desc: 'Only accounts that follow you',
+                  icon: Icons.people_outline_rounded,
+                ),
+                (
+                  key: 'nobody',
+                  label: 'Nobody',
+                  desc: 'Disable this interaction',
+                  icon: Icons.block_rounded,
+                ),
+              ])
+                Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  decoration: BoxDecoration(
+                    color: currentValue == opt.key
+                        ? ZevColors.primaryBlue.withValues(alpha: 0.1)
+                        : ZevColors.softSurface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: currentValue == opt.key
+                          ? ZevColors.secondaryBlue
+                          : ZevColors.border,
+                    ),
+                  ),
+                  child: ListTile(
+                    leading: Icon(
+                      opt.icon,
+                      color: currentValue == opt.key
+                          ? ZevColors.secondaryBlue
+                          : ZevColors.textSecondary,
+                    ),
+                    title: Text(
+                      opt.label,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: ZevColors.deepNavy,
+                        fontSize: 14,
+                      ),
+                    ),
+                    subtitle: Text(
+                      opt.desc,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: ZevColors.textSecondary,
+                      ),
+                    ),
+                    trailing: currentValue == opt.key
+                        ? const Icon(
+                            Icons.check_circle_rounded,
+                            color: ZevColors.secondaryBlue,
+                          )
+                        : null,
+                    onTap: () => Navigator.pop(ctx, opt.key),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (chosen != null && chosen != currentValue) {
+      final prev = currentValue;
+      onSelected(chosen);
+      try {
+        await _persistPrivacySettings();
+      } catch (e) {
+        if (mounted) {
+          onSelected(prev);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to save setting: $e'),
+              backgroundColor: ZevColors.errorRed,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -711,17 +872,820 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
   // 5. BLOCKED ACCOUNTS SHEET
   // ===========================================================================
   void _showBlockedUsersSheet() {
+    _loadBlockedUsers();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          return ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(ctx).size.height * 0.72,
+            ),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: ZevColors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: ZevColors.border,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      "Blocked Accounts",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: ZevColors.deepNavy,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      "Blocked accounts cannot message you, view your posts or reels, or find your profile on ZEV.",
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: ZevColors.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (_blockedUsersList.isEmpty)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 64,
+                                height: 64,
+                                decoration: const BoxDecoration(
+                                  color: ZevColors.softSurface,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.block_rounded,
+                                  color: ZevColors.textMuted,
+                                  size: 30,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              const Text(
+                                "No Blocked Accounts",
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: ZevColors.deepNavy,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                "You haven't blocked anyone on ZEV.",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: ZevColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      Flexible(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: _blockedUsersList.length,
+                          itemBuilder: (_, idx) {
+                            final u = _blockedUsersList[idx];
+                            final uId = (u['id'] ?? '').toString();
+                            final uName = (u['username'] ?? 'user').toString();
+                            final fullName =
+                                (u['full_name'] ?? '@$uName').toString();
+                            final avatar = (u['avatar_url'] ?? '').toString();
+
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: ZevColors.softSurface,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: ZevColors.border),
+                              ),
+                              child: Row(
+                                children: [
+                                  ZevCachedImage.avatar(
+                                    imageUrl: avatar,
+                                    size: 40,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          "@$uName",
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 13.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: ZevColors.deepNavy,
+                                          ),
+                                        ),
+                                        Text(
+                                          fullName,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 11.5,
+                                            color: ZevColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () async {
+                                      HapticFeedback.mediumImpact();
+                                      final ok = await SocialGraphService
+                                          .instance
+                                          .unblockUser(uId);
+                                      if (!ok) {
+                                        if (mounted) {
+                                          ScaffoldMessenger.of(this.context)
+                                              .showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                  'Failed to unblock account'),
+                                              backgroundColor:
+                                                  ZevColors.errorRed,
+                                            ),
+                                          );
+                                        }
+                                        return;
+                                      }
+                                      setSheetState(() {
+                                        _blockedUsersList.removeWhere(
+                                            (item) => item['id'] == uId);
+                                      });
+                                      if (mounted) {
+                                        setState(() {
+                                          _blockedUsersCount =
+                                              _blockedUsersList.length;
+                                        });
+                                        ScaffoldMessenger.of(this.context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text("Unblocked @$uName"),
+                                            backgroundColor: ZevColors.deepNavy,
+                                            behavior: SnackBarBehavior.floating,
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: ZevColors.white,
+                                      foregroundColor: ZevColors.deepNavy,
+                                      elevation: 0,
+                                      side: const BorderSide(
+                                        color: ZevColors.border,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 6,
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      "Unblock",
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // 5B. MUTED ACCOUNTS SHEET
+  // ===========================================================================
+  void _showMutedUsersSheet() {
+    _loadMutedUsers();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          return ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(ctx).size.height * 0.72,
+            ),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: ZevColors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: ZevColors.border,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      "Muted Accounts",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: ZevColors.deepNavy,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      "Hidden from your feed or stories without unfollowing.",
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: ZevColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (_mutedUsersList.isEmpty)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 64,
+                                height: 64,
+                                decoration: const BoxDecoration(
+                                  color: ZevColors.softSurface,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.notifications_off_outlined,
+                                  color: ZevColors.textMuted,
+                                  size: 30,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              const Text(
+                                "No Muted Accounts",
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: ZevColors.deepNavy,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      Flexible(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: _mutedUsersList.length,
+                          itemBuilder: (_, idx) {
+                            final u = _mutedUsersList[idx];
+                            final uId = (u['id'] ?? '').toString();
+                            final uName = (u['username'] ?? 'user').toString();
+                            final avatar = (u['avatar_url'] ?? '').toString();
+                            final parts = <String>[
+                              if (u['mute_posts'] == true) 'Posts',
+                              if (u['mute_stories'] == true) 'Stories',
+                              if (u['mute_messages'] == true) 'Messages',
+                            ];
+
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: ZevColors.softSurface,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: ZevColors.border),
+                              ),
+                              child: Row(
+                                children: [
+                                  ZevCachedImage.avatar(
+                                    imageUrl: avatar,
+                                    size: 40,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          "@$uName",
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 13.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: ZevColors.deepNavy,
+                                          ),
+                                        ),
+                                        Text(
+                                          parts.isEmpty
+                                              ? 'Muted'
+                                              : 'Muted: ${parts.join(', ')}',
+                                          style: const TextStyle(
+                                            fontSize: 11.5,
+                                            color: ZevColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () async {
+                                      HapticFeedback.mediumImpact();
+                                      final ok = await SocialGraphService
+                                          .instance
+                                          .unmuteUser(uId);
+                                      if (!ok) return;
+                                      setSheetState(() {
+                                        _mutedUsersList.removeWhere(
+                                            (item) => item['id'] == uId);
+                                      });
+                                      if (mounted) {
+                                        setState(() {
+                                          _mutedUsersCount =
+                                              _mutedUsersList.length;
+                                        });
+                                        ScaffoldMessenger.of(this.context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text("Unmuted @$uName"),
+                                            backgroundColor: ZevColors.deepNavy,
+                                            behavior: SnackBarBehavior.floating,
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: ZevColors.white,
+                                      foregroundColor: ZevColors.deepNavy,
+                                      elevation: 0,
+                                      side: const BorderSide(
+                                        color: ZevColors.border,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 6,
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      "Unmute",
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // 6. LOGIN ACTIVITY & ACTIVE SESSIONS (DATABASE BACKED)
+  // ===========================================================================
+  void _showLoginActivityModal() {
+    final userId = supabase.auth.currentUser?.id;
+    bool loadedOnce = false;
+    bool isLoadingSessions = true;
+    String currentDeviceId = '';
+    List<Map<String, dynamic>> sessions = [];
+
+    String formatAgo(String? iso) {
+      if (iso == null || iso.isEmpty) return 'Recently';
+      final dt = DateTime.tryParse(iso)?.toLocal();
+      if (dt == null) return 'Recently';
+      final diff = DateTime.now().difference(dt);
+      if (diff.inMinutes < 2) return 'Active now';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+      if (diff.inHours < 24) return '${diff.inHours}h ago';
+      return '${diff.inDays}d ago';
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          if (!loadedOnce) {
+            loadedOnce = true;
+            Future(() async {
+              final devId = await MfaService.instance.getOrCreateDeviceId();
+              List<Map<String, dynamic>> rows = [];
+              if (userId != null) {
+                try {
+                  final res = await supabase
+                      .from('user_sessions')
+                      .select(
+                        'id, device_id, platform, device_name, app_version, is_active, last_active_at, ended_at',
+                      )
+                      .eq('user_id', userId)
+                      .order('last_active_at', ascending: false)
+                      .limit(20);
+                  rows = List<Map<String, dynamic>>.from(res as List);
+                } catch (e) {
+                  debugPrint('Load sessions notice: $e');
+                }
+              }
+              if (context.mounted) {
+                setModalState(() {
+                  currentDeviceId = devId;
+                  sessions = rows;
+                  isLoadingSessions = false;
+                });
+              }
+            });
+          }
+
+          return ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(ctx).size.height * 0.78,
+            ),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: ZevColors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: ZevColors.border,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      "Login Activity",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: ZevColors.deepNavy,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      "Devices registered with your ZEV account.",
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: ZevColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (isLoadingSessions)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 28),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: ZevColors.primaryBlue,
+                          ),
+                        ),
+                      )
+                    else if (sessions.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: ZevColors.softSurface,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: ZevColors.border),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.devices_rounded,
+                              color: ZevColors.successGreen,
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                "This device • Active session",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: ZevColors.deepNavy,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      Flexible(
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: sessions.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 10),
+                          itemBuilder: (_, idx) {
+                            final s = sessions[idx];
+                            final sId = (s['id'] ?? '').toString();
+                            final devId = (s['device_id'] ?? '').toString();
+                            final isCurrent =
+                                currentDeviceId.isNotEmpty &&
+                                devId == currentDeviceId;
+                            final isActive = s['is_active'] == true;
+                            final deviceName =
+                                (s['device_name'] ?? '').toString().isNotEmpty
+                                    ? s['device_name'].toString()
+                                    : (s['platform'] ?? 'ZEV Device')
+                                        .toString();
+                            final platform =
+                                (s['platform'] ?? '').toString().toUpperCase();
+                            final lastAgo = formatAgo(
+                              s['last_active_at']?.toString(),
+                            );
+
+                            return Container(
+                              padding: const EdgeInsets.all(13),
+                              decoration: BoxDecoration(
+                                color: ZevColors.softSurface,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: isCurrent
+                                      ? ZevColors.primaryBlue
+                                      : ZevColors.border,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(9),
+                                    decoration: BoxDecoration(
+                                      color: (isActive
+                                              ? ZevColors.successGreen
+                                              : ZevColors.textMuted)
+                                          .withValues(alpha: 0.12),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.devices_rounded,
+                                      color: isActive
+                                          ? ZevColors.successGreen
+                                          : ZevColors.textMuted,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                deviceName,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontSize: 13.5,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: ZevColors.deepNavy,
+                                                ),
+                                              ),
+                                            ),
+                                            if (isCurrent) ...[
+                                              const SizedBox(width: 6),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 6,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: ZevColors.successGreen
+                                                      .withValues(alpha: 0.15),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: const Text(
+                                                  "This device",
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w800,
+                                                    color:
+                                                        ZevColors.successGreen,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          "${platform.isNotEmpty ? '$platform • ' : ''}$lastAgo${!isActive ? ' • Signed out' : ''}",
+                                          style: const TextStyle(
+                                            fontSize: 11.5,
+                                            color: ZevColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (!isCurrent && isActive && userId != null)
+                                    TextButton(
+                                      onPressed: () async {
+                                        final nowIso = DateTime.now()
+                                            .toUtc()
+                                            .toIso8601String();
+                                        await supabase
+                                            .from('user_sessions')
+                                            .update({
+                                              'is_active': false,
+                                              'ended_at': nowIso,
+                                            })
+                                            .eq('id', sId)
+                                            .eq('user_id', userId);
+                                        setModalState(() {
+                                          sessions[idx] = {
+                                            ...s,
+                                            'is_active': false,
+                                          };
+                                        });
+                                      },
+                                      child: const Text(
+                                        'Revoke',
+                                        style: TextStyle(
+                                          color: ZevColors.errorRed,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.logout_rounded, size: 18),
+                        label: const Text(
+                          "Log Out Of All Other Sessions",
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: ZevColors.errorRed,
+                          foregroundColor: ZevColors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        onPressed: () async {
+                          HapticFeedback.mediumImpact();
+                          Navigator.pop(ctx);
+                          try {
+                            await supabase.auth.signOut(
+                              scope: SignOutScope.others,
+                            );
+                            if (userId != null) {
+                              final nowIso =
+                                  DateTime.now().toUtc().toIso8601String();
+                              var q = supabase
+                                  .from('user_sessions')
+                                  .update({
+                                    'is_active': false,
+                                    'ended_at': nowIso,
+                                  })
+                                  .eq('user_id', userId);
+                              if (currentDeviceId.isNotEmpty) {
+                                q = q.neq('device_id', currentDeviceId);
+                              }
+                              await q;
+                            }
+                            if (mounted) {
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                SnackBar(
+                                  content: const Text(
+                                    "All other sessions have been logged out.",
+                                  ),
+                                  backgroundColor: ZevColors.deepNavy,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                SnackBar(
+                                  content: Text("Notice: $e"),
+                                  backgroundColor: ZevColors.errorRed,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // 7. DOWNLOAD DATA MODAL (LIVE GDPR/ACCOUNT JSON EXPORT + SHARE SHEET)
+  // ===========================================================================
+  void _showDownloadDataModal() {
+    bool isExporting = false;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          return Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        builder: (context, setModalState) => Container(
+          decoration: const BoxDecoration(
+            color: ZevColors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          child: SafeArea(
+            top: false,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -731,478 +1695,350 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFCBD5E1),
+                      color: ZevColors.border,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
                 const SizedBox(height: 18),
                 const Text(
-                  "Blocked Accounts",
+                  "Download Your Information",
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFF0F172A),
+                    color: ZevColors.deepNavy,
                   ),
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  "Blocked accounts cannot message you, view your posts or reels, or find your profile on ZEV.",
+                  "Export your ZEV profile, posts, reels, stories, comments, messages, and privacy logs as a portable JSON file.",
                   style: TextStyle(
                     fontSize: 12.5,
-                    color: Color(0xFF64748B),
+                    color: ZevColors.textSecondary,
                     height: 1.4,
                   ),
                 ),
                 const SizedBox(height: 18),
-
-                if (_blockedUsersList.isEmpty)
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24),
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 64,
-                            height: 64,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.block_rounded,
-                              color: Color(0xFF94A3B8),
-                              size: 30,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            "No Blocked Accounts",
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF0F172A),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            "You haven't blocked anyone on ZEV.",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF64748B),
-                            ),
-                          ),
-                        ],
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: ZevColors.softSurface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: ZevColors.border),
+                  ),
+                  child: const Column(
+                    children: [
+                      _DataRow(
+                        label: "Profile & Privacy Settings",
+                        format: "JSON",
                       ),
+                      Divider(color: ZevColors.border, height: 16),
+                      _DataRow(
+                        label: "Posts, Reels, Stories & Media Links",
+                        format: "Full Metadata",
+                      ),
+                      Divider(color: ZevColors.border, height: 16),
+                      _DataRow(
+                        label: "Comments, Social Graph & DMs",
+                        format: "Portable Archive",
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: isExporting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: ZevColors.white,
+                            ),
+                          )
+                        : const Icon(Icons.download_rounded, size: 19),
+                    label: Text(
+                      isExporting
+                          ? "Generating Export..."
+                          : "Export & Save JSON",
+                      style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
-                  )
-                else
-                  ..._blockedUsersList.map((u) {
-                    final uId = u['id'] as String;
-                    final uName = u['username'] as String;
+                    onPressed: isExporting
+                        ? null
+                        : () async {
+                            HapticFeedback.lightImpact();
+                            setModalState(() => isExporting = true);
+                            try {
+                              final exportData = await ApiClient.instance
+                                  .get('/api/v1/account/export');
+                              final pretty =
+                                  const JsonEncoder.withIndent('  ').convert(
+                                exportData,
+                              );
+                              final dir = await getTemporaryDirectory();
+                              final file = File(
+                                '${dir.path}/zev_account_export.json',
+                              );
+                              await file.writeAsString(pretty, flush: true);
 
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFE2E8F0),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.person_rounded,
-                              color: Color(0xFF94A3B8),
-                              size: 22,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "@$uName",
-                                  style: const TextStyle(
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF0F172A),
-                                  ),
-                                ),
-                                const Text(
-                                  "Blocked profile",
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    color: Color(0xFF64748B),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          ElevatedButton(
-                            onPressed: () async {
-                              HapticFeedback.mediumImpact();
-                              final prefs =
-                                  await SharedPreferences.getInstance();
-                              final currentList = prefs.getStringList(
-                                      'zev_blocked_users_list') ??
-                                  [];
-                              currentList.remove(uId);
-                              await prefs.setStringList(
-                                  'zev_blocked_users_list', currentList);
-
-                              setSheetState(() {
-                                _blockedUsersList.removeWhere(
-                                    (item) => item['id'] == uId);
-                                _blockedUsersCount = _blockedUsersList.length;
-                              });
-                              setState(() {
-                                _blockedUsersCount = _blockedUsersList.length;
-                              });
-
+                              if (ctx.mounted) Navigator.pop(ctx);
+                              await Share.shareXFiles(
+                                [XFile(file.path)],
+                                subject: 'ZEV Account Data Export',
+                              );
+                            } catch (e) {
                               if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
+                                setModalState(() => isExporting = false);
+                              }
+                              if (mounted) {
+                                ScaffoldMessenger.of(this.context).showSnackBar(
                                   SnackBar(
-                                    content: Text("Unblocked @$uName"),
+                                    content: Text('Export failed: $e'),
+                                    backgroundColor: ZevColors.errorRed,
                                     behavior: SnackBarBehavior.floating,
-                                    duration: const Duration(seconds: 2),
                                   ),
                                 );
                               }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: const Color(0xFF0F172A),
-                              elevation: 0,
-                              side: const BorderSide(color: Color(0xFFE2E8F0)),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 6),
-                            ),
-                            child: const Text(
-                              "Unblock",
-                              style: TextStyle(fontWeight: FontWeight.w800),
-                            ),
-                          ),
-                        ],
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ZevColors.secondaryBlue,
+                      foregroundColor: ZevColors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                    );
-                  }),
+                    ),
+                  ),
+                ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // 8. ACCOUNT DEACTIVATION & PERMANENT DELETION
+  // ===========================================================================
+  Future<void> _showDeactivateAccountDialog() async {
+    HapticFeedback.mediumImpact();
+    bool isWorking = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: !isWorking,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          backgroundColor: ZevColors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          title: const Text(
+            'Deactivate Account?',
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              color: ZevColors.deepNavy,
+            ),
+          ),
+          content: const Text(
+            'Your profile, posts, reels, and comments will be hidden immediately. You can reactivate your account anytime by signing back in.',
+            style: TextStyle(
+              color: ZevColors.textSecondary,
+              fontSize: 13.5,
+              height: 1.45,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isWorking ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: isWorking
+                  ? null
+                  : () async {
+                      setDlgState(() => isWorking = true);
+                      try {
+                        await ApiClient.instance
+                            .post('/api/v1/account/deactivate');
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (mounted) {
+                          await AuthHelper.logout(this.context);
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          setDlgState(() => isWorking = false);
+                        }
+                        if (mounted) {
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            SnackBar(
+                              content: Text('Could not deactivate: $e'),
+                              backgroundColor: ZevColors.errorRed,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFD97706),
+                foregroundColor: ZevColors.white,
+                elevation: 0,
+              ),
+              child: isWorking
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: ZevColors.white,
+                      ),
+                    )
+                  : const Text('Deactivate'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showDeleteAccountDialog() async {
+    HapticFeedback.heavyImpact();
+    final confirmCtrl = TextEditingController();
+    final reasonCtrl = TextEditingController();
+    bool isWorking = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlgState) {
+          final canDelete = confirmCtrl.text.trim().toUpperCase() == 'DELETE';
+          return AlertDialog(
+            backgroundColor: ZevColors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: ZevColors.errorRed),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Delete Account Permanently',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: ZevColors.errorRed,
+                      fontSize: 17,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'This permanently removes your ZEV profile, photos, reels, stories, messages, and media from Cloudflare R2. This action cannot be undone.',
+                    style: TextStyle(
+                      color: ZevColors.textSecondary,
+                      fontSize: 13,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: reasonCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Reason (optional)',
+                      filled: true,
+                      fillColor: ZevColors.softSurface,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: ZevColors.border),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: confirmCtrl,
+                    onChanged: (_) => setDlgState(() {}),
+                    decoration: InputDecoration(
+                      labelText: 'Type DELETE to confirm',
+                      hintText: 'DELETE',
+                      filled: true,
+                      fillColor: ZevColors.softSurface,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: ZevColors.border),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isWorking ? null : () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: (isWorking || !canDelete)
+                    ? null
+                    : () async {
+                        setDlgState(() => isWorking = true);
+                        try {
+                          await ApiClient.instance.delete(
+                            '/api/v1/account/delete',
+                            data: {
+                              'confirm': true,
+                              if (reasonCtrl.text.trim().isNotEmpty)
+                                'reason': reasonCtrl.text.trim(),
+                            },
+                          );
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          if (mounted) {
+                            await AuthHelper.logout(this.context);
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            setDlgState(() => isWorking = false);
+                          }
+                          if (mounted) {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              SnackBar(
+                                content: Text('Could not delete account: $e'),
+                                backgroundColor: ZevColors.errorRed,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ZevColors.errorRed,
+                  foregroundColor: ZevColors.white,
+                  elevation: 0,
+                ),
+                child: isWorking
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: ZevColors.white,
+                        ),
+                      )
+                    : const Text('Delete Forever'),
+              ),
+            ],
           );
         },
-      ),
-    );
-  }
-
-  // ===========================================================================
-  // 6. LOGIN ACTIVITY & ACTIVE SESSIONS
-  // ===========================================================================
-  void _showLoginActivityModal() {
-    String platformName = "Mobile Device";
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      platformName = "Android Smartphone";
-    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
-      platformName = "Apple iPhone";
-    } else if (defaultTargetPlatform == TargetPlatform.macOS) {
-      platformName = "macOS Workstation";
-    }
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFCBD5E1),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              "Login Activity",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF0F172A),
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              "Where you're currently logged into your ZEV account.",
-              style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
-            ),
-            const SizedBox(height: 18),
-
-            // Current Device Card
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.devices_rounded,
-                      color: Color(0xFF10B981),
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              platformName,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF0F172A),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF10B981)
-                                    .withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.circle,
-                                      size: 6, color: Color(0xFF10B981)),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    "Active now",
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w800,
-                                      color: Color(0xFF10B981),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 3),
-                        const Text(
-                          "This device • ZEV Official App Client",
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // Remote Logout Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.logout_rounded, size: 18),
-                label: const Text(
-                  "Log Out Of All Other Sessions",
-                  style: TextStyle(fontWeight: FontWeight.w800),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEF4444),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                onPressed: () async {
-                  HapticFeedback.mediumImpact();
-                  Navigator.pop(ctx);
-                  try {
-                    await supabase.auth
-                        .signOut(scope: SignOutScope.others);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text(
-                              "All other sessions have been logged out successfully!"),
-                          backgroundColor: const Color(0xFF0F172A),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text("Notice: $e"),
-                          backgroundColor: const Color(0xFFEF4444),
-                        ),
-                      );
-                    }
-                  }
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ===========================================================================
-  // 7. DOWNLOAD DATA MODAL
-  // ===========================================================================
-  void _showDownloadDataModal() {
-    final email = supabase.auth.currentUser?.email ?? 'Your registered email';
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFCBD5E1),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              "Download Your Information",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF0F172A),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              "Get a copy of everything you've shared on ZEV sent to $email.",
-              style: const TextStyle(
-                fontSize: 12.5,
-                color: Color(0xFF64748B),
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 18),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: const Column(
-                children: [
-                  _DataRow(
-                      label: "Profile & Account Credentials",
-                      format: "JSON Archive"),
-                  Divider(color: Color(0xFFE2E8F0), height: 16),
-                  _DataRow(
-                      label: "Posts, Photos & Reel Media",
-                      format: "Full HD Media"),
-                  Divider(color: Color(0xFFE2E8F0), height: 16),
-                  _DataRow(
-                      label: "Comments & Direct Messages",
-                      format: "Secured Transcripts"),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        "Download request confirmed! A link will be sent to $email within 24 hours.",
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      backgroundColor: const Color(0xFF0F172A),
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0284C7),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: const Text(
-                  "Request Download Archive",
-                  style: TextStyle(fontWeight: FontWeight.w800),
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1210,25 +2046,25 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: ZevColors.softSurface,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: ZevColors.white,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back_ios_new_rounded,
-            color: Color(0xFF0F172A),
+            color: ZevColors.deepNavy,
             size: 20,
           ),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          "Account privacy & Security",
+          "Account Privacy & Security",
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w900,
-            color: Color(0xFF0F172A),
+            color: ZevColors.deepNavy,
             letterSpacing: -0.3,
           ),
         ),
@@ -1247,20 +2083,20 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: ZevColors.white,
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.95),
+                  color: ZevColors.white.withValues(alpha: 0.95),
                   width: 1.2,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                    color: ZevColors.deepNavy.withValues(alpha: 0.04),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
                   const BoxShadow(
-                    color: Colors.white,
+                    color: ZevColors.white,
                     blurRadius: 4,
                     offset: Offset(0, -1),
                   ),
@@ -1274,12 +2110,12 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                          color: ZevColors.secondaryBlue.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: const Icon(
                           Icons.lock_outline_rounded,
-                          color: Color(0xFF6366F1),
+                          color: ZevColors.secondaryBlue,
                           size: 24,
                         ),
                       ),
@@ -1290,7 +2126,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                           style: TextStyle(
                             fontSize: 15.5,
                             fontWeight: FontWeight.w900,
-                            color: Color(0xFF0F172A),
+                            color: ZevColors.deepNavy,
                           ),
                         ),
                       ),
@@ -1300,13 +2136,13 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                           height: 22,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Color(0xFF0284C7),
+                            color: ZevColors.secondaryBlue,
                           ),
                         )
                       else
                         Switch.adaptive(
                           value: _isPrivate,
-                          activeTrackColor: const Color(0xFF0284C7),
+                          activeTrackColor: ZevColors.secondaryBlue,
                           onChanged: _togglePrivateAccount,
                         ),
                     ],
@@ -1316,7 +2152,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                     "When your account is private, only people you approve can follow you and view your photos, reels, and stories. Existing followers won't be affected.",
                     style: TextStyle(
                       fontSize: 12,
-                      color: Color(0xFF64748B),
+                      color: ZevColors.textSecondary,
                       height: 1.45,
                     ),
                   ),
@@ -1335,78 +2171,92 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
               title: "Activity Status",
               subtitle: "Allow accounts you follow to see when you're active",
               icon: Icons.lens_rounded,
-              iconColor: const Color(0xFF10B981),
+              iconColor: ZevColors.successGreen,
               trailing: Switch.adaptive(
                 value: _showActivityStatus,
-                activeTrackColor: const Color(0xFF0284C7),
+                activeTrackColor: ZevColors.secondaryBlue,
                 onChanged: _toggleActivityStatus,
               ),
             ),
             const SizedBox(height: 10),
 
             _buildSettingCard(
-              title: "Story Sharing in Messages",
-              subtitle: "Allow people to reshare your public stories in chats",
-              icon: Icons.send_rounded,
-              iconColor: const Color(0xFF0284C7),
-              trailing: Switch.adaptive(
-                value: _allowStorySharing,
-                activeTrackColor: const Color(0xFF0284C7),
-                onChanged: _toggleStorySharing,
+              title: "Who Can Message You",
+              subtitle: "Direct message requests and inbox filtering",
+              icon: Icons.chat_bubble_outline_rounded,
+              iconColor: ZevColors.secondaryBlue,
+              badge: _audienceLabel(_allowMessagesFrom),
+              onTap: () => _showAudiencePicker(
+                title: 'Direct Messages',
+                subtitle: 'Choose who can message you on ZEV',
+                currentValue: _allowMessagesFrom,
+                onSelected: (v) => setState(() => _allowMessagesFrom = v),
               ),
             ),
             const SizedBox(height: 10),
 
             _buildSettingCard(
-              title: "Blocked Accounts",
-              subtitle: "Manage accounts you have restricted or blocked",
-              icon: Icons.block_rounded,
-              iconColor: const Color(0xFFEF4444),
-              badge: _blockedUsersCount > 0 ? "$_blockedUsersCount" : null,
-              onTap: _showBlockedUsersSheet,
+              title: "Who Can Mention You",
+              subtitle: "Control @username mentions in captions and comments",
+              icon: Icons.alternate_email_rounded,
+              iconColor: ZevColors.primaryBlue,
+              badge: _audienceLabel(_allowMentionsFrom),
+              onTap: () => _showAudiencePicker(
+                title: 'Mentions',
+                subtitle: 'Choose who can @mention you',
+                currentValue: _allowMentionsFrom,
+                onSelected: (v) => setState(() => _allowMentionsFrom = v),
+              ),
             ),
             const SizedBox(height: 10),
 
             _buildSettingCard(
-              title: "Restricted Profiles",
-              subtitle: "Limit interactions without blocking or unfollowing",
-              icon: Icons.security_update_warning_rounded,
+              title: "Who Can Tag You",
+              subtitle: "Control tags on posts and reels",
+              icon: Icons.local_offer_outlined,
+              iconColor: const Color(0xFF8B5CF6),
+              badge: _audienceLabel(_allowTagsFrom),
+              onTap: () => _showAudiencePicker(
+                title: 'Tags',
+                subtitle: 'Choose who can tag your account',
+                currentValue: _allowTagsFrom,
+                onSelected: (v) => setState(() => _allowTagsFrom = v),
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            _buildSettingCard(
+              title: "Story Replies",
+              subtitle: "Control who can reply to your stories",
+              icon: Icons.reply_rounded,
               iconColor: const Color(0xFFF59E0B),
-              onTap: () {
-                showDialog(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    backgroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(22)),
-                    title: const Text(
-                      "Restricted Profiles",
-                      style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF0F172A)),
-                    ),
-                    content: const Text(
-                      "Restricting an account protects you against unwanted interactions without notifying them. Their new comments on your posts will only be visible to them unless you approve them.",
-                      style: TextStyle(
-                          color: Color(0xFF64748B),
-                          fontSize: 13,
-                          height: 1.45),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child: const Text(
-                          "Understood",
-                          style: TextStyle(
-                            color: Color(0xFF0284C7),
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+              badge: _audienceLabel(_allowStoryRepliesFrom),
+              onTap: () => _showAudiencePicker(
+                title: 'Story Replies',
+                subtitle: 'Choose who can reply to your stories',
+                currentValue: _allowStoryRepliesFrom,
+                onSelected: (v) => setState(() => _allowStoryRepliesFrom = v),
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            _buildSettingCard(
+              title: "Muted Accounts",
+              subtitle: "Manage accounts hidden from your feed or stories",
+              icon: Icons.notifications_off_outlined,
+              iconColor: const Color(0xFFD97706),
+              badge: _mutedUsersCount > 0 ? "$_mutedUsersCount" : null,
+              onTap: _showMutedUsersSheet,
+            ),
+            const SizedBox(height: 10),
+
+            _buildSettingCard(
+              title: "Blocked Accounts",
+              subtitle: "Manage accounts you have blocked across ZEV",
+              icon: Icons.block_rounded,
+              iconColor: ZevColors.errorRed,
+              badge: _blockedUsersCount > 0 ? "$_blockedUsersCount" : null,
+              onTap: _showBlockedUsersSheet,
             ),
 
             const SizedBox(height: 20),
@@ -1429,10 +2279,10 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
               title: "Two-Factor Authentication",
               subtitle: "Protect account with Authenticator app or Passkeys",
               icon: Icons.security_rounded,
-              iconColor: const Color(0xFF0284C7),
+              iconColor: ZevColors.secondaryBlue,
               badge: _is2faActive ? "Active" : "Not set up",
               badgeColor: _is2faActive
-                  ? const Color(0xFF10B981)
+                  ? ZevColors.successGreen
                   : const Color(0xFFF59E0B),
               onTap: () async {
                 HapticFeedback.lightImpact();
@@ -1444,9 +2294,9 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
 
             _buildSettingCard(
               title: "Login Activity",
-              subtitle: "View active devices and sign out of other sessions",
+              subtitle: "View active devices and revoke other sessions",
               icon: Icons.devices_rounded,
-              iconColor: const Color(0xFF10B981),
+              iconColor: ZevColors.successGreen,
               onTap: _showLoginActivityModal,
             ),
 
@@ -1459,10 +2309,46 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
 
             _buildSettingCard(
               title: "Download Your Information",
-              subtitle: "Get a full copy of your posts, stories and chats",
+              subtitle: "Export a full JSON archive of your account data",
               icon: Icons.download_rounded,
               iconColor: const Color(0xFF8B5CF6),
               onTap: _showDownloadDataModal,
+            ),
+
+            const SizedBox(height: 20),
+
+            // ==========================================
+            // 5. ACCOUNT MANAGEMENT
+            // ==========================================
+            _buildSectionHeader("ACCOUNT MANAGEMENT"),
+
+            _buildSettingCard(
+              title: "Account Standing & Appeals",
+              subtitle: "Inspect warnings, restrictions, or submit an appeal",
+              icon: Icons.gavel_rounded,
+              iconColor: ZevColors.secondaryBlue,
+              onTap: () => AppealRestrictionSheet.show(
+                context,
+                initialReason: widget.profile['restriction_reason']?.toString(),
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            _buildSettingCard(
+              title: "Deactivate Account",
+              subtitle: "Temporarily hide your profile until you sign back in",
+              icon: Icons.pause_circle_outline_rounded,
+              iconColor: const Color(0xFFD97706),
+              onTap: _showDeactivateAccountDialog,
+            ),
+            const SizedBox(height: 10),
+
+            _buildSettingCard(
+              title: "Delete Account Permanently",
+              subtitle: "Erase your profile, posts, reels, and media forever",
+              icon: Icons.delete_forever_rounded,
+              iconColor: ZevColors.errorRed,
+              onTap: _showDeleteAccountDialog,
             ),
           ],
         ),

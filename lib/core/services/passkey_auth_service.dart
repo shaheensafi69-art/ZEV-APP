@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
@@ -5,12 +6,15 @@ import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'auth_helper.dart';
-import 'multi_account_service.dart';
 
-/// Next-Generation Passkey & Biometric Authentication Service for ZEV.
-/// Fully compatible with Supabase WebAuthn/Passkey configuration (Relying Party: zevapp.com),
-/// Apple Face ID / Touch ID, Android Biometric Prompt, and Windows Hello.
+import 'auth_helper.dart';
+import 'auth_session_manager.dart';
+import 'multi_account_service.dart';
+import 'secure_local_storage.dart';
+
+/// Biometric & Passkey Authentication Service for ZEV.
+/// Stores sensitive credential secrets strictly in OS-encrypted Keychain / Keystore
+/// via [SecureLocalStorage], automatically migrating any legacy SharedPreferences key.
 class PasskeyAuthService {
   PasskeyAuthService._();
   static final PasskeyAuthService instance = PasskeyAuthService._();
@@ -24,6 +28,8 @@ class PasskeyAuthService {
   static const String _prefKeyPasskeyUserId = 'zev_passkey_user_id';
   static const String _prefKeyPasskeyUsername = 'zev_passkey_username';
 
+  static String _secretKey(String userId) => 'zev_pk_secret_$userId';
+
   /// Check if the current device supports hardware biometrics / passkey authentication.
   Future<bool> isDeviceSupported() async {
     try {
@@ -31,7 +37,7 @@ class PasskeyAuthService {
       final canCheck = await _localAuth.canCheckBiometrics;
       return isSupported && canCheck;
     } catch (e) {
-      debugPrint("PasskeyAuthService isDeviceSupported notice: $e");
+      debugPrint('PasskeyAuthService isDeviceSupported notice: $e');
       return false;
     }
   }
@@ -79,7 +85,6 @@ class PasskeyAuthService {
     if (!supported) return false;
 
     try {
-      // 1. Trigger native biometric verification prompt
       final authenticated = await _localAuth.authenticate(
         localizedReason: 'Verify your biometrics to set up your ZEV Passkey',
         biometricOnly: true,
@@ -87,7 +92,6 @@ class PasskeyAuthService {
 
       if (!authenticated) return false;
 
-      // 2. Generate a deterministic device signature token
       final tokenPayload = '$userId:$email:${DateTime.now().millisecondsSinceEpoch}';
       final signature = sha256.convert(utf8.encode(tokenPayload)).toString();
 
@@ -99,28 +103,31 @@ class PasskeyAuthService {
       if (username != null) {
         await prefs.setString(_prefKeyPasskeyUsername, username);
       }
+
       if (passwordSecret != null && passwordSecret.isNotEmpty) {
-        await prefs.setString('zev_pk_secret_$userId', passwordSecret);
+        await SecureLocalStorage.writeSecret(_secretKey(userId), passwordSecret);
+        // Remove any legacy plaintext SharedPreferences copy
+        await prefs.remove(_secretKey(userId));
       }
 
       return true;
     } on PlatformException catch (e) {
-      debugPrint("Passkey enrollment platform exception: $e");
+      debugPrint('Passkey enrollment platform exception: $e');
       return false;
     } catch (e) {
-      debugPrint("Passkey enrollment error: $e");
+      debugPrint('Passkey enrollment error: $e');
       return false;
     }
   }
 
   /// Authenticate and sign in using the device Passkey.
-  /// Returns the authenticated user session if successful.
   Future<PasskeyLoginResult> signInWithPasskey() async {
     final isEnrolled = await isPasskeyEnrolled();
     if (!isEnrolled) {
       return PasskeyLoginResult(
         success: false,
-        errorMessage: "No Passkey enrolled on this device. Please log in with password first.",
+        errorMessage:
+            'No Passkey enrolled on this device. Please log in with password first.',
       );
     }
 
@@ -128,16 +135,28 @@ class PasskeyAuthService {
       final prefs = await SharedPreferences.getInstance();
       final email = prefs.getString(_prefKeyPasskeyEmail);
       final userId = prefs.getString(_prefKeyPasskeyUserId);
-      final savedSecret = userId != null ? prefs.getString('zev_pk_secret_$userId') : null;
+
+      String? savedSecret;
+      if (userId != null && userId.isNotEmpty) {
+        savedSecret = await SecureLocalStorage.readSecret(_secretKey(userId));
+        // Seamless one-time migration from legacy SharedPreferences
+        if (savedSecret == null || savedSecret.isEmpty) {
+          final legacySecret = prefs.getString(_secretKey(userId));
+          if (legacySecret != null && legacySecret.isNotEmpty) {
+            await SecureLocalStorage.writeSecret(_secretKey(userId), legacySecret);
+            await prefs.remove(_secretKey(userId));
+            savedSecret = legacySecret;
+          }
+        }
+      }
 
       if (email == null || email.isEmpty) {
         return PasskeyLoginResult(
           success: false,
-          errorMessage: "Passkey credential data missing.",
+          errorMessage: 'Passkey credential data missing.',
         );
       }
 
-      // 1. Authenticate with native biometrics
       final didAuthenticate = await _localAuth.authenticate(
         localizedReason: 'Authenticate with your ZEV Passkey to sign in to $email',
       );
@@ -145,20 +164,45 @@ class PasskeyAuthService {
       if (!didAuthenticate) {
         return PasskeyLoginResult(
           success: false,
-          errorMessage: "Biometric authentication cancelled.",
+          errorMessage: 'Biometric authentication cancelled.',
         );
       }
 
-      // 2. Check if active session already matches this user
-      final currentSession = _supabase.auth.currentSession;
-      if (currentSession != null && currentSession.user.email == email) {
-        if (userId != null) {
-          await AuthHelper.markUserLoggedIn(userId: userId, role: 'student');
+      // 1. If an active session for this account exists, validate & resume
+      final validSession = await AuthSessionManager.instance.ensureValidSession();
+      if (validSession != null && validSession.user.email == email) {
+        final uid = validSession.user.id;
+        final standing = await AuthSessionManager.instance.checkAccountStanding(uid);
+        if (standing.status == AccountStandingStatus.banned) {
+          return PasskeyLoginResult(
+            success: false,
+            email: email,
+            userId: uid,
+            standing: standing,
+            errorMessage: standing.reason ?? 'This account is suspended.',
+          );
         }
-        return PasskeyLoginResult(success: true, email: email, userId: userId);
+        if (!standing.isAllowed) {
+          await AuthSessionManager.instance.signOutCurrentDevice();
+          return PasskeyLoginResult(
+            success: false,
+            standing: standing,
+            errorMessage: standing.reason ??
+                'This account is restricted or suspended.',
+          );
+        }
+
+        await AuthHelper.markUserLoggedIn(userId: uid, role: 'user');
+        unawaited(
+          AuthSessionManager.instance.recordSecurityEvent(
+            userId: uid,
+            eventType: 'passkey_login',
+          ),
+        );
+        return PasskeyLoginResult(success: true, email: email, userId: uid);
       }
 
-      // 3. If password secret is saved, authenticate directly
+      // 2. Authenticate fresh session with encrypted Passkey secret
       if (savedSecret != null && savedSecret.isNotEmpty) {
         final authRes = await _supabase.auth.signInWithPassword(
           email: email,
@@ -167,26 +211,53 @@ class PasskeyAuthService {
 
         final u = authRes.user;
         if (u != null) {
-          await AuthHelper.markUserLoggedIn(userId: u.id, role: 'student');
+          final standing =
+              await AuthSessionManager.instance.checkAccountStanding(u.id);
+          if (standing.status == AccountStandingStatus.banned) {
+            return PasskeyLoginResult(
+              success: false,
+              email: email,
+              userId: u.id,
+              standing: standing,
+              errorMessage: standing.reason ?? 'This account is suspended.',
+            );
+          }
+          if (!standing.isAllowed) {
+            await AuthSessionManager.instance.signOutCurrentDevice();
+            return PasskeyLoginResult(
+              success: false,
+              standing: standing,
+              errorMessage: standing.reason ??
+                  'This account is restricted or suspended.',
+            );
+          }
+
+          await AuthHelper.markUserLoggedIn(userId: u.id, role: 'user');
           await MultiAccountService.saveCurrentAccount();
+          unawaited(
+            AuthSessionManager.instance.recordSecurityEvent(
+              userId: u.id,
+              eventType: 'passkey_login',
+            ),
+          );
           return PasskeyLoginResult(success: true, email: email, userId: u.id);
         }
       }
 
-      // 4. Try restoring session if user id matches
-      if (userId != null) {
-        await AuthHelper.markUserLoggedIn(userId: userId, role: 'student');
-        return PasskeyLoginResult(success: true, email: email, userId: userId);
-      }
-
       return PasskeyLoginResult(
         success: false,
-        errorMessage: "Could not restore session. Please sign in with password once to refresh your Passkey.",
+        errorMessage:
+            'Could not restore session. Please sign in with your password once to refresh your Passkey.',
       );
     } on PlatformException catch (e) {
       return PasskeyLoginResult(
         success: false,
-        errorMessage: e.message ?? "Biometric authentication failed.",
+        errorMessage: e.message ?? 'Biometric authentication failed.',
+      );
+    } on AuthException catch (e) {
+      return PasskeyLoginResult(
+        success: false,
+        errorMessage: e.message,
       );
     } catch (e) {
       return PasskeyLoginResult(
@@ -196,17 +267,22 @@ class PasskeyAuthService {
     }
   }
 
-  /// Remove/Disable the Passkey on this device.
+  /// Remove/Disable the Passkey on this device and wipe its encrypted secret.
   Future<void> removePasskey() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString(_prefKeyPasskeyUserId);
+      if (userId != null && userId.isNotEmpty) {
+        await SecureLocalStorage.deleteSecret(_secretKey(userId));
+        await prefs.remove(_secretKey(userId));
+      }
       await prefs.remove(_prefKeyPasskeyEnabled);
       await prefs.remove(_prefKeyPasskeyEmail);
       await prefs.remove(_prefKeyPasskeyUserId);
       await prefs.remove(_prefKeyPasskeyToken);
       await prefs.remove(_prefKeyPasskeyUsername);
     } catch (e) {
-      debugPrint("Remove passkey error: $e");
+      debugPrint('Remove passkey error: $e');
     }
   }
 }
@@ -216,11 +292,13 @@ class PasskeyLoginResult {
   final String? email;
   final String? userId;
   final String? errorMessage;
+  final AccountAccessResult? standing;
 
   PasskeyLoginResult({
     required this.success,
     this.email,
     this.userId,
     this.errorMessage,
+    this.standing,
   });
 }

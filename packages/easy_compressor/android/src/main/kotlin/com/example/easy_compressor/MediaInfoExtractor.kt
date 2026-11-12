@@ -97,10 +97,15 @@ object MediaInfoExtractor {
             } else {
                 retriever.setDataSource(inputPath)
             }
+            val safeUs = positionMs.coerceAtLeast(0L) * 1000L
             var bitmap = retriever.getFrameAtTime(
-                positionMs * 1000, // convert ms to microseconds
+                safeUs,
                 MediaMetadataRetriever.OPTION_CLOSEST_SYNC
-            ) ?: return@withContext null
+            ) ?: if (safeUs > 0L) {
+                retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            } else {
+                null
+            } ?: return@withContext null
 
             // Scale if maxHeight is specified
             if (maxHeight != null && bitmap.height > maxHeight) {
@@ -112,8 +117,12 @@ object MediaInfoExtractor {
             val stream = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.JPEG, quality.coerceIn(0, 100), stream)
             stream.toByteArray()
+        } catch (_: Throwable) {
+            null
         } finally {
-            retriever.release()
+            try {
+                retriever.release()
+            } catch (_: Throwable) {}
         }
     }
 }

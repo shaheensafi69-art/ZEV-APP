@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/services/feed_algorithm_service.dart';
+import '../../../core/services/social_graph_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../models/feed_post_item.dart';
 import '../widgets/feed_post_card.dart';
@@ -44,6 +47,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   FeedPostItem? _post;
   bool _isLoading = true;
+  bool _viewRecorded = false;
   String? _errorMessage;
 
   @override
@@ -60,14 +64,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     try {
       final currentUserId = supabase.auth.currentUser?.id;
 
-      // 1. Fetch raw post from discussion_posts
+      // 1. Fetch raw post from discussion_posts & safety filters
       final rawPost = await supabase
           .from('discussion_posts')
-          .select('id, student_id, title, content, image_url, created_at')
+          .select(
+            'id, student_id, title, content, image_url, location, is_draft, scheduled_at, collaborator_ids, tagged_user_ids, edited_at, deleted_at, created_at',
+          )
           .eq('id', widget.postId)
           .maybeSingle();
 
-      if (rawPost == null) {
+      if (rawPost == null || rawPost['deleted_at'] != null) {
         if (mounted) {
           setState(() {
             _isLoading = false;
@@ -78,6 +84,32 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       }
 
       final authorId = rawPost['student_id']?.toString() ?? '';
+      final isOwner = currentUserId != null && currentUserId == authorId;
+      final isDraft = rawPost['is_draft'] == true;
+      final scheduledAt = DateTime.tryParse(rawPost['scheduled_at']?.toString() ?? '');
+      final isFutureScheduled =
+          scheduledAt != null && scheduledAt.toUtc().isAfter(DateTime.now().toUtc());
+
+      if (!isOwner && (isDraft || isFutureScheduled)) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = "Post not found or unavailable.";
+          });
+        }
+        return;
+      }
+
+      final filters = await SocialGraphService.instance.fetchSafetyFilters();
+      if (filters.blockedUserIds.contains(authorId)) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = "This post is unavailable.";
+          });
+        }
+        return;
+      }
 
       // 2. Fetch author profile
       Map<String, dynamic> profile = {};
@@ -107,13 +139,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         }
       } catch (_) {}
 
-      // 4. Fetch comments count
+      // 4. Fetch active (non-deleted) comments count
       int commentsCount = 0;
       try {
         final commRes = await supabase
             .from('discussion_comments')
             .select('id')
-            .eq('post_id', widget.postId);
+            .eq('post_id', widget.postId)
+            .isFilter('deleted_at', null);
         commentsCount = (commRes as List).length;
       } catch (_) {}
 
@@ -132,8 +165,20 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         }
       } catch (_) {}
 
-      // 6. Fetch follow status
+      // 6. Fetch follow & bookmark status
       bool isFollowing = false;
+      bool isBookmarked = false;
+      if (currentUserId != null) {
+        try {
+          final bmRes = await supabase
+              .from('discussion_bookmarks')
+              .select('id')
+              .eq('post_id', widget.postId)
+              .eq('user_id', currentUserId)
+              .maybeSingle();
+          if (bmRes != null) isBookmarked = true;
+        } catch (_) {}
+      }
       if (currentUserId != null && authorId.isNotEmpty && currentUserId != authorId) {
         try {
           final followRes = await supabase
@@ -144,6 +189,69 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               .maybeSingle();
           if (followRes != null) isFollowing = true;
         } catch (_) {}
+      }
+
+      // 7. Fetch ordered carousel media & collaborator / tagged profiles
+      final List<FeedPostMediaItem> mediaItems = [];
+      try {
+        final mediaRows = await supabase
+            .from('post_media')
+            .select()
+            .eq('post_id', widget.postId)
+            .order('sort_order', ascending: true);
+        for (final row in (mediaRows as List)) {
+          if (row is Map) {
+            final item = FeedPostMediaItem.fromMap(Map<String, dynamic>.from(row));
+            if (item.mediaUrl.trim().isNotEmpty) {
+              mediaItems.add(item);
+            }
+          }
+        }
+      } catch (_) {}
+
+      List<String> parseUuidList(dynamic raw) {
+        if (raw is List) {
+          return raw
+              .map((e) => e.toString().trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
+        }
+        return const [];
+      }
+
+      final collabIds = parseUuidList(rawPost['collaborator_ids']);
+      final taggedIds = parseUuidList(rawPost['tagged_user_ids']);
+      final extraIds = {...collabIds, ...taggedIds}.toList();
+      final Map<String, FeedPostUserTag> tagProfilesMap = {};
+      if (extraIds.isNotEmpty) {
+        try {
+          final pRows = await supabase
+              .from('profiles')
+              .select('id, username, first_name, last_name, avatar_url, is_verified')
+              .inFilter('id', extraIds);
+          for (final row in (pRows as List)) {
+            if (row is Map) {
+              final tag = FeedPostUserTag.fromMap(Map<String, dynamic>.from(row));
+              if (tag.id.isNotEmpty) {
+                tagProfilesMap[tag.id] = tag;
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      final collaborators = collabIds
+          .map((id) => tagProfilesMap[id])
+          .whereType<FeedPostUserTag>()
+          .toList();
+      final taggedUsers = taggedIds
+          .map((id) => tagProfilesMap[id])
+          .whereType<FeedPostUserTag>()
+          .toList();
+
+      var primaryImageUrl = (rawPost['image_url'] ?? '').toString();
+      if (primaryImageUrl.isEmpty && mediaItems.isNotEmpty) {
+        primaryImageUrl = mediaItems.first.mediaUrl;
       }
 
       final fn = profile['first_name'] ?? '';
@@ -159,7 +267,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         isVerified: profile['is_verified'] == true,
         title: rawPost['title'] ?? '',
         content: rawPost['content'] ?? '',
-        imageUrl: rawPost['image_url'] ?? '',
+        imageUrl: primaryImageUrl,
         createdAt: DateTime.tryParse(rawPost['created_at']?.toString() ?? '') ?? DateTime.now(),
         likesCount: likesCount,
         isLikedByMe: isLiked,
@@ -167,8 +275,31 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         categoryTag: 'Post',
         repostsCount: repostsCount,
         isRepostedByMe: isReposted,
+        isBookmarkedByMe: isBookmarked,
         isAuthorFollowed: isFollowing,
+        editedAt: DateTime.tryParse(rawPost['edited_at']?.toString() ?? ''),
+        location: (rawPost['location'] ?? '').toString(),
+        mediaItems: mediaItems,
+        collaborators: collaborators,
+        taggedUsers: taggedUsers,
+        isDraft: isDraft,
+        scheduledAt: scheduledAt,
       );
+
+      FeedAlgorithmService.instance.markSeen(widget.postId);
+      if (currentUserId != null && !_viewRecorded) {
+        _viewRecorded = true;
+        unawaited(
+          Future<void>.microtask(() async {
+            try {
+              await supabase.rpc(
+                'record_post_view',
+                params: {'p_post_id': widget.postId},
+              );
+            } catch (_) {}
+          }),
+        );
+      }
 
       if (mounted) {
         setState(() {
@@ -309,6 +440,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         child: FeedPostCard(
           post: _post!,
           onCommentsUpdated: _fetchPostDetails,
+          onPostUpdated: (updated) {
+            if (mounted) setState(() => _post = updated);
+          },
+          onHideOrMute: () {
+            if (Navigator.canPop(context)) Navigator.of(context).pop(true);
+          },
           onPostDeleted: () {
             Navigator.of(context).pop(true);
           },

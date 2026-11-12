@@ -1,32 +1,102 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import '../services/admob_service.dart';
+import 'package:video_player/video_player.dart';
 
-/// Flagship Claymorphic In-Stream Native Ad Unit for ZEV Reels.
-/// Rendered every 4 reels as a seamless, swipeable reel page.
-/// Non-intrusive: zero countdown timers, zero popup dialogs, fully swipeable.
+import '../services/admob_service.dart';
+import '../services/zev_ads_service.dart';
+import '../theme/zev_theme.dart';
+import 'zev_cached_image.dart';
+
+/// Light Clearmorphic In-Stream Ad Unit for ZEV Reels.
+/// Renders ZEV internal sponsored Reel creatives first, with mobile AdMob fallback.
 class ZevNativeAdReelUnit extends StatefulWidget {
   final bool isActive;
-  const ZevNativeAdReelUnit({super.key, this.isActive = true});
+  final String slotKey;
+
+  const ZevNativeAdReelUnit({
+    super.key,
+    this.isActive = true,
+    this.slotKey = 'reel_default',
+  });
 
   @override
   State<ZevNativeAdReelUnit> createState() => _ZevNativeAdReelUnitState();
 }
 
 class _ZevNativeAdReelUnitState extends State<ZevNativeAdReelUnit> {
+  ZevSponsoredAd? _sponsoredAd;
+  VideoPlayerController? _videoCtrl;
+  bool _videoReady = false;
+
   NativeAd? _nativeAd;
-  bool _isAdLoaded = false;
+  bool _isAdMobLoaded = false;
   bool _adFailed = false;
 
   @override
   void initState() {
     super.initState();
-    _loadNativeAd();
+    unawaited(_loadAd());
   }
 
-  void _loadNativeAd() {
-    if (kIsWeb) return;
+  @override
+  void didUpdateWidget(covariant ZevNativeAdReelUnit oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive != oldWidget.isActive && _videoCtrl != null && _videoReady) {
+      if (widget.isActive) {
+        _videoCtrl!.play();
+      } else {
+        _videoCtrl!.pause();
+      }
+    }
+  }
+
+  Future<void> _loadAd() async {
+    final ad = await ZevAdsService.instance.fetchEligibleAd(
+      placement: 'reel',
+      slotKey: widget.slotKey,
+    );
+
+    if (!mounted) return;
+
+    if (ad != null) {
+      setState(() {
+        _sponsoredAd = ad;
+        _adFailed = false;
+      });
+      unawaited(
+        ZevAdsService.instance.recordImpressionOnce(
+          slotKey: widget.slotKey,
+          ad: ad,
+        ),
+      );
+      if (ad.isVideo && ad.mediaUrl.isNotEmpty) {
+        final uri = Uri.tryParse(ad.mediaUrl);
+        if (uri != null && uri.hasScheme) {
+          try {
+            final ctrl = VideoPlayerController.networkUrl(uri)
+              ..setLooping(true);
+            _videoCtrl = ctrl;
+            ctrl.initialize().then((_) {
+              if (!mounted) return;
+              setState(() => _videoReady = true);
+              if (widget.isActive) ctrl.play();
+            }).catchError((_) {});
+          } catch (_) {}
+        }
+      }
+      return;
+    }
+
+    _loadNativeAdFallback();
+  }
+
+  void _loadNativeAdFallback() {
+    if (kIsWeb) {
+      if (mounted) setState(() => _adFailed = true);
+      return;
+    }
 
     try {
       _nativeAd = NativeAd(
@@ -36,18 +106,20 @@ class _ZevNativeAdReelUnitState extends State<ZevNativeAdReelUnit> {
           onAdLoaded: (ad) {
             if (mounted) {
               setState(() {
-                _isAdLoaded = true;
+                _isAdMobLoaded = true;
                 _adFailed = false;
               });
             }
           },
           onAdFailedToLoad: (ad, error) {
-            debugPrint('[ZevNativeAdReelUnit] Ad failed to load: ${error.message} (code ${error.code})');
+            debugPrint(
+              '[ZevNativeAdReelUnit] Ad failed to load: ${error.message} (code ${error.code})',
+            );
             ad.dispose();
             if (mounted) {
               setState(() {
                 _nativeAd = null;
-                _isAdLoaded = false;
+                _isAdMobLoaded = false;
                 _adFailed = true;
               });
             }
@@ -55,25 +127,25 @@ class _ZevNativeAdReelUnitState extends State<ZevNativeAdReelUnit> {
         ),
         nativeTemplateStyle: NativeTemplateStyle(
           templateType: TemplateType.medium,
-          mainBackgroundColor: const Color(0xFF0F172A),
+          mainBackgroundColor: ZevColors.white,
           cornerRadius: 20.0,
           callToActionTextStyle: NativeTemplateTextStyle(
-            textColor: Colors.black,
-            backgroundColor: const Color(0xFF00D4FF),
+            textColor: ZevColors.deepNavy,
+            backgroundColor: ZevColors.primaryBlue,
             style: NativeTemplateFontStyle.bold,
             size: 16.0,
           ),
           primaryTextStyle: NativeTemplateTextStyle(
-            textColor: Colors.white,
+            textColor: ZevColors.deepNavy,
             style: NativeTemplateFontStyle.bold,
             size: 16.0,
           ),
           secondaryTextStyle: NativeTemplateTextStyle(
-            textColor: const Color(0xFF94A3B8),
+            textColor: ZevColors.textSecondary,
             size: 13.0,
           ),
           tertiaryTextStyle: NativeTemplateTextStyle(
-            textColor: const Color(0xFF64748B),
+            textColor: ZevColors.textMuted,
             size: 12.0,
           ),
         ),
@@ -83,7 +155,7 @@ class _ZevNativeAdReelUnitState extends State<ZevNativeAdReelUnit> {
       if (mounted) {
         setState(() {
           _adFailed = true;
-          _isAdLoaded = false;
+          _isAdMobLoaded = false;
         });
       }
     }
@@ -91,58 +163,58 @@ class _ZevNativeAdReelUnitState extends State<ZevNativeAdReelUnit> {
 
   @override
   void dispose() {
+    _videoCtrl?.dispose();
     _nativeAd?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_sponsoredAd != null) {
+      return _buildInternalSponsoredReel(_sponsoredAd!);
+    }
+
     return Container(
-      color: const Color(0xFF080D1A),
+      color: ZevColors.softSurface,
       width: double.infinity,
       height: double.infinity,
       child: Stack(
         children: [
-          // Ambient Gradient Glow
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: RadialGradient(
-                  center: const Alignment(0, -0.1),
-                  radius: 0.95,
+                  center: const Alignment(0, -0.15),
+                  radius: 1.0,
                   colors: [
-                    const Color(0xFF00D4FF).withValues(alpha: 0.12),
-                    const Color(0xFF0D1424),
-                    const Color(0xFF080D1A),
+                    ZevColors.primaryBlue.withValues(alpha: 0.14),
+                    ZevColors.softSurface,
+                    ZevColors.white,
                   ],
                 ),
               ),
             ),
           ),
-
-          // Main Ad Content
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: [
-                  const SizedBox(height: 56),
-
-                  // Header Badge
+                  const SizedBox(height: 58),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.4),
+                      color: ZevColors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: const Color(0xFF00D4FF).withValues(alpha: 0.35),
-                        width: 1.2,
-                      ),
+                      border: Border.all(color: ZevColors.border, width: 1.2),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF00D4FF).withValues(alpha: 0.15),
+                          color: ZevColors.deepNavy.withValues(alpha: 0.05),
                           blurRadius: 10,
-                          offset: const Offset(0, 2),
+                          offset: const Offset(0, 3),
                         ),
                       ],
                     ),
@@ -152,61 +224,52 @@ class _ZevNativeAdReelUnitState extends State<ZevNativeAdReelUnit> {
                         const Icon(
                           Icons.campaign_rounded,
                           size: 16,
-                          color: Color(0xFF00D4FF),
+                          color: Color(0xFF0284C7),
                         ),
                         const SizedBox(width: 8),
                         const Text(
-                          "Sponsored Reel",
+                          'Sponsored Reel',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: ZevColors.deepNavy,
                             fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF00D4FF).withValues(alpha: 0.2),
+                            color: ZevColors.primaryBlue.withValues(alpha: 0.16),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: const Text(
-                            "AD",
+                            'AD',
                             style: TextStyle(
-                              color: Color(0xFF00D4FF),
+                              color: Color(0xFF0284C7),
                               fontSize: 10,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w900,
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
-
                   const Spacer(),
-
-                  // Center Claymorphic Card
-                  if (_isAdLoaded && _nativeAd != null)
+                  if (_isAdMobLoaded && _nativeAd != null)
                     Container(
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0B132B),
+                        color: ZevColors.white,
                         borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: const Color(0xFF00D4FF).withValues(alpha: 0.3),
-                          width: 1.4,
-                        ),
+                        border: Border.all(color: ZevColors.border, width: 1.4),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.6),
+                            color: ZevColors.deepNavy.withValues(alpha: 0.08),
                             blurRadius: 24,
                             offset: const Offset(0, 10),
-                          ),
-                          BoxShadow(
-                            color: const Color(0xFF00D4FF).withValues(alpha: 0.12),
-                            blurRadius: 20,
-                            offset: const Offset(0, 0),
                           ),
                         ],
                       ),
@@ -221,12 +284,9 @@ class _ZevNativeAdReelUnitState extends State<ZevNativeAdReelUnit> {
                       height: 340,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A).withValues(alpha: 0.6),
+                        color: ZevColors.white,
                         borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          width: 1.0,
-                        ),
+                        border: Border.all(color: ZevColors.border),
                       ),
                       child: const Column(
                         mainAxisSize: MainAxisSize.min,
@@ -236,65 +296,224 @@ class _ZevNativeAdReelUnitState extends State<ZevNativeAdReelUnit> {
                             height: 28,
                             child: CircularProgressIndicator(
                               strokeWidth: 2.5,
-                              color: Color(0xFF00D4FF),
+                              color: ZevColors.primaryBlue,
                             ),
                           ),
                           SizedBox(height: 12),
                           Text(
-                            "Loading recommendation...",
+                            'Loading recommendation...',
                             style: TextStyle(
-                              color: Colors.white54,
-                              fontSize: 12,
+                              color: ZevColors.textSecondary,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
                       ),
                     )
                   else
-                    // Graceful fallback if ad network returned no fill
                     Container(
                       height: 200,
                       alignment: Alignment.center,
-                      child: Column(
+                      child: const Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.check_circle_outline_rounded,
-                            color: const Color(0xFF00D4FF).withValues(alpha: 0.6),
+                            color: Color(0xFF0284C7),
                             size: 36,
                           ),
-                          const SizedBox(height: 10),
-                          const Text(
+                          SizedBox(height: 10),
+                          Text(
                             "You're all caught up!",
                             style: TextStyle(
-                              color: Colors.white70,
-                              fontWeight: FontWeight.w600,
+                              color: ZevColors.deepNavy,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ],
                       ),
                     ),
-
                   const Spacer(),
-
-                  // Bottom Swipe-Up Hint (User is never stuck!)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 24),
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 24),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           Icons.keyboard_arrow_up_rounded,
-                          color: Colors.white.withValues(alpha: 0.6),
+                          color: ZevColors.textMuted,
                           size: 26,
                         ),
                         Text(
-                          "Swipe up for next reel",
+                          'Swipe up for next reel',
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.6),
+                            color: ZevColors.textMuted,
                             fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            letterSpacing: 0.3,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInternalSponsoredReel(ZevSponsoredAd ad) {
+    return Container(
+      color: Colors.black,
+      width: double.infinity,
+      height: double.infinity,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (ad.mediaUrl.isNotEmpty)
+            ad.isVideo && _videoCtrl != null && _videoReady
+                ? FittedBox(
+                    fit: BoxFit.cover,
+                    child: SizedBox(
+                      width: _videoCtrl!.value.size.width,
+                      height: _videoCtrl!.value.size.height,
+                      child: VideoPlayer(_videoCtrl!),
+                    ),
+                  )
+                : ZevCachedImage.feedPost(
+                    imageUrl: ad.mediaUrl,
+                    fit: BoxFit.cover,
+                  ),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.black.withValues(alpha: 0.35),
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.65),
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 56, 16, 86),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.94),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.campaign_rounded,
+                            size: 15,
+                            color: Color(0xFF0284C7),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Sponsored • ${ad.businessName}',
+                            style: const TextStyle(
+                              color: ZevColors.deepNavy,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  // Light Clearmorphic floating card overlay
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.95),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: ZevColors.border, width: 1.2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: ZevColors.deepNavy.withValues(alpha: 0.18),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (ad.title.isNotEmpty)
+                          Text(
+                            ad.title,
+                            style: const TextStyle(
+                              color: ZevColors.deepNavy,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        if (ad.body.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            ad.body,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: ZevColors.textSecondary,
+                              fontSize: 13,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        GestureDetector(
+                          onTap: () => ZevAdsService.instance.openAdDestination(
+                            slotKey: widget.slotKey,
+                            ad: ad,
+                          ),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              gradient: ZevColors.brandGradientHorizontal,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  ad.ctaLabel,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                const Icon(
+                                  Icons.open_in_new_rounded,
+                                  color: Colors.white,
+                                  size: 15,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
@@ -309,4 +528,3 @@ class _ZevNativeAdReelUnitState extends State<ZevNativeAdReelUnit> {
     );
   }
 }
-

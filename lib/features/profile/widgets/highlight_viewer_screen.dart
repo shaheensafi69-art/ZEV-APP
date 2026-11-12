@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../core/theme/zev_theme.dart';
@@ -184,15 +185,40 @@ class _HighlightViewerScreenState extends State<HighlightViewerScreen>
               ),
               const SizedBox(height: 14),
               ListTile(
-                leading: const Icon(Icons.share_rounded, color: ZevColors.deepNavy),
+                leading: const Icon(Icons.copy_rounded, color: ZevColors.deepNavy),
+                title: const Text(
+                  "Copy Highlight Link",
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                onTap: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final link =
+                      'https://zevapp.com/u/${widget.highlight.userId}?highlight=${widget.highlight.id}';
+                  await Clipboard.setData(ClipboardData(text: link));
+                  if (!ctx.mounted) return;
+                  Navigator.pop(ctx);
+                  if (!mounted) return;
+                  _resume();
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text("Highlight link copied to clipboard"),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.share_rounded, color: ZevColors.secondaryBlue),
                 title: const Text("Share Highlight",
                     style: TextStyle(fontWeight: FontWeight.w700)),
-                onTap: () {
+                onTap: () async {
+                  final link =
+                      'https://zevapp.com/u/${widget.highlight.userId}?highlight=${widget.highlight.id}';
                   Navigator.pop(ctx);
-                  _resume();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Link copied to clipboard")),
+                  await Share.share(
+                    'Check out "${widget.highlight.title}" on ZEV:\n$link',
                   );
+                  if (mounted) _resume();
                 },
               ),
               if (widget.isOwner) ...[
@@ -483,8 +509,9 @@ class _HighlightViewerScreenState extends State<HighlightViewerScreen>
     }
 
     // Default: Image
+    final isRealUrl = item.mediaUrl.startsWith('http');
     return Center(
-      child: item.mediaUrl.isNotEmpty
+      child: isRealUrl
           ? ZevCachedImage(
               imageUrl: item.mediaUrl,
               fit: BoxFit.contain,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/telegram_notification_service.dart';
+import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 
 /// Flagship ZEV Blue Verification & Monetization Center.
@@ -42,9 +44,18 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
   int _referralCount = 0;
   String _referralCode = '';
   bool _isVerified = false;
+  bool _lifetimeEligible = false;
+  bool _isClaimingLifetime = false;
   String? _pendingStatus; // 'pending', 'verified', null
+  String? _planType;
+  DateTime? _expiresAt;
 
   late TabController _tabCtrl;
+
+  bool get _isLifetimePlan {
+    final p = (_planType ?? '').toLowerCase();
+    return p == 'lifetime' || p == 'lifetime_referral' || _lifetimeEligible;
+  }
 
   @override
   void initState() {
@@ -80,12 +91,15 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
       // 1. Fetch live profile stats
       final profileRes = await _supabase
           .from('profiles')
-          .select('referral_count, referral_code, is_verified')
+          .select(
+            'referral_count, referral_code, is_verified, lifetime_blue_eligible',
+          )
           .eq('id', currentUserId)
           .maybeSingle();
 
       if (profileRes != null) {
         _referralCount = (profileRes['referral_count'] as num?)?.toInt() ?? 0;
+        _lifetimeEligible = profileRes['lifetime_blue_eligible'] == true;
         if (profileRes['referral_code'] != null &&
             profileRes['referral_code'].toString().isNotEmpty) {
           _referralCode = profileRes['referral_code'].toString();
@@ -99,13 +113,39 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
       try {
         final verifRes = await _supabase
             .from('user_verifications')
-            .select('status, is_active')
+            .select('status, is_active, plan_type, verified_at, expires_at')
             .eq('user_id', currentUserId)
             .maybeSingle();
 
         if (verifRes != null) {
           _pendingStatus = verifRes['status']?.toString();
+          _planType = verifRes['plan_type']?.toString();
+          _expiresAt = DateTime.tryParse(
+            verifRes['expires_at']?.toString() ?? '',
+          );
           if (verifRes['is_active'] == true || _pendingStatus == 'verified') {
+            _isVerified = true;
+          }
+        }
+      } catch (_) {}
+
+      // 3. Fetch active subscription metadata fallback
+      try {
+        final subRes = await _supabase
+            .from('subscriptions')
+            .select('plan_type, status, is_active, expires_at')
+            .eq('user_id', currentUserId)
+            .maybeSingle();
+
+        if (subRes != null) {
+          if ((_planType ?? '').isEmpty && subRes['plan_type'] != null) {
+            _planType = subRes['plan_type']?.toString();
+          }
+          _expiresAt ??= DateTime.tryParse(
+            subRes['expires_at']?.toString() ?? '',
+          );
+          if (subRes['is_active'] == true &&
+              subRes['status']?.toString() == 'active') {
             _isVerified = true;
           }
         }
@@ -132,24 +172,38 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
 
   String get _referralLink => "https://www.zevapp.com/join?ref=$_referralCode";
 
-  void _copyReferralCode() {
-    HapticFeedback.lightImpact();
-    Clipboard.setData(ClipboardData(text: _referralCode));
+  void _showClearSnack(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: ZevColors.white,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(
+            color: isError
+                ? ZevColors.errorRed.withValues(alpha: 0.35)
+                : ZevColors.border,
+          ),
+        ),
         margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         content: Row(
           children: [
-            const Icon(Icons.check_circle_rounded,
-                color: Color(0xFF38BDF8), size: 20),
+            Icon(
+              isError ? Icons.error_outline_rounded : Icons.check_circle_rounded,
+              color: isError ? ZevColors.errorRed : ZevColors.secondaryBlue,
+              size: 20,
+            ),
             const SizedBox(width: 10),
-            Text(
-              "Referral Code '$_referralCode' copied!",
-              style: const TextStyle(
-                  fontWeight: FontWeight.w700, color: Colors.white),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: ZevColors.deepNavy,
+                ),
+              ),
             ),
           ],
         ),
@@ -157,29 +211,61 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
     );
   }
 
+  void _copyReferralCode() {
+    HapticFeedback.lightImpact();
+    Clipboard.setData(ClipboardData(text: _referralCode));
+    _showClearSnack("Referral Code '$_referralCode' copied!");
+  }
+
   void _copyReferralLink() {
     HapticFeedback.lightImpact();
     Clipboard.setData(ClipboardData(text: _referralLink));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFF0F172A),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        content: const Row(
-          children: [
-            Icon(Icons.check_circle_rounded,
-                color: Color(0xFF38BDF8), size: 20),
-            SizedBox(width: 10),
-            Text(
-              "Referral link copied to clipboard!",
-              style:
-                  TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
-            ),
-          ],
-        ),
-      ),
-    );
+    _showClearSnack("Referral link copied to clipboard!");
+  }
+
+  Future<void> _claimLifetimeBlue() async {
+    if (_isClaimingLifetime) return;
+    setState(() => _isClaimingLifetime = true);
+    HapticFeedback.mediumImpact();
+
+    final uid = widget.userProfile['id']?.toString() ??
+        _supabase.auth.currentUser?.id ??
+        '';
+    final username = widget.userProfile['username']?.toString() ?? 'user';
+    final fullName =
+        "${widget.userProfile['first_name'] ?? ''} ${widget.userProfile['last_name'] ?? ''}"
+            .trim();
+
+    bool claimed = false;
+    try {
+      claimed = await TelegramNotificationService.sendReferralMilestoneNotification(
+        userId: uid,
+        username: username,
+        fullName: fullName.isEmpty ? username : fullName,
+        totalReferrals: _referralCount,
+      );
+      if (!claimed) {
+        final rpcRes = await _supabase.rpc('claim_lifetime_referral_blue');
+        if (rpcRes is Map && rpcRes['ok'] == true) {
+          claimed = true;
+        }
+      }
+    } catch (e) {
+      debugPrint('Lifetime referral claim notice: $e');
+    }
+
+    if (!mounted) return;
+    setState(() => _isClaimingLifetime = false);
+
+    if (claimed) {
+      await _loadAllVerificationData();
+      _showClearSnack('Congratulations! Lifetime ZEV Blue Badge activated.');
+    } else {
+      _showClearSnack(
+        'Could not activate yet. Confirm 100 verified referrals are synced.',
+        isError: true,
+      );
+    }
   }
 
   void _shareReferralLink() {
@@ -213,7 +299,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
         referralCode: _referralCode,
         currentReferrals: _referralCount,
         onSuccess: () {
-          setState(() => _pendingStatus = 'pending');
+          unawaited(_loadAllVerificationData());
           _showCelebrationDialog();
         },
       ),
@@ -281,6 +367,26 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
     );
   }
 
+  String _buildActiveStatusSubtitle() {
+    if (_isLifetimePlan) {
+      return _planType == 'lifetime_referral'
+          ? "Permanent Lifetime Verification earned via 100 referrals — never expires."
+          : "Permanent Lifetime ZEV Blue VIP Badge — active forever with no renewals.";
+    }
+    if (_expiresAt != null) {
+      final diff = _expiresAt!.toUtc().difference(DateTime.now().toUtc());
+      final daysLeft = diff.inDays;
+      final planLabel = (_planType ?? 'subscription').toUpperCase();
+      if (daysLeft > 0) {
+        return "Active ($planLabel) • $daysLeft days remaining until renewal.";
+      }
+      if (diff.inHours > 0) {
+        return "Active ($planLabel) • Expires in ${diff.inHours} hours.";
+      }
+    }
+    return "Your account is officially verified with the ZEV Blue Badge.";
+  }
+
   @override
   Widget build(BuildContext context) {
     final username = widget.userProfile['username'] ?? 'user';
@@ -290,15 +396,15 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
     final avatarUrl = (widget.userProfile['avatar_url'] ?? '').toString();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: ZevColors.softSurface,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: ZevColors.white,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back_ios_new_rounded,
-            color: Color(0xFF0F172A),
+            color: ZevColors.deepNavy,
             size: 20,
           ),
           onPressed: () => Navigator.pop(context),
@@ -308,7 +414,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w900,
-            color: Color(0xFF0F172A),
+            color: ZevColors.deepNavy,
             letterSpacing: -0.3,
           ),
         ),
@@ -465,34 +571,53 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: const Color(0xFF10B981).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(18),
+              color: ZevColors.white,
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: const Color(0xFF10B981).withValues(alpha: 0.3),
-                width: 1.2,
+                color: ZevColors.successGreen.withValues(alpha: 0.45),
+                width: 1.4,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: ZevColors.successGreen.withValues(alpha: 0.08),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.verified_rounded,
-                    color: Color(0xFF10B981), size: 24),
-                SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: ZevColors.successGreen.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.verified_rounded,
+                    color: ZevColors.successGreen,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "Official Blue Tick Active ⭐",
-                        style: TextStyle(
+                        _isLifetimePlan
+                            ? "Permanent Lifetime Blue Tick ⭐"
+                            : "Official Blue Tick Active ⭐",
+                        style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w900,
                           color: Color(0xFF065F46),
                         ),
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(
-                        "Your account is officially verified with the ZEV Blue Badge.",
-                        style: TextStyle(
+                        _buildActiveStatusSubtitle(),
+                        style: const TextStyle(
                           fontSize: 11.5,
                           color: Color(0xFF047857),
                         ),
@@ -788,6 +913,114 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
         const SizedBox(height: 18),
 
         // Mini Stats Cards
+        if (_referralCount >= 100 || _lifetimeEligible) ...[
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: ZevColors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: ZevColors.successGreen.withValues(alpha: 0.45),
+                width: 1.4,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: ZevColors.successGreen.withValues(alpha: 0.08),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: _isVerified && _isLifetimePlan
+                ? const Row(
+                    children: [
+                      Icon(
+                        Icons.verified_rounded,
+                        color: ZevColors.successGreen,
+                        size: 26,
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Permanent Lifetime ZEV Blue Active ⭐",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                color: ZevColors.deepNavy,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              "Unlocked for life via 100 verified referrals — never expires.",
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: ZevColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(
+                            Icons.emoji_events_rounded,
+                            color: ZevColors.successGreen,
+                            size: 24,
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              "Milestone Reached! Claim Your Free Lifetime Blue Tick",
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w900,
+                                color: ZevColors.deepNavy,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        onPressed:
+                            _isClaimingLifetime ? null : _claimLifetimeBlue,
+                        icon: _isClaimingLifetime
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.verified_rounded, size: 18),
+                        label: const Text(
+                          "Claim Free Lifetime Blue Tick",
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: ZevColors.successGreen,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+          const SizedBox(height: 18),
+        ],
+
         Row(
           children: [
             Expanded(
@@ -821,13 +1054,13 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
 
         const SizedBox(height: 20),
 
-        // Referral Code Card
+        // Referral Code Card (Light Clearmorphism)
         const Text(
           "Your Referral Code",
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w800,
-            color: Color(0xFF0F172A),
+            color: ZevColors.deepNavy,
           ),
         ),
         const SizedBox(height: 8),
@@ -835,13 +1068,19 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: const Color(0xFF0F172A),
+            color: ZevColors.white,
             borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: ZevColors.border, width: 1.3),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.15),
-                blurRadius: 12,
+                color: ZevColors.deepNavy.withValues(alpha: 0.05),
+                blurRadius: 14,
                 offset: const Offset(0, 4),
+              ),
+              const BoxShadow(
+                color: Colors.white,
+                blurRadius: 4,
+                offset: Offset(0, -1),
               ),
             ],
           ),
@@ -856,37 +1095,49 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF94A3B8),
+                        color: ZevColors.textMuted,
                         letterSpacing: 0.6,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      _referralCode.toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF38BDF8),
-                        fontFamily: 'monospace',
-                        letterSpacing: 1.2,
+                    const SizedBox(height: 5),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: ZevColors.softSurface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: ZevColors.border),
+                      ),
+                      child: Text(
+                        _referralCode.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF0284C7),
+                          fontFamily: 'monospace',
+                          letterSpacing: 1.2,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 10),
               ElevatedButton.icon(
                 onPressed: _copyReferralCode,
                 icon: const Icon(Icons.copy_rounded, size: 16),
                 label: const Text("Copy"),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0284C7),
+                  backgroundColor: ZevColors.secondaryBlue,
                   foregroundColor: Colors.white,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 ),
               ),
             ],
@@ -1266,7 +1517,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isPopular
                           ? const Color(0xFF0284C7)
-                          : const Color(0xFF0F172A),
+                          : ZevColors.secondaryBlue,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(vertical: 13),
@@ -1496,73 +1747,50 @@ class _CheckoutModalSheetState extends State<_CheckoutModalSheet> {
     final userId = widget.userProfile['id']?.toString() ??
         Supabase.instance.client.auth.currentUser?.id ??
         '';
-    final username = widget.userProfile['username']?.toString() ?? 'user';
     final email = widget.userProfile['email']?.toString() ??
         Supabase.instance.client.auth.currentUser?.email ??
         '';
 
-    final reason =
-        "Plan: ${widget.planName} (${widget.planPrice}) | Contact: $phone | Name: $fullName | Notes: ${_notesCtrl.text.trim()} | Method: $_paymentMethod";
-
     try {
-      // 1. Dispatch Instant Notification to Admin Telegram
-      await TelegramNotificationService.sendVerificationOrderNotification(
-        userId: userId,
-        username: username,
+      // Submit atomically via /api/v1/verification/request (updates user_verifications,
+      // subscriptions safely without overwriting active subscriptions, creates ticket & Telegram alert).
+      final result = await TelegramNotificationService.submitVerificationOrder(
         fullName: fullName,
         phone: phone,
+        planKey: widget.planKey,
         planName: widget.planName,
         planPrice: widget.planPrice,
+        numericAmount: widget.numericAmount,
         email: email,
         notes: _notesCtrl.text.trim(),
-        referralCode: widget.referralCode,
-        currentReferrals: widget.currentReferrals,
+        paymentMethod: _paymentMethod,
       );
 
-      // 2. Real Record in public.user_verifications (with upsert)
-      try {
-        await Supabase.instance.client.from('user_verifications').upsert({
-          'user_id': userId,
-          'badge_type': 'blue_tick',
-          'badge_label': 'Verified Creator',
-          'status': 'pending',
-          'is_active': false,
-          'verification_reason': reason,
-          'created_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
-        });
-      } catch (err) {
-        debugPrint("Notice: user_verifications upsert: $err");
+      if (!result.ok) {
+        if (mounted) {
+          setState(() => _isSubmitting = false);
+          _showToast(
+            result.error ?? 'Could not submit order. Please try again.',
+          );
+        }
+        return;
       }
 
-      // 3. Real Record in public.subscriptions
-      try {
-        await Supabase.instance.client.from('subscriptions').upsert({
-          'user_id': userId,
-          'plan': widget.planKey,
-          'status': 'pending',
-          'amount': widget.numericAmount,
-          'currency': 'USD',
-          'created_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
-        });
-      } catch (err) {
-        debugPrint("Notice: subscriptions upsert: $err");
-      }
-
-      // 4. In-App Notification to User
-      try {
-        await Supabase.instance.client.from('user_notifications').insert({
-          'user_id': userId,
-          'title': 'ZEV Blue Order Placed ⭐',
-          'message':
-              'Your verification order for ${widget.planName} (${widget.planPrice}) has been registered and is under review.',
-          'notification_type': 'verification',
-          'app_source': 'zev',
-          'is_read': false,
-        });
-      } catch (err) {
-        debugPrint("Notice: user_notifications insert: $err");
+      // In-App Notification confirmation to user
+      if (userId.isNotEmpty) {
+        try {
+          await Supabase.instance.client.from('user_notifications').insert({
+            'user_id': userId,
+            'title': 'ZEV Blue Order Placed ⭐',
+            'message':
+                'Your verification order for ${widget.planName} (${widget.planPrice}) has been registered and is under review.',
+            'notification_type': 'verification',
+            'app_source': 'zev',
+            'is_read': false,
+          });
+        } catch (err) {
+          debugPrint("Notice: user_notifications insert: $err");
+        }
       }
 
       if (mounted) {

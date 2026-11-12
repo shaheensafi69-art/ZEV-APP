@@ -139,7 +139,7 @@ class _CreateHighlightSheetState extends State<CreateHighlightSheet>
       );
 
       final item = StoryHighlightItem(
-        id: 'new_${DateTime.now().millisecondsSinceEpoch}',
+        id: generateUuidV4(),
         mediaUrl: url,
         mediaType: 'image',
         caption: '',
@@ -246,7 +246,7 @@ class _CreateHighlightSheetState extends State<CreateHighlightSheet>
       }
 
       final item = StoryHighlightItem(
-        id: 'new_vid_$timestamp',
+        id: generateUuidV4(),
         mediaUrl: url,
         mediaType: 'video',
         caption: '',
@@ -372,7 +372,7 @@ class _CreateHighlightSheetState extends State<CreateHighlightSheet>
                   setState(() {
                     _newlyAddedItems.add(
                       StoryHighlightItem(
-                        id: 'text_${DateTime.now().millisecondsSinceEpoch}',
+                        id: generateUuidV4(),
                         mediaUrl: '',
                         mediaType: 'text',
                         caption: text,
@@ -420,9 +420,11 @@ class _CreateHighlightSheetState extends State<CreateHighlightSheet>
 
       // Convert selected archive stories to items
       for (var s in _selectedArchiveStories) {
+        final rawStoryId = s['id']?.toString();
         items.add(
           StoryHighlightItem(
-            id: s['id']?.toString() ?? 'story_${DateTime.now().millisecondsSinceEpoch}',
+            id: generateUuidV4(),
+            storyId: isValidUuid(rawStoryId) ? rawStoryId : null,
             mediaUrl: s['media_url']?.toString() ?? '',
             mediaType: s['media_type']?.toString() ?? 'image',
             caption: s['caption']?.toString() ?? '',
@@ -442,26 +444,22 @@ class _CreateHighlightSheetState extends State<CreateHighlightSheet>
         if (it.thumbnailUrl != null && it.thumbnailUrl!.isNotEmpty) {
           coverUrl = it.thumbnailUrl!;
           break;
-        } else if (it.mediaUrl.isNotEmpty && it.mediaType != 'video') {
+        } else if (it.mediaUrl.isNotEmpty && it.mediaType != 'video' && it.mediaType != 'text') {
           coverUrl = it.mediaUrl;
           break;
         }
       }
       if (coverUrl.isEmpty) {
         for (var it in items) {
-          if (it.mediaUrl.isNotEmpty) {
+          if (it.mediaUrl.isNotEmpty && it.mediaType != 'text') {
             coverUrl = it.mediaUrl;
             break;
           }
         }
       }
-      if (coverUrl.isEmpty) {
-        coverUrl =
-            'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80';
-      }
 
       final highlight = StoryHighlight(
-        id: 'highlight_${DateTime.now().millisecondsSinceEpoch}',
+        id: generateUuidV4(),
         userId: widget.userId,
         title: title,
         coverUrl: coverUrl,

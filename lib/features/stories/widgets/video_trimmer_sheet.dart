@@ -175,9 +175,16 @@ class _VideoTrimmerSheetState extends State<VideoTrimmerSheet> {
     return Container(
       height: MediaQuery.of(context).size.height * 0.92,
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A),
+        color: ZevColors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        border: Border.all(color: const Color(0xFF334155), width: 1.5),
+        border: Border.all(color: Colors.white, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: ZevColors.deepNavy.withValues(alpha: 0.12),
+            blurRadius: 24,
+            offset: const Offset(0, -4),
+          ),
+        ],
       ),
       child: SafeArea(
         top: false,
@@ -189,7 +196,7 @@ class _VideoTrimmerSheetState extends State<VideoTrimmerSheet> {
               width: 44,
               height: 5,
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: ZevColors.border,
                 borderRadius: BorderRadius.circular(3),
               ),
             ),
@@ -202,7 +209,7 @@ class _VideoTrimmerSheetState extends State<VideoTrimmerSheet> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, color: Colors.white),
+                    icon: const Icon(Icons.close_rounded, color: ZevColors.deepNavy),
                     onPressed: () => Navigator.pop(context),
                   ),
                   Column(
@@ -210,7 +217,7 @@ class _VideoTrimmerSheetState extends State<VideoTrimmerSheet> {
                       const Text(
                         "Trim Video (Max 1:30)",
                         style: TextStyle(
-                          color: Colors.white,
+                          color: ZevColors.deepNavy,
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
                         ),
@@ -219,13 +226,13 @@ class _VideoTrimmerSheetState extends State<VideoTrimmerSheet> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: ZevColors.primaryBlue.withValues(alpha: 0.18),
+                          color: ZevColors.primaryBlue.withValues(alpha: 0.14),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
                           "${_formatTime(selectedDuration)} / 01:30",
                           style: const TextStyle(
-                            color: ZevColors.primaryBlue,
+                            color: ZevColors.secondaryBlue,
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
                           ),
@@ -269,12 +276,12 @@ class _VideoTrimmerSheetState extends State<VideoTrimmerSheet> {
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
-                  color: Colors.black,
+                  color: ZevColors.softSurface,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white12, width: 1.2),
+                  border: Border.all(color: ZevColors.border, width: 1.2),
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(19),
                   child: _isInitialized
                       ? Center(
                           child: AspectRatio(
@@ -294,20 +301,19 @@ class _VideoTrimmerSheetState extends State<VideoTrimmerSheet> {
 
             const SizedBox(height: 18),
 
-            // WhatsApp-Style Video Slider Trimmer
+            // Light Clearmorphic Video Slider Trimmer
             if (_isInitialized && _totalDurationSec > 0)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   children: [
-                    // Start, End, and Total Time Indicators
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           _formatTime(_startSec),
                           style: const TextStyle(
-                            color: Colors.white70,
+                            color: ZevColors.textSecondary,
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
                           ),
@@ -316,14 +322,14 @@ class _VideoTrimmerSheetState extends State<VideoTrimmerSheet> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 3),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF1E293B),
+                            color: ZevColors.softSurface,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.white24, width: 1),
+                            border: Border.all(color: ZevColors.border, width: 1),
                           ),
                           child: Text(
                             "Selected: ${_formatTime(selectedDuration)}",
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: ZevColors.deepNavy,
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
                             ),
@@ -332,7 +338,7 @@ class _VideoTrimmerSheetState extends State<VideoTrimmerSheet> {
                         Text(
                           _formatTime(_endSec),
                           style: const TextStyle(
-                            color: Colors.white70,
+                            color: ZevColors.textSecondary,
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
                           ),
@@ -342,20 +348,19 @@ class _VideoTrimmerSheetState extends State<VideoTrimmerSheet> {
 
                     const SizedBox(height: 8),
 
-                    // Range Slider with Filmstrip styling
                     Container(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1E293B),
+                        color: ZevColors.softSurface,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white24, width: 1.5),
+                        border: Border.all(color: ZevColors.border, width: 1.5),
                       ),
                       child: RangeSlider(
                         values: RangeValues(_startSec, _endSec),
                         min: 0.0,
                         max: _totalDurationSec,
                         activeColor: ZevColors.primaryBlue,
-                        inactiveColor: Colors.white24,
+                        inactiveColor: ZevColors.border,
                         onChanged: (RangeValues values) {
                           double newStart = values.start;
                           double newEnd = values.end;
@@ -374,7 +379,6 @@ class _VideoTrimmerSheetState extends State<VideoTrimmerSheet> {
                             _endSec = newEnd.clamp(0.0, _totalDurationSec);
                           });
 
-                          // Seek video to current start
                           _controller.seekTo(
                             Duration(milliseconds: (_startSec * 1000).toInt()),
                           );
@@ -385,7 +389,7 @@ class _VideoTrimmerSheetState extends State<VideoTrimmerSheet> {
                     const SizedBox(height: 6),
                     Text(
                       "Total Video Length: ${_formatTime(_totalDurationSec)} • Drag handles to select 90s",
-                      style: const TextStyle(color: Colors.white54, fontSize: 11.5),
+                      style: const TextStyle(color: ZevColors.textMuted, fontSize: 11.5),
                     ),
                   ],
                 ),

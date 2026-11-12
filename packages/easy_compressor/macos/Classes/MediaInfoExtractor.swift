@@ -73,27 +73,50 @@ class MediaInfoExtractor {
     }
 
     static func getThumbnail(path: String, positionMs: Int, quality: Int, maxHeight: Int?) -> Data? {
-        let url = URL(fileURLWithPath: path)
-        let asset = AVAsset(url: url)
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = trimmed.lowercased()
+        let url: URL
+        if lower.hasPrefix("http://") || lower.hasPrefix("https://") {
+            guard let remoteUrl = URL(string: trimmed) else { return nil }
+            url = remoteUrl
+        } else if lower.hasPrefix("file://"), let fileUrl = URL(string: trimmed) {
+            url = fileUrl
+        } else {
+            url = URL(fileURLWithPath: trimmed)
+        }
+
+        let asset = AVURLAsset(url: url)
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
+        generator.requestedTimeToleranceBefore = CMTime(seconds: 2.0, preferredTimescale: 600)
+        generator.requestedTimeToleranceAfter = CMTime(seconds: 2.0, preferredTimescale: 600)
 
         if let mh = maxHeight {
             generator.maximumSize = CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat(mh))
         }
 
-        let time = CMTime(value: Int64(positionMs), timescale: 1000)
+        let compression = Double(max(0, min(100, quality))) / 100.0
+        let targetTime = CMTime(value: Int64(max(0, positionMs)), timescale: 1000)
 
-        do {
-            let cgImage = try generator.copyCGImage(at: time, actualTime: nil)
+        if let cgImage = try? generator.copyCGImage(at: targetTime, actualTime: nil) {
             let bitmapRep = NSBitmapImageRep(cgImage: cgImage)
             return bitmapRep.representation(
                 using: .jpeg,
-                properties: [.compressionFactor: NSNumber(value: Double(max(0, min(100, quality))) / 100.0)]
+                properties: [.compressionFactor: NSNumber(value: compression)]
             )
-        } catch {
-            return nil
         }
+
+        generator.requestedTimeToleranceBefore = .positiveInfinity
+        generator.requestedTimeToleranceAfter = .positiveInfinity
+        if let cgImage = try? generator.copyCGImage(at: .zero, actualTime: nil) {
+            let bitmapRep = NSBitmapImageRep(cgImage: cgImage)
+            return bitmapRep.representation(
+                using: .jpeg,
+                properties: [.compressionFactor: NSNumber(value: compression)]
+            )
+        }
+
+        return nil
     }
 
     private static func fourCharCodeToString(_ code: FourCharCode) -> String {

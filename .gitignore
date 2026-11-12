@@ -58,8 +58,14 @@ local.properties
 **/android/local.properties
 flutter-sdk/
 .vercel
+/backups/
+/scripts/migrations/*.env
 
 # Node & Desktop build artifacts
 node_modules/
 dist/
 package-lock.json
+*.env.server_backup
+.env.server_backup.*
+*firebase-adminsdk*.json
+*service-account*.json

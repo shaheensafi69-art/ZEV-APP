@@ -58,17 +58,23 @@ class ReelVideoCacheManager {
     final completer = Completer<VideoPlayerController>();
     _inProgressInit[videoUrl] = completer;
 
+    VideoPlayerController? controller;
     try {
-      VideoPlayerController controller;
       if (videoUrl.startsWith('http')) {
-        controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
+        controller = VideoPlayerController.networkUrl(
+          Uri.parse(videoUrl),
+          videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+        );
       } else {
-        controller = VideoPlayerController.file(File(videoUrl));
+        controller = VideoPlayerController.file(
+          File(videoUrl),
+          videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+        );
       }
 
       await controller.initialize();
-      controller.setLooping(true);
-      controller.setVolume(isMuted ? 0.0 : 1.0);
+      await controller.setLooping(true);
+      await controller.setVolume(isMuted ? 0.0 : 1.0);
 
       _controllerCache[videoUrl] = controller;
       _touch(videoUrl);
@@ -77,8 +83,13 @@ class ReelVideoCacheManager {
       completer.complete(controller);
       return controller;
     } catch (e) {
+      try {
+        await controller?.dispose();
+      } catch (_) {}
       debugPrint("ReelVideoCacheManager init warning for $videoUrl: $e");
-      completer.completeError(e);
+      if (!completer.isCompleted) {
+        completer.completeError(e);
+      }
       rethrow;
     } finally {
       _inProgressInit.remove(videoUrl);
@@ -86,16 +97,22 @@ class ReelVideoCacheManager {
   }
 
   /// Preloads a list of video URLs into RAM in background so user never waits.
+  /// Properly handles failures without allocating orphaned VideoPlayerControllers.
   void preloadVideos(List<String> videoUrls, {bool isMuted = true}) {
     for (final url in videoUrls) {
-      if (url.isEmpty || _controllerCache.containsKey(url) || _inProgressInit.containsKey(url)) {
+      if (url.isEmpty ||
+          _controllerCache.containsKey(url) ||
+          _inProgressInit.containsKey(url)) {
         continue;
       }
-      // Fire-and-forget background preload
-      unawaited(getOrCreateController(url, isMuted: isMuted).catchError((err) {
-        debugPrint("Background preload skipped: $err");
-        return _controllerCache[url] ?? VideoPlayerController.networkUrl(Uri.parse(url));
-      }));
+      unawaited(
+        getOrCreateController(url, isMuted: isMuted).then<void>(
+          (_) {},
+          onError: (Object err) {
+            debugPrint("Background preload skipped for $url: $err");
+          },
+        ),
+      );
     }
   }
 

@@ -8,10 +8,10 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/auth_helper.dart';
+import '../../../core/services/auth_session_manager.dart';
 import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/services/multi_account_service.dart';
 import '../../../core/theme/zev_theme.dart';
-import '../../../core/widgets/google_sign_in_button.dart';
 import '../../../core/widgets/zev_text_field.dart';
 import '../../main_navigation/screens/zev_main_layout.dart';
 
@@ -340,7 +340,13 @@ class _GoogleProfileCompletionScreenState
       // 3. Mark user logged in locally and sync FCM
       await AuthHelper.markUserLoggedIn(
         userId: widget.user.id,
-        role: 'student',
+        role: 'user',
+      );
+      unawaited(
+        AuthSessionManager.instance.recordSecurityEvent(
+          userId: widget.user.id,
+          eventType: 'google_profile_completed',
+        ),
       );
 
       // 4. Save into multi-account manager
@@ -421,7 +427,11 @@ class _GoogleProfileCompletionScreenState
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const GoogleLogoMark(size: 16),
+                        const Icon(
+                          Icons.account_circle_rounded,
+                          size: 17,
+                          color: ZevColors.secondaryBlue,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           userEmail,

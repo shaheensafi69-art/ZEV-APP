@@ -6,7 +6,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/services/api_client.dart';
 import '../../../core/services/auth_helper.dart';
+import '../../../core/services/auth_session_manager.dart';
 import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/services/multi_account_service.dart';
 import '../../../core/services/passkey_auth_service.dart';
@@ -228,7 +230,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         final res = await supabase
             .from('profiles')
             .select('id')
-            .eq('username', raw)
+            .ilike('username', raw)
             .maybeSingle();
 
         if (mounted) {
@@ -357,9 +359,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    if (password.length < 6) {
+    if (password.length < 8) {
       HapticFeedback.heavyImpact();
-      setState(() => _errorMsg = "Password must be at least 6 characters.");
+      setState(() => _errorMsg = "Password must be at least 8 characters.");
       return;
     }
 
@@ -400,6 +402,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
 
       _pendingUserId = userId;
+
+      // If Supabase returned an authenticated session immediately (auto-confirm),
+      // finalize the profile & referral attribution without stalling on Step 4 OTP.
+      if (authResponse.session != null) {
+        await _completeRegistrationAndProfile(userId);
+        return;
+      }
 
       // 2. Transition immediately to Step 4: Email OTP & Link Verification
       setState(() {
@@ -618,84 +627,52 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       }
 
-      // 2. Upsert User Profile
+      // 2. Upsert User Profile (matches public.profiles schema cleanly)
       final username = _usernameCtrl.text.trim().toLowerCase();
       final firstName = _firstNameCtrl.text.trim();
       final lastName = _lastNameCtrl.text.trim();
       final email = _emailCtrl.text.trim();
+      final dob = _dobCtrl.text.trim();
+      final phone = _phoneCtrl.text.trim();
 
-      await supabase.from('profiles').upsert({
+      final profilePayload = <String, dynamic>{
         'id': userId,
         'username': username,
         'first_name': firstName,
         'last_name': lastName,
-        'date_of_birth': _dobCtrl.text.trim(),
+        if (dob.isNotEmpty) 'date_of_birth': dob,
         'country': _countryCtrl.text.trim(),
-        'phone_number': _phoneCtrl.text.trim(),
+        if (phone.isNotEmpty) 'phone_number': phone,
         'email': email,
-        'avatar_url': avatarUrl,
+        if (avatarUrl.isNotEmpty) 'avatar_url': avatarUrl,
         'bio': _bioCtrl.text.trim(),
-        'role': 'student',
         'referral_code': username,
-        'referral_count': 0,
-      });
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      };
 
-      // 2.1 Process Referral Attribution if invitation code was entered
+      await supabase.from('profiles').upsert(profilePayload);
+
+      // 2.1 Process Referral Attribution securely via server endpoint
       final inviteCode = _referralCodeCtrl.text.trim().toLowerCase();
       if (inviteCode.isNotEmpty) {
         try {
-          final referrer = _referrerProfile ??
-              await supabase
-                  .from('profiles')
-                  .select('id, referral_count, username')
-                  .or('referral_code.eq.$inviteCode,username.eq.$inviteCode')
-                  .maybeSingle();
-
-          if (referrer != null && referrer['id']?.toString() != userId) {
-            final referrerId = referrer['id'].toString();
-
-            // Record in referrals table
-            try {
-              await supabase.from('referrals').insert({
-                'referrer_id': referrerId,
-                'referred_id': userId,
-                'referral_code': inviteCode,
-                'created_at': DateTime.now().toIso8601String(),
-              });
-            } catch (refErr) {
-              debugPrint("Referrals table insert notice: $refErr");
-            }
-
-            // Increment inviter's referral count
-            try {
-              final oldCount = (referrer['referral_count'] as num?)?.toInt() ?? 0;
-              await supabase
-                  .from('profiles')
-                  .update({'referral_count': oldCount + 1})
-                  .eq('id', referrerId);
-            } catch (countErr) {
-              debugPrint("Referral count update notice: $countErr");
-            }
-
-            // Send In-App notification to inviter
-            try {
-              await supabase.from('user_notifications').insert({
-                'user_id': referrerId,
-                'title': 'New Friend Joined! 🎉',
-                'message': '@$username just joined ZEV using your referral link!',
-                'notification_type': 'referral',
-                'app_source': 'zev',
-                'is_read': false,
-              });
-            } catch (_) {}
-          }
+          await ApiClient.instance.post(
+            '/api/v1/referral/claim',
+            data: {'referralCode': inviteCode},
+          );
         } catch (attributionErr) {
-          debugPrint("Referral attribution warning: $attributionErr");
+          debugPrint('Referral attribution warning: $attributionErr');
         }
       }
 
-      // 3. Mark user logged in locally
-      await AuthHelper.markUserLoggedIn(userId: userId, role: 'student');
+      // 3. Mark user logged in locally and record signup event
+      await AuthHelper.markUserLoggedIn(userId: userId, role: 'user');
+      unawaited(
+        AuthSessionManager.instance.recordSecurityEvent(
+          userId: userId,
+          eventType: 'signup',
+        ),
+      );
 
       // 4. Save into Instagram-style multi-account switcher
       await MultiAccountService.saveCurrentAccount(
@@ -707,15 +684,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (mounted) {
         setState(() {
+          _isLoading = false;
           _isVerifyingOtp = false;
           _isSuccess = true;
         });
       }
     } catch (e) {
+      debugPrint('Profile completion error during registration: $e');
       if (mounted) {
         setState(() {
+          _isLoading = false;
           _isVerifyingOtp = false;
-          _isSuccess = true; // still let user proceed since account is verified
+          _errorMsg =
+              'Account verified, but profile save failed. Please tap Create Account or retry.';
+          if (supabase.auth.currentSession != null) {
+            _isSuccess = true;
+          }
         });
       }
     }
@@ -1249,7 +1233,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
         ZevTextField(
           label: "Password",
-          hint: "At least 6 characters",
+          hint: "At least 8 characters",
           controller: _passwordCtrl,
           prefixIcon: Icons.lock_outline_rounded,
           isPassword: true,

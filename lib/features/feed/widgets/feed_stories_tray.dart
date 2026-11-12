@@ -6,9 +6,11 @@ import '../../../core/widgets/zev_cached_image.dart';
 import '../models/feed_post_item.dart';
 
 /// Next-Generation Instagram Stories Tray for ZEV.
-/// Features vibrant Electric Cyan (#00D4FF) gradient rings and smooth horizontal scrolling.
+/// Features vibrant Electric Cyan (#00D4FF) and Close Friends emerald rings
+/// plus muted seen rings and Light Clearmorphism styling.
 class FeedStoriesTray extends StatelessWidget {
   final String myAvatarUrl;
+  final ActiveFriendStory? myActiveStory;
   final List<ActiveFriendStory> stories;
   final VoidCallback? onAddStory;
   final ValueChanged<ActiveFriendStory>? onStoryTap;
@@ -16,6 +18,7 @@ class FeedStoriesTray extends StatelessWidget {
   const FeedStoriesTray({
     super.key,
     required this.myAvatarUrl,
+    this.myActiveStory,
     required this.stories,
     this.onAddStory,
     this.onStoryTap,
@@ -64,22 +67,183 @@ class FeedStoriesTray extends StatelessWidget {
   }
 
   Widget _buildMyStoryItem(BuildContext context) {
+    final activeStory = myActiveStory;
+    final hasActive = activeStory != null && activeStory.storiesCount > 0;
+
+    void handleAddStory() {
+      HapticFeedback.lightImpact();
+      if (onAddStory != null) {
+        onAddStory!();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              "Create Story will open camera/media picker.",
+            ),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+
+    Widget avatarInner = Container(
+      width: 58,
+      height: 58,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFFF1F5F9),
+        border: Border.all(
+          color: Colors.white,
+          width: 2.0,
+        ),
+        boxShadow: hasActive
+            ? null
+            : [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+                const BoxShadow(
+                  color: Colors.white,
+                  blurRadius: 6,
+                  offset: Offset(0, -2),
+                ),
+              ],
+      ),
+      child: myAvatarUrl.isNotEmpty
+          ? ZevCachedImage.avatar(
+              imageUrl: myAvatarUrl,
+              size: 60,
+            )
+          : const Center(
+              child: Icon(
+                Icons.person_rounded,
+                size: 32,
+                color: ZevColors.textMuted,
+              ),
+            ),
+    );
+
+    if (hasActive) {
+      final isCloseFriend = activeStory.hasCloseFriendStory;
+      final isUnseen = activeStory.hasUnseen;
+      avatarInner = Container(
+        width: 60,
+        height: 60,
+        padding: EdgeInsets.all(isUnseen ? 2.4 : 1.8),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: isUnseen
+              ? LinearGradient(
+                  colors: isCloseFriend
+                      ? const [Color(0xFF10B981), Color(0xFF00D4FF)]
+                      : const [
+                          Color(0xFF00D4FF),
+                          Color(0xFF536DFE),
+                          Color(0xFFA60F93),
+                        ],
+                  begin: Alignment.bottomLeft,
+                  end: Alignment.topRight,
+                )
+              : null,
+          color: isUnseen ? null : const Color(0xFFCBD5E1),
+        ),
+        child: Container(
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white,
+          ),
+          padding: const EdgeInsets.all(1.5),
+          child: avatarInner,
+        ),
+      );
+    }
+
     return GestureDetector(
       onTap: () {
         HapticFeedback.lightImpact();
-        if (onAddStory != null) {
-          onAddStory!();
+        if (hasActive && onStoryTap != null) {
+          onStoryTap!(activeStory);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text("Create Story will open camera/media picker."),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              duration: const Duration(seconds: 2),
+          handleAddStory();
+        }
+      },
+      child: SizedBox(
+        width: 68,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                avatarInner,
+                Positioned(
+                  bottom: -1,
+                  right: -1,
+                  child: GestureDetector(
+                    onTap: handleAddStory,
+                    child: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF00D4FF), Color(0xFF0095F6)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF00D4FF).withValues(alpha: 0.45),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.add,
+                          size: 14,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          );
+            const SizedBox(height: 6),
+            Text(
+              hasActive ? "Your story" : "Your story",
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: hasActive ? FontWeight.w800 : FontWeight.w700,
+                color: hasActive ? ZevColors.deepNavy : ZevColors.textSecondary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFriendStoryItem(BuildContext context, ActiveFriendStory story) {
+    final bool isUnseen = story.hasUnseen;
+    final bool isCloseFriend = story.hasCloseFriendStory;
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        if (onStoryTap != null) {
+          onStoryTap!(story);
         }
       },
       child: SizedBox(
@@ -93,152 +257,86 @@ class FeedStoriesTray extends StatelessWidget {
                 Container(
                   width: 58,
                   height: 58,
+                  padding: EdgeInsets.all(isUnseen ? 2.5 : 1.8),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: const Color(0xFFF1F5F9),
-                    border: Border.all(
-                      color: Colors.white,
-                      width: 2.0,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF0F172A).withValues(alpha: 0.08),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                      const BoxShadow(
-                        color: Colors.white,
-                        blurRadius: 6,
-                        offset: Offset(0, -2),
-                      ),
-                    ],
+                    gradient: isUnseen
+                        ? LinearGradient(
+                            colors: isCloseFriend
+                                ? const [Color(0xFF10B981), Color(0xFF00D4FF)]
+                                : const [
+                                    Color(0xFFFBAA47),
+                                    Color(0xFFD91A46),
+                                    Color(0xFFA60F93),
+                                  ],
+                            begin: Alignment.bottomLeft,
+                            end: Alignment.topRight,
+                          )
+                        : null,
+                    color: isUnseen ? null : const Color(0xFFCBD5E1),
+                    boxShadow: isUnseen
+                        ? [
+                            BoxShadow(
+                              color: (isCloseFriend
+                                      ? const Color(0xFF10B981)
+                                      : const Color(0xFFD91A46))
+                                  .withValues(alpha: 0.24),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ]
+                        : null,
                   ),
-                  child: myAvatarUrl.isNotEmpty
-                      ? ZevCachedImage.avatar(
-                          imageUrl: myAvatarUrl,
-                          size: 60,
-                        )
-                      : const Center(
-                          child: Icon(
-                            Icons.person_rounded,
-                            size: 32,
-                            color: ZevColors.textMuted,
-                          ),
-                        ),
-                ),
-                Positioned(
-                  bottom: -1,
-                  right: -1,
                   child: Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF00D4FF), Color(0xFF0095F6)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                    decoration: const BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF00D4FF).withValues(alpha: 0.45),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                      color: Colors.white,
                     ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.add,
-                        size: 14,
-                        color: Colors.white,
+                    padding: const EdgeInsets.all(1.5),
+                    child: story.avatarUrl.isNotEmpty
+                        ? ZevCachedImage.avatar(
+                            imageUrl: story.avatarUrl,
+                            size: 58,
+                          )
+                        : const Center(
+                            child: Icon(
+                              Icons.person_rounded,
+                              size: 30,
+                              color: ZevColors.textMuted,
+                            ),
+                          ),
+                  ),
+                ),
+                if (isCloseFriend)
+                  Positioned(
+                    bottom: -1,
+                    right: -1,
+                    child: Container(
+                      width: 19,
+                      height: 19,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.8),
                       ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              "Your story",
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: ZevColors.deepNavy,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFriendStoryItem(BuildContext context, ActiveFriendStory story) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        if (onStoryTap != null) {
-          onStoryTap!(story);
-        }
-      },
-      child: SizedBox(
-        width: 68,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 58,
-              height: 58,
-              padding: const EdgeInsets.all(2.5),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [
-                    Color(0xFFFBAA47),
-                    Color(0xFFD91A46),
-                    Color(0xFFA60F93),
-                  ],
-                  begin: Alignment.bottomLeft,
-                  end: Alignment.topRight,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFD91A46).withValues(alpha: 0.25),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Container(
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white,
-                ),
-                padding: const EdgeInsets.all(1.5),
-                child: story.avatarUrl.isNotEmpty
-                    ? ZevCachedImage.avatar(
-                        imageUrl: story.avatarUrl,
-                        size: 58,
-                      )
-                    : const Center(
+                      child: const Center(
                         child: Icon(
-                          Icons.person_rounded,
-                          size: 30,
-                          color: ZevColors.textMuted,
+                          Icons.star_rounded,
+                          size: 11,
+                          color: Colors.white,
                         ),
                       ),
-              ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 6),
             Text(
               story.username,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: ZevColors.deepNavy,
+                fontWeight: isUnseen ? FontWeight.w700 : FontWeight.w600,
+                color: isUnseen ? ZevColors.deepNavy : ZevColors.textMuted,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

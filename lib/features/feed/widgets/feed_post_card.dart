@@ -5,35 +5,36 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/content_deletion_service.dart';
+import '../../../core/services/feed_algorithm_service.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/services/social_graph_service.dart';
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/utils/rich_text_helper.dart';
 import '../../../core/utils/text_direction_helper.dart';
 import '../../../core/utils/time_ago.dart';
 import '../../../core/widgets/zev_cached_image.dart';
+import '../../../core/widgets/zev_video_thumbnail.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../models/feed_post_item.dart';
 import '../screens/fullscreen_media_viewer.dart';
 import 'feed_comments_sheet.dart';
 import 'feed_share_sheet.dart';
 
-/// Serene, Instagram-Grade Post Card for ZEV Feed.
-/// Modeled directly from the official Instagram app:
-/// - Crisp typography with serene breathing room
-/// - Subtitle topic under author username (e.g. "AI content", "Analysis")
-/// - Integrated "Follow" pill button in post header
-/// - Single-line action metrics: [♡ 1,514] [💬 13] [🔁 47] [✈️ 1,692] ... [🔖]
-/// - Full adaptive media canvas without cropping + Facebook fullscreen lightbox on tap
-/// - "October 22 • See translation" subtle metadata
+/// Light Clearmorphic Post Card for ZEV Feed.
 class FeedPostCard extends StatefulWidget {
   final FeedPostItem post;
   final VoidCallback? onCommentsUpdated;
   final VoidCallback? onPostDeleted;
+  final ValueChanged<FeedPostItem>? onPostUpdated;
+  final VoidCallback? onHideOrMute;
 
   const FeedPostCard({
     super.key,
     required this.post,
     this.onCommentsUpdated,
     this.onPostDeleted,
+    this.onPostUpdated,
+    this.onHideOrMute,
   });
 
   @override
@@ -44,15 +45,20 @@ class _FeedPostCardState extends State<FeedPostCard>
     with SingleTickerProviderStateMixin {
   final supabase = Supabase.instance.client;
 
+  late FeedPostItem _post;
   late bool _isLiked;
   late int _likesCount;
+  late int _commentsCount;
   late bool _isReposted;
   late int _repostsCount;
   bool _isFollowing = false;
+  bool _followRequested = false;
   bool _isFollowLoading = false;
   bool _isSaved = false;
   bool _isExpanded = false;
-  bool _showTranslation = false;
+  late final PageController _mediaPageCtrl;
+  int _currentSlide = 0;
+  final Set<int> _inlinePlayingSlides = {};
 
   // Double-tap heart animation
   late final AnimationController _heartAnimCtrl;
@@ -63,11 +69,16 @@ class _FeedPostCardState extends State<FeedPostCard>
   @override
   void initState() {
     super.initState();
-    _isLiked = widget.post.isLikedByMe;
-    _likesCount = widget.post.likesCount;
-    _isReposted = widget.post.isRepostedByMe;
-    _repostsCount = widget.post.repostsCount;
-    _isFollowing = widget.post.isAuthorFollowed;
+    _post = widget.post;
+    _mediaPageCtrl = PageController();
+    _isLiked = _post.isLikedByMe;
+    _likesCount = _post.likesCount;
+    _commentsCount = _post.commentsCount;
+    _isReposted = _post.isRepostedByMe;
+    _repostsCount = _post.repostsCount;
+    _isSaved = _post.isBookmarkedByMe;
+    _isFollowing = _post.isAuthorFollowed;
+    FeedAlgorithmService.instance.markSeen(_post.id);
 
     _heartAnimCtrl = AnimationController(
       vsync: this,
@@ -113,17 +124,38 @@ class _FeedPostCardState extends State<FeedPostCard>
   @override
   void didUpdateWidget(FeedPostCard oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.post != oldWidget.post) {
+      _post = widget.post;
+      final mediaLen = _post.effectiveMediaUrls.length;
+      if (mediaLen <= 1) {
+        _currentSlide = 0;
+      } else if (_currentSlide >= mediaLen) {
+        _currentSlide = mediaLen - 1;
+      }
+      if (_mediaPageCtrl.hasClients && mediaLen > 0) {
+        final page = _currentSlide.clamp(0, mediaLen - 1);
+        if ((_mediaPageCtrl.page?.round() ?? 0) != page) {
+          _mediaPageCtrl.jumpToPage(page);
+        }
+      }
+    }
     if (widget.post.isLikedByMe != oldWidget.post.isLikedByMe) {
       _isLiked = widget.post.isLikedByMe;
     }
     if (widget.post.likesCount != oldWidget.post.likesCount) {
       _likesCount = widget.post.likesCount;
     }
+    if (widget.post.commentsCount != oldWidget.post.commentsCount) {
+      _commentsCount = widget.post.commentsCount;
+    }
     if (widget.post.isRepostedByMe != oldWidget.post.isRepostedByMe) {
       _isReposted = widget.post.isRepostedByMe;
     }
     if (widget.post.repostsCount != oldWidget.post.repostsCount) {
       _repostsCount = widget.post.repostsCount;
+    }
+    if (widget.post.isBookmarkedByMe != oldWidget.post.isBookmarkedByMe) {
+      _isSaved = widget.post.isBookmarkedByMe;
     }
     if (widget.post.isAuthorFollowed != oldWidget.post.isAuthorFollowed) {
       _isFollowing = widget.post.isAuthorFollowed;
@@ -132,12 +164,13 @@ class _FeedPostCardState extends State<FeedPostCard>
 
   @override
   void dispose() {
+    _mediaPageCtrl.dispose();
     _heartAnimCtrl.dispose();
     super.dispose();
   }
 
   String _getCategorySubtitle() {
-    final title = widget.post.title;
+    final title = _post.title;
     if (title.contains('[') && title.contains(']')) {
       final start = title.indexOf('[');
       final end = title.indexOf(']');
@@ -145,7 +178,7 @@ class _FeedPostCardState extends State<FeedPostCard>
         return title.substring(start + 1, end).trim();
       }
     }
-    return widget.post.categoryTag;
+    return _post.categoryTag;
   }
 
   void _triggerDoubleTapLike() {
@@ -179,25 +212,31 @@ class _FeedPostCardState extends State<FeedPostCard>
     try {
       if (_isLiked) {
         await supabase.from('discussion_likes').insert({
-          'post_id': widget.post.id,
+          'post_id': _post.id,
           'student_id': user.id,
         });
-
-        if (widget.post.authorId.isNotEmpty && widget.post.authorId != user.id) {
-          unawaited(NotificationService().sendNotificationToUser(
-            targetUserId: widget.post.authorId,
-            title: "Post Liked",
-            message: "liked your post.",
-            notificationType: "like",
-            linkUrl: widget.post.id,
-            senderId: user.id,
-          ));
+        FeedAlgorithmService.instance.recordPositiveInteraction(
+          authorId: _post.authorId,
+          category: _getCategorySubtitle(),
+          text: '${_post.title} ${_post.content}',
+          weight: 4.5,
+        );
+        if (_post.authorId != user.id) {
+          unawaited(
+            NotificationService().dispatchPushNotification(
+              recipientUserId: _post.authorId,
+              title: 'New Like',
+              body: 'liked your post on ZEV.',
+              notificationType: 'like',
+              deepLink: '/post/${_post.id}',
+            ),
+          );
         }
       } else {
         await supabase
             .from('discussion_likes')
             .delete()
-            .eq('post_id', widget.post.id)
+            .eq('post_id', _post.id)
             .eq('student_id', user.id);
       }
     } catch (e) {
@@ -232,15 +271,21 @@ class _FeedPostCardState extends State<FeedPostCard>
     try {
       if (_isReposted) {
         await supabase.from('post_reposts').insert({
-          'post_id': widget.post.id,
+          'post_id': _post.id,
           'user_id': user.id,
         });
+        FeedAlgorithmService.instance.recordPositiveInteraction(
+          authorId: _post.authorId,
+          category: _getCategorySubtitle(),
+          text: '${_post.title} ${_post.content}',
+          weight: 5.5,
+        );
         _showNotice("Reposted to your profile!");
       } else {
         await supabase
             .from('post_reposts')
             .delete()
-            .eq('post_id', widget.post.id)
+            .eq('post_id', _post.id)
             .eq('user_id', user.id);
         _showNotice("Repost removed.");
       }
@@ -255,6 +300,47 @@ class _FeedPostCardState extends State<FeedPostCard>
     }
   }
 
+  Future<void> _toggleBookmark() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      _showNotice("Please sign in to save posts.");
+      return;
+    }
+
+    HapticFeedback.lightImpact();
+    final previousState = _isSaved;
+    setState(() => _isSaved = !previousState);
+
+    try {
+      if (_isSaved) {
+        await supabase.from('discussion_bookmarks').insert({
+          'post_id': _post.id,
+          'user_id': user.id,
+        });
+        FeedAlgorithmService.instance.recordPositiveInteraction(
+          authorId: _post.authorId,
+          category: _getCategorySubtitle(),
+          text: '${_post.title} ${_post.content}',
+          weight: 6.0,
+        );
+        _showNotice("Saved to your bookmarks.");
+      } else {
+        await supabase
+            .from('discussion_bookmarks')
+            .delete()
+            .eq('post_id', _post.id)
+            .eq('user_id', user.id);
+        _showNotice("Removed from bookmarks.");
+      }
+    } catch (e) {
+      debugPrint("Bookmark toggle warning: $e");
+      if (mounted) {
+        setState(() => _isSaved = previousState);
+        _showNotice("Could not update bookmark.");
+      }
+    }
+  }
+
   Future<void> _toggleFollow() async {
     final user = supabase.auth.currentUser;
     if (user == null) {
@@ -264,72 +350,80 @@ class _FeedPostCardState extends State<FeedPostCard>
     if (_isFollowLoading) return;
 
     HapticFeedback.lightImpact();
+    setState(() => _isFollowLoading = true);
 
-    // Optimistically update follow status so the Follow button is hidden immediately
+    final status = await SocialGraphService.instance.toggleFollow(_post.authorId);
+
+    if (!mounted) return;
     setState(() {
-      _isFollowing = true;
-      _isFollowLoading = true;
+      _isFollowLoading = false;
+      switch (status) {
+        case FollowToggleStatus.following:
+          _isFollowing = true;
+          _followRequested = false;
+          _showNotice("Following @${_post.authorUsername}");
+          break;
+        case FollowToggleStatus.requested:
+          _isFollowing = false;
+          _followRequested = true;
+          _showNotice("Follow request sent to @${_post.authorUsername}");
+          break;
+        case FollowToggleStatus.unfollowed:
+        case FollowToggleStatus.cancelled:
+          _isFollowing = false;
+          _followRequested = false;
+          break;
+        case FollowToggleStatus.blocked:
+          _showNotice("You cannot follow this account.");
+          break;
+        case FollowToggleStatus.error:
+          _showNotice("Could not update follow status.");
+          break;
+      }
     });
-
-    _showNotice("Following @${widget.post.authorUsername}");
-
-    try {
-      // 1. Insert into user_follows table
-      await supabase.from('user_follows').insert({
-        'follower_id': user.id,
-        'following_id': widget.post.authorId,
-      });
-
-      // 2. Also insert into student_friends table for mutual compatibility
-      try {
-        await supabase.from('student_friends').upsert({
-          'user_id': user.id,
-          'friend_id': widget.post.authorId,
-          'status': 'accepted',
-          'created_at': DateTime.now().toIso8601String(),
-        });
-      } catch (_) {}
-
-      // 3. Dispatch in-app push notification to author
-      unawaited(NotificationService().sendNotificationToUser(
-        targetUserId: widget.post.authorId,
-        title: "New Follower",
-        message: "Started following you on ZEV",
-        notificationType: "follow",
-        senderId: user.id,
-      ));
-    } catch (e) {
-      debugPrint("Follow author notice: $e");
-      if (mounted) {
-        setState(() => _isFollowing = false);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isFollowLoading = false);
-      }
-    }
   }
 
   void _openComments() {
     HapticFeedback.lightImpact();
     FeedCommentsSheet.show(
       context,
-      postId: widget.post.id,
-      postAuthorUsername: widget.post.authorUsername,
-      onCommentAdded: widget.onCommentsUpdated,
+      postId: _post.id,
+      postAuthorUsername: _post.authorUsername,
+      postAuthorId: _post.authorId,
+      onCommentAdded: () {
+        FeedAlgorithmService.instance.recordPositiveInteraction(
+          authorId: _post.authorId,
+          category: _getCategorySubtitle(),
+          text: '${_post.title} ${_post.content}',
+          weight: 5.0,
+        );
+        if (mounted) {
+          setState(() => _commentsCount += 1);
+        }
+        widget.onCommentsUpdated?.call();
+      },
+      onCommentDeleted: () {
+        if (mounted) {
+          setState(() {
+            _commentsCount = _commentsCount > 0 ? _commentsCount - 1 : 0;
+          });
+        }
+        widget.onCommentsUpdated?.call();
+      },
     );
   }
 
   void _openShareSheet() {
     HapticFeedback.lightImpact();
-    FeedShareSheet.show(context, post: widget.post);
+    FeedShareSheet.show(context, post: _post);
   }
 
   void _openFullscreenViewer() {
     HapticFeedback.lightImpact();
     FullscreenMediaViewer.open(
       context,
-      post: widget.post,
+      post: _post,
+      initialIndex: _currentSlide,
       isLiked: _isLiked,
       likesCount: _likesCount,
       isReposted: _isReposted,
@@ -337,6 +431,353 @@ class _FeedPostCardState extends State<FeedPostCard>
       onToggleLike: _toggleLike,
       onToggleRepost: _toggleRepost,
       onPostDeleted: widget.onPostDeleted,
+    );
+  }
+
+  void _showPeopleOnPostSheet() {
+    if (_post.collaborators.isEmpty && _post.taggedUsers.isEmpty) return;
+    HapticFeedback.lightImpact();
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetCtx) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.68,
+        ),
+        padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border.all(color: Colors.white, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.12),
+              blurRadius: 28,
+              offset: const Offset(0, -6),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4.5,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'People in this post',
+                style: TextStyle(
+                  fontSize: 16.5,
+                  fontWeight: FontWeight.w900,
+                  color: ZevColors.deepNavy,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    if (_post.collaborators.isNotEmpty) ...[
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          'COLLABORATORS',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: ZevColors.textMuted,
+                            letterSpacing: 0.7,
+                          ),
+                        ),
+                      ),
+                      ..._post.collaborators.map(
+                        (u) => _buildPersonTagTile(
+                          sheetCtx,
+                          user: u,
+                          badgeText: 'Collaborator',
+                          badgeColor: ZevColors.secondaryBlue,
+                        ),
+                      ),
+                    ],
+                    if (_post.taggedUsers.isNotEmpty) ...[
+                      Padding(
+                        padding: EdgeInsets.only(
+                          top: _post.collaborators.isNotEmpty ? 10 : 0,
+                          bottom: 6,
+                        ),
+                        child: const Text(
+                          'TAGGED PEOPLE',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: ZevColors.textMuted,
+                            letterSpacing: 0.7,
+                          ),
+                        ),
+                      ),
+                      ..._post.taggedUsers.map(
+                        (u) => _buildPersonTagTile(
+                          sheetCtx,
+                          user: u,
+                          badgeText: 'Tagged',
+                          badgeColor: ZevColors.primaryBlue,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPersonTagTile(
+    BuildContext sheetCtx, {
+    required FeedPostUserTag user,
+    required String badgeText,
+    required Color badgeColor,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.pop(sheetCtx);
+        if (user.id.isNotEmpty) {
+          ProfileScreen.open(context, userId: user.id);
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white, width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            user.avatarUrl.isNotEmpty
+                ? ZevCachedImage.avatar(imageUrl: user.avatarUrl, size: 38)
+                : const CircleAvatar(
+                    radius: 19,
+                    backgroundColor: ZevColors.softSurface,
+                    child: Icon(
+                      Icons.person_rounded,
+                      size: 20,
+                      color: ZevColors.textMuted,
+                    ),
+                  ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          user.fullName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                            color: ZevColors.deepNavy,
+                          ),
+                        ),
+                      ),
+                      if (user.isVerified) ...[
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.verified_rounded,
+                          size: 14,
+                          color: ZevColors.primaryBlue,
+                        ),
+                      ],
+                    ],
+                  ),
+                  Text(
+                    '@${user.username}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: ZevColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: badgeColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                badgeText,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  color: badgeColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSingleMediaSlide(
+    String mediaUrl, {
+    FeedPostMediaItem? mediaItem,
+    int slideIndex = 0,
+  }) {
+    final isVideo =
+        mediaItem?.mediaType.toLowerCase() == 'video' ||
+        ZevVideoThumbnail.isVideoUrl(mediaUrl);
+
+    if (isVideo) {
+      final isInlinePlaying = _inlinePlayingSlides.contains(slideIndex);
+      return Container(
+        width: double.infinity,
+        height: 360,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ZevVideoThumbnail(
+              videoUrl: mediaUrl,
+              thumbnailUrl: mediaItem?.thumbnailUrl,
+              durationSeconds: mediaItem?.durationSeconds,
+              autoPlay: isInlinePlaying,
+              initialMuted: false,
+              showMuteToggle: true,
+              showPlayBadge: true,
+              showCenterPlayButton: false,
+              showViews: false,
+              fit: BoxFit.cover,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            if (!isInlinePlaying)
+              Center(
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    setState(() => _inlinePlayingSlides.add(slideIndex));
+                  },
+                  child: Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: ZevColors.deepNavy.withValues(alpha: 0.2),
+                          blurRadius: 18,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.play_arrow_rounded,
+                      color: ZevColors.deepNavy,
+                      size: 34,
+                    ),
+                  ),
+                ),
+              ),
+            Positioned(
+              top: 10,
+              left: 10,
+              child: GestureDetector(
+                onTap: _openFullscreenViewer,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white, width: 1.2),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.open_in_full_rounded,
+                        size: 13,
+                        color: ZevColors.deepNavy,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(
+        minHeight: 220,
+        maxHeight: 560,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: mediaUrl.startsWith('http')
+          ? ZevCachedImage.feedPost(
+              imageUrl: mediaUrl,
+              fit: BoxFit.contain,
+              width: double.infinity,
+            )
+          : Image.file(
+              File(mediaUrl),
+              fit: BoxFit.contain,
+              width: double.infinity,
+              errorBuilder: (context, error, stackTrace) => Container(
+                height: 220,
+                color: const Color(0xFFF1F5F9),
+                child: const Center(
+                  child: Icon(
+                    Icons.broken_image_rounded,
+                    size: 48,
+                    color: ZevColors.textMuted,
+                  ),
+                ),
+              ),
+            ),
     );
   }
 
@@ -354,9 +795,11 @@ class _FeedPostCardState extends State<FeedPostCard>
 
   @override
   Widget build(BuildContext context) {
-    final post = widget.post;
+    final post = _post;
     final timeStr = TimeAgo.format(post.createdAt);
     final subtitle = _getCategorySubtitle();
+    final mediaItems = post.effectiveMediaItems;
+    final mediaUrls = post.effectiveMediaUrls;
 
     final currentUserId = supabase.auth.currentUser?.id;
     final isMe = currentUserId != null && currentUserId == post.authorId;
@@ -467,37 +910,94 @@ class _FeedPostCardState extends State<FeedPostCard>
                                 color: ZevColors.primaryBlue,
                               ),
                             ],
+                            if (post.collaborators.isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: GestureDetector(
+                                  onTap: _showPeopleOnPostSheet,
+                                  child: Text(
+                                    post.collaborators.length == 1
+                                        ? '• with @${post.collaborators.first.username}'
+                                        : '• with @${post.collaborators.first.username} +${post.collaborators.length - 1}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: ZevColors.secondaryBlue,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 2),
-                        // Subtitle Pill (Category / Education / AI)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: Colors.white,
-                              width: 1.0,
+                        // Subtitle Pill + Optional Location
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 2,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 1.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 1.0,
+                                ),
+                              ),
+                              child: Text(
+                                subtitle,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: ZevColors.textSecondary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                          child: Text(
-                            subtitle,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: ZevColors.textSecondary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                            if (post.location.isNotEmpty)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.location_on_outlined,
+                                    size: 12,
+                                    color: ZevColors.textMuted,
+                                  ),
+                                  const SizedBox(width: 2),
+                                  ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 130,
+                                    ),
+                                    child: Text(
+                                      post.location,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: ZevColors.textMuted,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
                         ),
                       ],
                     ),
                   ),
                 ),
 
-                // Follow Button: Only shown if NOT me and NOT already following!
+                // Follow / Requested Button
                 if (shouldShowFollowButton) ...[
                   GestureDetector(
                     onTap: _toggleFollow,
@@ -507,35 +1007,44 @@ class _FeedPostCardState extends State<FeedPostCard>
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0095F6),
+                        color: _followRequested
+                            ? const Color(0xFFE2E8F0)
+                            : const Color(0xFF0095F6),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: Colors.white.withValues(alpha: 0.8),
                           width: 1.2,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF0095F6).withValues(alpha: 0.35),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                        boxShadow: _followRequested
+                            ? null
+                            : [
+                                BoxShadow(
+                                  color: const Color(0xFF0095F6)
+                                      .withValues(alpha: 0.35),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
                       ),
                       child: _isFollowLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 14,
                               height: 14,
                               child: CircularProgressIndicator(
                                 strokeWidth: 1.5,
-                                color: Colors.white,
+                                color: _followRequested
+                                    ? ZevColors.deepNavy
+                                    : Colors.white,
                               ),
                             )
-                          : const Text(
-                              "Follow",
+                          : Text(
+                              _followRequested ? "Requested" : "Follow",
                               style: TextStyle(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.white,
+                                color: _followRequested
+                                    ? ZevColors.deepNavy
+                                    : Colors.white,
                               ),
                             ),
                     ),
@@ -575,84 +1084,238 @@ class _FeedPostCardState extends State<FeedPostCard>
             ),
           ),
 
-          // 2. Media Box (Smoothly Framed within Clay Card + Tap to Fullscreen)
-          if (post.imageUrl.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: GestureDetector(
-                  onTap: _openFullscreenViewer,
-                  onDoubleTap: _triggerDoubleTapLike,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
-                        width: double.infinity,
-                        constraints: const BoxConstraints(
-                          minHeight: 220,
-                          maxHeight: 560,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: post.imageUrl.startsWith('http')
-                            ? ZevCachedImage.feedPost(
-                                imageUrl: post.imageUrl,
-                                fit: BoxFit.contain,
-                                width: double.infinity,
-                              )
-                            : Image.file(
-                                File(post.imageUrl),
-                                fit: BoxFit.contain,
-                                width: double.infinity,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    Container(
-                                  height: 220,
-                                  color: const Color(0xFFF1F5F9),
-                                  child: const Center(
-                                    child: Icon(
-                                      Icons.broken_image_rounded,
-                                      size: 48,
-                                      color: ZevColors.textMuted,
+          // 2. Media Box (Single or Multi-Slide Carousel + Tap to Fullscreen)
+          if (mediaUrls.isNotEmpty)
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: GestureDetector(
+                      onTap: _openFullscreenViewer,
+                      onDoubleTap: _triggerDoubleTapLike,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          if (mediaUrls.length == 1)
+                            _buildSingleMediaSlide(
+                              mediaUrls.first,
+                              mediaItem:
+                                  mediaItems.isNotEmpty ? mediaItems.first : null,
+                              slideIndex: 0,
+                            )
+                          else
+                            SizedBox(
+                              width: double.infinity,
+                              height: 360,
+                              child: Container(
+                                color: const Color(0xFFF8FAFC),
+                                child: PageView.builder(
+                                  controller: _mediaPageCtrl,
+                                  itemCount: mediaUrls.length,
+                                  onPageChanged: (idx) {
+                                    if (mounted) {
+                                      setState(() {
+                                        _inlinePlayingSlides.clear();
+                                        _currentSlide = idx;
+                                      });
+                                    }
+                                  },
+                                  itemBuilder: (context, idx) {
+                                    final item = idx < mediaItems.length
+                                        ? mediaItems[idx]
+                                        : null;
+                                    return _buildSingleMediaSlide(
+                                      mediaUrls[idx],
+                                      mediaItem: item,
+                                      slideIndex: idx,
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+
+                          if (mediaUrls.length > 1)
+                            Positioned(
+                              top: 10,
+                              right: 10,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 9,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 1.2,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF0F172A)
+                                          .withValues(alpha: 0.10),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
                                     ),
+                                  ],
+                                ),
+                                child: Text(
+                                  '${_currentSlide + 1}/${mediaUrls.length}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: ZevColors.deepNavy,
                                   ),
                                 ),
                               ),
-                      ),
+                            ),
 
-                      // Floating Heart Pop
-                      if (_showFloatingHeart)
-                        AnimatedBuilder(
-                          animation: _heartAnimCtrl,
-                          builder: (context, _) {
-                            return Opacity(
-                              opacity: _heartOpacityAnim.value,
-                              child: Transform.scale(
-                                scale: _heartScaleAnim.value,
+                          if (post.taggedUsers.isNotEmpty)
+                            Positioned(
+                              bottom: 10,
+                              left: 10,
+                              child: GestureDetector(
+                                onTap: _showPeopleOnPostSheet,
                                 child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 5,
+                                  ),
                                   decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
+                                    color: Colors.white.withValues(alpha: 0.92),
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 1.2,
+                                    ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color:
-                                            Colors.redAccent.withValues(alpha: 0.5),
-                                        blurRadius: 36,
-                                        spreadRadius: 8,
+                                        color: const Color(0xFF0F172A)
+                                            .withValues(alpha: 0.12),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
                                       ),
                                     ],
                                   ),
-                                  child: const Icon(
-                                    Icons.favorite_rounded,
-                                    size: 100,
-                                    color: Colors.white,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.person_pin_rounded,
+                                        size: 14,
+                                        color: ZevColors.secondaryBlue,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${post.taggedUsers.length} Tagged',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                          color: ZevColors.deepNavy,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
-                            );
-                          },
+                            ),
+
+                          // Floating Heart Pop
+                          if (_showFloatingHeart)
+                            AnimatedBuilder(
+                              animation: _heartAnimCtrl,
+                              builder: (context, _) {
+                                return Opacity(
+                                  opacity: _heartOpacityAnim.value,
+                                  child: Transform.scale(
+                                    scale: _heartScaleAnim.value,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.redAccent
+                                                .withValues(alpha: 0.5),
+                                            blurRadius: 36,
+                                            spreadRadius: 8,
+                                          ),
+                                        ],
+                                      ),
+                                      child: const Icon(
+                                        Icons.favorite_rounded,
+                                        size: 100,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                if (mediaUrls.length > 1)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(mediaUrls.length, (idx) {
+                        final active = idx == _currentSlide;
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          margin: const EdgeInsets.symmetric(horizontal: 2.5),
+                          width: active ? 16 : 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: active
+                                ? ZevColors.secondaryBlue
+                                : const Color(0xFFCBD5E1),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+              ],
+            ),
+
+          if (mediaUrls.isEmpty && post.taggedUsers.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 4),
+              child: GestureDetector(
+                onTap: _showPeopleOnPostSheet,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.white, width: 1.2),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.person_pin_rounded,
+                        size: 14,
+                        color: ZevColors.secondaryBlue,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        '${post.taggedUsers.length} Tagged',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: ZevColors.deepNavy,
                         ),
+                      ),
                     ],
                   ),
                 ),
@@ -686,7 +1349,7 @@ class _FeedPostCardState extends State<FeedPostCard>
                     _buildMetricAction(
                       icon: Icons.chat_bubble_outline_rounded,
                       iconColor: ZevColors.deepNavy,
-                      count: widget.post.commentsCount,
+                      count: _commentsCount,
                       onTap: _openComments,
                     ),
                     const SizedBox(width: 8),
@@ -716,13 +1379,7 @@ class _FeedPostCardState extends State<FeedPostCard>
 
                 // Tactile Clay Bookmark / Save
                 GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    setState(() => _isSaved = !_isSaved);
-                    _showNotice(_isSaved
-                        ? "Saved to collection."
-                        : "Removed from collection.");
-                  },
+                  onTap: _toggleBookmark,
                   child: Container(
                     padding: const EdgeInsets.all(7.5),
                     decoration: BoxDecoration(
@@ -772,7 +1429,10 @@ class _FeedPostCardState extends State<FeedPostCard>
                       ? CrossAxisAlignment.end
                       : CrossAxisAlignment.start,
                   children: [
-                    RichText(
+                    ZevRichText(
+                      text: post.content.isNotEmpty
+                          ? post.content
+                          : post.title,
                       textDirection: isContentRtl
                           ? TextDirection.rtl
                           : TextDirection.ltr,
@@ -782,37 +1442,30 @@ class _FeedPostCardState extends State<FeedPostCard>
                       overflow: _isExpanded
                           ? TextOverflow.visible
                           : TextOverflow.ellipsis,
-                      text: TextSpan(
-                        style: const TextStyle(
-                          fontSize: 13.5,
-                          color: ZevColors.deepNavy,
-                          height: 1.35,
-                        ),
-                        children: [
-                          TextSpan(
-                            text: isContentRtl
-                                ? " ${post.authorUsername} "
-                                : "${post.authorUsername} ",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          if (post.title.isNotEmpty &&
-                              post.content.isNotEmpty &&
-                              !post.title.startsWith('['))
-                            TextSpan(
-                              text: "${post.title} — ",
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          TextSpan(
-                            text: post.content.isNotEmpty
-                                ? post.content
-                                : post.title,
-                          ),
-                        ],
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        color: ZevColors.deepNavy,
+                        height: 1.35,
                       ),
+                      prefixSpans: [
+                        TextSpan(
+                          text: isContentRtl
+                              ? " ${post.authorUsername} "
+                              : "${post.authorUsername} ",
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        if (post.title.isNotEmpty &&
+                            post.content.isNotEmpty &&
+                            !post.title.startsWith('['))
+                          TextSpan(
+                            text: "${post.title} — ",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                      ],
                     ),
                     if (!_isExpanded && (post.content.length > 70))
                       GestureDetector(
@@ -835,37 +1488,17 @@ class _FeedPostCardState extends State<FeedPostCard>
             );
           }(),
 
-          // 5. Date & See Translation (Exact Instagram Style)
+          // 5. Timestamp & Edited Badge
           Padding(
             padding: const EdgeInsets.only(left: 14, right: 14, top: 4),
             child: Row(
               children: [
                 Text(
-                  timeStr,
+                  post.editedAt != null ? "$timeStr • Edited" : timeStr,
                   style: const TextStyle(
                     fontSize: 11.5,
                     color: ZevColors.textMuted,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                const Text(
-                  "•",
-                  style: TextStyle(fontSize: 10, color: ZevColors.textMuted),
-                ),
-                const SizedBox(width: 6),
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    setState(() => _showTranslation = !_showTranslation);
-                  },
-                  child: Text(
-                    _showTranslation ? "See original" : "See translation",
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: ZevColors.deepNavy,
-                    ),
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
@@ -943,11 +1576,12 @@ class _FeedPostCardState extends State<FeedPostCard>
   }
 
   void _showPostOptions() {
-    final bool canDelete = ContentDeletionService.canDeletePost(widget.post);
+    final bool canDelete = ContentDeletionService.canDeletePost(_post);
 
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (bottomSheetContext) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         decoration: BoxDecoration(
@@ -965,7 +1599,6 @@ class _FeedPostCardState extends State<FeedPostCard>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Drag Handle
             Container(
               width: 38,
               height: 4.5,
@@ -991,20 +1624,69 @@ class _FeedPostCardState extends State<FeedPostCard>
               color: ZevColors.deepNavy,
               onTap: () {
                 Navigator.pop(bottomSheetContext);
-                _showNotice("Link copied.");
+                Clipboard.setData(
+                  ClipboardData(text: "https://www.zevapp.com/post/${_post.id}"),
+                );
+                _showNotice("Post link copied to clipboard.");
               },
             ),
             if (canDelete) ...[
               const SizedBox(height: 10),
               _buildPostOptionTile(
+                icon: Icons.edit_outlined,
+                title: "Edit Post",
+                color: ZevColors.deepNavy,
+                onTap: () async {
+                  Navigator.pop(bottomSheetContext);
+                  final updated = await ContentDeletionService.showEditPostDialog(
+                    context,
+                    post: _post,
+                  );
+                  if (updated != null && mounted) {
+                    setState(() => _post = updated);
+                    widget.onPostUpdated?.call(updated);
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              _buildPostOptionTile(
+                icon: Icons.archive_outlined,
+                title: "Move to Archive",
+                color: ZevColors.deepNavy,
+                onTap: () async {
+                  Navigator.pop(bottomSheetContext);
+                  await ContentDeletionService.setPostArchived(
+                    context,
+                    post: _post,
+                    archived: true,
+                    onUpdated: widget.onPostDeleted,
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
+              _buildPostOptionTile(
                 icon: Icons.delete_outline_rounded,
-                title: "Delete Post",
+                title: "Move to Trash",
+                color: const Color(0xFFDC2626),
+                onTap: () async {
+                  Navigator.pop(bottomSheetContext);
+                  await ContentDeletionService.movePostToTrash(
+                    context,
+                    post: _post,
+                    onTrashed: widget.onPostDeleted,
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
+              _buildPostOptionTile(
+                icon: Icons.delete_forever_outlined,
+                title: "Delete Permanently",
                 color: const Color(0xFFDC2626),
                 onTap: () async {
                   Navigator.pop(bottomSheetContext);
                   await ContentDeletionService.confirmAndDeletePost(
                     context,
-                    post: widget.post,
+                    post: _post,
                     onDeleted: widget.onPostDeleted,
                   );
                 },
@@ -1012,12 +1694,79 @@ class _FeedPostCardState extends State<FeedPostCard>
             ] else ...[
               const SizedBox(height: 10),
               _buildPostOptionTile(
+                icon: Icons.visibility_off_outlined,
+                title: "Not Interested",
+                color: ZevColors.deepNavy,
+                onTap: () async {
+                  Navigator.pop(bottomSheetContext);
+                  final ok = await SocialGraphService.instance.hideContent(
+                    targetId: _post.id,
+                    targetType: 'post',
+                  );
+                  if (ok) {
+                    FeedAlgorithmService.instance.recordNegativeFeedback(
+                      postId: _post.id,
+                      authorId: _post.authorId,
+                    );
+                    _showNotice("We'll show fewer posts like this.");
+                    widget.onHideOrMute?.call();
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              _buildPostOptionTile(
+                icon: Icons.volume_off_outlined,
+                title: "Mute @${_post.authorUsername}",
+                color: ZevColors.deepNavy,
+                onTap: () async {
+                  Navigator.pop(bottomSheetContext);
+                  final ok = await SocialGraphService.instance.muteUser(
+                    _post.authorId,
+                  );
+                  if (ok) {
+                    FeedAlgorithmService.instance.recordNegativeFeedback(
+                      authorId: _post.authorId,
+                      suppressAuthor: true,
+                    );
+                    _showNotice("Muted @${_post.authorUsername}.");
+                    widget.onHideOrMute?.call();
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              _buildPostOptionTile(
+                icon: Icons.block_rounded,
+                title: "Block @${_post.authorUsername}",
+                color: const Color(0xFFDC2626),
+                onTap: () async {
+                  Navigator.pop(bottomSheetContext);
+                  final ok = await SocialGraphService.instance.blockUser(
+                    _post.authorId,
+                  );
+                  if (ok) {
+                    FeedAlgorithmService.instance.recordNegativeFeedback(
+                      authorId: _post.authorId,
+                      suppressAuthor: true,
+                    );
+                    _showNotice("Blocked @${_post.authorUsername}.");
+                    widget.onHideOrMute?.call();
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              _buildPostOptionTile(
                 icon: Icons.flag_outlined,
-                title: "Report",
-                color: Colors.redAccent,
+                title: "Report Post",
+                color: const Color(0xFFDC2626),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
-                  _showNotice("Thank you. Report received for review.");
+                  SocialGraphService.instance.showReportSheet(
+                    context,
+                    targetType: 'post',
+                    targetId: _post.id,
+                    reportedUserId: _post.authorId,
+                    targetLabel: 'Post',
+                  );
                 },
               ),
             ],

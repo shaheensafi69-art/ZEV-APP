@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/feed_algorithm_service.dart';
@@ -21,11 +22,24 @@ class ReelsViewerScreen extends StatefulWidget {
   State<ReelsViewerScreen> createState() => _ReelsViewerScreenState();
 }
 
-class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
+class _ReelsViewerScreenState extends State<ReelsViewerScreen>
+    with WidgetsBindingObserver {
   final supabase = Supabase.instance.client;
   late final PageController _pageController;
 
   bool _isLoading = true;
+  bool _isLoadingMore = false;
+  bool _hasMoreReels = true;
+  bool _fetchError = false;
+  bool _followingOnly = false;
+  bool _isOverlayRouteOpen = false;
+  bool _isAppForeground = true;
+
+  DateTime? _cursorCreatedAt;
+  String? _cursorId;
+  int _fetchGeneration = 0;
+  static const int _pageSize = 15;
+  final Set<String> _loadedReelIds = <String>{};
   List<ReelItem> _reels = [];
   int _activePage = 0;
   bool _isGlobalMuted = false;
@@ -33,6 +47,9 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
   // Native In-Stream Ad Placement Rules (every 4 reels -> 1 ad unit)
   int get _adCount => _reels.length ~/ 4;
   int get _totalPageCount => _reels.length + _adCount;
+
+  bool get _canPlayVideos =>
+      widget.isScreenActive && !_isOverlayRouteOpen && _isAppForeground;
 
   bool _isAdPage(int index) {
     if (_reels.isEmpty) return false;
@@ -46,8 +63,26 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _pageController = PageController();
     _fetchReels();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      if (_isAppForeground && mounted) {
+        setState(() => _isAppForeground = false);
+      }
+      ReelVideoCacheManager().pauseAll();
+    } else if (state == AppLifecycleState.resumed) {
+      if (!_isAppForeground && mounted) {
+        setState(() => _isAppForeground = true);
+      }
+      _syncPlaybackAndPreload();
+    }
   }
 
   @override
@@ -56,229 +91,452 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
     if (oldWidget.isScreenActive && !widget.isScreenActive) {
       ReelVideoCacheManager().pauseAll();
     } else if (!oldWidget.isScreenActive && widget.isScreenActive) {
-      if (_reels.isNotEmpty && !_isAdPage(_activePage)) {
-        final reelIdx = _getReelIndex(_activePage);
-        if (reelIdx < _reels.length) {
-          ReelVideoCacheManager().pauseAllExcept(_reels[reelIdx].videoUrl);
-        }
-      } else {
-        ReelVideoCacheManager().pauseAll();
-      }
+      _syncPlaybackAndPreload();
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     super.dispose();
   }
 
-  Future<void> _fetchReels() async {
+  void _syncPlaybackAndPreload() {
+    if (!_canPlayVideos || _reels.isEmpty) {
+      ReelVideoCacheManager().pauseAll();
+      return;
+    }
+
+    if (_isAdPage(_activePage)) {
+      ReelVideoCacheManager().pauseAll();
+      final nextReelIdx = _getReelIndex(_activePage + 1);
+      _preloadAroundAd(nextReelIdx);
+      return;
+    }
+
+    final reelIdx = _getReelIndex(_activePage);
+    if (reelIdx >= 0 && reelIdx < _reels.length) {
+      final activeReel = _reels[reelIdx];
+      FeedAlgorithmService.instance.markReelSeen(activeReel.id);
+      ReelVideoCacheManager().pauseAllExcept(activeReel.videoUrl);
+      _preloadAdjacentReels(reelIdx);
+    } else {
+      ReelVideoCacheManager().pauseAll();
+    }
+  }
+
+  Future<void> _fetchReels({bool loadMore = false}) async {
     final currentUserId = supabase.auth.currentUser?.id;
+    if (loadMore) {
+      if (_isLoadingMore || !_hasMoreReels) return;
+      if (mounted) setState(() => _isLoadingMore = true);
+    } else if (mounted && _reels.isEmpty) {
+      setState(() {
+        _isLoading = true;
+        _fetchError = false;
+      });
+    }
+
+    final int generation = loadMore ? _fetchGeneration : ++_fetchGeneration;
+    final DateTime? reqCursorCreatedAt = loadMore ? _cursorCreatedAt : null;
+    final String? reqCursorId = loadMore ? _cursorId : null;
 
     try {
-      // 1. Fetch candidate pool of published reels
-      final res = await supabase
-          .from('reels')
-          .select(
-            'id, user_id, title, description, video_url, thumbnail_url, category, duration_seconds, views_count, likes_count, comments_count, created_at',
-          )
-          .eq('is_published', true)
-          .order('created_at', ascending: false)
-          .limit(50);
+      final rawRes = await supabase.rpc(
+        'get_reels_page',
+        params: {
+          'p_cursor_created_at': reqCursorCreatedAt?.toUtc().toIso8601String(),
+          'p_cursor_id': reqCursorId,
+          'p_limit': _pageSize,
+          'p_following_only': _followingOnly,
+        },
+      );
 
-      final rawList = List<Map<String, dynamic>>.from(res as List);
-      if (rawList.isEmpty) {
-        if (mounted) {
-          setState(() {
-            _reels = [];
-            _isLoading = false;
-          });
-        }
-        return;
-      }
+      if (!mounted || generation != _fetchGeneration) return;
 
-      final reelIds = rawList.map((r) => r['id'].toString()).toList();
-      final authorIds =
-          rawList.map((r) => r['user_id']?.toString() ?? '').toSet().toList();
+      final rawRows = (rawRes is List)
+          ? rawRes.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : <Map<String, dynamic>>[];
 
-      // 2. Batch fetch author profiles
-      Map<String, Map<String, dynamic>> profilesMap = {};
-      if (authorIds.isNotEmpty) {
-        final profRes = await supabase
-            .from('profiles')
-            .select('id, username, first_name, last_name, avatar_url, is_verified')
-            .inFilter('id', authorIds);
-
-        for (var p in (profRes as List)) {
-          profilesMap[p['id'].toString()] = Map<String, dynamic>.from(p);
-        }
-      }
-
-      // 3. Batch fetch likes for current user
-      Set<String> myLikedReelIds = {};
-      if (currentUserId != null && reelIds.isNotEmpty) {
-        try {
-          final likesRes = await supabase
-              .from('reel_likes')
-              .select('reel_id')
-              .eq('user_id', currentUserId)
-              .inFilter('reel_id', reelIds);
-
-          for (var l in (likesRes as List)) {
-            final rId = l['reel_id']?.toString() ?? '';
-            if (rId.isNotEmpty) myLikedReelIds.add(rId);
-          }
-        } catch (_) {}
-      }
-
-      // 4. Batch fetch bookmarks for current user
-      Set<String> myBookmarkedReelIds = {};
-      if (currentUserId != null && reelIds.isNotEmpty) {
-        try {
-          final marksRes = await supabase
-              .from('reel_bookmarks')
-              .select('reel_id')
-              .eq('user_id', currentUserId)
-              .inFilter('reel_id', reelIds);
-
-          for (var m in (marksRes as List)) {
-            final rId = m['reel_id']?.toString() ?? '';
-            if (rId.isNotEmpty) myBookmarkedReelIds.add(rId);
-          }
-        } catch (_) {}
-      }
-
-      // 5. Batch fetch following status for authors
-      Set<String> myFollowedAuthorIds = {};
-      if (currentUserId != null && authorIds.isNotEmpty) {
-        try {
-          final followRes = await supabase
-              .from('user_follows')
-              .select('following_id')
-              .eq('follower_id', currentUserId)
-              .inFilter('following_id', authorIds);
-
-          for (var f in (followRes as List)) {
-            final fId = f['following_id']?.toString() ?? '';
-            if (fId.isNotEmpty) myFollowedAuthorIds.add(fId);
-          }
-        } catch (_) {}
-      }
-
-      // 6. Build models
-      final List<ReelItem> items = [];
-      for (var r in rawList) {
-        final id = r['id'].toString();
-        final aId = r['user_id']?.toString() ?? '';
-        final profile = profilesMap[aId] ?? {};
-        final fn = profile['first_name'] ?? '';
-        final ln = profile['last_name'] ?? '';
-        final full = "$fn $ln".trim();
-
-        items.add(
-          ReelItem(
-            id: id,
-            userId: aId,
-            authorUsername: profile['username'] ?? (full.isNotEmpty ? full : 'creator'),
-            authorFullName: full,
-            authorAvatar: profile['avatar_url'] ?? '',
-            isVerified: profile['is_verified'] == true,
-            videoUrl: r['video_url'] ?? '',
-            thumbnailUrl: r['thumbnail_url'],
-            title: r['title'] ?? '',
-            description: r['description'] ?? '',
-            category: r['category'] ?? 'Explore',
-            durationSeconds: r['duration_seconds'] ?? 30,
-            viewsCount: r['views_count'] ?? 0,
-            likesCount: r['likes_count'] ?? 0,
-            isLikedByMe: myLikedReelIds.contains(id),
-            commentsCount: r['comments_count'] ?? 0,
-            isBookmarkedByMe: myBookmarkedReelIds.contains(id),
-            isAuthorFollowed: myFollowedAuthorIds.contains(aId),
-            createdAt: DateTime.tryParse(r['created_at']?.toString() ?? '') ??
-                DateTime.now(),
-          ),
+      DateTime? nextCursorCreatedAt = reqCursorCreatedAt;
+      String? nextCursorId = reqCursorId;
+      if (rawRows.isNotEmpty) {
+        final lastRow = rawRows.last;
+        nextCursorCreatedAt = DateTime.tryParse(
+          lastRow['created_at']?.toString() ?? '',
         );
+        nextCursorId = lastRow['id']?.toString();
+      }
+      final bool hasMore = rawRows.length >= _pageSize && nextCursorId != null;
+
+      if (!loadMore) {
+        _loadedReelIds.clear();
       }
 
-      // 7. Apply Instagram-grade Algorithmic Reels Mix
-      final mixedReels = FeedAlgorithmService.instance.mixReels(
-        items,
+      final List<ReelItem> pageItems = [];
+      for (final r in rawRows) {
+        final id = r['id']?.toString() ?? '';
+        if (id.isEmpty || _loadedReelIds.contains(id)) continue;
+        _loadedReelIds.add(id);
+        pageItems.add(ReelItem.fromRpcMap(r));
+      }
+
+      final mixedPage = FeedAlgorithmService.instance.mixReels(
+        pageItems,
         currentUserId: currentUserId,
       );
 
-      if (mounted) {
-        setState(() {
-          _reels = mixedReels;
-          _isLoading = false;
+      setState(() {
+        if (loadMore) {
+          _reels = [..._reels, ...mixedPage];
+        } else {
+          _reels = mixedPage;
+          _activePage = 0;
+        }
+        _cursorCreatedAt = nextCursorCreatedAt;
+        _cursorId = nextCursorId;
+        _hasMoreReels = hasMore;
+        _fetchError = false;
+        _isLoading = false;
+        _isLoadingMore = false;
+      });
+
+      if (!loadMore) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (_pageController.hasClients &&
+              (_pageController.page?.round() ?? 0) != 0) {
+            _pageController.jumpToPage(0);
+          }
         });
-        _preloadAdjacentReels(0);
       }
+
+      _syncPlaybackAndPreload();
     } catch (e) {
       debugPrint("Fetch reels exception: $e");
-      if (mounted) {
+      if (mounted && generation == _fetchGeneration) {
         setState(() {
-          _reels = [];
+          if (!loadMore) {
+            _reels = [];
+            _fetchError = true;
+          }
           _isLoading = false;
+          _isLoadingMore = false;
         });
       }
     }
   }
 
+  Future<void> _loadMoreReels() => _fetchReels(loadMore: true);
+
+  /// Preloads strictly +1 and -1 so total RAM cache stays <= _maxControllersInRam (3),
+  /// preventing cache eviction of the currently playing reel.
   void _preloadAdjacentReels(int currentIndex) {
-    if (_reels.isEmpty) return;
+    if (_reels.isEmpty || !_canPlayVideos) return;
     final urlsToPreload = <String>[];
-    // Next 2 reels
-    if (currentIndex + 1 < _reels.length) {
-      final u1 = _reels[currentIndex + 1].videoUrl;
-      if (u1.isNotEmpty) urlsToPreload.add(u1);
+    if (currentIndex + 1 >= 0 && currentIndex + 1 < _reels.length) {
+      final uNext = _reels[currentIndex + 1].videoUrl;
+      if (uNext.isNotEmpty) urlsToPreload.add(uNext);
     }
-    if (currentIndex + 2 < _reels.length) {
-      final u2 = _reels[currentIndex + 2].videoUrl;
-      if (u2.isNotEmpty) urlsToPreload.add(u2);
-    }
-    // Previous reel for smooth backward scroll
-    if (currentIndex - 1 >= 0) {
+    if (currentIndex - 1 >= 0 && currentIndex - 1 < _reels.length) {
       final uPrev = _reels[currentIndex - 1].videoUrl;
       if (uPrev.isNotEmpty) urlsToPreload.add(uPrev);
     }
 
     if (urlsToPreload.isNotEmpty) {
-      ReelVideoCacheManager().preloadVideos(urlsToPreload, isMuted: _isGlobalMuted);
+      ReelVideoCacheManager().preloadVideos(
+        urlsToPreload,
+        isMuted: _isGlobalMuted,
+      );
+    }
+  }
+
+  void _preloadAroundAd(int nextReelIdx) {
+    if (_reels.isEmpty || !_canPlayVideos) return;
+    final urlsToPreload = <String>[];
+    if (nextReelIdx >= 0 && nextReelIdx < _reels.length) {
+      final uNext = _reels[nextReelIdx].videoUrl;
+      if (uNext.isNotEmpty) urlsToPreload.add(uNext);
+    }
+    if (nextReelIdx - 1 >= 0 && nextReelIdx - 1 < _reels.length) {
+      final uPrev = _reels[nextReelIdx - 1].videoUrl;
+      if (uPrev.isNotEmpty) urlsToPreload.add(uPrev);
+    }
+    if (urlsToPreload.isNotEmpty) {
+      ReelVideoCacheManager().preloadVideos(
+        urlsToPreload,
+        isMuted: _isGlobalMuted,
+      );
     }
   }
 
   void _onPageChanged(int index) {
     setState(() => _activePage = index);
     if (_isAdPage(index)) {
-      // Pause all reel audio/video while viewing the native in-stream ad
       ReelVideoCacheManager().pauseAll();
       final nextReelIdx = _getReelIndex(index + 1);
-      _preloadAdjacentReels(nextReelIdx);
+      _preloadAroundAd(nextReelIdx);
     } else {
       final reelIdx = _getReelIndex(index);
-      if (_reels.isNotEmpty && reelIdx < _reels.length) {
-        ReelVideoCacheManager().pauseAllExcept(_reels[reelIdx].videoUrl);
+      if (_reels.isNotEmpty && reelIdx >= 0 && reelIdx < _reels.length) {
+        final activeReel = _reels[reelIdx];
+        if (_canPlayVideos) {
+          FeedAlgorithmService.instance.markReelSeen(activeReel.id);
+          ReelVideoCacheManager().pauseAllExcept(activeReel.videoUrl);
+          _preloadAdjacentReels(reelIdx);
+        } else {
+          ReelVideoCacheManager().pauseAll();
+        }
       }
-      _preloadAdjacentReels(reelIdx);
+      if (_hasMoreReels && !_isLoadingMore && reelIdx >= _reels.length - 3) {
+        unawaited(_loadMoreReels());
+      }
     }
+  }
+
+  void _removeReelLocally(String reelId) {
+    _loadedReelIds.remove(reelId);
+    final oldActivePage = _activePage;
+
+    setState(() {
+      _reels.removeWhere((r) => r.id == reelId);
+      final maxPage = _totalPageCount > 0 ? _totalPageCount - 1 : 0;
+      if (_activePage > maxPage) {
+        _activePage = maxPage;
+      }
+    });
+
+    if (_reels.isEmpty) {
+      ReelVideoCacheManager().pauseAll();
+      if (_hasMoreReels && !_isLoadingMore) {
+        unawaited(_loadMoreReels());
+      }
+      return;
+    }
+
+    if (oldActivePage != _activePage) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_pageController.hasClients) return;
+        _pageController.jumpToPage(_activePage);
+      });
+    }
+
+    _syncPlaybackAndPreload();
+
+    final currentReelIdx = _isAdPage(_activePage)
+        ? _getReelIndex(_activePage + 1)
+        : _getReelIndex(_activePage);
+    if (_hasMoreReels &&
+        !_isLoadingMore &&
+        currentReelIdx >= _reels.length - 3) {
+      unawaited(_loadMoreReels());
+    }
+  }
+
+  void _switchFollowingOnly(bool followOnly) {
+    if (followOnly == _followingOnly) return;
+    HapticFeedback.selectionClick();
+    ReelVideoCacheManager().pauseAll();
+    setState(() {
+      _followingOnly = followOnly;
+      _isLoading = true;
+      _fetchError = false;
+      _reels = [];
+      _cursorCreatedAt = null;
+      _cursorId = null;
+      _hasMoreReels = true;
+      _loadedReelIds.clear();
+      _activePage = 0;
+    });
+    _fetchReels();
   }
 
   void _toggleGlobalMute() {
     setState(() => _isGlobalMuted = !_isGlobalMuted);
   }
 
+  Future<void> _openCreateReel() async {
+    HapticFeedback.lightImpact();
+    setState(() => _isOverlayRouteOpen = true);
+    ReelVideoCacheManager().pauseAll();
+
+    await CreateReelScreen.open(
+      context,
+      onReelCreated: () {
+        if (mounted) {
+          _fetchReels();
+        }
+      },
+    );
+
+    if (!mounted) return;
+    setState(() => _isOverlayRouteOpen = false);
+    _syncPlaybackAndPreload();
+  }
+
+  Widget _buildTopHeaderOverlay() {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              PopupMenuButton<bool>(
+                tooltip: 'Switch Reels Feed',
+                color: Colors.white,
+                elevation: 10,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  side: const BorderSide(color: ZevColors.border),
+                ),
+                initialValue: _followingOnly,
+                onSelected: _switchFollowingOnly,
+                itemBuilder: (_) => [
+                  PopupMenuItem<bool>(
+                    value: false,
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.auto_awesome_rounded,
+                          size: 18,
+                          color: !_followingOnly
+                              ? ZevColors.secondaryBlue
+                              : ZevColors.textMuted,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'For You',
+                          style: TextStyle(
+                            fontWeight: !_followingOnly
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                            color: ZevColors.deepNavy,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<bool>(
+                    value: true,
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.people_alt_rounded,
+                          size: 18,
+                          color: _followingOnly
+                              ? ZevColors.secondaryBlue
+                              : ZevColors.textMuted,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Following',
+                          style: TextStyle(
+                            fontWeight: _followingOnly
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                            color: ZevColors.deepNavy,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _followingOnly ? "Following" : "Reels",
+                        style: const TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: Colors.white70,
+                        size: 18,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: _openCreateReel,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.camera_alt_outlined,
+                    color: Colors.white,
+                    size: 21,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: Colors.black,
-        body: Center(
-          child: CircularProgressIndicator(
-            strokeWidth: 2.5,
-            color: ZevColors.primaryBlue,
-          ),
+        body: Stack(
+          children: [
+            const Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: ZevColors.primaryBlue,
+              ),
+            ),
+            _buildTopHeaderOverlay(),
+          ],
         ),
       );
     }
@@ -286,41 +544,85 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
     if (_reels.isEmpty) {
       return Scaffold(
         backgroundColor: Colors.black,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.movie_filter_outlined,
-                size: 56,
-                color: Colors.white54,
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                "No reels available",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
+        body: Stack(
+          children: [
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _fetchError
+                          ? Icons.wifi_off_rounded
+                          : Icons.movie_filter_outlined,
+                      size: 56,
+                      color: Colors.white54,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _fetchError
+                          ? "Couldn't load reels"
+                          : _followingOnly
+                              ? "No reels from Following yet"
+                              : "No reels available",
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _fetchError
+                          ? "Check your connection and try again."
+                          : _followingOnly
+                              ? "Follow creators to see their reels here, or switch to For You."
+                              : "Check back soon for new videos.",
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.white54,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 10,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        if (_followingOnly)
+                          ElevatedButton.icon(
+                            onPressed: () => _switchFollowingOnly(false),
+                            icon: const Icon(Icons.auto_awesome_rounded),
+                            label: const Text("Switch to For You"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: ZevColors.primaryBlue,
+                              foregroundColor: ZevColors.deepNavy,
+                            ),
+                          ),
+                        ElevatedButton.icon(
+                          onPressed: _fetchReels,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: Text(_fetchError ? "Try Again" : "Refresh"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _followingOnly
+                                ? Colors.white.withValues(alpha: 0.16)
+                                : ZevColors.primaryBlue,
+                            foregroundColor: _followingOnly
+                                ? Colors.white
+                                : ZevColors.deepNavy,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              const Text(
-                "Check back soon for new videos.",
-                style: TextStyle(fontSize: 13, color: Colors.white54),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: _fetchReels,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text("Refresh"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ZevColors.primaryBlue,
-                  foregroundColor: ZevColors.deepNavy,
-                ),
-              ),
-            ],
-          ),
+            ),
+            _buildTopHeaderOverlay(),
+          ],
         ),
       );
     }
@@ -336,18 +638,21 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
             itemCount: _totalPageCount,
             onPageChanged: _onPageChanged,
             itemBuilder: (context, index) {
-              final isPageActive = widget.isScreenActive && index == _activePage;
+              final isPageActive = _canPlayVideos && index == _activePage;
 
               // Render luxury native ad unit every 4 reels
               if (_isAdPage(index)) {
                 return ZevNativeAdReelUnit(
                   key: ValueKey('reel_ad_$index'),
                   isActive: isPageActive,
+                  slotKey: 'reel_slot_$index',
                 );
               }
 
               final reelIdx = _getReelIndex(index);
-              if (reelIdx >= _reels.length) return const SizedBox.shrink();
+              if (reelIdx < 0 || reelIdx >= _reels.length) {
+                return const SizedBox.shrink();
+              }
               final reel = _reels[reelIdx];
 
               return ReelPlayerItem(
@@ -356,99 +661,18 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen> {
                 isActive: isPageActive,
                 isGlobalMuted: _isGlobalMuted,
                 onToggleMute: _toggleGlobalMute,
-                onReelDeleted: () {
-                  setState(() {
-                    _reels.removeWhere((r) => r.id == reel.id);
-                  });
+                onHideOrMute: () {
+                  FeedAlgorithmService.instance.recordNegativeFeedback(
+                    reelId: reel.id,
+                    authorId: reel.userId,
+                  );
+                  _removeReelLocally(reel.id);
                 },
+                onReelDeleted: () => _removeReelLocally(reel.id),
               );
             },
           ),
-
-          // Next-Gen Claymorphic Top Reels Header Overlay
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.35),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          width: 1.2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.25),
-                            blurRadius: 10,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            "Reels",
-                            style: TextStyle(
-                              fontSize: 19,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                          SizedBox(width: 4),
-                          Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            color: Colors.white70,
-                            size: 18,
-                          ),
-                        ],
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => CreateReelScreen.open(
-                        context,
-                        onReelCreated: _fetchReels,
-                      ),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.35),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.25),
-                            width: 1.2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.25),
-                              blurRadius: 10,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.camera_alt_outlined,
-                          color: Colors.white,
-                          size: 21,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          _buildTopHeaderOverlay(),
         ],
       ),
     );

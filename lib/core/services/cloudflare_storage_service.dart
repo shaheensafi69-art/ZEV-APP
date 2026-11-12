@@ -1,13 +1,12 @@
-import 'dart:convert';
 import 'dart:io';
-import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Service to handle file uploads directly to Cloudflare R2 (S3 API compatible)
-/// with seamless fallback to Supabase Storage if Cloudflare credentials are missing.
+import 'api_client.dart';
+import 'media_compression_service.dart';
+
+/// Client-side media upload service routed strictly through `/api/v1/media/presign`
+/// and direct presigned PUT URLs into Cloudflare R2 under the isolated `zev/` prefix.
+/// Features off-main-thread image optimization & exponential-backoff retries.
 class CloudflareStorageService {
   static CloudflareStorageService? _instance;
   static CloudflareStorageService get instance =>
@@ -15,230 +14,261 @@ class CloudflareStorageService {
 
   CloudflareStorageService._();
 
-  String get _accountId => dotenv.env['CLOUDFLARE_ACCOUNT_ID'] ?? '';
-  String get _accessKeyId => dotenv.env['CLOUDFLARE_R2_ACCESS_KEY_ID'] ?? '';
-  String get _secretAccessKey =>
-      dotenv.env['CLOUDFLARE_R2_SECRET_ACCESS_KEY'] ?? '';
-  String get _defaultBucket =>
-      dotenv.env['CLOUDFLARE_R2_BUCKET_NAME'] ?? 'safiacademy-media';
-  String get _publicDomain {
-    final domain = dotenv.env['CLOUDFLARE_R2_PUBLIC_DOMAIN'];
-    if (domain != null && domain.trim().isNotEmpty) {
-      return domain.trim();
-    }
-    return 'https://media.zevapp.com';
-  }
+  static const Set<String> _allowedFolders = {
+    'avatars',
+    'covers',
+    'feed',
+    'posts',
+    'reels',
+    'stories',
+    'direct_messages',
+    'highlights',
+    'ads',
+    'temp',
+  };
 
-  bool get isConfigured {
-    return _accountId.isNotEmpty &&
-        _accessKeyId.isNotEmpty &&
-        _secretAccessKey.isNotEmpty;
-  }
-
-  /// Upload a file or bytes to Cloudflare R2 or Supabase fallback.
+  /// Uploads a file or bytes to Cloudflare R2 via a short-lived server-presigned PUT URL.
+  /// Automatically compresses large JPEG/PNG/WebP images in a background isolate unless
+  /// [compressImage] is set to false, and retries transient failures up to [maxRetries].
   Future<String> upload({
     required String bucket,
     required String path,
     File? file,
     Uint8List? bytes,
     String? contentType,
+    bool compressImage = true,
+    int maxImageDimension = 1440,
+    int imageQuality = 84,
+    int maxRetries = 3,
+    void Function(double progress)? onProgress,
   }) async {
     final initialBytes =
         bytes ?? (file != null ? await file.readAsBytes() : null);
-    if (initialBytes == null) {
+    if (initialBytes == null || initialBytes.isEmpty) {
       throw Exception('No file data provided for upload.');
     }
 
-    final targetBucket =
-        _defaultBucket.isNotEmpty ? _defaultBucket : 'safiacademy-media';
-    String sanitizedPath = path.startsWith('/') ? path.substring(1) : path;
+    final folder = _normalizeFolder(bucket);
+    final parsed = _extractFileAndSubPath(path);
+    final rawFileName = parsed.fileName;
+    var resolvedContentType =
+        _normalizeContentType(contentType, rawFileName);
+    var uploadBytes = initialBytes;
+    var effectiveName = rawFileName;
 
-    if (bucket != targetBucket &&
-        bucket.isNotEmpty &&
-        !sanitizedPath.startsWith('$bucket/')) {
-      sanitizedPath = '$bucket/$sanitizedPath';
-    }
-
-    // Keep all ZEV uploads isolated under a dedicated 'zev/' folder
-    if (!sanitizedPath.startsWith('zev/')) {
-      sanitizedPath = 'zev/$sanitizedPath';
-    }
-
-    final mimeType = contentType ?? _inferContentType(sanitizedPath);
-
-    if (isConfigured) {
-      try {
-        return await _uploadToR2(
-          bucket: targetBucket,
-          path: sanitizedPath,
-          bytes: initialBytes,
-          contentType: mimeType,
-        );
-      } catch (e) {
-        debugPrint('[CloudflareStorageService] R2 Upload failed: $e, falling back to Supabase');
+    if (compressImage &&
+        (resolvedContentType == 'image/jpeg' ||
+            resolvedContentType == 'image/png' ||
+            resolvedContentType == 'image/webp')) {
+      final optimized = await MediaCompressionService.instance.compressImageBytes(
+        initialBytes,
+        originalContentType: resolvedContentType,
+        originalFileName: rawFileName,
+        maxDimension: maxImageDimension,
+        quality: imageQuality,
+      );
+      uploadBytes = optimized.bytes;
+      resolvedContentType = optimized.contentType;
+      if (optimized.wasCompressed && !effectiveName.toLowerCase().endsWith('.${optimized.extension}')) {
+        final stem = effectiveName.contains('.')
+            ? effectiveName.substring(0, effectiveName.lastIndexOf('.'))
+            : effectiveName;
+        effectiveName = '$stem.${optimized.extension}';
       }
     }
 
-    return await _uploadToSupabase(
-      bucket: bucket.isNotEmpty ? bucket : 'avatars',
-      path: sanitizedPath,
-      bytes: initialBytes,
-      file: file,
-      contentType: mimeType,
-    );
+    final fileName = _ensureMatchingExtension(effectiveName, resolvedContentType);
+    final attempts = maxRetries.clamp(1, 5);
+    Object? lastError;
+
+    for (int attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        onProgress?.call(0.02);
+        final presignRes = await ApiClient.instance.post(
+          '/api/v1/media/presign',
+          data: {
+            'folder': folder,
+            'contentType': resolvedContentType,
+            'fileSize': uploadBytes.length,
+            'fileName': fileName,
+            if (parsed.subPath.isNotEmpty) 'subPath': parsed.subPath,
+          },
+        );
+
+        final uploadUrl = presignRes['uploadUrl']?.toString() ?? '';
+        final publicUrl = presignRes['publicUrl']?.toString() ?? '';
+        if (uploadUrl.isEmpty || publicUrl.isEmpty) {
+          throw Exception('Server did not return a valid presigned upload URL.');
+        }
+
+        final rawHeaders = presignRes['headers'] ?? presignRes['requiredHeaders'];
+        final headers = <String, String>{};
+        if (rawHeaders is Map) {
+          rawHeaders.forEach((key, value) {
+            if (key != null && value != null) {
+              headers[key.toString()] = value.toString();
+            }
+          });
+        }
+        headers.putIfAbsent('Content-Type', () => resolvedContentType);
+
+        await ApiClient.instance.uploadToPresignedUrl(
+          uploadUrl: uploadUrl,
+          bytes: uploadBytes,
+          headers: headers,
+          onProgress: (p) => onProgress?.call((0.05 + p * 0.95).clamp(0.0, 1.0)),
+        );
+
+        onProgress?.call(1.0);
+        return publicUrl;
+      } catch (e) {
+        lastError = e;
+        if (e is ApiException &&
+            e.statusCode != null &&
+            e.statusCode! >= 400 &&
+            e.statusCode! < 500 &&
+            e.statusCode != 408 &&
+            e.statusCode != 429) {
+          rethrow;
+        }
+        if (attempt >= attempts) rethrow;
+        final backoffMs = 500 * attempt * attempt;
+        debugPrint(
+          '[CloudflareStorageService] Upload attempt $attempt/$attempts failed ($e); retrying in ${backoffMs}ms',
+        );
+        await Future<void>.delayed(Duration(milliseconds: backoffMs));
+      }
+    }
+
+    throw lastError ?? Exception('Upload failed.');
   }
 
-  Future<String> _uploadToR2({
-    required String bucket,
-    required String path,
-    required Uint8List bytes,
-    required String contentType,
-  }) async {
-    final host = '$_accountId.r2.cloudflarestorage.com';
-    final requestPath = '/$bucket/$path';
-    final uri = Uri.parse('https://$host$requestPath');
+  /// Requests verified R2 object cleanup via `/api/v1/media/delete`.
+  Future<bool> deleteByUrl(String url) async {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return true;
+    try {
+      final res = await ApiClient.instance.post(
+        '/api/v1/media/delete',
+        data: {'url': trimmed},
+      );
+      return res['ok'] == true;
+    } catch (e) {
+      debugPrint('[CloudflareStorageService] deleteByUrl notice: $e');
+      return false;
+    }
+  }
 
-    final now = DateTime.now().toUtc();
-    final isoDate = _formatIsoDate(now);
-    final dateStamp = _formatDateStamp(now);
+  /// Requests batch deletion of owned R2 URLs via `/api/v1/media/delete`.
+  Future<bool> deleteUrls(List<String> urls) async {
+    final clean = urls.map((u) => u.trim()).where((u) => u.isNotEmpty).toList();
+    if (clean.isEmpty) return true;
+    try {
+      final res = await ApiClient.instance.post(
+        '/api/v1/media/delete',
+        data: {'urls': clean},
+      );
+      return res['ok'] == true;
+    } catch (e) {
+      debugPrint('[CloudflareStorageService] deleteUrls notice: $e');
+      return false;
+    }
+  }
 
-    const region = 'auto';
-    const service = 's3';
+  String _normalizeFolder(String bucket) {
+    final lower = bucket.trim().toLowerCase();
+    if (lower == 'chat' || lower == 'messages') return 'direct_messages';
+    if (lower == 'posts') return 'feed';
+    if (_allowedFolders.contains(lower)) return lower;
+    return 'temp';
+  }
 
-    final payloadHash = sha256.convert(bytes).toString();
+  ({String fileName, String subPath}) _extractFileAndSubPath(String rawPath) {
+    var clean = rawPath.replaceAll('\\', '/').trim();
+    while (clean.startsWith('/')) {
+      clean = clean.substring(1);
+    }
+    final segments = clean.split('/').where((s) => s.isNotEmpty).toList();
+    if (segments.isEmpty) {
+      return (fileName: 'upload.jpg', subPath: '');
+    }
 
-    final canonicalHeaders =
-        'content-length:${bytes.length}\ncontent-type:$contentType\nhost:$host\nx-amz-content-sha256:$payloadHash\nx-amz-date:$isoDate\n';
-    final signedHeaders =
-        'content-length;content-type;host;x-amz-content-sha256;x-amz-date';
+    final fileName = segments.last;
+    final dirSegments = segments.take(segments.length - 1).where((s) {
+      final l = s.toLowerCase();
+      return l != 'zev' &&
+          l != 'chat' &&
+          l != 'direct_messages' &&
+          !_allowedFolders.contains(l);
+    }).toList();
 
-    final canonicalRequest = [
-      'PUT',
-      requestPath,
-      '',
-      canonicalHeaders,
-      signedHeaders,
-      payloadHash,
-    ].join('\n');
+    final subPath = dirSegments
+        .join('_')
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9_-]'), '');
 
-    final credentialScope = '$dateStamp/$region/$service/aws4_request';
-    final stringToSign = [
-      'AWS4-HMAC-SHA256',
-      isoDate,
-      credentialScope,
-      sha256.convert(utf8.encode(canonicalRequest)).toString(),
-    ].join('\n');
+    return (fileName: fileName, subPath: subPath);
+  }
 
-    final signingKey = _getSignatureKey(
-      _secretAccessKey,
-      dateStamp,
-      region,
-      service,
-    );
-    final signature = Hmac(
-      sha256,
-      signingKey,
-    ).convert(utf8.encode(stringToSign)).toString();
+  String _normalizeContentType(String? explicit, String fileName) {
+    if (explicit != null && explicit.trim().isNotEmpty) {
+      final mime = explicit.trim().toLowerCase();
+      if (mime == 'image/jpg') return 'image/jpeg';
+      if (mime != 'application/octet-stream') return mime;
+    }
+    return _inferContentType(fileName);
+  }
 
-    final authorization =
-        'AWS4-HMAC-SHA256 Credential=$_accessKeyId/$credentialScope, SignedHeaders=$signedHeaders, Signature=$signature';
+  String _ensureMatchingExtension(String fileName, String mimeType) {
+    final ext = fileName.contains('.')
+        ? fileName.split('.').last.toLowerCase()
+        : '';
 
-    final requestHeaders = {
-      'Host': host,
-      'x-amz-date': isoDate,
-      'x-amz-content-sha256': payloadHash,
-      'Content-Type': contentType,
-      'Content-Length': bytes.length.toString(),
-      'Authorization': authorization,
+    const validMap = <String, List<String>>{
+      'image/jpeg': ['jpg', 'jpeg'],
+      'image/png': ['png'],
+      'image/webp': ['webp'],
+      'image/gif': ['gif'],
+      'image/heic': ['heic', 'heif'],
+      'image/heif': ['heif', 'heic'],
+      'video/mp4': ['mp4', 'm4v'],
+      'video/quicktime': ['mov'],
+      'video/webm': ['webm'],
+      'video/x-m4v': ['m4v', 'mp4'],
+      'audio/m4a': ['m4a'],
+      'audio/x-m4a': ['m4a'],
+      'audio/mp4': ['m4a', 'mp4'],
+      'audio/aac': ['aac'],
+      'audio/mpeg': ['mp3'],
+      'audio/wav': ['wav'],
+      'audio/ogg': ['ogg'],
+      'audio/webm': ['weba', 'webm'],
+      'application/pdf': ['pdf'],
+      'text/plain': ['txt'],
+      'text/csv': ['csv'],
+      'application/json': ['json'],
+      'application/zip': ['zip'],
+      'application/msword': ['doc'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['docx'],
+      'application/vnd.ms-excel': ['xls'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['xlsx'],
+      'application/vnd.ms-powerpoint': ['ppt'],
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['pptx'],
     };
 
-    final client = http.Client();
-    try {
-      final response = await client
-          .put(uri, headers: requestHeaders, body: bytes)
-          .timeout(const Duration(minutes: 2));
+    final allowedExts = validMap[mimeType];
+    if (allowedExts == null) return fileName;
+    if (allowedExts.contains(ext)) return fileName;
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        if (_publicDomain.isNotEmpty) {
-          final domain = _publicDomain.endsWith('/')
-              ? _publicDomain.substring(0, _publicDomain.length - 1)
-              : _publicDomain;
-          return '$domain/$path';
-        }
-        return 'https://$host$requestPath';
-      } else {
-        throw Exception(
-          'R2 Upload HTTP Error ${response.statusCode}: ${response.body}',
-        );
-      }
-    } finally {
-      client.close();
-    }
+    final stem = fileName.contains('.')
+        ? fileName.substring(0, fileName.lastIndexOf('.'))
+        : fileName;
+    final cleanStem = stem.isEmpty ? 'upload' : stem;
+    return '$cleanStem.${allowedExts.first}';
   }
 
-  Future<String> _uploadToSupabase({
-    required String bucket,
-    required String path,
-    required Uint8List bytes,
-    File? file,
-    required String contentType,
-  }) async {
-    final supabase = Supabase.instance.client;
-    final fileOptions = FileOptions(contentType: contentType, upsert: true);
-
-    if (file != null && !kIsWeb) {
-      await supabase.storage
-          .from(bucket)
-          .upload(path, file, fileOptions: fileOptions);
-    } else {
-      await supabase.storage
-          .from(bucket)
-          .uploadBinary(path, bytes, fileOptions: fileOptions);
-    }
-
-    return supabase.storage.from(bucket).getPublicUrl(path);
-  }
-
-  List<int> _getSignatureKey(
-    String key,
-    String dateStamp,
-    String regionName,
-    String serviceName,
-  ) {
-    final kDate = Hmac(
-      sha256,
-      utf8.encode('AWS4$key'),
-    ).convert(utf8.encode(dateStamp)).bytes;
-    final kRegion = Hmac(sha256, kDate).convert(utf8.encode(regionName)).bytes;
-    final kService = Hmac(
-      sha256,
-      kRegion,
-    ).convert(utf8.encode(serviceName)).bytes;
-    final kSigning = Hmac(
-      sha256,
-      kService,
-    ).convert(utf8.encode('aws4_request')).bytes;
-    return kSigning;
-  }
-
-  String _formatIsoDate(DateTime date) {
-    final y = date.year.toString().padLeft(4, '0');
-    final m = date.month.toString().padLeft(2, '0');
-    final d = date.day.toString().padLeft(2, '0');
-    final hh = date.hour.toString().padLeft(2, '0');
-    final mm = date.minute.toString().padLeft(2, '0');
-    final ss = date.second.toString().padLeft(2, '0');
-    return '$y$m${d}T$hh$mm${ss}Z';
-  }
-
-  String _formatDateStamp(DateTime date) {
-    final y = date.year.toString().padLeft(4, '0');
-    final m = date.month.toString().padLeft(2, '0');
-    final d = date.day.toString().padLeft(2, '0');
-    return '$y$m$d';
-  }
-
-  String _inferContentType(String path) {
+  /// Infers MIME type for supported images, video, audio, and chat documents.
+  static String inferMimeType(String path) {
     final ext = path.split('.').last.toLowerCase();
     switch (ext) {
       case 'jpg':
@@ -250,10 +280,17 @@ class CloudflareStorageService {
         return 'image/webp';
       case 'gif':
         return 'image/gif';
+      case 'heic':
+        return 'image/heic';
+      case 'heif':
+        return 'image/heif';
       case 'mp4':
+      case 'm4v':
         return 'video/mp4';
       case 'mov':
         return 'video/quicktime';
+      case 'webm':
+        return 'video/webm';
       case 'm4a':
         return 'audio/m4a';
       case 'aac':
@@ -262,9 +299,36 @@ class CloudflareStorageService {
         return 'audio/mpeg';
       case 'wav':
         return 'audio/wav';
+      case 'ogg':
+        return 'audio/ogg';
+      case 'weba':
+        return 'audio/webm';
+      case 'pdf':
+        return 'application/pdf';
+      case 'txt':
+        return 'text/plain';
+      case 'csv':
+        return 'text/csv';
+      case 'json':
+        return 'application/json';
+      case 'zip':
+        return 'application/zip';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'xls':
+        return 'application/vnd.ms-excel';
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case 'ppt':
+        return 'application/vnd.ms-powerpoint';
+      case 'pptx':
+        return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
       default:
         return 'application/octet-stream';
     }
   }
-}
 
+  String _inferContentType(String path) => inferMimeType(path);
+}

@@ -85,5 +85,37 @@ class ReelItem {
       createdAt: createdAt ?? this.createdAt,
     );
   }
+
+  factory ReelItem.fromRpcMap(Map<String, dynamic> r) {
+    final fn = (r['author_first_name'] ?? '').toString();
+    final ln = (r['author_last_name'] ?? '').toString();
+    final full = '$fn $ln'.trim();
+    final username = (r['author_username'] ?? '').toString();
+
+    return ReelItem(
+      id: r['id']?.toString() ?? '',
+      userId: r['user_id']?.toString() ?? '',
+      authorUsername: username.isNotEmpty
+          ? username
+          : (full.isNotEmpty ? full : 'creator'),
+      authorFullName: full,
+      authorAvatar: (r['author_avatar_url'] ?? '').toString(),
+      isVerified: r['author_is_verified'] == true,
+      videoUrl: (r['video_url'] ?? '').toString(),
+      thumbnailUrl: r['thumbnail_url']?.toString(),
+      title: (r['title'] ?? '').toString(),
+      description: (r['description'] ?? '').toString(),
+      category: (r['category'] ?? 'Explore').toString(),
+      durationSeconds: (r['duration_seconds'] as num?)?.toInt() ?? 30,
+      viewsCount: (r['views_count'] as num?)?.toInt() ?? 0,
+      likesCount: (r['likes_count'] as num?)?.toInt() ?? 0,
+      isLikedByMe: r['is_liked_by_me'] == true,
+      commentsCount: (r['comments_count'] as num?)?.toInt() ?? 0,
+      isBookmarkedByMe: r['is_bookmarked_by_me'] == true,
+      isAuthorFollowed: r['is_author_followed'] == true,
+      createdAt: DateTime.tryParse(r['created_at']?.toString() ?? '') ??
+          DateTime.now(),
+    );
+  }
 }
 

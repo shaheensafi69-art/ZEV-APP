@@ -2,15 +2,18 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/services/content_deletion_service.dart';
 import '../../../core/services/multi_account_service.dart';
-import '../../../core/services/notification_service.dart';
+import '../../../core/services/social_graph_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
 import '../../feed/models/feed_post_item.dart';
 import '../../feed/screens/create_post_screen.dart';
-import '../../feed/screens/fullscreen_media_viewer.dart';
+import '../../feed/screens/drafts_scheduled_screen.dart';
+import '../../feed/screens/post_detail_screen.dart';
+import '../../live/screens/live_rooms_screen.dart';
 import '../../reels/models/reel_item.dart';
 import '../../reels/screens/create_reel_screen.dart';
 import '../../reels/widgets/reel_player_item.dart';
@@ -20,6 +23,7 @@ import '../models/story_highlight_model.dart';
 import '../services/story_highlight_service.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_video_thumbnail.dart';
+import '../widgets/appeal_restriction_sheet.dart';
 import '../widgets/create_highlight_sheet.dart';
 import '../widgets/highlight_viewer_screen.dart';
 import 'user_follows_screen.dart';
@@ -27,6 +31,7 @@ import '../widgets/video_cover_thumbnail.dart';
 import '../../chat/screens/chat_conversation_screen.dart';
 import '../../discover/screens/discover_screen.dart';
 import 'edit_profile_screen.dart';
+import 'creator_insights_screen.dart';
 import 'profile_settings_screen.dart';
 import 'share_profile_screen.dart';
 
@@ -77,11 +82,21 @@ class _ProfileScreenState extends State<ProfileScreen>
   List<ReelItem> _userReels = [];
   List<FeedPostItem> _userReposts = [];
   List<FeedPostItem> _userSavedPosts = [];
+  List<ReelItem> _userSavedReels = [];
+  List<Map<String, dynamic>> _userLinks = [];
 
   int _followersCount = 0;
   int _followingCount = 0;
+  int _pendingRequestsCount = 0;
   bool _isFollowing = false;
+  bool _followRequested = false;
   bool _isFollowLoading = false;
+
+  // Visitor privacy & safety policy
+  Map<String, dynamic>? _interactionPolicy;
+  bool _isBlockedView = false;
+  bool _blockedByMe = false;
+  bool _canViewContent = true;
 
   // Active Story
   bool _hasActiveStory = false;
@@ -91,6 +106,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   bool _showSuggestedCreators = false;
   List<Map<String, dynamic>> _suggestedCreators = [];
   final Set<String> _followedSuggestedIds = {};
+  final Set<String> _requestedSuggestedIds = {};
 
   // Real User Highlights
   List<StoryHighlight> _highlights = [];
@@ -104,6 +120,18 @@ class _ProfileScreenState extends State<ProfileScreen>
   bool get _isMyProfile {
     final currentId = supabase.auth.currentUser?.id;
     return currentId != null && currentId == _targetUserId;
+  }
+
+  bool _hasActiveRestrictionStanding() {
+    if (_profile['is_restricted'] != true) return false;
+    final untilRaw = _profile['restricted_until']?.toString();
+    if (untilRaw != null && untilRaw.trim().isNotEmpty) {
+      final dt = DateTime.tryParse(untilRaw)?.toUtc();
+      if (dt != null && !dt.isAfter(DateTime.now().toUtc())) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @override
@@ -126,21 +154,125 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
 
     try {
+      await _fetchProfile();
+
+      if (!_isMyProfile) {
+        final policy = await SocialGraphService.instance.getInteractionPolicy(
+          _targetUserId,
+        );
+        final isBlocked = policy['is_blocked'] == true;
+        final canView = policy['can_view_content'] != false && !isBlocked;
+        bool blockedByMe = false;
+        if (isBlocked) {
+          final me = supabase.auth.currentUser?.id;
+          if (me != null) {
+            try {
+              final row = await supabase
+                  .from('user_blocks')
+                  .select('blocked_id')
+                  .eq('blocker_id', me)
+                  .eq('blocked_id', _targetUserId)
+                  .maybeSingle();
+              blockedByMe = row != null;
+            } catch (_) {}
+          }
+        }
+        if (mounted) {
+          setState(() {
+            _interactionPolicy = policy;
+            _isBlockedView = isBlocked;
+            _blockedByMe = blockedByMe;
+            _canViewContent = canView;
+            _isFollowing = policy['is_following'] == true;
+            _followRequested = policy['is_pending_request'] == true;
+          });
+        }
+        if (isBlocked) {
+          if (mounted) setState(() => _isLoading = false);
+          return;
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _interactionPolicy = null;
+            _isBlockedView = false;
+            _blockedByMe = false;
+            _canViewContent = true;
+            _isFollowing = false;
+            _followRequested = false;
+          });
+        }
+      }
+
       await Future.wait([
-        _fetchProfile(),
-        _fetchPosts(),
-        _fetchReels(),
         _fetchFollowCounts(),
-        _fetchActiveStory(),
-        _loadHighlights(),
-        if (_isMyProfile) _fetchSavedPosts(),
-        _fetchReposts(),
-        _fetchSuggestedCreators(),
+        _fetchUserLinks(),
+        if (_isMyProfile) _fetchPendingRequestCount(),
+        if (_isMyProfile || _canViewContent) ...[
+          _fetchPosts(),
+          _fetchReels(),
+          _fetchActiveStory(),
+          _loadHighlights(),
+          _fetchReposts(),
+        ],
+        if (_isMyProfile) ...[
+          _fetchSavedPosts(),
+          _fetchSuggestedCreators(),
+        ],
       ]);
+
+      if (!_isMyProfile && !_canViewContent && mounted) {
+        setState(() {
+          _userPosts = [];
+          _userReels = [];
+          _userReposts = [];
+          _hasActiveStory = false;
+          _activeStory = null;
+          _highlights = [];
+          _isLoadingHighlights = false;
+        });
+      }
     } catch (e) {
       debugPrint("Profile load warning: $e");
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fetchPendingRequestCount() async {
+    final cnt = await SocialGraphService.instance.fetchPendingRequestCount();
+    if (mounted) setState(() => _pendingRequestsCount = cnt);
+  }
+
+  Future<void> _fetchUserLinks() async {
+    try {
+      final res = await supabase
+          .from('user_links')
+          .select('id, title, url, sort_order')
+          .eq('user_id', _targetUserId)
+          .order('sort_order', ascending: true);
+      if (mounted) {
+        setState(() {
+          _userLinks = List<Map<String, dynamic>>.from(res as List);
+        });
+      }
+    } catch (e) {
+      debugPrint("Fetch user links error: $e");
+    }
+  }
+
+  Future<void> _launchExternalLink(String rawUrl) async {
+    var trimmed = rawUrl.trim();
+    if (trimmed.isEmpty) return;
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      trimmed = 'https://$trimmed';
+    }
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null || !uri.hasScheme) return;
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      debugPrint("Launch external link notice: $e");
     }
   }
 
@@ -197,11 +329,12 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Future<void> _fetchActiveStory() async {
     try {
-      final nowStr = DateTime.now().toIso8601String();
+      final nowStr = DateTime.now().toUtc().toIso8601String();
       final res = await supabase
           .from('user_stories')
           .select('id, user_id, media_url, media_type, caption, expires_at')
           .eq('user_id', _targetUserId)
+          .isFilter('deleted_at', null)
           .gt('expires_at', nowStr)
           .order('created_at', ascending: false);
 
@@ -216,6 +349,8 @@ class _ProfileScreenState extends State<ProfileScreen>
               avatarUrl: _profile['avatar_url'] ?? '',
               storiesCount: list.length,
             );
+          } else {
+            _activeStory = null;
           }
         });
       }
@@ -240,15 +375,87 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
   }
 
-  Future<void> _fetchPosts() async {
+  Future<Map<String, List<FeedPostMediaItem>>> _fetchPostMediaMap(
+    Iterable<String> postIds,
+  ) async {
+    final ids = postIds.where((id) => id.isNotEmpty).toSet().toList();
+    if (ids.isEmpty) return {};
     try {
+      final res = await supabase
+          .from('post_media')
+          .select()
+          .inFilter('post_id', ids)
+          .order('sort_order', ascending: true);
+      final map = <String, List<FeedPostMediaItem>>{};
+      for (final row in (res as List)) {
+        if (row is Map) {
+          final m = Map<String, dynamic>.from(row);
+          final pid = m['post_id']?.toString() ?? '';
+          final item = FeedPostMediaItem.fromMap(m);
+          if (pid.isNotEmpty && item.mediaUrl.trim().isNotEmpty) {
+            map.putIfAbsent(pid, () => []).add(item);
+          }
+        }
+      }
+      return map;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> _fetchPosts() async {
+    final currentUserId = supabase.auth.currentUser?.id;
+    try {
+      final nowIso = DateTime.now().toUtc().toIso8601String();
       final res = await supabase
           .from('discussion_posts')
           .select()
           .eq('student_id', _targetUserId)
+          .isFilter('deleted_at', null)
+          .eq('is_draft', false)
+          .or('scheduled_at.is.null,scheduled_at.lte.$nowIso')
           .order('created_at', ascending: false);
 
-      final list = (res as List).map((p) {
+      final postRows = List<Map<String, dynamic>>.from(res as List);
+      final postIds = postRows.map((p) => p['id'].toString()).toList();
+      final bookmarkedIds = <String>{};
+      final likedIds = <String>{};
+      final repostedIds = <String>{};
+      final mediaMap = await _fetchPostMediaMap(postIds);
+
+      if (currentUserId != null && postIds.isNotEmpty) {
+        try {
+          final [bmRes, lkRes, rpRes] = await Future.wait([
+            supabase
+                .from('discussion_bookmarks')
+                .select('post_id')
+                .eq('user_id', currentUserId)
+                .inFilter('post_id', postIds),
+            supabase
+                .from('discussion_likes')
+                .select('post_id')
+                .eq('student_id', currentUserId)
+                .inFilter('post_id', postIds),
+            supabase
+                .from('post_reposts')
+                .select('post_id')
+                .eq('user_id', currentUserId)
+                .inFilter('post_id', postIds),
+          ]);
+          for (final row in (bmRes as List)) {
+            bookmarkedIds.add(row['post_id'].toString());
+          }
+          for (final row in (lkRes as List)) {
+            likedIds.add(row['post_id'].toString());
+          }
+          for (final row in (rpRes as List)) {
+            repostedIds.add(row['post_id'].toString());
+          }
+        } catch (_) {}
+      }
+
+      final list = postRows.map((p) {
+        final id = p['id'].toString();
         final title = (p['title'] ?? '').toString();
         String catTag = 'Explore';
         if (title.contains('[') && title.contains(']')) {
@@ -258,8 +465,13 @@ class _ProfileScreenState extends State<ProfileScreen>
             catTag = title.substring(start + 1, end).trim();
           }
         }
+        final items = mediaMap[id] ?? const <FeedPostMediaItem>[];
+        var primaryUrl = (p['image_url'] ?? '').toString();
+        if (primaryUrl.isEmpty && items.isNotEmpty) {
+          primaryUrl = items.first.mediaUrl;
+        }
         return FeedPostItem(
-          id: p['id'].toString(),
+          id: id,
           authorId: _targetUserId,
           authorUsername: _profile['username'] ?? 'user',
           authorFullName:
@@ -267,16 +479,23 @@ class _ProfileScreenState extends State<ProfileScreen>
                   .trim(),
           authorAvatar: _profile['avatar_url'] ?? '',
           isVerified: _profile['is_verified'] == true,
-          title: p['title'] ?? '',
+          title: title,
           content: p['content'] ?? '',
-          imageUrl: p['image_url'] ?? '',
+          imageUrl: primaryUrl,
+          mediaItems: items,
+          location: (p['location'] ?? '').toString(),
+          editedAt: p['edited_at'] != null
+              ? DateTime.tryParse(p['edited_at'].toString())
+              : null,
           createdAt:
               DateTime.tryParse(p['created_at'].toString()) ?? DateTime.now(),
           categoryTag: catTag,
           likesCount: (p['likes_count'] as num?)?.toInt() ?? 0,
-          isLikedByMe: false,
+          isLikedByMe: likedIds.contains(id),
           commentsCount: (p['comments_count'] as num?)?.toInt() ?? 0,
           repostsCount: (p['reposts_count'] as num?)?.toInt() ?? 0,
+          isRepostedByMe: repostedIds.contains(id),
+          isBookmarkedByMe: bookmarkedIds.contains(id),
         );
       }).toList();
 
@@ -287,16 +506,48 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _fetchReels() async {
+    final currentUserId = supabase.auth.currentUser?.id;
     try {
       final res = await supabase
           .from('reels')
           .select()
           .eq('user_id', _targetUserId)
+          .isFilter('deleted_at', null)
+          .eq('is_published', true)
           .order('created_at', ascending: false);
 
-      final list = (res as List).map((r) {
+      final reelRows = List<Map<String, dynamic>>.from(res as List);
+      final reelIds = reelRows.map((r) => r['id'].toString()).toList();
+      final likedIds = <String>{};
+      final bookmarkedIds = <String>{};
+
+      if (currentUserId != null && reelIds.isNotEmpty) {
+        try {
+          final [lkRes, bmRes] = await Future.wait([
+            supabase
+                .from('reel_likes')
+                .select('reel_id')
+                .eq('user_id', currentUserId)
+                .inFilter('reel_id', reelIds),
+            supabase
+                .from('reel_bookmarks')
+                .select('reel_id')
+                .eq('user_id', currentUserId)
+                .inFilter('reel_id', reelIds),
+          ]);
+          for (final row in (lkRes as List)) {
+            likedIds.add(row['reel_id'].toString());
+          }
+          for (final row in (bmRes as List)) {
+            bookmarkedIds.add(row['reel_id'].toString());
+          }
+        } catch (_) {}
+      }
+
+      final list = reelRows.map((r) {
+        final id = r['id'].toString();
         return ReelItem(
-          id: r['id'].toString(),
+          id: id,
           userId: _targetUserId,
           authorUsername: _profile['username'] ?? 'user',
           authorFullName:
@@ -309,10 +560,13 @@ class _ProfileScreenState extends State<ProfileScreen>
           title: r['title'] ?? '',
           description: r['description'] ?? '',
           category: r['category'] ?? 'Social',
-          durationSeconds: r['duration_seconds'] ?? 15,
-          viewsCount: r['views_count'] ?? 0,
-          likesCount: r['likes_count'] ?? 0,
-          commentsCount: r['comments_count'] ?? 0,
+          durationSeconds: (r['duration_seconds'] as num?)?.toInt() ?? 15,
+          viewsCount: (r['views_count'] as num?)?.toInt() ?? 0,
+          likesCount: (r['likes_count'] as num?)?.toInt() ?? 0,
+          isLikedByMe: likedIds.contains(id),
+          commentsCount: (r['comments_count'] as num?)?.toInt() ?? 0,
+          isBookmarkedByMe: bookmarkedIds.contains(id),
+          isAuthorFollowed: _isFollowing,
           createdAt:
               DateTime.tryParse(r['created_at'].toString()) ?? DateTime.now(),
         );
@@ -321,6 +575,27 @@ class _ProfileScreenState extends State<ProfileScreen>
       if (mounted) setState(() => _userReels = list);
     } catch (e) {
       debugPrint("Fetch user reels error: $e");
+    }
+  }
+
+  Future<Map<String, Map<String, dynamic>>> _fetchProfilesMap(
+    Iterable<String> userIds,
+  ) async {
+    final ids = userIds.where((id) => id.isNotEmpty).toSet().toList();
+    if (ids.isEmpty) return {};
+    try {
+      final res = await supabase
+          .from('profiles')
+          .select('id, username, first_name, last_name, avatar_url, is_verified')
+          .inFilter('id', ids);
+      final map = <String, Map<String, dynamic>>{};
+      for (final p in (res as List)) {
+        final m = Map<String, dynamic>.from(p as Map);
+        map[m['id'].toString()] = m;
+      }
+      return map;
+    } catch (_) {
+      return {};
     }
   }
 
@@ -341,29 +616,60 @@ class _ProfileScreenState extends State<ProfileScreen>
         return;
       }
 
+      final nowIso = DateTime.now().toUtc().toIso8601String();
       final postsRes = await supabase
           .from('discussion_posts')
           .select()
           .inFilter('id', postIds)
+          .isFilter('deleted_at', null)
+          .eq('is_draft', false)
+          .or('scheduled_at.is.null,scheduled_at.lte.$nowIso')
           .order('created_at', ascending: false);
 
-      final list = (postsRes as List).map((p) {
+      final rows = List<Map<String, dynamic>>.from(postsRes as List);
+      final profilesMap = await _fetchProfilesMap(
+        rows.map((p) => p['student_id']?.toString() ?? ''),
+      );
+      final mediaMap = await _fetchPostMediaMap(
+        rows.map((p) => p['id'].toString()),
+      );
+
+      final list = rows.map((p) {
+        final id = p['id'].toString();
+        final authorId = p['student_id']?.toString() ?? '';
+        final prof = profilesMap[authorId] ?? const <String, dynamic>{};
+        final fn = (prof['first_name'] ?? '').toString().trim();
+        final ln = (prof['last_name'] ?? '').toString().trim();
+        final full = "$fn $ln".trim();
+        final uname = (prof['username'] ?? 'user').toString();
+        final items = mediaMap[id] ?? const <FeedPostMediaItem>[];
+        var primaryUrl = (p['image_url'] ?? '').toString();
+        if (primaryUrl.isEmpty && items.isNotEmpty) {
+          primaryUrl = items.first.mediaUrl;
+        }
+
         return FeedPostItem(
-          id: p['id'].toString(),
-          authorId: p['student_id']?.toString() ?? '',
-          authorUsername: 'creator',
-          authorFullName: 'ZEV Creator',
-          authorAvatar: '',
-          isVerified: false,
+          id: id,
+          authorId: authorId,
+          authorUsername: uname,
+          authorFullName: full.isNotEmpty ? full : '@$uname',
+          authorAvatar: (prof['avatar_url'] ?? '').toString(),
+          isVerified: prof['is_verified'] == true,
           title: p['title'] ?? '',
           content: p['content'] ?? '',
-          imageUrl: p['image_url'] ?? '',
+          imageUrl: primaryUrl,
+          mediaItems: items,
+          location: (p['location'] ?? '').toString(),
+          editedAt: p['edited_at'] != null
+              ? DateTime.tryParse(p['edited_at'].toString())
+              : null,
           createdAt:
               DateTime.tryParse(p['created_at'].toString()) ?? DateTime.now(),
           likesCount: (p['likes_count'] as num?)?.toInt() ?? 0,
           isLikedByMe: false,
           commentsCount: (p['comments_count'] as num?)?.toInt() ?? 0,
           repostsCount: (p['reposts_count'] as num?)?.toInt() ?? 0,
+          isRepostedByMe: true,
         );
       }).toList();
 
@@ -375,78 +681,214 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Future<void> _fetchSavedPosts() async {
     try {
-      final res = await supabase
-          .from('post_bookmarks')
-          .select('post_id')
-          .eq('user_id', _targetUserId);
+      final [postBmRes, reelBmRes] = await Future.wait([
+        supabase
+            .from('discussion_bookmarks')
+            .select('post_id')
+            .eq('user_id', _targetUserId)
+            .order('created_at', ascending: false),
+        supabase
+            .from('reel_bookmarks')
+            .select('reel_id')
+            .eq('user_id', _targetUserId)
+            .order('created_at', ascending: false),
+      ]);
 
-      final postIds = (res as List)
+      final postIds = (postBmRes as List)
           .map((r) => r['post_id']?.toString() ?? '')
           .where((id) => id.isNotEmpty)
           .toList();
 
-      if (postIds.isEmpty) {
-        if (mounted) setState(() => _userSavedPosts = []);
-        return;
+      final reelIds = (reelBmRes as List)
+          .map((r) => r['reel_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
+
+      List<FeedPostItem> savedPosts = [];
+      if (postIds.isNotEmpty) {
+        final nowIso = DateTime.now().toUtc().toIso8601String();
+        final postsRes = await supabase
+            .from('discussion_posts')
+            .select()
+            .inFilter('id', postIds)
+            .isFilter('deleted_at', null)
+            .eq('is_draft', false)
+            .or('scheduled_at.is.null,scheduled_at.lte.$nowIso')
+            .order('created_at', ascending: false);
+
+        final pRows = List<Map<String, dynamic>>.from(postsRes as List);
+        final pProfiles = await _fetchProfilesMap(
+          pRows.map((p) => p['student_id']?.toString() ?? ''),
+        );
+        final pMedia = await _fetchPostMediaMap(
+          pRows.map((p) => p['id'].toString()),
+        );
+
+        savedPosts = pRows.map((p) {
+          final id = p['id'].toString();
+          final authorId = p['student_id']?.toString() ?? '';
+          final prof = pProfiles[authorId] ?? const <String, dynamic>{};
+          final fn = (prof['first_name'] ?? '').toString().trim();
+          final ln = (prof['last_name'] ?? '').toString().trim();
+          final full = "$fn $ln".trim();
+          final uname = (prof['username'] ?? 'user').toString();
+          final items = pMedia[id] ?? const <FeedPostMediaItem>[];
+          var primaryUrl = (p['image_url'] ?? '').toString();
+          if (primaryUrl.isEmpty && items.isNotEmpty) {
+            primaryUrl = items.first.mediaUrl;
+          }
+
+          return FeedPostItem(
+            id: id,
+            authorId: authorId,
+            authorUsername: uname,
+            authorFullName: full.isNotEmpty ? full : '@$uname',
+            authorAvatar: (prof['avatar_url'] ?? '').toString(),
+            isVerified: prof['is_verified'] == true,
+            title: p['title'] ?? '',
+            content: p['content'] ?? '',
+            imageUrl: primaryUrl,
+            mediaItems: items,
+            location: (p['location'] ?? '').toString(),
+            editedAt: p['edited_at'] != null
+                ? DateTime.tryParse(p['edited_at'].toString())
+                : null,
+            createdAt:
+                DateTime.tryParse(p['created_at'].toString()) ?? DateTime.now(),
+            likesCount: (p['likes_count'] as num?)?.toInt() ?? 0,
+            isLikedByMe: false,
+            commentsCount: (p['comments_count'] as num?)?.toInt() ?? 0,
+            repostsCount: (p['reposts_count'] as num?)?.toInt() ?? 0,
+            isBookmarkedByMe: true,
+          );
+        }).toList();
       }
 
-      final postsRes = await supabase
-          .from('discussion_posts')
-          .select()
-          .inFilter('id', postIds)
-          .order('created_at', ascending: false);
+      List<ReelItem> savedReels = [];
+      if (reelIds.isNotEmpty) {
+        final reelsRes = await supabase
+            .from('reels')
+            .select()
+            .inFilter('id', reelIds)
+            .isFilter('deleted_at', null)
+            .eq('is_published', true)
+            .order('created_at', ascending: false);
 
-      final list = (postsRes as List).map((p) {
-        return FeedPostItem(
-          id: p['id'].toString(),
-          authorId: p['student_id']?.toString() ?? '',
-          authorUsername: 'creator',
-          authorFullName: 'Saved Item',
-          authorAvatar: '',
-          isVerified: false,
-          title: p['title'] ?? '',
-          content: p['content'] ?? '',
-          imageUrl: p['image_url'] ?? '',
-          createdAt:
-              DateTime.tryParse(p['created_at'].toString()) ?? DateTime.now(),
-          likesCount: (p['likes_count'] as num?)?.toInt() ?? 0,
-          isLikedByMe: false,
-          commentsCount: (p['comments_count'] as num?)?.toInt() ?? 0,
-          repostsCount: (p['reposts_count'] as num?)?.toInt() ?? 0,
+        final rRows = List<Map<String, dynamic>>.from(reelsRes as List);
+        final rProfiles = await _fetchProfilesMap(
+          rRows.map((r) => r['user_id']?.toString() ?? ''),
         );
-      }).toList();
 
-      if (mounted) setState(() => _userSavedPosts = list);
+        savedReels = rRows.map((r) {
+          final authorId = r['user_id']?.toString() ?? '';
+          final prof = rProfiles[authorId] ?? const <String, dynamic>{};
+          final fn = (prof['first_name'] ?? '').toString().trim();
+          final ln = (prof['last_name'] ?? '').toString().trim();
+          final full = "$fn $ln".trim();
+          final uname = (prof['username'] ?? 'user').toString();
+
+          return ReelItem(
+            id: r['id'].toString(),
+            userId: authorId,
+            authorUsername: uname,
+            authorFullName: full.isNotEmpty ? full : '@$uname',
+            authorAvatar: (prof['avatar_url'] ?? '').toString(),
+            isVerified: prof['is_verified'] == true,
+            videoUrl: r['video_url'] ?? '',
+            thumbnailUrl: r['thumbnail_url'],
+            title: r['title'] ?? '',
+            description: r['description'] ?? '',
+            category: r['category'] ?? 'Social',
+            durationSeconds: (r['duration_seconds'] as num?)?.toInt() ?? 15,
+            viewsCount: (r['views_count'] as num?)?.toInt() ?? 0,
+            likesCount: (r['likes_count'] as num?)?.toInt() ?? 0,
+            isLikedByMe: false,
+            commentsCount: (r['comments_count'] as num?)?.toInt() ?? 0,
+            isBookmarkedByMe: true,
+            createdAt:
+                DateTime.tryParse(r['created_at'].toString()) ?? DateTime.now(),
+          );
+        }).toList();
+      }
+
+      if (mounted) {
+        setState(() {
+          _userSavedPosts = savedPosts;
+          _userSavedReels = savedReels;
+        });
+      }
     } catch (e) {
-      debugPrint("Fetch saved posts error: $e");
+      debugPrint("Fetch saved posts/reels error: $e");
     }
   }
 
   Future<void> _fetchSuggestedCreators() async {
     final currentUserId = supabase.auth.currentUser?.id;
+    if (currentUserId == null) return;
     try {
-      final res = await supabase
-          .from('profiles')
-          .select(
-            'id, username, first_name, last_name, avatar_url, is_verified',
-          )
-          .neq('id', currentUserId ?? '')
-          .limit(8);
+      final [filters, followingRows, reqRows, res] = await Future.wait<dynamic>([
+        SocialGraphService.instance.fetchSafetyFilters(),
+        supabase
+            .from('user_follows')
+            .select('following_id')
+            .eq('follower_id', currentUserId),
+        supabase
+            .from('follow_requests')
+            .select('target_id')
+            .eq('requester_id', currentUserId)
+            .eq('status', 'pending'),
+        supabase
+            .from('profiles')
+            .select(
+              'id, username, first_name, last_name, avatar_url, is_verified',
+            )
+            .neq('id', currentUserId)
+            .limit(20),
+      ]);
 
-      final list = (res as List).map((p) {
-        final fn = p['first_name'] ?? '';
-        final ln = p['last_name'] ?? '';
-        final full = "$fn $ln".trim();
-        return {
-          'id': p['id'].toString(),
-          'username': p['username'] ?? 'user',
-          'name': full.isNotEmpty ? full : (p['username'] ?? 'User'),
-          'avatar_url': p['avatar_url'] ?? '',
-          'is_verified': p['is_verified'] == true,
-        };
-      }).toList();
+      final safety = filters as UserSafetyFilters;
+      final alreadyFollowed = (followingRows as List)
+          .map((r) => r['following_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      final pendingReq = (reqRows as List)
+          .map((r) => r['target_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toSet();
 
-      if (mounted) setState(() => _suggestedCreators = list);
+      final list = (res as List)
+          .where((p) {
+            final id = p['id'].toString();
+            return id != currentUserId &&
+                !alreadyFollowed.contains(id) &&
+                !safety.blockedUserIds.contains(id);
+          })
+          .take(8)
+          .map((p) {
+            final fn = p['first_name'] ?? '';
+            final ln = p['last_name'] ?? '';
+            final full = "$fn $ln".trim();
+            return {
+              'id': p['id'].toString(),
+              'username': p['username'] ?? 'user',
+              'name': full.isNotEmpty ? full : (p['username'] ?? 'User'),
+              'avatar_url': p['avatar_url'] ?? '',
+              'is_verified': p['is_verified'] == true,
+            };
+          })
+          .toList();
+
+      if (mounted) {
+        setState(() {
+          _followedSuggestedIds
+            ..clear()
+            ..addAll(alreadyFollowed);
+          _requestedSuggestedIds
+            ..clear()
+            ..addAll(pendingReq);
+          _suggestedCreators = list;
+        });
+      }
     } catch (e) {
       debugPrint("Suggested creators error: $e");
     }
@@ -454,68 +896,59 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Future<void> _toggleFollow() async {
     final currentUserId = supabase.auth.currentUser?.id;
-    if (currentUserId == null || _isFollowLoading) return;
+    if (currentUserId == null || _isFollowLoading || _isBlockedView) return;
 
     HapticFeedback.lightImpact();
-    setState(() {
-      _isFollowing = !_isFollowing;
-      _followersCount += _isFollowing ? 1 : -1;
-      _isFollowLoading = true;
-    });
+    setState(() => _isFollowLoading = true);
 
-    try {
-      if (_isFollowing) {
-        await supabase.from('user_follows').insert({
-          'follower_id': currentUserId,
-          'following_id': _targetUserId,
-        });
+    final status = await SocialGraphService.instance.toggleFollow(_targetUserId);
+    if (!mounted) return;
 
-        try {
-          await supabase.from('student_friends').upsert({
-            'user_id': currentUserId,
-            'friend_id': _targetUserId,
-            'status': 'accepted',
-            'created_at': DateTime.now().toIso8601String(),
-          });
-        } catch (_) {}
-
-        unawaited(
-          NotificationService()
-              .sendNotificationToUser(
-                targetUserId: _targetUserId,
-                title: "New Follower",
-                message: "Started following your profile on ZEV",
-                notificationType: "follow",
-                senderId: currentUserId,
-              )
-              .catchError((err) {
-                debugPrint("Notification dispatch notice: $err");
-              }),
-        );
-      } else {
-        await supabase
-            .from('user_follows')
-            .delete()
-            .eq('follower_id', currentUserId)
-            .eq('following_id', _targetUserId);
-
-        try {
-          await supabase.from('student_friends').delete().match({
-            'user_id': currentUserId,
-            'friend_id': _targetUserId,
-          });
-        } catch (_) {}
-      }
-    } catch (e) {
-      debugPrint("Toggle follow error: $e");
-      if (mounted) {
+    switch (status) {
+      case FollowToggleStatus.following:
         setState(() {
-          _isFollowing = !_isFollowing;
-          _followersCount += _isFollowing ? 1 : -1;
+          _isFollowing = true;
+          _followRequested = false;
+          _followersCount += 1;
+          _isFollowLoading = false;
         });
-      }
-    } finally {
-      if (mounted) setState(() => _isFollowLoading = false);
+        await _loadAllProfileData();
+        break;
+      case FollowToggleStatus.unfollowed:
+        setState(() {
+          _isFollowing = false;
+          _followRequested = false;
+          _followersCount = _followersCount > 0 ? _followersCount - 1 : 0;
+          _isFollowLoading = false;
+        });
+        await _loadAllProfileData();
+        break;
+      case FollowToggleStatus.requested:
+        setState(() {
+          _isFollowing = false;
+          _followRequested = true;
+          _isFollowLoading = false;
+        });
+        break;
+      case FollowToggleStatus.cancelled:
+        setState(() {
+          _isFollowing = false;
+          _followRequested = false;
+          _isFollowLoading = false;
+        });
+        break;
+      case FollowToggleStatus.blocked:
+        setState(() => _isFollowLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Unable to follow this user.")),
+        );
+        break;
+      case FollowToggleStatus.error:
+        setState(() => _isFollowLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Could not update follow status.")),
+        );
+        break;
     }
   }
 
@@ -688,6 +1121,46 @@ class _ProfileScreenState extends State<ProfileScreen>
                     _openCreateHighlightSheet();
                   },
                 ),
+                SizedBox(height: isCompact ? 8 : 10),
+
+                // 5. Drafts & Scheduled Posts Tile
+                _buildClayCreateTile(
+                  icon: Icons.schedule_send_rounded,
+                  iconGradient: const LinearGradient(
+                    colors: [Color(0xFF0EA5E9), Color(0xFF6366F1)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  title: "Drafts & Scheduled",
+                  subtitle: "Review saved drafts or upcoming scheduled posts",
+                  isCompact: isCompact,
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    await DraftsScheduledScreen.open(
+                      context,
+                      onPostPublished: _loadAllProfileData,
+                    );
+                    if (mounted) _loadAllProfileData();
+                  },
+                ),
+                SizedBox(height: isCompact ? 8 : 10),
+
+                // 6. Interactive Live Room Tile
+                _buildClayCreateTile(
+                  icon: Icons.podcasts_rounded,
+                  iconGradient: const LinearGradient(
+                    colors: [Color(0xFFEF4444), Color(0xFFF59E0B)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  title: "Live Room",
+                  subtitle: "Host or join interactive Realtime ZEV chat rooms",
+                  isCompact: isCompact,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    LiveRoomsScreen.open(context);
+                  },
+                ),
                 const SizedBox(height: 10),
               ],
             ),
@@ -839,19 +1312,23 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   void _openFollowersSheet(int tabIndex) {
+    if (!_isMyProfile && !_canViewContent) return;
     HapticFeedback.lightImpact();
     UserFollowsScreen.open(
       context,
       userId: _targetUserId,
       username: _profile['username'] ?? 'user',
       initialTabIndex: tabIndex,
-    );
+    ).then((_) => _loadAllProfileData());
   }
 
   void _onAvatarTapped() {
     HapticFeedback.lightImpact();
-    if (_hasActiveStory && _activeStory != null) {
-      StoryViewerScreen.open(context, friendStory: _activeStory!);
+    if (_hasActiveStory &&
+        _activeStory != null &&
+        (_isMyProfile || _canViewContent)) {
+      StoryViewerScreen.open(context, friendStory: _activeStory!)
+          .then((_) => _loadAllProfileData());
     } else if (_isMyProfile) {
       CreateStoryScreen.open(context, onStoryCreated: _loadAllProfileData);
     }
@@ -859,41 +1336,236 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   void _openPostDetail(FeedPostItem post) {
     HapticFeedback.lightImpact();
-    FullscreenMediaViewer.open(
+    PostDetailScreen.open(
       context,
-      post: post,
-      isLiked: post.isLikedByMe,
-      likesCount: post.likesCount,
-      isReposted: post.isRepostedByMe,
-      repostsCount: post.repostsCount,
-      onToggleLike: () async {},
-      onToggleRepost: () async {},
-      onPostDeleted: () {
-        _loadAllProfileData();
-      },
-    );
+      postId: post.id,
+      initialPost: post,
+    ).then((_) => _loadAllProfileData());
   }
 
   void _openReelDetail(ReelItem reel) {
     HapticFeedback.lightImpact();
+    bool isMuted = false;
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => Scaffold(
-          backgroundColor: Colors.black,
-          appBar: AppBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            leading: const BackButton(color: Colors.white),
+        builder: (_) => StatefulBuilder(
+          builder: (navCtx, setPlayerState) => Scaffold(
+            backgroundColor: Colors.black,
+            appBar: AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              leading: const BackButton(color: Colors.white),
+            ),
+            body: ReelPlayerItem(
+              reel: reel,
+              isActive: true,
+              isGlobalMuted: isMuted,
+              onToggleMute: () => setPlayerState(() => isMuted = !isMuted),
+              onReelDeleted: () {
+                Navigator.of(navCtx).pop();
+                _loadAllProfileData();
+              },
+              onHideOrMute: () {
+                Navigator.of(navCtx).pop();
+                _loadAllProfileData();
+              },
+            ),
           ),
-          body: ReelPlayerItem(
-            reel: reel,
-            isActive: true,
-            isGlobalMuted: false,
-            onToggleMute: () {},
-            onReelDeleted: () {
-              Navigator.of(context).pop();
-              _loadAllProfileData();
-            },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showVisitorMenuSheet() async {
+    if (_isMyProfile || _targetUserId.isEmpty) return;
+    HapticFeedback.lightImpact();
+    final username = (_profile['username'] ?? 'user').toString();
+    final me = supabase.auth.currentUser?.id;
+
+    bool isMuted = false;
+    if (me != null) {
+      try {
+        final muteRow = await supabase
+            .from('user_mutes')
+            .select('id')
+            .eq('muter_id', me)
+            .eq('muted_id', _targetUserId)
+            .maybeSingle();
+        isMuted = muteRow != null;
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          color: ZevColors.softSurface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border.all(color: Colors.white, width: 1.5),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 38,
+                  height: 4.5,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildProfileManageTile(
+                  icon: Icons.share_outlined,
+                  title: "Share Profile",
+                  color: ZevColors.deepNavy,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _openShareProfile();
+                  },
+                ),
+                const SizedBox(height: 10),
+                _buildProfileManageTile(
+                  icon: Icons.link_rounded,
+                  title: "Copy Profile Link",
+                  color: ZevColors.deepNavy,
+                  onTap: () async {
+                    await Clipboard.setData(
+                      ClipboardData(text: 'https://zevapp.com/@$username'),
+                    );
+                    if (ctx.mounted) Navigator.pop(ctx);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Copied @$username\'s profile link'),
+                          behavior: SnackBarBehavior.floating,
+                          backgroundColor: ZevColors.deepNavy,
+                        ),
+                      );
+                    }
+                  },
+                ),
+                const SizedBox(height: 10),
+                _buildProfileManageTile(
+                  icon: isMuted
+                      ? Icons.volume_up_rounded
+                      : Icons.volume_off_rounded,
+                  title: isMuted
+                      ? "Unmute Posts & Stories"
+                      : "Mute Posts & Stories",
+                  color: ZevColors.secondaryBlue,
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    final ok = isMuted
+                        ? await SocialGraphService.instance
+                            .unmuteUser(_targetUserId)
+                        : await SocialGraphService.instance.muteUser(
+                            _targetUserId,
+                            mutePosts: true,
+                            muteStories: true,
+                          );
+                    if (ok && mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            isMuted
+                                ? 'Unmuted @$username'
+                                : 'Muted posts & stories from @$username',
+                          ),
+                          behavior: SnackBarBehavior.floating,
+                          backgroundColor: ZevColors.deepNavy,
+                        ),
+                      );
+                    }
+                  },
+                ),
+                const SizedBox(height: 10),
+                _buildProfileManageTile(
+                  icon: Icons.block_rounded,
+                  title: _blockedByMe
+                      ? "Unblock @$username"
+                      : "Block @$username",
+                  color: ZevColors.errorRed,
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    if (_blockedByMe) {
+                      final ok = await SocialGraphService.instance
+                          .unblockUser(_targetUserId);
+                      if (ok) await _loadAllProfileData();
+                    } else {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (dCtx) => AlertDialog(
+                          backgroundColor: ZevColors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(22),
+                          ),
+                          title: Text(
+                            'Block @$username?',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: ZevColors.deepNavy,
+                            ),
+                          ),
+                          content: Text(
+                            '@$username will no longer be able to view your profile, posts, or message you, and any follow connection will be removed.',
+                            style: const TextStyle(
+                              color: ZevColors.textSecondary,
+                              fontSize: 13.5,
+                              height: 1.4,
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(dCtx, false),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(dCtx, true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: ZevColors.errorRed,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                              ),
+                              child: const Text('Block'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true) {
+                        final ok = await SocialGraphService.instance
+                            .blockUser(_targetUserId);
+                        if (ok) await _loadAllProfileData();
+                      }
+                    }
+                  },
+                ),
+                const SizedBox(height: 10),
+                _buildProfileManageTile(
+                  icon: Icons.flag_outlined,
+                  title: "Report Account",
+                  color: ZevColors.errorRed,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    SocialGraphService.instance.showReportSheet(
+                      context,
+                      targetType: 'user',
+                      targetId: _targetUserId,
+                      reportedUserId: _targetUserId,
+                      targetLabel: '@$username',
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
           ),
         ),
       ),
@@ -907,53 +1579,102 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
+          color: ZevColors.softSurface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           border: Border.all(color: Colors.white, width: 1.5),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 38,
-              height: 4.5,
-              decoration: BoxDecoration(
-                color: const Color(0xFFCBD5E1),
-                borderRadius: BorderRadius.circular(3),
-              ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 38,
+                  height: 4.5,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _buildProfileManageTile(
+                  icon: Icons.fullscreen_rounded,
+                  title: "View Post",
+                  color: ZevColors.deepNavy,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _openPostDetail(post);
+                  },
+                ),
+                if (canDelete) ...[
+                  const SizedBox(height: 10),
+                  _buildProfileManageTile(
+                    icon: Icons.edit_outlined,
+                    title: "Edit Post",
+                    color: ZevColors.deepNavy,
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      await ContentDeletionService.showEditPostDialog(
+                        context,
+                        post: post,
+                        onUpdated: (_) => _loadAllProfileData(),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  _buildProfileManageTile(
+                    icon: Icons.archive_outlined,
+                    title: "Move to Archive",
+                    color: ZevColors.secondaryBlue,
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      await ContentDeletionService.setPostArchived(
+                        context,
+                        post: post,
+                        archived: true,
+                        onUpdated: _loadAllProfileData,
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  _buildProfileManageTile(
+                    icon: Icons.recycling_rounded,
+                    title: "Move to Recently Deleted",
+                    color: const Color(0xFFD97706),
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      await ContentDeletionService.movePostToTrash(
+                        context,
+                        post: post,
+                        onTrashed: _loadAllProfileData,
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  _buildProfileManageTile(
+                    icon: Icons.delete_outline_rounded,
+                    title: "Delete Permanently",
+                    color: ZevColors.errorRed,
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      await ContentDeletionService.confirmAndDeletePost(
+                        context,
+                        post: post,
+                        onDeleted: _loadAllProfileData,
+                      );
+                    },
+                  ),
+                ],
+                const SizedBox(height: 16),
+              ],
             ),
-            const SizedBox(height: 18),
-            _buildProfileManageTile(
-              icon: Icons.fullscreen_rounded,
-              title: "View Post",
-              color: ZevColors.deepNavy,
-              onTap: () {
-                Navigator.pop(ctx);
-                _openPostDetail(post);
-              },
-            ),
-            if (canDelete) ...[
-              const SizedBox(height: 10),
-              _buildProfileManageTile(
-                icon: Icons.delete_outline_rounded,
-                title: "Delete Post",
-                color: const Color(0xFFDC2626),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await ContentDeletionService.confirmAndDeletePost(
-                    context,
-                    post: post,
-                    onDeleted: _loadAllProfileData,
-                  );
-                },
-              ),
-            ],
-            const SizedBox(height: 16),
-          ],
+          ),
         ),
       ),
     );
@@ -966,53 +1687,83 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
+          color: ZevColors.softSurface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           border: Border.all(color: Colors.white, width: 1.5),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 38,
-              height: 4.5,
-              decoration: BoxDecoration(
-                color: const Color(0xFFCBD5E1),
-                borderRadius: BorderRadius.circular(3),
-              ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 38,
+                  height: 4.5,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _buildProfileManageTile(
+                  icon: Icons.play_circle_outline_rounded,
+                  title: "Play Reel",
+                  color: ZevColors.deepNavy,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _openReelDetail(reel);
+                  },
+                ),
+                const SizedBox(height: 10),
+                _buildProfileManageTile(
+                  icon: Icons.remove_red_eye_outlined,
+                  title: "Quick Preview",
+                  color: ZevColors.secondaryBlue,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showQuickReelPreview(reel);
+                  },
+                ),
+                if (canDelete) ...[
+                  const SizedBox(height: 10),
+                  _buildProfileManageTile(
+                    icon: Icons.recycling_rounded,
+                    title: "Move to Recently Deleted",
+                    color: const Color(0xFFD97706),
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      await ContentDeletionService.moveReelToTrash(
+                        context,
+                        reel: reel,
+                        onTrashed: _loadAllProfileData,
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  _buildProfileManageTile(
+                    icon: Icons.delete_outline_rounded,
+                    title: "Delete Permanently",
+                    color: ZevColors.errorRed,
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      await ContentDeletionService.confirmAndDeleteReel(
+                        context,
+                        reel: reel,
+                        onDeleted: _loadAllProfileData,
+                      );
+                    },
+                  ),
+                ],
+                const SizedBox(height: 16),
+              ],
             ),
-            const SizedBox(height: 18),
-            _buildProfileManageTile(
-              icon: Icons.play_circle_outline_rounded,
-              title: "Play Reel",
-              color: ZevColors.deepNavy,
-              onTap: () {
-                Navigator.pop(ctx);
-                _openReelDetail(reel);
-              },
-            ),
-            if (canDelete) ...[
-              const SizedBox(height: 10),
-              _buildProfileManageTile(
-                icon: Icons.delete_outline_rounded,
-                title: "Delete Reel",
-                color: const Color(0xFFDC2626),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await ContentDeletionService.confirmAndDeleteReel(
-                    context,
-                    reel: reel,
-                    onDeleted: _loadAllProfileData,
-                  );
-                },
-              ),
-            ],
-            const SizedBox(height: 16),
-          ],
+          ),
         ),
       ),
     );
@@ -1057,14 +1808,14 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  /// Signature Instagram Long-Press Quick Peek dialog for Reels
+  /// Quick Peek preview dialog for Reels in Light Clearmorphism / cinema framing
   void _showQuickReelPreview(ReelItem reel) {
     HapticFeedback.heavyImpact();
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
       barrierLabel: "Reel Preview",
-      barrierColor: Colors.black.withValues(alpha: 0.75),
+      barrierColor: ZevColors.deepNavy.withValues(alpha: 0.65),
       transitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (context, anim1, anim2) {
         return Center(
@@ -1073,17 +1824,17 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 24),
               decoration: BoxDecoration(
-                color: const Color(0xFF0F172A),
+                color: ZevColors.white,
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  color: const Color(0xFF00D4FF).withValues(alpha: 0.35),
-                  width: 1.2,
+                  color: ZevColors.primaryBlue.withValues(alpha: 0.35),
+                  width: 1.4,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.6),
+                    color: ZevColors.deepNavy.withValues(alpha: 0.25),
                     blurRadius: 30,
-                    offset: const Offset(0, 10),
+                    offset: const Offset(0, 12),
                   ),
                 ],
               ),
@@ -1092,7 +1843,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Author Header
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 14,
@@ -1100,19 +1850,25 @@ class _ProfileScreenState extends State<ProfileScreen>
                       ),
                       child: Row(
                         children: [
-                          CircleAvatar(
-                            radius: 18,
-                            backgroundColor: const Color(0xFF1E293B),
-                            backgroundImage: reel.authorAvatar.isNotEmpty
-                                ? NetworkImage(reel.authorAvatar)
-                                : null,
-                            child: reel.authorAvatar.isEmpty
-                                ? const Icon(
-                                    Icons.person,
-                                    color: Colors.white54,
-                                    size: 18,
-                                  )
-                                : null,
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: ZevColors.softSurface,
+                            ),
+                            child: ClipOval(
+                              child: reel.authorAvatar.isNotEmpty
+                                  ? ZevCachedImage.avatar(
+                                      imageUrl: reel.authorAvatar,
+                                      size: 36,
+                                    )
+                                  : const Icon(
+                                      Icons.person,
+                                      color: ZevColors.textMuted,
+                                      size: 18,
+                                    ),
+                            ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -1126,7 +1882,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w800,
                                         fontSize: 14,
-                                        color: Colors.white,
+                                        color: ZevColors.deepNavy,
                                       ),
                                     ),
                                     if (reel.isVerified) ...[
@@ -1146,7 +1902,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       fontSize: 11.5,
-                                      color: Colors.white70,
+                                      color: ZevColors.textSecondary,
                                     ),
                                   ),
                               ],
@@ -1155,26 +1911,24 @@ class _ProfileScreenState extends State<ProfileScreen>
                         ],
                       ),
                     ),
-
-                    // Media Content with live looping preview
                     AspectRatio(
                       aspectRatio: 9 / 14,
                       child: ZevVideoThumbnail(
                         videoUrl: reel.videoUrl,
                         thumbnailUrl: reel.thumbnailUrl,
                         autoPlay: true,
+                        initialMuted: false,
+                        showMuteToggle: true,
                         showPlayBadge: false,
                         showViews: false,
                       ),
                     ),
-
-                    // Quick Action Button
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        vertical: 10,
+                        vertical: 8,
                         horizontal: 16,
                       ),
-                      color: const Color(0xFF1E293B),
+                      color: ZevColors.softSurface,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -1185,14 +1939,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                             },
                             icon: const Icon(
                               Icons.play_circle_fill_rounded,
-                              color: Color(0xFF00D4FF),
+                              color: ZevColors.primaryBlue,
                               size: 20,
                             ),
                             label: const Text(
                               "Watch Full Reel",
                               style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
+                                color: ZevColors.deepNavy,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
                           ),
@@ -1308,7 +2062,182 @@ class _ProfileScreenState extends State<ProfileScreen>
     final isCompact = screenWidth < 380;
     final horizontalPadding = isCompact ? 12.0 : 16.0;
 
-    // Luxurious Claymorphic ZEV Profile Canvas
+    if (!_isMyProfile && _isBlockedView) {
+      return Scaffold(
+        backgroundColor: ZevColors.softSurface,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildTopBar(username, isVerified, isCompact),
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: _buildClayCard(
+                      borderRadius: 24,
+                      depth: 5.0,
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 64,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: ZevColors.errorRed.withValues(alpha: 0.1),
+                            ),
+                            child: const Icon(
+                              Icons.block_rounded,
+                              size: 32,
+                              color: ZevColors.errorRed,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            _blockedByMe
+                                ? "You blocked @$username"
+                                : "Profile Unavailable",
+                            style: const TextStyle(
+                              fontSize: 16.5,
+                              fontWeight: FontWeight.w900,
+                              color: ZevColors.deepNavy,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _blockedByMe
+                                ? "Unblock @$username if you want to view their posts, reels, and stories again."
+                                : "This user's content is not accessible.",
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              color: ZevColors.textSecondary,
+                              height: 1.4,
+                            ),
+                          ),
+                          if (_blockedByMe) ...[
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: () async {
+                                final ok = await SocialGraphService.instance
+                                    .unblockUser(_targetUserId);
+                                if (ok) await _loadAllProfileData();
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: ZevColors.primaryBlue,
+                                foregroundColor: ZevColors.deepNavy,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              child: const Text(
+                                "Unblock Account",
+                                style: TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (!_isMyProfile && !_canViewContent) {
+      return Scaffold(
+        backgroundColor: ZevColors.softSurface,
+        body: SafeArea(
+          child: RefreshIndicator(
+            color: ZevColors.primaryBlue,
+            onRefresh: _loadAllProfileData,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              children: [
+                _buildTopBar(username, isVerified, isCompact),
+                const SizedBox(height: 6),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                  child: _buildProfileHeader(
+                    avatarUrl: avatarUrl,
+                    fullName: fullName,
+                    username: username,
+                    bio: bio,
+                    isBioRtl: isBioRtl,
+                    isVerified: isVerified,
+                    isCompact: isCompact,
+                  ),
+                ),
+                SizedBox(height: isCompact ? 10 : 14),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                  child: _buildActionRow(isCompact),
+                ),
+                const SizedBox(height: 24),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                  child: _buildClayCard(
+                    borderRadius: 24,
+                    depth: 4.5,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 28,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: ZevColors.secondaryBlue.withValues(alpha: 0.12),
+                          ),
+                          child: const Icon(
+                            Icons.lock_outline_rounded,
+                            size: 28,
+                            color: ZevColors.secondaryBlue,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          "This Account is Private",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            color: ZevColors.deepNavy,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          "Follow @$username to see their posts, reels, and stories once approved.",
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: ZevColors.textSecondary,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Luxurious Clearmorphic ZEV Profile Canvas
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       body: SafeArea(
@@ -1325,11 +2254,167 @@ class _ProfileScreenState extends State<ProfileScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1. Sleek Claymorphic Top Bar
+                      // 1. Sleek Clearmorphic Top Bar
                       _buildTopBar(username, isVerified, isCompact),
                       const SizedBox(height: 6),
 
-                      // 2. Profile Info Header (3D Avatar + 3 Clay Stats + Name + Bio)
+                      // Owner Pending Follow Requests Notice Banner
+                      if (_isMyProfile && _pendingRequestsCount > 0) ...[
+                        Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: horizontalPadding,
+                          ),
+                          child: GestureDetector(
+                            onTap: () => _openFollowersSheet(2),
+                            child: _buildClayCard(
+                              borderRadius: 16,
+                              depth: 3.0,
+                              color: ZevColors.primaryBlue.withValues(alpha: 0.1),
+                              border: Border.all(
+                                color: ZevColors.primaryBlue.withValues(
+                                  alpha: 0.35,
+                                ),
+                                width: 1.2,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.person_add_alt_1_rounded,
+                                    color: ZevColors.secondaryBlue,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      "$_pendingRequestsCount Pending Follow Request${_pendingRequestsCount > 1 ? 's' : ''}",
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: ZevColors.deepNavy,
+                                      ),
+                                    ),
+                                  ),
+                                  const Text(
+                                    "Review",
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: ZevColors.secondaryBlue,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 2),
+                                  const Icon(
+                                    Icons.chevron_right_rounded,
+                                    size: 18,
+                                    color: ZevColors.secondaryBlue,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+
+                      // Owner Account Restriction Standing Notice Banner
+                      if (_isMyProfile && _hasActiveRestrictionStanding()) ...[
+                        Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: horizontalPadding,
+                          ),
+                          child: _buildClayCard(
+                            borderRadius: 16,
+                            depth: 3.0,
+                            color: const Color(0xFFFFFBEB),
+                            border: Border.all(
+                              color: const Color(0xFFFDE68A),
+                              width: 1.2,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 11,
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: Color(0xFFD97706),
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        "Account Standing Notice",
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w900,
+                                          color: Color(0xFF92400E),
+                                        ),
+                                      ),
+                                      Text(
+                                        (_profile['restriction_reason'] ?? '')
+                                                .toString()
+                                                .trim()
+                                                .isNotEmpty
+                                            ? _profile['restriction_reason']
+                                                .toString()
+                                            : "A temporary policy notice is active on your profile.",
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 11.5,
+                                          color: Color(0xFFB45309),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                TextButton(
+                                  onPressed: () {
+                                    AppealRestrictionSheet.show(
+                                      context,
+                                      initialReason:
+                                          _profile['restriction_reason']
+                                              ?.toString(),
+                                    ).then((_) => _loadAllProfileData());
+                                  },
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: const Color(0xFFD97706),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    "Appeal",
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+
+                      // 2. Profile Info Header (3D Avatar + 3 Clay Stats + Name + Bio + Links)
                       Padding(
                         padding: EdgeInsets.symmetric(
                           horizontal: horizontalPadding,
@@ -1365,7 +2450,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         ),
                       ],
 
-                      // 5. Authentic Clay Story Highlights
+                      // 5. Authentic Story Highlights
                       if (_isMyProfile || _highlights.isNotEmpty) ...[
                         SizedBox(height: isCompact ? 12 : 16),
                         Padding(
@@ -1381,7 +2466,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ),
                 ),
 
-                // 6. Sticky Pinned Claymorphic Tab Bar Dock
+                // 6. Sticky Pinned Clearmorphic Tab Bar Dock
                 SliverPersistentHeader(
                   pinned: true,
                   delegate: _ProfileTabBarDelegate(tabBar: _buildTabBar()),
@@ -1408,7 +2493,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   // ---------------------------------------------------------------------------
-  // Sleek Claymorphic Top Bar
+  // Sleek Clearmorphic Top Bar
   // ---------------------------------------------------------------------------
   Widget _buildTopBar(
     String username,
@@ -1504,6 +2589,27 @@ class _ProfileScreenState extends State<ProfileScreen>
             children: [
               if (_isMyProfile) ...[
                 GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    CreatorInsightsScreen.open(
+                      context,
+                      userProfile: _profile,
+                    ).then((_) => _loadAllProfileData());
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: _buildClayCard(
+                    borderRadius: 12,
+                    depth: 3.0,
+                    padding: const EdgeInsets.all(7),
+                    child: const Icon(
+                      Icons.insights_rounded,
+                      color: ZevColors.secondaryBlue,
+                      size: 21,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
                   onTap: _openCreateMenu,
                   behavior: HitTestBehavior.opaque,
                   child: _buildClayCard(
@@ -1547,6 +2653,21 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ),
                   ),
                 ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: _showVisitorMenuSheet,
+                  behavior: HitTestBehavior.opaque,
+                  child: _buildClayCard(
+                    borderRadius: 12,
+                    depth: 3.0,
+                    padding: const EdgeInsets.all(7),
+                    child: const Icon(
+                      Icons.more_vert_rounded,
+                      color: ZevColors.deepNavy,
+                      size: 21,
+                    ),
+                  ),
+                ),
               ],
             ],
           ),
@@ -1556,7 +2677,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   // ---------------------------------------------------------------------------
-  // Master Profile Header (3D Clay Avatar, 3 Clay Stat Tiles, Name, Bio)
+  // Master Profile Header (3D Clay Avatar, 3 Clay Stat Tiles, Name, Bio, Links)
   // ---------------------------------------------------------------------------
   Widget _buildProfileHeader({
     required String avatarUrl,
@@ -1568,6 +2689,36 @@ class _ProfileScreenState extends State<ProfileScreen>
     bool isCompact = false,
   }) {
     final avatarSize = isCompact ? 72.0 : 84.0;
+    final showStoryRing = _hasActiveStory && (_isMyProfile || _canViewContent);
+    final allowStatsTap = _isMyProfile || _canViewContent;
+    final location = (_profile['location'] ?? '').toString().trim();
+    final website = (_profile['website'] ?? '').toString().trim();
+    final showCategory = _profile['show_category_on_profile'] == true;
+    final category = (_profile['category'] ?? '').toString().trim();
+    final pronouns = (_profile['pronouns'] ?? '').toString().trim();
+
+    final seenLinkUrls = <String>{};
+    final externalLinks = <({String title, String url})>[];
+    if (website.isNotEmpty) {
+      final norm = website.toLowerCase();
+      seenLinkUrls.add(norm);
+      externalLinks.add((
+        title: website.replaceFirst(RegExp(r'^https?://(www\.)?'), ''),
+        url: website,
+      ));
+    }
+    for (final link in _userLinks) {
+      final url = (link['url'] ?? '').toString().trim();
+      final title = (link['title'] ?? '').toString().trim();
+      if (url.isEmpty || seenLinkUrls.contains(url.toLowerCase())) continue;
+      seenLinkUrls.add(url.toLowerCase());
+      externalLinks.add((
+        title: title.isNotEmpty
+            ? title
+            : url.replaceFirst(RegExp(r'^https?://(www\.)?'), ''),
+        url: url,
+      ));
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1575,7 +2726,6 @@ class _ProfileScreenState extends State<ProfileScreen>
         // Row: Avatar + Stats (Posts, Followers, Following)
         Row(
           children: [
-            // 3D Avatar with Clay Elevation & Story Ring
             GestureDetector(
               onTap: _onAvatarTapped,
               child: Stack(
@@ -1586,7 +2736,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     height: avatarSize,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      gradient: _hasActiveStory
+                      gradient: showStoryRing
                           ? const LinearGradient(
                               colors: [
                                 Color(0xFFFBAA47),
@@ -1597,14 +2747,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                               end: Alignment.bottomRight,
                             )
                           : null,
-                      border: _hasActiveStory
+                      border: showStoryRing
                           ? null
                           : Border.all(color: Colors.white, width: 2.5),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(
-                            0xFF0F172A,
-                          ).withValues(alpha: 0.08),
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.08),
                           blurRadius: 14,
                           offset: const Offset(2, 4),
                         ),
@@ -1615,7 +2763,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         ),
                       ],
                     ),
-                    padding: EdgeInsets.all(_hasActiveStory ? 3.0 : 0.0),
+                    padding: EdgeInsets.all(showStoryRing ? 3.0 : 0.0),
                     child: Container(
                       decoration: const BoxDecoration(
                         shape: BoxShape.circle,
@@ -1639,7 +2787,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       ),
                     ),
                   ),
-                  if (_isMyProfile && !_hasActiveStory)
+                  if (_isMyProfile && !showStoryRing)
                     Positioned(
                       bottom: 0,
                       right: 0,
@@ -1651,9 +2799,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           border: Border.all(color: Colors.white, width: 2.2),
                           boxShadow: [
                             BoxShadow(
-                              color: ZevColors.primaryBlue.withValues(
-                                alpha: 0.4,
-                              ),
+                              color: ZevColors.primaryBlue.withValues(alpha: 0.4),
                               blurRadius: 6,
                               offset: const Offset(0, 2),
                             ),
@@ -1670,8 +2816,6 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
             ),
             SizedBox(width: isCompact ? 12 : 18),
-
-            // 3 Claymorphic Stat Badges (Expanded & Spacious)
             Expanded(
               child: Row(
                 children: [
@@ -1687,7 +2831,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     child: _buildStatItem(
                       label: "Followers",
                       count: _followersCount,
-                      onTap: () => _openFollowersSheet(0),
+                      onTap: allowStatsTap ? () => _openFollowersSheet(0) : null,
                       isCompact: isCompact,
                     ),
                   ),
@@ -1696,7 +2840,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     child: _buildStatItem(
                       label: "Following",
                       count: _followingCount,
-                      onTap: () => _openFollowersSheet(1),
+                      onTap: allowStatsTap ? () => _openFollowersSheet(1) : null,
                       isCompact: isCompact,
                     ),
                   ),
@@ -1708,7 +2852,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
         const SizedBox(height: 12),
 
-        // User Full Name & Verified Badge
+        // User Full Name, Verified Badge & Optional Pronouns
         Row(
           children: [
             Flexible(
@@ -1732,10 +2876,68 @@ class _ProfileScreenState extends State<ProfileScreen>
                 color: ZevColors.primaryBlue,
               ),
             ],
+            if (pronouns.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: ZevColors.border),
+                ),
+                child: Text(
+                  pronouns,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: ZevColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
 
-        // Bio in a subtle Clay Recessed Pill
+        if ((showCategory && category.isNotEmpty) || location.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 10,
+            runSpacing: 4,
+            children: [
+              if (showCategory && category.isNotEmpty)
+                Text(
+                  category,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: ZevColors.secondaryBlue,
+                  ),
+                ),
+              if (location.isNotEmpty)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.location_on_outlined,
+                      size: 13.5,
+                      color: ZevColors.textMuted,
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      location,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: ZevColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ],
+
+        // Bio in a subtle Clearmorphic Pill
         if (bio.isNotEmpty) ...[
           const SizedBox(height: 6),
           _buildClayCard(
@@ -1753,6 +2955,52 @@ class _ProfileScreenState extends State<ProfileScreen>
                 fontWeight: FontWeight.w500,
               ),
             ),
+          ),
+        ],
+
+        // External Links (website + normalized user_links)
+        if (externalLinks.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: externalLinks.map((lnk) {
+              return GestureDetector(
+                onTap: () => _launchExternalLink(lnk.url),
+                child: _buildClayCard(
+                  borderRadius: 12,
+                  depth: 2.0,
+                  color: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.link_rounded,
+                        size: 14,
+                        color: ZevColors.secondaryBlue,
+                      ),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: Text(
+                          lnk.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: ZevColors.secondaryBlue,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ],
       ],
@@ -1820,7 +3068,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (_isMyProfile) {
       return Row(
         children: [
-          // Edit Profile Clay Button
           Expanded(
             child: GestureDetector(
               onTap: _openEditProfile,
@@ -1859,8 +3106,6 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
           ),
           SizedBox(width: isCompact ? 6 : 8),
-
-          // Share Profile Clay Button
           Expanded(
             child: GestureDetector(
               onTap: _openShareProfile,
@@ -1899,8 +3144,6 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
           ),
           SizedBox(width: isCompact ? 6 : 8),
-
-          // Discover Creators Toggle Clay Button
           GestureDetector(
             onTap: () {
               HapticFeedback.selectionClick();
@@ -1926,7 +3169,19 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
     }
 
-    // Visitor Action Buttons (Follow / Message)
+    // Visitor Action Buttons (Follow / Requested / Message)
+    final followLabel = _isFollowing
+        ? "Following"
+        : (_followRequested ? "Requested" : "Follow");
+    final followBg = (_isFollowing || _followRequested)
+        ? Colors.white
+        : ZevColors.secondaryBlue;
+    final followFg =
+        (_isFollowing || _followRequested) ? ZevColors.deepNavy : Colors.white;
+    final canMessage = _interactionPolicy?['can_message'] != false;
+    final peerFullName =
+        "${_profile['first_name'] ?? ''} ${_profile['last_name'] ?? ''}".trim();
+
     return Row(
       children: [
         Expanded(
@@ -1935,31 +3190,29 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: _buildClayCard(
               borderRadius: 14,
               depth: 3.2,
-              color: _isFollowing ? Colors.white : const Color(0xFF0095F6),
+              color: followBg,
               padding: EdgeInsets.symmetric(
                 vertical: isCompact ? 9 : 11,
                 horizontal: 4,
               ),
               child: Center(
                 child: _isFollowLoading
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: followFg,
                         ),
                       )
                     : FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
-                          _isFollowing ? "Following" : "Follow",
+                          followLabel,
                           style: TextStyle(
                             fontSize: isCompact ? 13 : 13.5,
                             fontWeight: FontWeight.w800,
-                            color: _isFollowing
-                                ? ZevColors.deepNavy
-                                : Colors.white,
+                            color: followFg,
                           ),
                         ),
                       ),
@@ -1972,11 +3225,25 @@ class _ProfileScreenState extends State<ProfileScreen>
           child: GestureDetector(
             onTap: () {
               HapticFeedback.lightImpact();
+              if (!canMessage) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      "@${_profile['username'] ?? 'User'} restricts direct messages.",
+                    ),
+                    behavior: SnackBarBehavior.floating,
+                    backgroundColor: ZevColors.deepNavy,
+                  ),
+                );
+                return;
+              }
               ChatConversationScreen.open(
                 context,
                 peerId: _targetUserId,
                 peerUsername: _profile['username'] ?? 'User',
-                peerFullName: _profile['full_name'] ?? '',
+                peerFullName: peerFullName.isNotEmpty
+                    ? peerFullName
+                    : (_profile['username'] ?? 'User').toString(),
                 peerAvatar: _profile['avatar_url'] ?? '',
                 isPeerVerified: _profile['is_verified'] == true,
               );
@@ -1994,9 +3261,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      Icons.chat_bubble_outline_rounded,
+                      canMessage
+                          ? Icons.chat_bubble_outline_rounded
+                          : Icons.lock_outline_rounded,
                       size: isCompact ? 14 : 15,
-                      color: ZevColors.deepNavy,
+                      color: canMessage
+                          ? ZevColors.deepNavy
+                          : ZevColors.textMuted,
                     ),
                     const SizedBox(width: 5),
                     Flexible(
@@ -2007,7 +3278,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                           style: TextStyle(
                             fontSize: isCompact ? 13 : 13.5,
                             fontWeight: FontWeight.w800,
-                            color: ZevColors.deepNavy,
+                            color: canMessage
+                                ? ZevColors.deepNavy
+                                : ZevColors.textMuted,
                           ),
                         ),
                       ),
@@ -2265,77 +3538,130 @@ class _ProfileScreenState extends State<ProfileScreen>
                 final u = _suggestedCreators[i];
                 final id = u['id'] as String;
                 final isFollowed = _followedSuggestedIds.contains(id);
+                final isRequested = _requestedSuggestedIds.contains(id);
                 final avatar = u['avatar_url'] as String? ?? '';
                 final name = u['name'] as String? ?? 'User';
+                final username = u['username'] as String? ?? '';
+                final isVerified = u['is_verified'] == true;
+                final isActiveState = isFollowed || isRequested;
 
                 return Container(
-                  width: 130,
+                  width: 138,
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
+                    color: ZevColors.softSurface,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: ZevColors.border),
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      CircleAvatar(
-                        radius: 26,
-                        backgroundColor: ZevColors.softSurface,
-                        backgroundImage: avatar.isNotEmpty
-                            ? NetworkImage(avatar)
-                            : null,
-                        child: avatar.isEmpty
-                            ? const Icon(
-                                Icons.person,
-                                color: ZevColors.textMuted,
-                              )
-                            : null,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: ZevColors.deepNavy,
+                      GestureDetector(
+                        onTap: () => ProfileScreen.open(context, userId: id),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ZevCachedImage.avatar(
+                              imageUrl: avatar,
+                              size: 52,
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: ZevColors.deepNavy,
+                                    ),
+                                  ),
+                                ),
+                                if (isVerified) ...[
+                                  const SizedBox(width: 3),
+                                  const Icon(
+                                    Icons.verified_rounded,
+                                    size: 13,
+                                    color: ZevColors.primaryBlue,
+                                  ),
+                                ],
+                              ],
+                            ),
+                            if (username.isNotEmpty)
+                              Text(
+                                '@$username',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: ZevColors.textMuted,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,
-                        height: 28,
+                        height: 29,
                         child: ElevatedButton(
-                          onPressed: () {
+                          onPressed: () async {
                             HapticFeedback.lightImpact();
-                            setState(() {
-                              if (isFollowed) {
-                                _followedSuggestedIds.remove(id);
-                              } else {
-                                _followedSuggestedIds.add(id);
-                              }
-                            });
+                            try {
+                              final status = await SocialGraphService.instance
+                                  .toggleFollow(id);
+                              if (!mounted) return;
+                              setState(() {
+                                if (status == FollowToggleStatus.following) {
+                                  _followedSuggestedIds.add(id);
+                                  _requestedSuggestedIds.remove(id);
+                                } else if (status ==
+                                    FollowToggleStatus.requested) {
+                                  _requestedSuggestedIds.add(id);
+                                  _followedSuggestedIds.remove(id);
+                                } else {
+                                  _followedSuggestedIds.remove(id);
+                                  _requestedSuggestedIds.remove(id);
+                                }
+                              });
+                              _fetchFollowCounts();
+                            } catch (e) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Could not update follow: $e'),
+                                  behavior: SnackBarBehavior.floating,
+                                  backgroundColor: ZevColors.errorRed,
+                                ),
+                              );
+                            }
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: isFollowed
-                                ? Colors.white
-                                : const Color(0xFF0095F6),
-                            foregroundColor: isFollowed
+                            backgroundColor: isActiveState
+                                ? ZevColors.white
+                                : ZevColors.secondaryBlue,
+                            foregroundColor: isActiveState
                                 ? ZevColors.deepNavy
-                                : Colors.white,
+                                : ZevColors.white,
                             elevation: 0,
                             padding: EdgeInsets.zero,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              side: isFollowed
-                                  ? const BorderSide(color: Color(0xFFCBD5E1))
+                              borderRadius: BorderRadius.circular(9),
+                              side: isActiveState
+                                  ? const BorderSide(color: ZevColors.border)
                                   : BorderSide.none,
                             ),
                           ),
                           child: Text(
-                            isFollowed ? "Following" : "Follow",
+                            isFollowed
+                                ? "Following"
+                                : (isRequested ? "Requested" : "Follow"),
                             style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
@@ -2383,6 +3709,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       itemCount: _userPosts.length,
       itemBuilder: (context, index) {
         final post = _userPosts[index];
+        final hasCarousel = post.effectiveMediaUrls.length > 1;
         return GestureDetector(
           onTap: () => _openPostDetail(post),
           onLongPress: _isMyProfile ? () => _showPostManageSheet(post) : null,
@@ -2392,32 +3719,62 @@ class _ProfileScreenState extends State<ProfileScreen>
             padding: EdgeInsets.zero,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: post.imageUrl.isNotEmpty
-                  ? (post.imageUrl.toLowerCase().endsWith('.mp4') ||
-                            post.imageUrl.toLowerCase().endsWith('.mov') ||
-                            post.imageUrl.toLowerCase().endsWith('.webm')
-                        ? ZevVideoThumbnail(
-                            videoUrl: post.imageUrl,
-                            borderRadius: BorderRadius.circular(12),
-                          )
-                        : ZevCachedImage.grid(imageUrl: post.imageUrl))
-                  : Container(
-                      padding: const EdgeInsets.all(8),
-                      color: const Color(0xFFF8FAFC),
-                      child: Center(
-                        child: Text(
-                          post.content.isNotEmpty ? post.content : post.title,
-                          maxLines: 4,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w600,
-                            color: ZevColors.deepNavy,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  post.imageUrl.isNotEmpty
+                      ? ((ZevVideoThumbnail.isVideoUrl(post.imageUrl) ||
+                                (post.mediaItems.isNotEmpty &&
+                                    post.mediaItems.first.mediaType
+                                            .toLowerCase() ==
+                                        'video'))
+                            ? ZevVideoThumbnail(
+                                videoUrl: post.imageUrl,
+                                thumbnailUrl: post.mediaItems.isNotEmpty
+                                    ? post.mediaItems.first.thumbnailUrl
+                                    : null,
+                                durationSeconds: post.mediaItems.isNotEmpty
+                                    ? post.mediaItems.first.durationSeconds
+                                    : null,
+                                borderRadius: BorderRadius.circular(12),
+                              )
+                            : ZevCachedImage.grid(imageUrl: post.imageUrl))
+                      : Container(
+                          padding: const EdgeInsets.all(8),
+                          color: const Color(0xFFF8FAFC),
+                          child: Center(
+                            child: Text(
+                              post.content.isNotEmpty ? post.content : post.title,
+                              maxLines: 4,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: ZevColors.deepNavy,
+                              ),
+                            ),
                           ),
+                        ),
+                  if (hasCarousel)
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: ZevColors.deepNavy.withValues(alpha: 0.62),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.collections_rounded,
+                          color: Colors.white,
+                          size: 13,
                         ),
                       ),
                     ),
+                ],
+              ),
             ),
           ),
         );
@@ -2500,6 +3857,10 @@ class _ProfileScreenState extends State<ProfileScreen>
       itemCount: _userReposts.length,
       itemBuilder: (context, index) {
         final post = _userReposts[index];
+        final isVideo =
+            ZevVideoThumbnail.isVideoUrl(post.imageUrl) ||
+            (post.mediaItems.isNotEmpty &&
+                post.mediaItems.first.mediaType.toLowerCase() == 'video');
         return GestureDetector(
           onTap: () => _openPostDetail(post),
           onLongPress: _isMyProfile ? () => _showPostManageSheet(post) : null,
@@ -2513,22 +3874,51 @@ class _ProfileScreenState extends State<ProfileScreen>
                 fit: StackFit.expand,
                 children: [
                   post.imageUrl.isNotEmpty
-                      ? ZevCachedImage.grid(imageUrl: post.imageUrl)
-                      : Center(
-                          child: Text(
-                            post.content,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11),
+                      ? (isVideo
+                            ? ZevVideoThumbnail(
+                                videoUrl: post.imageUrl,
+                                thumbnailUrl: post.mediaItems.isNotEmpty
+                                    ? post.mediaItems.first.thumbnailUrl
+                                    : null,
+                                durationSeconds: post.mediaItems.isNotEmpty
+                                    ? post.mediaItems.first.durationSeconds
+                                    : null,
+                                borderRadius: BorderRadius.circular(12),
+                              )
+                            : ZevCachedImage.grid(imageUrl: post.imageUrl))
+                      : Container(
+                          padding: const EdgeInsets.all(8),
+                          color: ZevColors.softSurface,
+                          child: Center(
+                            child: Text(
+                              post.content.isNotEmpty
+                                  ? post.content
+                                  : post.title,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: ZevColors.deepNavy,
+                              ),
+                            ),
                           ),
                         ),
-                  const Positioned(
+                  Positioned(
                     top: 6,
                     right: 6,
-                    child: Icon(
-                      Icons.repeat_rounded,
-                      color: Colors.white,
-                      size: 16,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: ZevColors.deepNavy.withValues(alpha: 0.55),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.repeat_rounded,
+                        color: Colors.white,
+                        size: 13,
+                      ),
                     ),
                   ),
                 ],
@@ -2541,7 +3931,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildSavedGrid() {
-    if (_userSavedPosts.isEmpty) {
+    if (_userSavedPosts.isEmpty && _userSavedReels.isEmpty) {
       return _buildEmptyState(
         icon: Icons.bookmark_border_rounded,
         title: "Save Posts and Reels",
@@ -2549,6 +3939,13 @@ class _ProfileScreenState extends State<ProfileScreen>
             "Save photos and videos that you want to revisit. Only you can see what you've saved.",
       );
     }
+
+    final savedItems = <({DateTime createdAt, FeedPostItem? post, ReelItem? reel})>[
+      for (final p in _userSavedPosts)
+        (createdAt: p.createdAt, post: p, reel: null),
+      for (final r in _userSavedReels)
+        (createdAt: r.createdAt, post: null, reel: r),
+    ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     return GridView.builder(
       physics: const BouncingScrollPhysics(),
@@ -2559,9 +3956,60 @@ class _ProfileScreenState extends State<ProfileScreen>
         mainAxisSpacing: 6,
         childAspectRatio: 1.0,
       ),
-      itemCount: _userSavedPosts.length,
+      itemCount: savedItems.length,
       itemBuilder: (context, index) {
-        final post = _userSavedPosts[index];
+        final item = savedItems[index];
+        final reel = item.reel;
+        if (reel != null) {
+          return GestureDetector(
+            onTap: () => _openReelDetail(reel),
+            onLongPress:
+                _isMyProfile ? () => _showQuickReelPreview(reel) : null,
+            child: _buildClayCard(
+              borderRadius: 12,
+              depth: 2.5,
+              padding: EdgeInsets.zero,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ZevVideoThumbnail(
+                      videoUrl: reel.videoUrl,
+                      thumbnailUrl: reel.thumbnailUrl,
+                      viewsCount: reel.viewsCount,
+                      showPlayBadge: true,
+                      showViews: false,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: ZevColors.deepNavy.withValues(alpha: 0.55),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        final post = item.post!;
+        final isVideo =
+            ZevVideoThumbnail.isVideoUrl(post.imageUrl) ||
+            (post.mediaItems.isNotEmpty &&
+                post.mediaItems.first.mediaType.toLowerCase() == 'video');
         return GestureDetector(
           onTap: () => _openPostDetail(post),
           onLongPress: _isMyProfile ? () => _showPostManageSheet(post) : null,
@@ -2572,20 +4020,33 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: post.imageUrl.isNotEmpty
-                  ? (post.imageUrl.toLowerCase().endsWith('.mp4') ||
-                            post.imageUrl.toLowerCase().endsWith('.mov') ||
-                            post.imageUrl.toLowerCase().endsWith('.webm')
+                  ? (isVideo
                         ? ZevVideoThumbnail(
                             videoUrl: post.imageUrl,
+                            thumbnailUrl: post.mediaItems.isNotEmpty
+                                ? post.mediaItems.first.thumbnailUrl
+                                : null,
+                            durationSeconds: post.mediaItems.isNotEmpty
+                                ? post.mediaItems.first.durationSeconds
+                                : null,
                             borderRadius: BorderRadius.circular(12),
                           )
                         : ZevCachedImage.grid(imageUrl: post.imageUrl))
-                  : Center(
-                      child: Text(
-                        post.content,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11),
+                  : Container(
+                      padding: const EdgeInsets.all(8),
+                      color: ZevColors.softSurface,
+                      child: Center(
+                        child: Text(
+                          post.content.isNotEmpty ? post.content : post.title,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: ZevColors.deepNavy,
+                          ),
+                        ),
                       ),
                     ),
             ),
