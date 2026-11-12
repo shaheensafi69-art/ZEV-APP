@@ -80,9 +80,214 @@
       });
     }
   </script>
+  <!-- iOS-Only Web App Install Prompt Styles -->
+  <style>
+    #zev-ios-install-banner {
+      position: fixed;
+      left: 16px;
+      right: 16px;
+      bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      max-width: 440px;
+      margin: 0 auto;
+      z-index: 2147483647;
+      background: rgba(11, 15, 25, 0.96);
+      color: #F8FAFC;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 22px;
+      padding: 16px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+      transform: translateY(130%);
+      opacity: 0;
+      transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
+      display: none;
+    }
+    #zev-ios-install-banner.zev-visible {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    .zev-ios-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .zev-ios-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 13px;
+      flex-shrink: 0;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+    }
+    .zev-ios-title-wrap {
+      flex: 1;
+      min-width: 0;
+    }
+    .zev-ios-title {
+      font-size: 15.5px;
+      font-weight: 700;
+      color: #FFFFFF;
+      margin: 0 0 2px;
+    }
+    .zev-ios-subtitle {
+      font-size: 12.5px;
+      color: #94A3B8;
+      margin: 0;
+      line-height: 1.35;
+    }
+    .zev-ios-close {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #CBD5E1;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .zev-ios-steps {
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 13px;
+      color: #E2E8F0;
+    }
+    .zev-ios-step {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      line-height: 1.35;
+    }
+    .zev-ios-badge {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #00C6FF, #0072FF);
+      color: #FFFFFF;
+      font-size: 12px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .zev-ios-actions {
+      margin-top: 12px;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .zev-ios-dismiss-btn {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, #00C6FF 0%, #0072FF 100%);
+      color: #FFFFFF;
+      font-size: 13.5px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+  </style>
 </head>
 
 <body>
+  <!-- iOS-Only Web App Install Prompt (Android/Samsung uses Google Play Store instead) -->
+  <div id="zev-ios-install-banner" role="dialog" aria-modal="false" aria-labelledby="zev-ios-install-title">
+    <div class="zev-ios-header">
+      <img class="zev-ios-icon" src="icons/Icon-192.png" alt="ZEV App Icon">
+      <div class="zev-ios-title-wrap">
+        <p class="zev-ios-title" id="zev-ios-install-title">Install ZEV Web App</p>
+        <p class="zev-ios-subtitle">Add ZEV to your iPhone Home Screen for a faster full-screen experience.</p>
+      </div>
+      <button type="button" class="zev-ios-close" id="zev-ios-close-btn" aria-label="Close install prompt">&times;</button>
+    </div>
+    <div class="zev-ios-steps" id="zev-ios-steps"></div>
+    <div class="zev-ios-actions">
+      <button type="button" class="zev-ios-dismiss-btn" id="zev-ios-got-it-btn">Got it</button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var ua = window.navigator.userAgent || '';
+      var isIOS = /iPhone|iPad|iPod/i.test(ua) ||
+        (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
+
+      // On Samsung / Android / Desktop, prevent the browser's automatic Web App install prompt
+      // since native Android users install directly from Google Play Store.
+      window.addEventListener('beforeinstallprompt', function (event) {
+        if (!isIOS) {
+          event.preventDefault();
+        }
+      });
+
+      if (!isIOS) return;
+
+      var isStandalone = (window.navigator.standalone === true) ||
+        (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+      if (isStandalone) return;
+
+      var DISMISS_KEY = 'zev_ios_pwa_install_dismissed_at';
+      var SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+      try {
+        var dismissedAt = parseInt(window.localStorage.getItem(DISMISS_KEY) || '0', 10);
+        if (dismissedAt && (Date.now() - dismissedAt) < SEVEN_DAYS_MS) {
+          return;
+        }
+      } catch (e) { }
+
+      var banner = document.getElementById('zev-ios-install-banner');
+      var stepsEl = document.getElementById('zev-ios-steps');
+      var closeBtn = document.getElementById('zev-ios-close-btn');
+      var gotItBtn = document.getElementById('zev-ios-got-it-btn');
+      if (!banner || !stepsEl) return;
+
+      var shareIconSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin:0 3px;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>';
+      var isInAppOrAltBrowser = /CriOS|FxiOS|EdgiOS|OPiOS/i.test(ua);
+
+      if (isInAppOrAltBrowser) {
+        stepsEl.innerHTML =
+          '<div class="zev-ios-step"><span class="zev-ios-badge">1</span><span>Tap the <strong>Share</strong> icon' + shareIconSvg + 'at the top right (or open this link in <strong>Safari</strong>).</span></div>' +
+          '<div class="zev-ios-step"><span class="zev-ios-badge">2</span><span>Choose <strong>Add to Home Screen</strong> to install ZEV.</span></div>';
+      } else {
+        stepsEl.innerHTML =
+          '<div class="zev-ios-step"><span class="zev-ios-badge">1</span><span>Tap the <strong>Share</strong> button' + shareIconSvg + 'at the bottom of Safari.</span></div>' +
+          '<div class="zev-ios-step"><span class="zev-ios-badge">2</span><span>Scroll down and tap <strong>Add to Home Screen</strong>.</span></div>';
+      }
+
+      function dismissPrompt() {
+        banner.classList.remove('zev-visible');
+        try {
+          window.localStorage.setItem(DISMISS_KEY, String(Date.now()));
+        } catch (e) { }
+        window.setTimeout(function () {
+          banner.style.display = 'none';
+        }, 350);
+      }
+
+      if (closeBtn) closeBtn.addEventListener('click', dismissPrompt);
+      if (gotItBtn) gotItBtn.addEventListener('click', dismissPrompt);
+
+      window.setTimeout(function () {
+        banner.style.display = 'block';
+        window.requestAnimationFrame(function () {
+          banner.classList.add('zev-visible');
+        });
+      }, 2200);
+    })();
+  </script>
+
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
