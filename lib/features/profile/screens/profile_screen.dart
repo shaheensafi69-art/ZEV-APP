@@ -13,6 +13,7 @@ import '../../feed/models/feed_post_item.dart';
 import '../../feed/screens/create_post_screen.dart';
 import '../../feed/screens/drafts_scheduled_screen.dart';
 import '../../feed/screens/post_detail_screen.dart';
+import '../../ads/screens/ads_manager_screen.dart';
 import '../../live/screens/live_rooms_screen.dart';
 import '../../reels/models/reel_item.dart';
 import '../../reels/screens/create_reel_screen.dart';
@@ -1613,6 +1614,16 @@ class _ProfileScreenState extends State<ProfileScreen>
                   },
                 ),
                 if (canDelete) ...[
+                  const SizedBox(height: 10),
+                  _buildProfileManageTile(
+                    icon: Icons.campaign_rounded,
+                    title: "Advertise Post",
+                    color: const Color(0xFF0284C7),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      AdsManagerScreen.openForPost(context, post: post);
+                    },
+                  ),
                   const SizedBox(height: 10),
                   _buildProfileManageTile(
                     icon: Icons.edit_outlined,

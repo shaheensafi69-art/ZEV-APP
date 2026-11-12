@@ -14,6 +14,7 @@ import '../../../core/utils/text_direction_helper.dart';
 import '../../../core/utils/time_ago.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_video_thumbnail.dart';
+import '../../ads/screens/ads_manager_screen.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../models/feed_post_item.dart';
 import '../screens/fullscreen_media_viewer.dart';
@@ -1631,6 +1632,16 @@ class _FeedPostCardState extends State<FeedPostCard>
               },
             ),
             if (canDelete) ...[
+              const SizedBox(height: 10),
+              _buildPostOptionTile(
+                icon: Icons.campaign_rounded,
+                title: "Advertise Post",
+                color: const Color(0xFF0284C7),
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  AdsManagerScreen.openForPost(context, post: _post);
+                },
+              ),
               const SizedBox(height: 10),
               _buildPostOptionTile(
                 icon: Icons.edit_outlined,

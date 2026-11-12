@@ -42,6 +42,7 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen>
   final Set<String> _loadedReelIds = <String>{};
   List<ReelItem> _reels = [];
   int _activePage = 0;
+  int _previousPage = 0;
   bool _isGlobalMuted = false;
 
   // Native In-Stream Ad Placement Rules (every 4 reels -> 1 ad unit)
@@ -272,7 +273,10 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen>
   }
 
   void _onPageChanged(int index) {
-    setState(() => _activePage = index);
+    setState(() {
+      _previousPage = _activePage;
+      _activePage = index;
+    });
     if (_isAdPage(index)) {
       ReelVideoCacheManager().pauseAll();
       final nextReelIdx = _getReelIndex(index + 1);
@@ -292,6 +296,23 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen>
       if (_hasMoreReels && !_isLoadingMore && reelIdx >= _reels.length - 3) {
         unawaited(_loadMoreReels());
       }
+    }
+  }
+
+  void _handleAdPageUnavailable(int adPageIndex) {
+    if (!mounted || !_pageController.hasClients || _activePage != adPageIndex) {
+      return;
+    }
+    final bool movingForward = adPageIndex >= _previousPage;
+    int target = movingForward ? adPageIndex + 1 : adPageIndex - 1;
+    if (target < 0) target = 0;
+    if (target >= _totalPageCount) target = adPageIndex - 1;
+    if (target >= 0 && target < _totalPageCount && target != adPageIndex) {
+      _pageController.animateToPage(
+        target,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
     }
   }
 
@@ -646,6 +667,7 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen>
                   key: ValueKey('reel_ad_$index'),
                   isActive: isPageActive,
                   slotKey: 'reel_slot_$index',
+                  onAdUnavailable: () => _handleAdPageUnavailable(index),
                 );
               }
 

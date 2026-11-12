@@ -11,18 +11,41 @@ import '../../../core/services/zev_ads_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_skeleton.dart';
+import '../../feed/models/feed_post_item.dart';
 
 /// 100% Light Clearmorphic ZEV Ads Manager & Monetization Console.
-/// Allows creators & businesses to onboard as advertisers, upload ad creatives
-/// directly to Cloudflare R2 (`zev/ads/`), configure targeting & budgets,
-/// monitor live CTR/spend telemetry, pause/resume campaigns, and generate invoices.
+/// Allows creators & businesses to onboard as advertisers, boost existing posts
+/// or upload new creatives to Cloudflare R2 (`zev/ads/`), configure targeting &
+/// budgets, monitor live CTR/spend telemetry, pause/resume campaigns, and generate invoices.
 class AdsManagerScreen extends StatefulWidget {
-  const AdsManagerScreen({super.key});
+  final FeedPostItem? initialBoostPost;
+  final int initialTabIndex;
+
+  const AdsManagerScreen({
+    super.key,
+    this.initialBoostPost,
+    this.initialTabIndex = 0,
+  });
 
   static Future<void> open(BuildContext context) {
     return Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const AdsManagerScreen()),
+    );
+  }
+
+  static Future<void> openForPost(
+    BuildContext context, {
+    required FeedPostItem post,
+  }) {
+    return Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdsManagerScreen(
+          initialBoostPost: post,
+          initialTabIndex: 1,
+        ),
+      ),
     );
   }
 
@@ -72,7 +95,9 @@ class _AdsManagerScreenState extends State<AdsManagerScreen>
   final Set<String> _selectedLanguages = <String>{'en'};
   final Set<String> _selectedInterests = <String>{};
 
-  // Creative media state
+  // Creative media & boosted post state
+  String? _sourcePostId;
+  FeedPostItem? _sourcePostPreview;
   String? _uploadedMediaUrl;
   String _mediaType = 'image';
   bool _isUploadingMedia = false;
@@ -103,6 +128,7 @@ class _AdsManagerScreenState extends State<AdsManagerScreen>
   static const List<String> _pricingModels = ['CPM', 'CPC', 'CPA'];
 
   static const List<String> _ctaPresets = [
+    'View Post',
     'Learn More',
     'Shop Now',
     'Sign Up',
@@ -138,15 +164,259 @@ class _AdsManagerScreenState extends State<AdsManagerScreen>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    _tabCtrl = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: widget.initialTabIndex.clamp(0, 2),
+    );
     _tabCtrl.addListener(() {
       if (mounted) setState(() {});
     });
+    _titleCtrl.addListener(_onPreviewFieldChanged);
+    _bodyCtrl.addListener(_onPreviewFieldChanged);
+    _ctaLabelCtrl.addListener(_onPreviewFieldChanged);
+    if (widget.initialBoostPost != null) {
+      _applyBoostPost(widget.initialBoostPost!, notify: false);
+    }
     unawaited(_loadDashboard());
+  }
+
+  void _onPreviewFieldChanged() {
+    if (mounted && _tabCtrl.index == 1) {
+      setState(() {});
+    }
+  }
+
+  void _applyBoostPost(FeedPostItem post, {bool notify = true}) {
+    final media = post.effectiveMediaItems;
+    final primaryMedia = media.isNotEmpty ? media.first : null;
+    final headline = post.title.trim().isNotEmpty
+        ? post.title.trim()
+        : (post.content.trim().isNotEmpty
+            ? post.content.trim().split('\n').first.trim()
+            : 'Featured by @${post.authorUsername}');
+    final shortHeadline =
+        headline.length > 90 ? '${headline.substring(0, 87)}...' : headline;
+    final copy = post.content.trim().isNotEmpty
+        ? post.content.trim()
+        : (post.title.trim().isNotEmpty
+            ? post.title.trim()
+            : 'Check out this featured post on ZEV.');
+
+    _sourcePostId = post.id;
+    _sourcePostPreview = post;
+    _campaignNameCtrl.text = 'Boost: $shortHeadline';
+    _titleCtrl.text = shortHeadline;
+    _bodyCtrl.text = copy;
+    _destinationUrlCtrl.text = 'https://www.zevapp.com/post/${post.id}';
+    _ctaLabelCtrl.text = 'View Post';
+    _objective = 'engagement';
+    _placement = 'feed';
+    _localPreviewBytes = null;
+    _uploadError = null;
+    if (primaryMedia != null && primaryMedia.mediaUrl.trim().isNotEmpty) {
+      _uploadedMediaUrl = primaryMedia.mediaUrl.trim();
+      _mediaType =
+          primaryMedia.mediaType.toLowerCase() == 'video' ? 'video' : 'image';
+    } else {
+      _uploadedMediaUrl = null;
+      _mediaType = 'image';
+    }
+
+    if (notify && mounted) {
+      setState(() {});
+      _showSnack('Loaded post into ZEV Ads Builder.');
+    }
+  }
+
+  void _clearBoostPost() {
+    setState(() {
+      _sourcePostId = null;
+      _sourcePostPreview = null;
+    });
+  }
+
+  Future<void> _openPostPickerSheet() async {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return Container(
+          height: MediaQuery.of(sheetCtx).size.height * 0.72,
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
+          decoration: const BoxDecoration(
+            color: ZevColors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: ZevColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Select a Post to Advertise',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: ZevColors.deepNavy,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Choose any of your previous ZEV posts to turn into a sponsored campaign.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: ZevColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Expanded(
+                child: FutureBuilder<List<FeedPostItem>>(
+                  future: ZevAdsService.instance.fetchMyPostsForBoost(),
+                  builder: (context, snap) {
+                    if (snap.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: ZevColors.primaryBlue,
+                        ),
+                      );
+                    }
+                    final posts = snap.data ?? const <FeedPostItem>[];
+                    if (posts.isEmpty) {
+                      return const Center(
+                        child: Text(
+                          'No published posts found yet. Create a post first!',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: ZevColors.textSecondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      );
+                    }
+                    return ListView.separated(
+                      itemCount: posts.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
+                      itemBuilder: (_, idx) {
+                        final p = posts[idx];
+                        final thumb = p.effectiveMediaItems.isNotEmpty
+                            ? p.effectiveMediaItems.first
+                            : null;
+                        final headline = p.title.trim().isNotEmpty
+                            ? p.title.trim()
+                            : (p.content.trim().isNotEmpty
+                                ? p.content.trim()
+                                : 'Post #${p.id.substring(0, 6)}');
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () {
+                            Navigator.pop(sheetCtx);
+                            _applyBoostPost(p);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: ZevColors.softSurface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: _sourcePostId == p.id
+                                    ? ZevColors.primaryBlue
+                                    : ZevColors.border,
+                                width: _sourcePostId == p.id ? 1.5 : 1.0,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: SizedBox(
+                                    width: 56,
+                                    height: 56,
+                                    child: thumb != null
+                                        ? (thumb.mediaType == 'video'
+                                            ? Container(
+                                                color: ZevColors.deepNavy,
+                                                child: const Icon(
+                                                  Icons.play_circle_filled_rounded,
+                                                  color: Colors.white,
+                                                ),
+                                              )
+                                            : ZevCachedImage.feedPost(
+                                                imageUrl: thumb.mediaUrl,
+                                                fit: BoxFit.cover,
+                                              ))
+                                        : Container(
+                                            color: ZevColors.white,
+                                            child: const Icon(
+                                              Icons.article_outlined,
+                                              color: ZevColors.secondaryBlue,
+                                            ),
+                                          ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        headline,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: ZevColors.deepNavy,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        p.createdAt.toIso8601String().substring(0, 10),
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: ZevColors.textMuted,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.campaign_rounded,
+                                  color: ZevColors.secondaryBlue,
+                                  size: 20,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
   void dispose() {
+    _titleCtrl.removeListener(_onPreviewFieldChanged);
+    _bodyCtrl.removeListener(_onPreviewFieldChanged);
+    _ctaLabelCtrl.removeListener(_onPreviewFieldChanged);
     _tabCtrl.dispose();
     _bizNameCtrl.dispose();
     _bizWebsiteCtrl.dispose();
@@ -445,6 +715,13 @@ class _AdsManagerScreenState extends State<AdsManagerScreen>
       _showSnack('Enter a creative headline for your ad.', isError: true);
       return;
     }
+    if (body.length < 2) {
+      _showSnack(
+        'Enter ad copy / description (at least 2 characters).',
+        isError: true,
+      );
+      return;
+    }
     final destUri = Uri.tryParse(dest);
     if (destUri == null ||
         !(destUri.scheme == 'https' || destUri.scheme == 'http') ||
@@ -500,6 +777,7 @@ class _AdsManagerScreenState extends State<AdsManagerScreen>
         dailyFrequencyCap: _dailyFrequencyCap,
         minCooldownSeconds: _minCooldownSeconds,
         endsAt: _endsAt,
+        sourcePostId: _sourcePostId,
       );
 
       if (!mounted) return;
@@ -508,6 +786,8 @@ class _AdsManagerScreenState extends State<AdsManagerScreen>
       _bodyCtrl.clear();
       _destinationUrlCtrl.clear();
       setState(() {
+        _sourcePostId = null;
+        _sourcePostPreview = null;
         _uploadedMediaUrl = null;
         _localPreviewBytes = null;
         _isSubmittingCampaign = false;
@@ -909,9 +1189,48 @@ class _AdsManagerScreenState extends State<AdsManagerScreen>
                       ],
                     ),
                   ),
+                  if (adv.balance <= 0) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 9,
+                      ),
+                      decoration: BoxDecoration(
+                        color: ZevColors.warningAmber.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: ZevColors.warningAmber.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.account_balance_wallet_outlined,
+                            size: 17,
+                            color: Color(0xFFB45309),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Add wallet credit to go live: approved campaigns automatically deliver once funded by ZEV Billing.',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF92400E),
+                                height: 1.3,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
+            const SizedBox(height: 12),
+            _buildDeliveryPipelineCard(),
             const SizedBox(height: 14),
 
             // KPI Summary Grid
@@ -1105,6 +1424,101 @@ class _AdsManagerScreenState extends State<AdsManagerScreen>
     );
   }
 
+  Widget _buildDeliveryPipelineCard() {
+    return _clearCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.auto_awesome_rounded,
+                size: 16,
+                color: Color(0xFF0284C7),
+              ),
+              SizedBox(width: 6),
+              Text(
+                'HOW ZEV ADS DELIVERY WORKS',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w900,
+                  color: ZevColors.textMuted,
+                  letterSpacing: 0.7,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _pipelineStep('1', 'Boost / Create', 'Pick post or R2 ad'),
+              const SizedBox(width: 8),
+              _pipelineStep('2', 'Admin Review', 'Policy & wallet check'),
+              const SizedBox(width: 8),
+              _pipelineStep('3', 'Auto Delivery', 'Feed, Reels & Stories'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pipelineStep(String num, String title, String sub) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: ZevColors.softSurface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: ZevColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 20,
+              height: 20,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                gradient: ZevColors.brandGradient,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                num,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                color: ZevColors.deepNavy,
+              ),
+            ),
+            Text(
+              sub,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 10,
+                color: ZevColors.textMuted,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCampaignCard(ZevAdCampaign c) {
     final progress = c.totalBudget > 0
         ? (c.spentAmount / c.totalBudget).clamp(0.0, 1.0)
@@ -1179,6 +1593,36 @@ class _AdsManagerScreenState extends State<AdsManagerScreen>
                         runSpacing: 4,
                         children: [
                           _statusPill(c.status),
+                          if (c.isBoostedPost)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: ZevColors.primaryBlue.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.rocket_launch_rounded,
+                                    size: 11,
+                                    color: Color(0xFF0284C7),
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'BOOSTED POST',
+                                    style: TextStyle(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w900,
+                                      color: Color(0xFF0284C7),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
@@ -1326,6 +1770,8 @@ class _AdsManagerScreenState extends State<AdsManagerScreen>
           _buildOnboardingCard(),
           const SizedBox(height: 16),
         ],
+        _buildBoostPostBannerCard(),
+        const SizedBox(height: 14),
         _clearCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1627,6 +2073,18 @@ class _AdsManagerScreenState extends State<AdsManagerScreen>
                             fit: BoxFit.cover,
                           ),
                         )
+                      else if (_uploadedMediaUrl != null && _mediaType == 'image')
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: SizedBox(
+                            width: 52,
+                            height: 52,
+                            child: ZevCachedImage.feedPost(
+                              imageUrl: _uploadedMediaUrl!,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        )
                       else
                         const Icon(
                           Icons.play_circle_fill_rounded,
@@ -1634,10 +2092,12 @@ class _AdsManagerScreenState extends State<AdsManagerScreen>
                           color: ZevColors.secondaryBlue,
                         ),
                       const SizedBox(width: 10),
-                      const Expanded(
+                      Expanded(
                         child: Text(
-                          'Creative uploaded and ready for delivery',
-                          style: TextStyle(
+                          _sourcePostId != null
+                              ? 'Post media attached and ready for promotion'
+                              : 'Creative uploaded and ready for delivery',
+                          style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                             color: ZevColors.deepNavy,
@@ -1670,7 +2130,7 @@ class _AdsManagerScreenState extends State<AdsManagerScreen>
               const SizedBox(height: 10),
               _buildClearInput(
                 controller: _bodyCtrl,
-                label: 'Ad Copy / Description',
+                label: 'Ad Copy / Description *',
                 hint: 'Tell viewers what makes your offer stand out...',
                 maxLines: 3,
               ),
@@ -1841,6 +2301,8 @@ class _AdsManagerScreenState extends State<AdsManagerScreen>
             ],
           ),
         ),
+        const SizedBox(height: 14),
+        _buildLiveAdPreviewCard(),
         const SizedBox(height: 18),
 
         ElevatedButton(
@@ -1862,12 +2324,358 @@ class _AdsManagerScreenState extends State<AdsManagerScreen>
                     color: Colors.white,
                   ),
                 )
-              : const Text(
-                  'Submit Campaign for Review',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+              : Text(
+                  _sourcePostId != null
+                      ? 'Submit Boosted Post for Review'
+                      : 'Submit Campaign for Review',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
         ),
       ],
+    );
+  }
+
+  Widget _buildBoostPostBannerCard() {
+    if (_sourcePostId != null) {
+      final post = _sourcePostPreview;
+      final thumbUrl = _uploadedMediaUrl;
+      return _clearCard(
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                width: 52,
+                height: 52,
+                child: thumbUrl != null && thumbUrl.isNotEmpty
+                    ? (_mediaType == 'video'
+                        ? Container(
+                            color: ZevColors.deepNavy,
+                            child: const Icon(
+                              Icons.play_circle_filled_rounded,
+                              color: Colors.white,
+                            ),
+                          )
+                        : ZevCachedImage.feedPost(
+                            imageUrl: thumbUrl,
+                            fit: BoxFit.cover,
+                          ))
+                    : Container(
+                        color: ZevColors.primaryBlue.withValues(alpha: 0.14),
+                        child: const Icon(
+                          Icons.rocket_launch_rounded,
+                          color: Color(0xFF0284C7),
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'PROMOTING PREVIOUS POST',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF0284C7),
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    post != null && post.title.trim().isNotEmpty
+                        ? post.title.trim()
+                        : (_titleCtrl.text.trim().isNotEmpty
+                            ? _titleCtrl.text.trim()
+                            : 'Post #${_sourcePostId!.substring(0, 6)}'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: ZevColors.deepNavy,
+                    ),
+                  ),
+                  const Text(
+                    'Pre-filled from your post. You can customize anything below.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: ZevColors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: _openPostPickerSheet,
+              child: const Text('Change'),
+            ),
+            IconButton(
+              tooltip: 'Clear linked post',
+              onPressed: _clearBoostPost,
+              icon: const Icon(
+                Icons.close_rounded,
+                size: 18,
+                color: ZevColors.textMuted,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return _clearCard(
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: ZevColors.primaryBlue.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.rocket_launch_rounded,
+              color: Color(0xFF0284C7),
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Advertise a Previous Post',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    color: ZevColors.deepNavy,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Or fill the form below to build a custom creative from scratch.',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: ZevColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton(
+            onPressed: _openPostPickerSheet,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF0284C7),
+              side: BorderSide(
+                color: ZevColors.primaryBlue.withValues(alpha: 0.45),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              'Pick Post',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLiveAdPreviewCard() {
+    final brandName = _dashboard.advertiser?.businessName ??
+        (_bizNameCtrl.text.trim().isNotEmpty
+            ? _bizNameCtrl.text.trim()
+            : 'Your Brand');
+    final headline = _titleCtrl.text.trim().isNotEmpty
+        ? _titleCtrl.text.trim()
+        : 'Your Sponsored Headline';
+    final copy = _bodyCtrl.text.trim().isNotEmpty
+        ? _bodyCtrl.text.trim()
+        : 'Preview of how your ZEV Sponsored Ad will appear in users’ feeds.';
+    final cta = _ctaLabelCtrl.text.trim().isNotEmpty
+        ? _ctaLabelCtrl.text.trim()
+        : 'Learn More';
+
+    return _clearCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.visibility_outlined,
+                size: 16,
+                color: Color(0xFF0284C7),
+              ),
+              SizedBox(width: 6),
+              Text(
+                'LIVE AD PREVIEW',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w900,
+                  color: ZevColors.textMuted,
+                  letterSpacing: 0.7,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            decoration: BoxDecoration(
+              color: ZevColors.softSurface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: ZevColors.border, width: 1.2),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: ZevColors.primaryBlue.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'Sponsored',
+                          style: TextStyle(
+                            color: Color(0xFF0284C7),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          brandName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: ZevColors.deepNavy,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        _sourcePostId != null ? 'Promoted Post' : 'ZEV Ads',
+                        style: const TextStyle(
+                          color: ZevColors.textMuted,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_localPreviewBytes != null && _mediaType == 'image')
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: SizedBox(
+                        height: 150,
+                        child: Image.memory(
+                          _localPreviewBytes!,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  )
+                else if (_uploadedMediaUrl != null &&
+                    _uploadedMediaUrl!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: SizedBox(
+                        height: 150,
+                        child: _mediaType == 'video'
+                            ? Container(
+                                color: ZevColors.deepNavy,
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.play_circle_fill_rounded,
+                                    color: Colors.white,
+                                    size: 40,
+                                  ),
+                                ),
+                              )
+                            : ZevCachedImage.feedPost(
+                                imageUrl: _uploadedMediaUrl!,
+                                fit: BoxFit.cover,
+                              ),
+                      ),
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        headline,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          color: ZevColors.deepNavy,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        copy,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: ZevColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 9),
+                        decoration: BoxDecoration(
+                          gradient: ZevColors.brandGradientHorizontal,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Center(
+                          child: Text(
+                            cta,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -9,9 +9,11 @@ import '../services/zev_ads_service.dart';
 import '../theme/zev_theme.dart';
 import 'zev_cached_image.dart';
 
+enum _StoryAdSource { loading, zevSponsored, googleAdMob, none }
+
 /// Light Clearmorphic In-Stream Story Ad Unit for ZEV Stories.
 /// Tries ZEV internal sponsored campaigns (`placement: 'story'`) first,
-/// falling back gracefully to AdMob [NativeAd] on mobile.
+/// falling back gracefully to AdMob [NativeAd] on mobile with strict separation.
 class ZevNativeAdStoryUnit extends StatefulWidget {
   final String slotKey;
   final VoidCallback? onAdLoaded;
@@ -31,13 +33,12 @@ class ZevNativeAdStoryUnit extends StatefulWidget {
 }
 
 class _ZevNativeAdStoryUnitState extends State<ZevNativeAdStoryUnit> {
+  _StoryAdSource _source = _StoryAdSource.loading;
   ZevSponsoredAd? _sponsoredAd;
   VideoPlayerController? _videoCtrl;
   bool _videoReady = false;
 
   NativeAd? _nativeAd;
-  bool _isAdMobLoaded = false;
-  bool _adFailed = false;
 
   @override
   void initState() {
@@ -55,8 +56,8 @@ class _ZevNativeAdStoryUnitState extends State<ZevNativeAdStoryUnit> {
 
     if (ad != null) {
       setState(() {
+        _source = _StoryAdSource.zevSponsored;
         _sponsoredAd = ad;
-        _adFailed = false;
       });
       widget.onSponsoredAdLoaded?.call(ad);
       widget.onAdLoaded?.call();
@@ -90,7 +91,7 @@ class _ZevNativeAdStoryUnitState extends State<ZevNativeAdStoryUnit> {
 
   void _loadNativeAdFallback() {
     if (kIsWeb) {
-      if (mounted) setState(() => _adFailed = true);
+      if (mounted) setState(() => _source = _StoryAdSource.none);
       widget.onAdFailed?.call();
       return;
     }
@@ -101,24 +102,24 @@ class _ZevNativeAdStoryUnitState extends State<ZevNativeAdStoryUnit> {
         request: const AdRequest(),
         listener: NativeAdListener(
           onAdLoaded: (ad) {
-            if (mounted) {
+            if (mounted && _source != _StoryAdSource.zevSponsored) {
               setState(() {
-                _isAdMobLoaded = true;
-                _adFailed = false;
+                _source = _StoryAdSource.googleAdMob;
               });
               widget.onAdLoaded?.call();
+            } else {
+              ad.dispose();
             }
           },
           onAdFailedToLoad: (ad, error) {
             debugPrint(
-              '[ZevNativeAdStoryUnit] Ad failed to load: ${error.message} (code ${error.code})',
+              '[ZevNativeAdStoryUnit] AdMob failed to load: ${error.message} (code ${error.code})',
             );
             ad.dispose();
-            if (mounted) {
+            if (mounted && _source != _StoryAdSource.zevSponsored) {
               setState(() {
                 _nativeAd = null;
-                _isAdMobLoaded = false;
-                _adFailed = true;
+                _source = _StoryAdSource.none;
               });
               widget.onAdFailed?.call();
             }
@@ -150,12 +151,11 @@ class _ZevNativeAdStoryUnitState extends State<ZevNativeAdStoryUnit> {
         ),
       )..load();
     } catch (e) {
-      debugPrint('[ZevNativeAdStoryUnit] Ad initialization warning: $e');
-      if (mounted) {
+      debugPrint('[ZevNativeAdStoryUnit] AdMob initialization warning: $e');
+      if (mounted && _source != _StoryAdSource.zevSponsored) {
         setState(() {
           _nativeAd = null;
-          _isAdMobLoaded = false;
-          _adFailed = true;
+          _source = _StoryAdSource.none;
         });
         widget.onAdFailed?.call();
       }
@@ -199,68 +199,93 @@ class _ZevNativeAdStoryUnitState extends State<ZevNativeAdStoryUnit> {
               child: Column(
                 children: [
                   const SizedBox(height: 82),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.92),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: ZevColors.border, width: 1.2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: ZevColors.deepNavy.withValues(alpha: 0.06),
-                          blurRadius: 12,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.campaign_rounded,
-                          size: 16,
-                          color: Color(0xFF0284C7),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _sponsoredAd != null
-                              ? _sponsoredAd!.businessName
-                              : 'Sponsored Story',
-                          style: const TextStyle(
-                            color: ZevColors.deepNavy,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w800,
+                  if (_source == _StoryAdSource.zevSponsored &&
+                      _sponsoredAd != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.92),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: ZevColors.border, width: 1.2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: ZevColors.deepNavy.withValues(alpha: 0.06),
+                            blurRadius: 12,
+                            offset: const Offset(0, 3),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.campaign_rounded,
+                            size: 16,
+                            color: Color(0xFF0284C7),
                           ),
-                          decoration: BoxDecoration(
-                            color: ZevColors.primaryBlue.withValues(alpha: 0.16),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text(
-                            'AD',
-                            style: TextStyle(
-                              color: Color(0xFF0284C7),
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w900,
+                          const SizedBox(width: 8),
+                          Text(
+                            _sponsoredAd!.businessName,
+                            style: const TextStyle(
+                              color: ZevColors.deepNavy,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: ZevColors.primaryBlue.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              _sponsoredAd!.isBoostedPost
+                                  ? 'PROMOTED'
+                                  : 'SPONSORED',
+                              style: const TextStyle(
+                                color: Color(0xFF0284C7),
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (_source == _StoryAdSource.googleAdMob)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: ZevColors.border),
+                      ),
+                      child: const Text(
+                        'Partner Ad • Google Ad',
+                        style: TextStyle(
+                          color: ZevColors.textSecondary,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
                         ),
-                      ],
+                      ),
                     ),
-                  ),
                   const Spacer(),
-                  if (_sponsoredAd != null)
+                  if (_source == _StoryAdSource.zevSponsored &&
+                      _sponsoredAd != null)
                     _buildInternalSponsoredStoryCard(_sponsoredAd!)
-                  else if (_isAdMobLoaded && _nativeAd != null)
+                  else if (!kIsWeb &&
+                      _source == _StoryAdSource.googleAdMob &&
+                      _nativeAd != null)
                     Container(
                       width: double.infinity,
                       decoration: BoxDecoration(
@@ -281,61 +306,18 @@ class _ZevNativeAdStoryUnitState extends State<ZevNativeAdStoryUnit> {
                         child: AdWidget(ad: _nativeAd!),
                       ),
                     )
-                  else if (!_adFailed)
-                    Container(
+                  else if (_source == _StoryAdSource.loading)
+                    const SizedBox(
                       height: 320,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: ZevColors.white,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: ZevColors.border),
-                      ),
-                      child: const Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 26,
-                            height: 26,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.2,
-                              color: ZevColors.primaryBlue,
-                            ),
-                          ),
-                          SizedBox(height: 12),
-                          Text(
-                            'Loading sponsored story...',
-                            style: TextStyle(
-                              color: ZevColors.textSecondary,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: ZevColors.primaryBlue,
+                        ),
                       ),
                     )
                   else
-                    Container(
-                      height: 160,
-                      alignment: Alignment.center,
-                      child: const Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.check_circle_outline_rounded,
-                            color: Color(0xFF0284C7),
-                            size: 34,
-                          ),
-                          SizedBox(height: 10),
-                          Text(
-                            'Enjoy your stories',
-                            style: TextStyle(
-                              color: ZevColors.deepNavy,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    const SizedBox(height: 160),
                   const Spacer(),
                   const Padding(
                     padding: EdgeInsets.only(bottom: 72),
@@ -389,21 +371,28 @@ class _ZevNativeAdStoryUnitState extends State<ZevNativeAdStoryUnit> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (ad.mediaUrl.isNotEmpty)
-            SizedBox(
-              height: 290,
-              child: ad.isVideo && _videoCtrl != null && _videoReady
-                  ? FittedBox(
-                      fit: BoxFit.cover,
-                      child: SizedBox(
-                        width: _videoCtrl!.value.size.width,
-                        height: _videoCtrl!.value.size.height,
-                        child: VideoPlayer(_videoCtrl!),
+            GestureDetector(
+              onTap: () => ZevAdsService.instance.openAdDestination(
+                context: context,
+                slotKey: widget.slotKey,
+                ad: ad,
+              ),
+              child: SizedBox(
+                height: 270,
+                child: ad.isVideo && _videoCtrl != null && _videoReady
+                    ? FittedBox(
+                        fit: BoxFit.cover,
+                        child: SizedBox(
+                          width: _videoCtrl!.value.size.width,
+                          height: _videoCtrl!.value.size.height,
+                          child: VideoPlayer(_videoCtrl!),
+                        ),
+                      )
+                    : ZevCachedImage.feedPost(
+                        imageUrl: ad.mediaUrl,
+                        fit: BoxFit.cover,
                       ),
-                    )
-                  : ZevCachedImage.feedPost(
-                      imageUrl: ad.mediaUrl,
-                      fit: BoxFit.cover,
-                    ),
+              ),
             ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
@@ -433,6 +422,43 @@ class _ZevNativeAdStoryUnitState extends State<ZevNativeAdStoryUnit> {
                     ),
                   ),
                 ],
+                const SizedBox(height: 12),
+                GestureDetector(
+                  onTap: () => ZevAdsService.instance.openAdDestination(
+                    context: context,
+                    slotKey: widget.slotKey,
+                    ad: ad,
+                  ),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    decoration: BoxDecoration(
+                      gradient: ZevColors.brandGradientHorizontal,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          ad.ctaLabel,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(
+                          ZevAdsService.instance.resolveInAppPostId(ad) != null
+                              ? Icons.arrow_forward_rounded
+                              : Icons.open_in_new_rounded,
+                          color: Colors.white,
+                          size: 15,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

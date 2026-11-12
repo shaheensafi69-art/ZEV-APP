@@ -1,12 +1,16 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../features/feed/models/feed_post_item.dart';
+import '../../features/feed/screens/post_detail_screen.dart';
 import 'api_client.dart';
 
 class ZevSponsoredAd {
   final String campaignId;
   final String creativeId;
+  final String? sourcePostId;
   final String businessName;
   final String placement;
   final String pricingModel;
@@ -21,6 +25,7 @@ class ZevSponsoredAd {
   const ZevSponsoredAd({
     required this.campaignId,
     required this.creativeId,
+    this.sourcePostId,
     required this.businessName,
     required this.placement,
     required this.pricingModel,
@@ -33,6 +38,8 @@ class ZevSponsoredAd {
     required this.destinationUrl,
   });
 
+  bool get isBoostedPost => sourcePostId != null && sourcePostId!.trim().isNotEmpty;
+
   bool get isVideo =>
       mediaType.toLowerCase() == 'video' ||
       mediaUrl.toLowerCase().contains('.mp4') ||
@@ -40,9 +47,14 @@ class ZevSponsoredAd {
       mediaUrl.toLowerCase().contains('.webm');
 
   factory ZevSponsoredAd.fromJson(Map<String, dynamic> json) {
+    final rawSourcePostId =
+        (json['source_post_id'] ?? json['sourcePostId'])?.toString().trim();
     return ZevSponsoredAd(
       campaignId: (json['campaign_id'] ?? json['campaignId'] ?? '').toString(),
       creativeId: (json['creative_id'] ?? json['creativeId'] ?? '').toString(),
+      sourcePostId: (rawSourcePostId != null && rawSourcePostId.isNotEmpty)
+          ? rawSourcePostId
+          : null,
       businessName:
           (json['business_name'] ?? json['businessName'] ?? 'Sponsored Partner')
               .toString(),
@@ -100,6 +112,7 @@ class ZevAdvertiserProfile {
 
 class ZevAdCampaign {
   final String id;
+  final String? sourcePostId;
   final String name;
   final String objective;
   final String placement;
@@ -126,6 +139,7 @@ class ZevAdCampaign {
 
   const ZevAdCampaign({
     required this.id,
+    this.sourcePostId,
     required this.name,
     required this.objective,
     required this.placement,
@@ -151,6 +165,8 @@ class ZevAdCampaign {
     required this.createdAt,
   });
 
+  bool get isBoostedPost => sourcePostId != null && sourcePostId!.trim().isNotEmpty;
+
   double get ctrPercent =>
       impressionsCount > 0 ? (clicksCount / impressionsCount) * 100.0 : 0.0;
 
@@ -163,8 +179,14 @@ class ZevAdCampaign {
       creative = Map<String, dynamic>.from(json['creative'] as Map);
     }
 
+    final rawSourcePostId =
+        (json['source_post_id'] ?? json['sourcePostId'])?.toString().trim();
+
     return ZevAdCampaign(
       id: (json['id'] ?? '').toString(),
+      sourcePostId: (rawSourcePostId != null && rawSourcePostId.isNotEmpty)
+          ? rawSourcePostId
+          : null,
       name: (json['name'] ?? '').toString(),
       objective: (json['objective'] ?? 'awareness').toString(),
       placement: (json['placement'] ?? 'feed').toString(),
@@ -249,6 +271,8 @@ class ZevAdsService {
   static final ZevAdsService instance = ZevAdsService._();
 
   final Map<String, ZevSponsoredAd?> _slotAdCache = <String, ZevSponsoredAd?>{};
+  final Map<String, Set<String>> _servedCampaignIdsByPlacement =
+      <String, Set<String>>{};
   final Set<String> _recordedImpressionKeys = <String>{};
 
   static String buildImpressionIdempotencyKey({
@@ -266,6 +290,7 @@ class ZevAdsService {
 
   void clearSlotCache() {
     _slotAdCache.clear();
+    _servedCampaignIdsByPlacement.clear();
   }
 
   /// Marks an impression key locally as recorded; returns `true` only the first
@@ -288,12 +313,15 @@ class ZevAdsService {
     }
 
     try {
+      final excluded =
+          _servedCampaignIdsByPlacement[placement]?.toList() ?? const <String>[];
       final res = await ApiClient.instance.get(
         '/api/v1/ads/serve',
         queryParameters: {
           'placement': placement,
           if (country != null && country.isNotEmpty) 'country': country,
           if (interest != null && interest.isNotEmpty) 'interest': interest,
+          if (excluded.isNotEmpty) 'excludeCampaignIds': excluded.join(','),
         },
         requireAuth: false,
         attachOptionalAuth: true,
@@ -304,6 +332,9 @@ class ZevAdsService {
         final ad = ZevSponsoredAd.fromJson(Map<String, dynamic>.from(rawAd));
         if (ad.campaignId.isNotEmpty) {
           _slotAdCache[normalizedSlot] = ad;
+          _servedCampaignIdsByPlacement
+              .putIfAbsent(placement, () => <String>{})
+              .add(ad.campaignId);
           return ad;
         }
       }
@@ -313,6 +344,22 @@ class ZevAdsService {
       debugPrint('[ZevAdsService] fetchEligibleAd notice ($placement): $e');
       return null;
     }
+  }
+
+  /// Extracts an internal ZEV post UUID when an ad is a boosted post or links to `/post/:id`.
+  String? resolveInAppPostId(ZevSponsoredAd ad) {
+    final dest = ad.destinationUrl.trim();
+    final uri = Uri.tryParse(dest);
+    if (uri != null && uri.host.toLowerCase().contains('zevapp.com')) {
+      final segs = uri.pathSegments.where((s) => s.trim().isNotEmpty).toList();
+      if (segs.length >= 2 && segs[0] == 'post' && segs[1].isNotEmpty) {
+        return segs[1];
+      }
+    }
+    if (ad.isBoostedPost && (dest.isEmpty || dest.contains('zevapp.com/post/'))) {
+      return ad.sourcePostId;
+    }
+    return null;
   }
 
   /// Records one impression per (slotKey, campaignId) per session.
@@ -345,8 +392,9 @@ class ZevAdsService {
     }
   }
 
-  /// Records click and opens safe external http(s) URL.
+  /// Records click and opens either the in-app boosted post or safe external http(s) URL.
   Future<void> openAdDestination({
+    BuildContext? context,
     required String slotKey,
     required ZevSponsoredAd ad,
   }) async {
@@ -375,11 +423,106 @@ class ZevAdsService {
       );
     }
 
+    final inAppPostId = resolveInAppPostId(ad);
+    if (inAppPostId != null &&
+        inAppPostId.isNotEmpty &&
+        context != null &&
+        context.mounted) {
+      await PostDetailScreen.open(context, postId: inAppPostId);
+      return;
+    }
+
     final uri = Uri.tryParse(ad.destinationUrl.trim());
     if (uri != null &&
         (uri.scheme == 'https' || uri.scheme == 'http') &&
         uri.host.isNotEmpty) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  /// Loads current user's non-deleted published posts so they can boost any
+  /// previous post directly inside ZEV Ads Manager.
+  Future<List<FeedPostItem>> fetchMyPostsForBoost({int limit = 30}) async {
+    final client = Supabase.instance.client;
+    final uid = client.auth.currentUser?.id;
+    if (uid == null || uid.isEmpty) return const [];
+
+    try {
+      final [profileRes, postsRes] = await Future.wait([
+        client
+            .from('profiles')
+            .select('id, username, first_name, last_name, avatar_url, is_verified')
+            .eq('id', uid)
+            .maybeSingle(),
+        client
+            .from('discussion_posts')
+            .select('id, student_id, title, content, image_url, location, created_at')
+            .eq('student_id', uid)
+            .eq('is_draft', false)
+            .isFilter('deleted_at', null)
+            .order('created_at', ascending: false)
+            .limit(limit),
+      ]);
+
+      final profile = profileRes is Map<String, dynamic>
+          ? profileRes
+          : (profileRes is Map
+              ? Map<String, dynamic>.from(profileRes)
+              : <String, dynamic>{});
+      final username = (profile['username'] ?? 'creator').toString();
+      final fullName =
+          '${profile['first_name'] ?? ''} ${profile['last_name'] ?? ''}'.trim();
+      final avatar = (profile['avatar_url'] ?? '').toString();
+      final verified = profile['is_verified'] == true;
+
+      final rawPosts = (postsRes as List).whereType<Map>().toList();
+      if (rawPosts.isEmpty) return const [];
+
+      final postIds = rawPosts
+          .map((p) => (p['id'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toList();
+
+      final Map<String, List<FeedPostMediaItem>> mediaByPost = {};
+      if (postIds.isNotEmpty) {
+        try {
+          final mediaRows = await client
+              .from('post_media')
+              .select('id, post_id, media_type, media_url, thumbnail_url, sort_order')
+              .inFilter('post_id', postIds)
+              .order('sort_order', ascending: true);
+          for (final m in (mediaRows as List).whereType<Map>()) {
+            final pid = (m['post_id'] ?? '').toString();
+            if (pid.isEmpty) continue;
+            mediaByPost
+                .putIfAbsent(pid, () => <FeedPostMediaItem>[])
+                .add(FeedPostMediaItem.fromMap(Map<String, dynamic>.from(m)));
+          }
+        } catch (_) {}
+      }
+
+      return rawPosts.map((row) {
+        final pid = (row['id'] ?? '').toString();
+        return FeedPostItem(
+          id: pid,
+          authorId: uid,
+          authorUsername: username,
+          authorFullName: fullName.isNotEmpty ? fullName : '@$username',
+          authorAvatar: avatar,
+          isVerified: verified,
+          title: (row['title'] ?? '').toString(),
+          content: (row['content'] ?? '').toString(),
+          imageUrl: (row['image_url'] ?? '').toString(),
+          location: (row['location'] ?? '').toString(),
+          createdAt:
+              DateTime.tryParse((row['created_at'] ?? '').toString()) ??
+              DateTime.now(),
+          mediaItems: mediaByPost[pid] ?? const [],
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('[ZevAdsService] fetchMyPostsForBoost notice: $e');
+      return const [];
     }
   }
 
@@ -459,6 +602,7 @@ class ZevAdsService {
     int dailyFrequencyCap = 3,
     int minCooldownSeconds = 300,
     DateTime? endsAt,
+    String? sourcePostId,
   }) async {
     return ApiClient.instance.post(
       '/api/v1/ads/campaigns',
@@ -486,6 +630,8 @@ class ZevAdsService {
         'dailyFrequencyCap': dailyFrequencyCap,
         'minCooldownSeconds': minCooldownSeconds,
         if (endsAt != null) 'endsAt': endsAt.toUtc().toIso8601String(),
+        if (sourcePostId != null && sourcePostId.trim().isNotEmpty)
+          'sourcePostId': sourcePostId.trim(),
       },
     );
   }
