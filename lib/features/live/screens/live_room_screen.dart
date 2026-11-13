@@ -63,11 +63,21 @@ class LiveRoomScreen extends StatefulWidget {
   State<LiveRoomScreen> createState() => _LiveRoomScreenState();
 }
 
-class _LiveRoomScreenState extends State<LiveRoomScreen> {
+class _LiveRoomScreenState extends State<LiveRoomScreen>
+    with SingleTickerProviderStateMixin {
   final _supabase = Supabase.instance.client;
   final _commentCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   final _random = math.Random();
+
+  late final AnimationController _pulseCtrl;
+  final Map<int, VideoViewController> _remoteBroadcasters = {};
+  bool _isPkMatchActive = false;
+  int _pkRedScore = 37;
+  int _pkBlueScore = 12;
+  int _pkTimeRemaining = 199; // 03:19
+  Timer? _pkTimer;
+  bool _isFollowingHost = false;
 
   late final String _streamId;
   late String _status;
@@ -101,7 +111,6 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
   bool _isRtcConnecting = false;
   bool _isMicMuted = false;
   bool _isCameraOff = false;
-  bool _isVideoExpanded = false;
   String? _rtcError;
 
   static const List<String> _quickEmojis = [
@@ -124,6 +133,11 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
     _peakViewerCount =
         (widget.stream['peak_viewer_count'] as num?)?.toInt() ?? _viewerCount;
 
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
+
     final hostId = widget.hostProfile['id']?.toString() ??
         widget.stream['host_id']?.toString() ??
         '';
@@ -132,10 +146,68 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
     }
 
     _bootstrapRoom();
+    _startPkTimer();
+    _checkFollowingHost();
+  }
+
+  void _startPkTimer() {
+    _pkTimer?.cancel();
+    _pkTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_pkTimeRemaining > 0) {
+        setState(() => _pkTimeRemaining--);
+      }
+    });
+  }
+
+  String _formatPkTime(int totalSeconds) {
+    final m = (totalSeconds ~/ 60).toString().padLeft(2, '0');
+    final s = (totalSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  Future<void> _checkFollowingHost() async {
+    final hostId = widget.hostProfile['id']?.toString() ??
+        widget.stream['host_id']?.toString() ??
+        '';
+    if (hostId.isEmpty || widget.isHost) return;
+    try {
+      final myId = _supabase.auth.currentUser?.id;
+      if (myId == null) return;
+      final res = await _supabase
+          .from('user_follows')
+          .select('follower_id')
+          .eq('follower_id', myId)
+          .eq('following_id', hostId)
+          .maybeSingle();
+      if (mounted) setState(() => _isFollowingHost = res != null);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleFollowHost() async {
+    final hostId = widget.hostProfile['id']?.toString() ??
+        widget.stream['host_id']?.toString() ??
+        '';
+    if (hostId.isEmpty || widget.isHost) return;
+    HapticFeedback.selectionClick();
+    try {
+      final status = await SocialGraphService.instance.toggleFollow(hostId);
+      if (mounted) {
+        setState(() {
+          _isFollowingHost = status == FollowToggleStatus.following ||
+              status == FollowToggleStatus.requested;
+        });
+      }
+    } catch (_) {}
   }
 
   @override
   void dispose() {
+    _pulseCtrl.dispose();
+    _pkTimer?.cancel();
     final channel = _roomChannel;
     _roomChannel = null;
     if (channel != null) {
@@ -155,6 +227,10 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
     _localBroadcasterController = null;
     _remoteHostController?.dispose();
     _remoteHostController = null;
+    for (final ctrl in _remoteBroadcasters.values) {
+      ctrl.dispose();
+    }
+    _remoteBroadcasters.clear();
 
     final eng = _rtcEngine;
     final handler = _rtcHandler;
@@ -293,19 +369,33 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
           });
         },
         onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
-          if (!mounted || widget.isHost || remoteUid == 0) return;
+          if (!mounted || remoteUid == 0) return;
           setState(() {
-            _remoteHostUid = remoteUid;
-            _remoteHostVideoOn = true;
-            _remoteHostController?.dispose();
-            _remoteHostController = VideoViewController.remote(
-              rtcEngine: engine,
-              canvas: VideoCanvas(
-                uid: remoteUid,
-                renderMode: RenderModeType.renderModeHidden,
-              ),
-              connection: connection,
-            );
+            if (!widget.isHost && _remoteHostUid == null) {
+              _remoteHostUid = remoteUid;
+              _remoteHostVideoOn = true;
+              _remoteHostController?.dispose();
+              _remoteHostController = VideoViewController.remote(
+                rtcEngine: engine,
+                canvas: VideoCanvas(
+                  uid: remoteUid,
+                  renderMode: RenderModeType.renderModeHidden,
+                ),
+                connection: connection,
+              );
+            } else {
+              // Remote Co-Host / Multi-guest broadcaster
+              _remoteBroadcasters[remoteUid]?.dispose();
+              _remoteBroadcasters[remoteUid] = VideoViewController.remote(
+                rtcEngine: engine,
+                canvas: VideoCanvas(
+                  uid: remoteUid,
+                  renderMode: RenderModeType.renderModeHidden,
+                ),
+                connection: connection,
+              );
+              _isPkMatchActive = true;
+            }
           });
         },
         onUserOffline: (
@@ -314,13 +404,20 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
           UserOfflineReasonType reason,
         ) {
           if (!mounted) return;
-          if (_remoteHostUid == remoteUid) {
-            setState(() {
+          setState(() {
+            if (_remoteHostUid == remoteUid) {
               _remoteHostUid = null;
               _remoteHostController?.dispose();
               _remoteHostController = null;
-            });
-          }
+            }
+            if (_remoteBroadcasters.containsKey(remoteUid)) {
+              _remoteBroadcasters[remoteUid]?.dispose();
+              _remoteBroadcasters.remove(remoteUid);
+            }
+            if (_remoteBroadcasters.isEmpty) {
+              _isPkMatchActive = false;
+            }
+          });
         },
         onUserMuteVideo: (RtcConnection connection, int remoteUid, bool muted) {
           if (!mounted) return;
@@ -758,203 +855,420 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
     }
   }
 
-  Widget _buildLiveVideoStage({
+  Widget _buildFullscreenVideoStage({
     required String hostAvatar,
     required String hostUsername,
     required String thumbnailUrl,
   }) {
-    final screenH = MediaQuery.sizeOf(context).height;
-    final stageHeight = _isVideoExpanded
-        ? (screenH * 0.42).clamp(240.0, 380.0)
-        : 205.0;
-
     final showHostLocal = widget.isHost &&
         _localBroadcasterController != null &&
         !_isCameraOff;
     final showRemoteVideo = !widget.isHost &&
         _remoteHostController != null &&
         _remoteHostVideoOn;
+    final hasRemoteGuest = _remoteBroadcasters.isNotEmpty;
+    final isSplitScreen = hasRemoteGuest || _isPkMatchActive;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      width: double.infinity,
-      height: stageHeight,
-      decoration: BoxDecoration(
-        color: const Color(0xFF0A101E),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (showHostLocal)
-              AgoraVideoView(
-                key: const ValueKey('live_host_local'),
-                controller: _localBroadcasterController!,
-              )
-            else if (showRemoteVideo)
-              AgoraVideoView(
-                key: ValueKey('live_remote_$_remoteHostUid'),
-                controller: _remoteHostController!,
-              )
-            else
-              Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (thumbnailUrl.isNotEmpty)
-                    Opacity(
-                      opacity: 0.35,
-                      child: ZevCachedImage(
-                        imageUrl: thumbnailUrl,
-                        fit: BoxFit.cover,
+    if (isSplitScreen) {
+      // 50/50 Side-by-side vertical split screen (TikTok / Instagram PK Battle style)
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Row(
+            children: [
+              // Broadcaster 1 (Left Tile: Host)
+              Expanded(
+                child: Container(
+                  color: const Color(0xFF0F172A),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (showHostLocal)
+                        AgoraVideoView(
+                          key: const ValueKey('live_host_local_split'),
+                          controller: _localBroadcasterController!,
+                        )
+                      else if (showRemoteVideo)
+                        AgoraVideoView(
+                          key: ValueKey('live_remote_split_$_remoteHostUid'),
+                          controller: _remoteHostController!,
+                        )
+                      else
+                        _buildWaitingPlaceholder(
+                          avatar: hostAvatar,
+                          username: hostUsername,
+                          label: 'Host',
+                        ),
+
+                      // Host Name Pill at bottom of left tile
+                      Positioned(
+                        bottom: 8,
+                        left: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ZevCachedImage.avatar(imageUrl: hostAvatar, size: 16),
+                              const SizedBox(width: 4),
+                              Text(
+                                '@$hostUsername',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          const Color(0xFF0F172A).withValues(alpha: 0.65),
-                          const Color(0xFF090D16).withValues(alpha: 0.9),
-                        ],
+                    ],
+                  ),
+                ),
+              ),
+
+              // 1.5px divider
+              Container(width: 1.5, color: Colors.black.withValues(alpha: 0.5)),
+
+              // Broadcaster 2 (Right Tile: Co-Host / Guest)
+              Expanded(
+                child: Container(
+                  color: const Color(0xFF1E293B),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (hasRemoteGuest)
+                        AgoraVideoView(
+                          key: ValueKey('live_remote_guest_${_remoteBroadcasters.keys.first}'),
+                          controller: _remoteBroadcasters.values.first,
+                        )
+                      else
+                        _buildWaitingPlaceholder(
+                          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+                          username: 'Co-Host',
+                          label: 'PK Battle Opponent',
+                        ),
+
+                      // Guest Name Pill at bottom of right tile
+                      Positioned(
+                        bottom: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.add_rounded, color: Color(0xFFFF2D55), size: 14),
+                              SizedBox(width: 2),
+                              Text(
+                                'Co-Host',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // PK Battle Bar at top of split screen
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 74,
+            left: 0,
+            right: 0,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Score bar: Red vs Blue
+                Container(
+                  height: 28,
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: Row(
                       children: [
-                        ZevCachedImage.avatar(imageUrl: hostAvatar, size: 58),
-                        const SizedBox(height: 10),
-                        Text(
-                          _rtcError != null
-                              ? _rtcError!
-                              : _isRtcConnecting
-                                  ? 'Connecting live broadcast...'
-                                  : widget.isHost && _isCameraOff
-                                      ? 'Your camera is turned off'
-                                      : (_rtcJoined
-                                          ? 'Waiting for @$hostUsername video...'
-                                          : 'Joining live stream...'),
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
+                        // Left Score (Red)
+                        Expanded(
+                          flex: _pkRedScore,
+                          child: Container(
+                            alignment: Alignment.centerLeft,
+                            padding: const EdgeInsets.only(left: 12),
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Color(0xFFFF1E56), Color(0xFFFF4B72)],
+                              ),
+                            ),
+                            child: Text(
+                              '$_pkRedScore',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Center VS Capsule with Match Timer
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          color: const Color(0xFF0F172A),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                'VS',
+                                style: TextStyle(
+                                  color: Color(0xFFFF3366),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w900,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _formatPkTime(_pkTimeRemaining),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Right Score (Blue)
+                        Expanded(
+                          flex: _pkBlueScore,
+                          child: Container(
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 12),
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Color(0xFF0072FF), Color(0xFF00C6FF)],
+                              ),
+                            ),
+                            child: Text(
+                              '$_pkBlueScore',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
-
-            // Top-left Live signal badge
-            Positioned(
-              top: 10,
-              left: 10,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.52),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 7,
-                      height: 7,
+
+                const SizedBox(height: 4),
+
+                // Win badges
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFB800).withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          'WIN × 0',
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFB800).withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          'WIN × 1',
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Single Broadcaster: Full Screen 100% video
+    if (showHostLocal) {
+      return AgoraVideoView(
+        key: const ValueKey('live_host_local_full'),
+        controller: _localBroadcasterController!,
+      );
+    }
+    if (showRemoteVideo) {
+      return AgoraVideoView(
+        key: ValueKey('live_remote_full_$_remoteHostUid'),
+        controller: _remoteHostController!,
+      );
+    }
+
+    // Waiting / Connecting / Camera Off Full Screen View
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (thumbnailUrl.isNotEmpty)
+          Opacity(
+            opacity: 0.4,
+            child: ZevCachedImage(
+              imageUrl: thumbnailUrl,
+              fit: BoxFit.cover,
+            ),
+          ),
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                const Color(0xFF0F172A).withValues(alpha: 0.75),
+                const Color(0xFF050811).withValues(alpha: 0.95),
+              ],
+            ),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedBuilder(
+                  animation: _pulseCtrl,
+                  builder: (context, child) {
+                    final glow = 14.0 + (_pulseCtrl.value * 18.0);
+                    return Container(
+                      padding: const EdgeInsets.all(5),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: _rtcJoined
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFFF59E0B),
+                        border: Border.all(
+                          color: ZevColors.primaryBlue.withValues(alpha: 0.6),
+                          width: 2.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: ZevColors.primaryBlue.withValues(alpha: 0.4),
+                            blurRadius: glow,
+                            spreadRadius: 2,
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      widget.isHost ? 'BROADCASTING' : 'LIVE VIDEO',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.4,
-                      ),
-                    ),
-                  ],
+                      child: child,
+                    );
+                  },
+                  child: ZevCachedImage.avatar(imageUrl: hostAvatar, size: 90),
                 ),
+                const SizedBox(height: 14),
+                Text(
+                  '@$hostUsername',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _rtcError != null
+                      ? _rtcError!
+                      : _isRtcConnecting
+                          ? 'Connecting to live room...'
+                          : widget.isHost && _isCameraOff
+                              ? 'Your camera is off'
+                              : (_rtcJoined
+                                  ? 'Waiting for @$hostUsername...'
+                                  : 'Joining live stream...'),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white.withValues(alpha: 0.75),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWaitingPlaceholder({
+    required String avatar,
+    required String username,
+    required String label,
+  }) {
+    return Container(
+      color: const Color(0xFF0B1120),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ZevCachedImage.avatar(imageUrl: avatar, size: 54),
+            const SizedBox(height: 8),
+            Text(
+              '@$username',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
               ),
             ),
-
-            // Top-right Expand & Host Media Controls
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (widget.isHost) ...[
-                    _stageControlIcon(
-                      icon: _isMicMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                      active: !_isMicMuted,
-                      onTap: _toggleLiveMic,
-                    ),
-                    const SizedBox(width: 6),
-                    _stageControlIcon(
-                      icon: _isCameraOff
-                          ? Icons.videocam_off_rounded
-                          : Icons.videocam_rounded,
-                      active: !_isCameraOff,
-                      onTap: _toggleLiveCam,
-                    ),
-                    const SizedBox(width: 6),
-                    _stageControlIcon(
-                      icon: Icons.cameraswitch_rounded,
-                      active: true,
-                      onTap: _switchLiveCamera,
-                    ),
-                    const SizedBox(width: 6),
-                  ],
-                  _stageControlIcon(
-                    icon: _isVideoExpanded
-                        ? Icons.close_fullscreen_rounded
-                        : Icons.open_in_full_rounded,
-                    active: true,
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      setState(() => _isVideoExpanded = !_isVideoExpanded);
-                    },
-                  ),
-                ],
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _stageControlIcon({
-    required IconData icon,
-    required bool active,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(
-          color: active
-              ? Colors.black.withValues(alpha: 0.56)
-              : ZevColors.errorRed.withValues(alpha: 0.9),
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-        ),
-        child: Icon(icon, color: Colors.white, size: 17),
       ),
     );
   }
@@ -1271,671 +1585,91 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: ZevColors.softSurface,
-        appBar: AppBar(
-          backgroundColor: ZevColors.white,
-          elevation: 0,
-          surfaceTintColor: Colors.transparent,
-          leading: IconButton(
-            icon: const Icon(
-              Icons.arrow_back_ios_new_rounded,
-              color: ZevColors.deepNavy,
-              size: 20,
+        backgroundColor: Colors.black,
+        resizeToAvoidBottomInset: false,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            // 1. Fullscreen Agora Live Video Stage (or 50/50 Multi-Live PK split screen)
+            Positioned.fill(
+              child: _buildFullscreenVideoStage(
+                hostAvatar: hostAvatar,
+                hostUsername: hostUsername,
+                thumbnailUrl: thumbnailUrl,
+              ),
             ),
-            onPressed: () async {
-              final navigator = Navigator.of(context);
-              if (widget.isHost && !_isEnded) {
-                final ended = await _confirmAndEndRoom();
-                if (ended && mounted) navigator.pop();
-              } else {
-                navigator.pop();
-              }
-            },
-          ),
-          titleSpacing: 0,
-          title: GestureDetector(
-            onTap: hostId.isNotEmpty
-                ? () => ProfileScreen.open(context, userId: hostId)
-                : null,
-            child: Row(
-              children: [
-                ZevCachedImage.avatar(imageUrl: hostAvatar, size: 34),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              hostFullName.isNotEmpty
-                                  ? hostFullName
-                                  : '@$hostUsername',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w900,
-                                color: ZevColors.deepNavy,
-                              ),
-                            ),
-                          ),
-                          if (hostVerified) ...[
-                            const SizedBox(width: 4),
-                            const Icon(
-                              Icons.verified_rounded,
-                              size: 14,
-                              color: ZevColors.primaryBlue,
-                            ),
-                          ],
-                        ],
-                      ),
-                      Text(
-                        'Live Video Broadcast • $category',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: ZevColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            GestureDetector(
-              onTap: _showParticipantsSheet,
-              child: Container(
-                margin: const EdgeInsets.symmetric(vertical: 10),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: _isEnded
-                      ? const Color(0xFFE2E8F0)
-                      : ZevColors.errorRed.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: _isEnded
-                        ? ZevColors.border
-                        : ZevColors.errorRed.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 7,
-                      height: 7,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _isEnded
-                            ? ZevColors.textMuted
-                            : ZevColors.errorRed,
-                      ),
+
+            // 2. Dark Vignette Gradients for clear text/control readability over video
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 180,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.75),
+                        Colors.black.withValues(alpha: 0.35),
+                        Colors.transparent,
+                      ],
                     ),
-                    const SizedBox(width: 5),
-                    Text(
-                      _isEnded ? 'ENDED' : 'LIVE • $_viewerCount',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        color: _isEnded
-                            ? ZevColors.textSecondary
-                            : ZevColors.errorRed,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
-            if (widget.isHost && !_isEnded)
-              Padding(
-                padding: const EdgeInsets.only(left: 6, right: 12),
-                child: TextButton(
-                  onPressed: _isEndingRoom ? null : _confirmAndEndRoom,
-                  style: TextButton.styleFrom(
-                    backgroundColor: ZevColors.errorRed,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'End',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
-                  ),
-                ),
-              )
-            else
-              const SizedBox(width: 10),
-          ],
-        ),
-        body: Stack(
-          children: [
-            Column(
-              children: [
-                // Clearmorphic Topic & Presence Header Card
-                Container(
-                  margin: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-                  padding: const EdgeInsets.all(14),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 380,
+              child: IgnorePointer(
+                child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: Colors.white, width: 1.5),
-                    boxShadow: [
-                      BoxShadow(
-                        color: ZevColors.deepNavy.withValues(alpha: 0.05),
-                        blurRadius: 14,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Agora Real-Time Live Video Stage
-                      if (!_isEnded) ...[
-                        _buildLiveVideoStage(
-                          hostAvatar: hostAvatar,
-                          hostUsername: hostUsername,
-                          thumbnailUrl: thumbnailUrl,
-                        ),
-                        const SizedBox(height: 10),
-                      ] else if (thumbnailUrl.isNotEmpty) ...[
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: SizedBox(
-                            width: double.infinity,
-                            height: 132,
-                            child: ZevCachedImage(
-                              imageUrl: thumbnailUrl,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.92),
+                        Colors.black.withValues(alpha: 0.55),
+                        Colors.transparent,
                       ],
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 9,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: ZevColors.primaryBlue.withValues(
-                                alpha: 0.14,
-                              ),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.bolt_rounded,
-                                  size: 13,
-                                  color: ZevColors.secondaryBlue,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  category.toUpperCase(),
-                                  style: const TextStyle(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w900,
-                                    color: ZevColors.secondaryBlue,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Spacer(),
-                          GestureDetector(
-                            onTap: _showParticipantsSheet,
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.visibility_outlined,
-                                  size: 15,
-                                  color: ZevColors.textSecondary,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Peak $_peakViewerCount',
-                                  style: const TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: ZevColors.textSecondary,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                const Icon(
-                                  Icons.favorite_rounded,
-                                  size: 14,
-                                  color: Color(0xFFFF3040),
-                                ),
-                                const SizedBox(width: 3),
-                                Text(
-                                  '$_reactionTotal',
-                                  style: const TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: ZevColors.deepNavy,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        roomTitle,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                          color: ZevColors.deepNavy,
-                          height: 1.3,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Live Video & Interactive Chat • Started ${TimeAgo.fromIsoString(startedAt)}',
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                          color: ZevColors.textMuted,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-
-                if (_isEnded)
-                  Container(
-                    margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEF2F2),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFFECACA)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.info_outline_rounded,
-                          color: ZevColors.errorRed,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            _joinError ??
-                                'This live room has ended. Past chat messages remain visible below.',
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: ZevColors.errorRed,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                // Live Comments Feed
-                Expanded(
-                  child: _isLoadingComments
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: ZevColors.primaryBlue,
-                          ),
-                        )
-                      : _comments.isEmpty
-                          ? Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(24),
-                                child: Container(
-                                  padding: const EdgeInsets.all(22),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(22),
-                                    border: Border.all(color: ZevColors.border),
-                                  ),
-                                  child: const Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.forum_outlined,
-                                        size: 36,
-                                        color: ZevColors.secondaryBlue,
-                                      ),
-                                      SizedBox(height: 10),
-                                      Text(
-                                        'No messages yet',
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w900,
-                                          color: ZevColors.deepNavy,
-                                        ),
-                                      ),
-                                      SizedBox(height: 4),
-                                      Text(
-                                        'Start the conversation in real time or drop a reaction below.',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: 12.5,
-                                          color: ZevColors.textSecondary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            )
-                          : ListView.separated(
-                              controller: _scrollCtrl,
-                              physics: const BouncingScrollPhysics(),
-                              padding: const EdgeInsets.fromLTRB(
-                                14,
-                                6,
-                                14,
-                                18,
-                              ),
-                              itemCount: _comments.length,
-                              separatorBuilder: (_, _) =>
-                                  const SizedBox(height: 8),
-                              itemBuilder: (context, idx) {
-                                final c = _comments[idx];
-                                final uid = c['user_id']?.toString() ?? '';
-                                final prof = _profileCache[uid];
-                                final uname =
-                                    (prof?['username'] ?? 'user').toString();
-                                final avatar =
-                                    (prof?['avatar_url'] ?? '').toString();
-                                final verified = prof?['is_verified'] == true;
-                                final isAuthorHost = uid == hostId;
-                                final body =
-                                    (c['comment_text'] ?? '').toString();
-                                final when = TimeAgo.fromIsoString(
-                                  c['created_at']?.toString(),
-                                );
-
-                                return Container(
-                                  padding: const EdgeInsets.all(11),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(18),
-                                    border: Border.all(color: ZevColors.border),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: ZevColors.deepNavy.withValues(
-                                          alpha: 0.03,
-                                        ),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      GestureDetector(
-                                        onTap: uid.isNotEmpty
-                                            ? () => ProfileScreen.open(
-                                                  context,
-                                                  userId: uid,
-                                                )
-                                            : null,
-                                        child: ZevCachedImage.avatar(
-                                          imageUrl: avatar,
-                                          size: 34,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Flexible(
-                                                  child: GestureDetector(
-                                                    onTap: uid.isNotEmpty
-                                                        ? () =>
-                                                            ProfileScreen.open(
-                                                              context,
-                                                              userId: uid,
-                                                            )
-                                                        : null,
-                                                    child: Text(
-                                                      '@$uname',
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: const TextStyle(
-                                                        fontSize: 12.5,
-                                                        fontWeight:
-                                                            FontWeight.w900,
-                                                        color:
-                                                            ZevColors.deepNavy,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                                if (verified) ...[
-                                                  const SizedBox(width: 3),
-                                                  const Icon(
-                                                    Icons.verified_rounded,
-                                                    size: 13,
-                                                    color:
-                                                        ZevColors.primaryBlue,
-                                                  ),
-                                                ],
-                                                if (isAuthorHost) ...[
-                                                  const SizedBox(width: 5),
-                                                  Container(
-                                                    padding: const EdgeInsets
-                                                        .symmetric(
-                                                      horizontal: 6,
-                                                      vertical: 1.5,
-                                                    ),
-                                                    decoration: BoxDecoration(
-                                                      color: ZevColors
-                                                          .secondaryBlue
-                                                          .withValues(
-                                                        alpha: 0.12,
-                                                      ),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                        6,
-                                                      ),
-                                                    ),
-                                                    child: const Text(
-                                                      'HOST',
-                                                      style: TextStyle(
-                                                        fontSize: 9.5,
-                                                        fontWeight:
-                                                            FontWeight.w900,
-                                                        color: ZevColors
-                                                            .secondaryBlue,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                                const Spacer(),
-                                                Text(
-                                                  when,
-                                                  style: const TextStyle(
-                                                    fontSize: 10.5,
-                                                    color: ZevColors.textMuted,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 3),
-                                            Text(
-                                              body,
-                                              style: const TextStyle(
-                                                fontSize: 13.5,
-                                                fontWeight: FontWeight.w500,
-                                                color: ZevColors.deepNavy,
-                                                height: 1.35,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                ),
-
-                // Quick Reaction + Interactive Composer Bar
-                if (!_isEnded)
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                    decoration: BoxDecoration(
-                      color: ZevColors.white,
-                      border: const Border(
-                        top: BorderSide(color: ZevColors.border, width: 1.2),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: ZevColors.deepNavy.withValues(alpha: 0.05),
-                          blurRadius: 12,
-                          offset: const Offset(0, -3),
-                        ),
-                      ],
-                    ),
-                    child: SafeArea(
-                      top: false,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            height: 38,
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: _quickEmojis.length,
-                              separatorBuilder: (_, _) =>
-                                  const SizedBox(width: 8),
-                              itemBuilder: (_, idx) {
-                                final emoji = _quickEmojis[idx];
-                                return GestureDetector(
-                                  onTap: () => _sendReaction(emoji),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: ZevColors.softSurface,
-                                      borderRadius: BorderRadius.circular(999),
-                                      border: Border.all(
-                                        color: ZevColors.border,
-                                      ),
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        emoji,
-                                        style: const TextStyle(fontSize: 17),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: ZevColors.softSurface,
-                                    borderRadius: BorderRadius.circular(22),
-                                    border: Border.all(color: ZevColors.border),
-                                  ),
-                                  child: TextField(
-                                    controller: _commentCtrl,
-                                    maxLength: 500,
-                                    maxLines: 3,
-                                    minLines: 1,
-                                    textInputAction: TextInputAction.send,
-                                    onSubmitted: (_) => _sendComment(),
-                                    style: const TextStyle(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: ZevColors.deepNavy,
-                                    ),
-                                    decoration: const InputDecoration(
-                                      hintText: 'Write a live message...',
-                                      hintStyle: TextStyle(
-                                        fontSize: 13,
-                                        color: ZevColors.textMuted,
-                                      ),
-                                      border: InputBorder.none,
-                                      counterText: '',
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              GestureDetector(
-                                onTap: _isSendingComment ? null : _sendComment,
-                                child: Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: const BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: ZevColors.brandGradient,
-                                  ),
-                                  child: Center(
-                                    child: _isSendingComment
-                                        ? const SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : const Icon(
-                                            Icons.send_rounded,
-                                            color: Colors.white,
-                                            size: 19,
-                                          ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
+              ),
             ),
 
-            // Floating Realtime Emoji Reactions Layer
+            // 3. Top Overlay Header (Host Pill, Follow, Contributors, Viewers & Close)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _buildTopOverlayHeader(
+                hostId: hostId,
+                hostUsername: hostUsername,
+                hostFullName: hostFullName,
+                hostAvatar: hostAvatar,
+                hostVerified: hostVerified,
+                roomTitle: roomTitle,
+                category: category,
+                startedAt: startedAt,
+              ),
+            ),
+
+            // 4. Floating Realtime Live Comments Stream (TikTok / Instagram style)
+            Positioned(
+              left: 12,
+              right: 84,
+              bottom: 74,
+              height: 250,
+              child: _buildFloatingChatOverlay(hostId: hostId),
+            ),
+
+            // 5. Floating Realtime Animated Emoji Reactions Layer
             Positioned.fill(
               child: IgnorePointer(
                 child: LayoutBuilder(
@@ -1953,9 +1687,908 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
                 ),
               ),
             ),
+
+            // 6. Bottom Actions Dock (Comment Trigger, Quick Reactions, Rose/Gift, Share & Host Controls)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _buildBottomActionsBar(),
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTopOverlayHeader({
+    required String hostId,
+    required String hostUsername,
+    required String hostFullName,
+    required String hostAvatar,
+    required bool hostVerified,
+    required String roomTitle,
+    required String category,
+    required String? startedAt,
+  }) {
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                // Host pill with gradient story ring & follow button
+                GestureDetector(
+                  onTap: hostId.isNotEmpty
+                      ? () => ProfileScreen.open(context, userId: hostId)
+                      : null,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(3, 3, 8, 3),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.18),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: [
+                                Color(0xFFFF007A),
+                                Color(0xFFFF5400),
+                                Color(0xFFFFD600),
+                              ],
+                            ),
+                          ),
+                          child: ZevCachedImage.avatar(
+                            imageUrl: hostAvatar,
+                            size: 32,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ConstrainedBox(
+                                  constraints:
+                                      const BoxConstraints(maxWidth: 105),
+                                  child: Text(
+                                    hostFullName.isNotEmpty
+                                        ? hostFullName
+                                        : '@$hostUsername',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                                if (hostVerified) ...[
+                                  const SizedBox(width: 3),
+                                  const Icon(
+                                    Icons.verified_rounded,
+                                    color: Color(0xFF38BDF8),
+                                    size: 13,
+                                  ),
+                                ],
+                              ],
+                            ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.favorite_rounded,
+                                  color: Color(0xFFFF2D55),
+                                  size: 11,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  _reactionTotal > 1000
+                                      ? '${(_reactionTotal / 1000).toStringAsFixed(1)}K'
+                                      : '$_reactionTotal',
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.85),
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        if (!widget.isHost) ...[
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: _toggleFollowHost,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4.5,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: _isFollowingHost
+                                    ? null
+                                    : const LinearGradient(
+                                        colors: [
+                                          Color(0xFFFF2D55),
+                                          Color(0xFFFF5252),
+                                        ],
+                                      ),
+                                color: _isFollowingHost
+                                    ? Colors.white.withValues(alpha: 0.18)
+                                    : null,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _isFollowingHost
+                                        ? Icons.check_rounded
+                                        : Icons.add_rounded,
+                                    color: Colors.white,
+                                    size: 13,
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    _isFollowingHost ? 'Following' : 'Follow',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+
+                const Spacer(),
+
+                // Top Contributor mini bubbles
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFFFD600),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: ClipOval(
+                        child: ZevCachedImage.avatar(
+                          imageUrl:
+                              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
+                          size: 24,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFE2E8F0),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: ClipOval(
+                        child: ZevCachedImage.avatar(
+                          imageUrl:
+                              'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80',
+                          size: 24,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 6),
+
+                // Viewers Pill
+                GestureDetector(
+                  onTap: _showParticipantsSheet,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.18),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.people_alt_rounded,
+                          color: Colors.white70,
+                          size: 13,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$_viewerCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+
+                // Close Button
+                GestureDetector(
+                  onTap: () async {
+                    final navigator = Navigator.of(context);
+                    if (widget.isHost && !_isEnded) {
+                      final ended = await _confirmAndEndRoom();
+                      if (ended && mounted) navigator.pop();
+                    } else {
+                      navigator.pop();
+                    }
+                  },
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.18),
+                      ),
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.close_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 6),
+
+            // Daily Rank and LIVE Badges matching TikTok UI
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.40),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: const Color(0xFFFFB800).withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('🔥', style: TextStyle(fontSize: 10.5)),
+                      SizedBox(width: 3),
+                      Text(
+                        'Daily No. 84',
+                        style: TextStyle(
+                          color: Color(0xFFFFD600),
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF6366F1), Color(0xFFEC4899)],
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    'ZEV LIVE FEST',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+                if (_isEnded || _joinError != null) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      _joinError ?? 'ENDED',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFloatingChatOverlay({required String hostId}) {
+    if (_isLoadingComments) {
+      return const SizedBox.shrink();
+    }
+
+    return ShaderMask(
+      shaderCallback: (bounds) {
+        return const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.transparent, Colors.white],
+          stops: [0.0, 0.28],
+        ).createShader(bounds);
+      },
+      blendMode: BlendMode.dstIn,
+      child: ListView.builder(
+        controller: _scrollCtrl,
+        padding: EdgeInsets.zero,
+        physics: const BouncingScrollPhysics(),
+        itemCount: _comments.length + (_isPkMatchActive ? 1 : 0),
+        itemBuilder: (context, idx) {
+          // Highlight banner at top when PK battle is active
+          if (_isPkMatchActive && idx == 0) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFFF2D55).withValues(alpha: 0.65),
+                    const Color(0xFF6366F1).withValues(alpha: 0.65),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.2),
+                ),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.bolt_rounded, color: Color(0xFFFFD600), size: 16),
+                  SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'LIVE Match has started! Cheer on your host, like the match, and send Gifts.',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final commentIndex = _isPkMatchActive ? idx - 1 : idx;
+          final c = _comments[commentIndex];
+          final uid = c['user_id']?.toString() ?? '';
+          final prof = _profileCache[uid];
+          final uname = (prof?['username'] ?? 'user').toString();
+          final avatar = (prof?['avatar_url'] ?? '').toString();
+          final isAuthorHost = uid == hostId;
+          final body = (c['comment_text'] ?? '').toString();
+
+          return Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.42),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.12),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  GestureDetector(
+                    onTap: uid.isNotEmpty
+                        ? () => ProfileScreen.open(context, userId: uid)
+                        : null,
+                    child: ZevCachedImage.avatar(imageUrl: avatar, size: 22),
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: '@$uname ',
+                            style: TextStyle(
+                              color: isAuthorHost
+                                  ? const Color(0xFFFFD600)
+                                  : const Color(0xFF67E8F9),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          if (isAuthorHost)
+                            WidgetSpan(
+                              alignment: PlaceholderAlignment.middle,
+                              child: Container(
+                                margin: const EdgeInsets.only(right: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 1,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFF2D55),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'HOST',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 8.5,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          TextSpan(
+                            text: body,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w500,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black87,
+                                  blurRadius: 3,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildBottomActionsBar() {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+        child: Row(
+          children: [
+            // Comment input pill
+            Expanded(
+              child: GestureDetector(
+                onTap: _openCommentSheet,
+                child: Container(
+                  height: 42,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.50),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.22),
+                    ),
+                  ),
+                  child: const Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Comment...',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.sentiment_satisfied_alt_rounded,
+                        color: Colors.white70,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // Rose / Gift Button matching TikTok reference
+            _buildRoundActionButton(
+              icon: Icons.card_giftcard_rounded,
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFF2D55), Color(0xFFFF758C)],
+              ),
+              badge: 'Rose',
+              onTap: () {
+                HapticFeedback.heavyImpact();
+                _sendReaction('🌹');
+                if (_isPkMatchActive) {
+                  setState(() {
+                    if (widget.isHost) {
+                      _pkRedScore += 5;
+                    } else {
+                      _pkBlueScore += 5;
+                    }
+                  });
+                }
+                _showToast('Sent a Rose 🌹 to support the host!');
+              },
+            ),
+            const SizedBox(width: 8),
+
+            // Quick Like / Heart Button
+            _buildRoundActionButton(
+              icon: Icons.favorite_rounded,
+              iconColor: const Color(0xFFFF2D55),
+              backgroundColor: Colors.black.withValues(alpha: 0.50),
+              badge: _reactionTotal > 0 ? '$_reactionTotal' : null,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                _sendReaction('❤️');
+                if (_isPkMatchActive) {
+                  setState(() => _pkRedScore += 1);
+                }
+              },
+            ),
+            const SizedBox(width: 8),
+
+            // Share Button
+            _buildRoundActionButton(
+              icon: Icons.reply_rounded,
+              iconColor: Colors.white,
+              backgroundColor: Colors.black.withValues(alpha: 0.50),
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Clipboard.setData(
+                  ClipboardData(text: 'https://web.zevapp.com/live/$_streamId'),
+                );
+                _showToast('Live stream link copied to clipboard!');
+              },
+            ),
+
+            // Host Media Controls (Flip Cam, Camera Toggle, Mute Mic, PK Battle)
+            if (widget.isHost && !_isEnded) ...[
+              const SizedBox(width: 8),
+              _buildRoundActionButton(
+                icon: Icons.flip_camera_ios_rounded,
+                iconColor: Colors.white,
+                backgroundColor: Colors.black.withValues(alpha: 0.50),
+                onTap: _switchLiveCamera,
+              ),
+              const SizedBox(width: 8),
+              _buildRoundActionButton(
+                icon: _isCameraOff
+                    ? Icons.videocam_off_rounded
+                    : Icons.videocam_rounded,
+                iconColor:
+                    _isCameraOff ? const Color(0xFFFF2D55) : Colors.white,
+                backgroundColor: Colors.black.withValues(alpha: 0.50),
+                onTap: _toggleLiveCam,
+              ),
+              const SizedBox(width: 8),
+              _buildRoundActionButton(
+                icon: _isMicMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                iconColor: _isMicMuted ? const Color(0xFFFF2D55) : Colors.white,
+                backgroundColor: Colors.black.withValues(alpha: 0.50),
+                onTap: _toggleLiveMic,
+              ),
+              const SizedBox(width: 8),
+              _buildRoundActionButton(
+                icon: Icons.sports_kabaddi_rounded,
+                iconColor:
+                    _isPkMatchActive ? const Color(0xFFFFD600) : Colors.white,
+                gradient: _isPkMatchActive
+                    ? const LinearGradient(
+                        colors: [Color(0xFFFF2D55), Color(0xFF6366F1)],
+                      )
+                    : null,
+                backgroundColor: _isPkMatchActive
+                    ? null
+                    : Colors.black.withValues(alpha: 0.50),
+                badge: 'PK',
+                onTap: _togglePkMatch,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoundActionButton({
+    required IconData icon,
+    Color iconColor = Colors.white,
+    Color? backgroundColor,
+    Gradient? gradient,
+    String? badge,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: gradient == null
+                  ? (backgroundColor ?? Colors.black.withValues(alpha: 0.45))
+                  : null,
+              gradient: gradient,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.22),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+          ),
+          if (badge != null && badge.isNotEmpty)
+            Positioned(
+              top: -4,
+              right: -3,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF2D55), Color(0xFFFF5252)],
+                  ),
+                  borderRadius: BorderRadius.circular(999),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+                child: Text(
+                  badge,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _togglePkMatch() {
+    HapticFeedback.heavyImpact();
+    setState(() {
+      _isPkMatchActive = !_isPkMatchActive;
+      if (_isPkMatchActive) {
+        _pkRedScore = 37;
+        _pkBlueScore = 12;
+        _pkTimeRemaining = 199;
+        _startPkTimer();
+        _showToast('PK Battle Match started! Cheer on your host!');
+      } else {
+        _pkTimer?.cancel();
+        _showToast('PK Battle Match ended');
+      }
+    });
+  }
+
+  void _openCommentSheet() {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.96),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(22)),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.15),
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Quick emojis bar
+                  SizedBox(
+                    height: 38,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _quickEmojis.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
+                      itemBuilder: (_, idx) {
+                        final emoji = _quickEmojis[idx];
+                        return GestureDetector(
+                          onTap: () {
+                            _sendReaction(emoji);
+                            _commentCtrl.text = '${_commentCtrl.text}$emoji';
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.15),
+                              ),
+                            ),
+                            child: Center(
+                              child: Text(
+                                emoji,
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: TextField(
+                            controller: _commentCtrl,
+                            autofocus: true,
+                            maxLength: 500,
+                            maxLines: 2,
+                            minLines: 1,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) {
+                              Navigator.pop(ctx);
+                              _sendComment();
+                            },
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: 'Say something nice...',
+                              hintStyle: TextStyle(
+                                fontSize: 13,
+                                color: Colors.white54,
+                              ),
+                              border: InputBorder.none,
+                              counterText: '',
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _sendComment();
+                        },
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: ZevColors.brandGradient,
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.send_rounded,
+                              color: Colors.white,
+                              size: 19,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -87,10 +87,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   // Step 4 Controllers: Email OTP & Link Verification
   String? _pendingUserId;
+  final TextEditingController _otpCtrl = TextEditingController();
+  final FocusNode _otpFocusNode = FocusNode();
   final List<TextEditingController> _otpCtrls =
-      List.generate(6, (_) => TextEditingController());
+      List.generate(8, (_) => TextEditingController());
   final List<FocusNode> _otpFocusNodes =
-      List.generate(6, (_) => FocusNode());
+      List.generate(8, (_) => FocusNode());
   bool _isVerifyingOtp = false;
   int _resendCountdown = 60;
   Timer? _resendTimer;
@@ -204,6 +206,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmPasswordCtrl.dispose();
+    _otpCtrl.dispose();
+    _otpFocusNode.dispose();
     for (final c in _otpCtrls) {
       c.dispose();
     }
@@ -472,42 +476,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
   }
 
-  String get _currentOtpCode => _otpCtrls.map((c) => c.text.trim()).join();
-
-  void _onOtpDigitChanged(int index, String value) {
-    setState(() => _errorMsg = null);
-
-    // Handle paste of 6 digits
-    if (value.length > 1) {
-      final digits = value.replaceAll(RegExp(r'\D'), '');
-      for (int i = 0; i < 6 && i < digits.length; i++) {
-        _otpCtrls[i].text = digits[i];
-      }
-      if (digits.length >= 6) {
-        _otpFocusNodes[5].requestFocus();
-        _verifyOtpCode();
-      } else {
-        _otpFocusNodes[digits.length.clamp(0, 5)].requestFocus();
-      }
-      return;
-    }
-
-    if (value.isNotEmpty) {
-      HapticFeedback.selectionClick();
-      if (index < 5) {
-        _otpFocusNodes[index + 1].requestFocus();
-      } else {
-        _otpFocusNodes[index].unfocus();
-        _verifyOtpCode();
-      }
-    } else {
-      if (index > 0) {
-        _otpFocusNodes[index - 1].requestFocus();
-      }
-    }
+  String get _currentOtpCode {
+    final unified = _otpCtrl.text.trim();
+    if (unified.isNotEmpty) return unified;
+    return _otpCtrls.map((c) => c.text.trim()).join();
   }
 
-  /// Verify 6-digit OTP entered by user
+  Future<void> _pasteFromClipboard() async {
+    try {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      final text = data?.text?.replaceAll(RegExp(r'\D'), '') ?? '';
+      if (text.isNotEmpty) {
+        final code = text.length > 8 ? text.substring(0, 8) : text;
+        _otpCtrl.text = code;
+        for (int i = 0; i < 8; i++) {
+          if (i < code.length) {
+            _otpCtrls[i].text = code[i];
+          } else {
+            _otpCtrls[i].clear();
+          }
+        }
+        setState(() => _errorMsg = null);
+        HapticFeedback.selectionClick();
+        if (code.length >= 8) {
+          _verifyOtpCode();
+        }
+      }
+    } catch (_) {}
+  }
+
+  /// Verify 8-digit OTP entered by user (also supports 6+ digits)
   Future<void> _verifyOtpCode() async {
     final code = _currentOtpCode;
     if (code.length < 6) return;
@@ -539,6 +537,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           _isVerifyingOtp = false;
           _errorMsg = e.message;
         });
+        _otpCtrl.clear();
         for (final c in _otpCtrls) {
           c.clear();
         }
@@ -551,6 +550,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           _isVerifyingOtp = false;
           _errorMsg = e.toString().replaceFirst('Exception: ', '');
         });
+        _otpCtrl.clear();
         for (final c in _otpCtrls) {
           c.clear();
         }
@@ -1558,7 +1558,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  "You can enter the 6-digit OTP code below, or simply tap the confirmation link in your email.",
+                  "Enter the 8-digit confirmation code below, or simply tap the confirmation link in your email.",
                   style: TextStyle(
                     fontSize: 12,
                     color: Color(0xFF0369A1),
@@ -1571,57 +1571,137 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
 
-        const SizedBox(height: 26),
+        const SizedBox(height: 20),
 
-        // 6-Digit OTP Boxes
+        // Paste from clipboard helper button
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: List.generate(6, (i) {
-            final hasValue = _otpCtrls[i].text.isNotEmpty;
-            return Container(
-              width: 46,
-              height: 56,
-              decoration: BoxDecoration(
-                color: hasValue ? const Color(0xFFF1F5F9) : Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: _errorMsg != null
-                      ? const Color(0xFFEF4444)
-                      : hasValue
-                          ? ZevColors.primaryBlue
-                          : const Color(0xFFCBD5E1),
-                  width: hasValue ? 2.0 : 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Center(
-                child: TextField(
-                  controller: _otpCtrls[i],
-                  focusNode: _otpFocusNodes[i],
-                  keyboardType: TextInputType.number,
-                  textAlign: TextAlign.center,
-                  maxLength: 1,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    color: ZevColors.deepNavy,
-                  ),
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(
-                    counterText: "",
-                    border: InputBorder.none,
-                  ),
-                  onChanged: (val) => _onOtpDigitChanged(i, val),
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton.icon(
+              onPressed: _pasteFromClipboard,
+              icon: const Icon(Icons.paste_rounded, size: 16, color: ZevColors.secondaryBlue),
+              label: const Text(
+                "Paste Code",
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: ZevColors.secondaryBlue,
                 ),
               ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                backgroundColor: ZevColors.secondaryBlue.withValues(alpha: 0.08),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+
+        // 8-Digit Responsive OTP Boxes with Auto-Paste
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const totalSlots = 8;
+            final availableWidth = constraints.maxWidth;
+            final spacing = availableWidth < 350 ? 4.0 : 6.0;
+            final boxWidth = ((availableWidth - (totalSlots - 1) * spacing) / totalSlots).clamp(28.0, 44.0);
+            final currentText = _currentOtpCode;
+
+            return Stack(
+              alignment: Alignment.center,
+              children: [
+                // Invisible native TextField on top for keyboard and OS autofill/paste handling
+                Opacity(
+                  opacity: 0.0,
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: TextField(
+                      controller: _otpCtrl,
+                      focusNode: _otpFocusNode,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(8),
+                      ],
+                      autofillHints: const [AutofillHints.oneTimeCode],
+                      onChanged: (val) {
+                        setState(() {
+                          _errorMsg = null;
+                          for (int i = 0; i < 8; i++) {
+                            if (i < val.length) {
+                              _otpCtrls[i].text = val[i];
+                            } else {
+                              _otpCtrls[i].clear();
+                            }
+                          }
+                        });
+                        if (val.length == 8) {
+                          _verifyOtpCode();
+                        }
+                      },
+                    ),
+                  ),
+                ),
+
+                // Visual Segmented 8 Digit Boxes
+                GestureDetector(
+                  onTap: () {
+                    _otpFocusNode.requestFocus();
+                  },
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(totalSlots, (index) {
+                      final hasValue = index < currentText.length;
+                      final isFocused = _otpFocusNode.hasFocus && index == currentText.length;
+                      final digit = hasValue ? currentText[index] : "";
+
+                      return Container(
+                        width: boxWidth,
+                        height: 54,
+                        margin: EdgeInsets.symmetric(horizontal: spacing / 2),
+                        decoration: BoxDecoration(
+                          color: hasValue ? const Color(0xFFF8FAFC) : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _errorMsg != null
+                                ? const Color(0xFFEF4444)
+                                : isFocused
+                                    ? ZevColors.primaryBlue
+                                    : (hasValue
+                                        ? ZevColors.primaryBlue.withValues(alpha: 0.6)
+                                        : const Color(0xFFCBD5E1)),
+                            width: (isFocused || hasValue) ? 2.0 : 1.4,
+                          ),
+                          boxShadow: isFocused
+                              ? [
+                                  BoxShadow(
+                                    color: ZevColors.primaryBlue.withValues(alpha: 0.25),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Center(
+                          child: Text(
+                            digit,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              color: ZevColors.deepNavy,
+                              fontFamily: 'Inter',
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ],
             );
-          }),
+          },
         ),
 
         const SizedBox(height: 24),

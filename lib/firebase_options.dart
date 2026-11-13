@@ -9,9 +9,7 @@ class DefaultFirebaseOptions {
 
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -19,11 +17,18 @@ class DefaultFirebaseOptions {
       case TargetPlatform.iOS:
         return ios;
       default:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions are not supported for $defaultTargetPlatform.',
-        );
+        return android; // Safe fallback instead of crash
     }
   }
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyBwbaVJ_8LCkWlCZer5DfijbyCwYsBkckA',
+    appId: '1:467206192154:web:3bfe5b870b675fc6fc25a3',
+    messagingSenderId: '467206192154',
+    projectId: 'zevapp-3c6b5',
+    authDomain: 'zevapp-3c6b5.firebaseapp.com',
+    storageBucket: 'zevapp-3c6b5.firebasestorage.app',
+  );
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBwbaVJ_8LCkWlCZer5DfijbyCwYsBkckA',

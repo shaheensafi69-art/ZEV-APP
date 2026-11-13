@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../firebase_options.dart';
 import '../../features/auth/screens/welcome_screen.dart';
 import '../../main.dart';
 import '../config/app_config.dart';
@@ -54,27 +56,49 @@ class AuthHelper {
   }) async {
     if (userId.isEmpty) return;
 
-    if (kIsWeb ||
-        (defaultTargetPlatform != TargetPlatform.android &&
-            defaultTargetPlatform != TargetPlatform.iOS)) {
-      debugPrint('ZEV FCM token registration skipped on non-mobile platform.');
+    if (!kIsWeb &&
+        defaultTargetPlatform != TargetPlatform.android &&
+        defaultTargetPlatform != TargetPlatform.iOS) {
+      debugPrint('[ZEV-FCM] Token registration skipped on desktop.');
       return;
     }
 
     try {
+      if (Firebase.apps.isEmpty) {
+        try {
+          await Firebase.initializeApp(
+            options: DefaultFirebaseOptions.currentPlatform,
+          );
+        } catch (e) {
+          debugPrint('[ZEV-FCM] Firebase.initializeApp notice: $e');
+        }
+      }
+
       await NotificationService().ensureInitialized();
 
       String? token = explicitToken;
       if (token == null || token.isEmpty) {
         final messaging = FirebaseMessaging.instance;
         final vapidKey = AppConfig.firebaseVapidKey;
-        token = await messaging.getToken(
-          vapidKey: (kIsWeb && vapidKey.isNotEmpty) ? vapidKey : null,
-        );
+
+        // Retry up to 3 times with progressive backoff to allow Google Play Services to warm up
+        for (int attempt = 1; attempt <= 3; attempt++) {
+          try {
+            token = await messaging.getToken(
+              vapidKey: (kIsWeb && vapidKey.isNotEmpty) ? vapidKey : null,
+            );
+            if (token != null && token.isNotEmpty) break;
+          } catch (tokErr) {
+            debugPrint('[ZEV-FCM] getToken attempt $attempt notice: $tokErr');
+          }
+          if (attempt < 3) {
+            await Future.delayed(const Duration(milliseconds: 1000));
+          }
+        }
       }
 
       if (token == null || token.isEmpty) {
-        debugPrint('ZEV FCM token is empty, skipping registration.');
+        debugPrint('[ZEV-FCM] FCM token is empty after attempts, skipping registration.');
         return;
       }
 
@@ -102,7 +126,7 @@ class AuthHelper {
       final supabase = Supabase.instance.client;
       final deviceId = await MfaService.instance.getOrCreateDeviceId();
       final deviceName = await MfaService.instance.getDeviceName();
-      final platform = defaultTargetPlatform.name.toLowerCase();
+      final platform = kIsWeb ? 'web' : defaultTargetPlatform.name.toLowerCase();
       final nowIso = DateTime.now().toUtc().toIso8601String();
 
       // 1. Primary multi-device registration (`user_devices`)

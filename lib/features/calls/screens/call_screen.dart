@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -159,6 +160,7 @@ class _CallScreenState extends State<CallScreen>
   bool _isMicMuted = false;
   bool _isSpeakerOn = true;
   bool _isCameraOff = false;
+  bool _isScreenSharing = false;
   bool _isActionInFlight = false;
   bool _engineJoined = false;
   bool _isClosing = false;
@@ -215,6 +217,11 @@ class _CallScreenState extends State<CallScreen>
     _engine = null;
     _engineHandler = null;
     if (eng != null) {
+      if (_isScreenSharing) {
+        try {
+          await eng.stopScreenCapture();
+        } catch (_) {}
+      }
       try {
         if (handler != null) eng.unregisterEventHandler(handler);
       } catch (_) {}
@@ -673,6 +680,69 @@ class _CallScreenState extends State<CallScreen>
     } catch (_) {}
   }
 
+  Future<void> _toggleScreenShare() async {
+    final eng = _engine;
+    if (eng == null || _phase != 'accepted') return;
+    HapticFeedback.mediumImpact();
+
+    try {
+      if (!_isScreenSharing) {
+        await eng.startScreenCapture(
+          const ScreenCaptureParameters2(
+            captureAudio: true,
+            captureVideo: true,
+          ),
+        );
+        await eng.updateChannelMediaOptions(
+          const ChannelMediaOptions(
+            publishScreenCaptureVideo: true,
+            publishScreenCaptureAudio: true,
+            publishCameraTrack: false,
+          ),
+        );
+        if (mounted) {
+          setState(() => _isScreenSharing = true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Screen sharing started'),
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } else {
+        await eng.stopScreenCapture();
+        await eng.updateChannelMediaOptions(
+          ChannelMediaOptions(
+            publishScreenCaptureVideo: false,
+            publishScreenCaptureAudio: false,
+            publishCameraTrack: !_isCameraOff,
+          ),
+        );
+        if (mounted) {
+          setState(() => _isScreenSharing = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Screen sharing stopped'),
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[CallScreen] Screen share error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Screen share notice: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   String _formatDuration(int totalSeconds) {
     final m = (totalSeconds ~/ 60).toString().padLeft(2, '0');
     final s = (totalSeconds % 60).toString().padLeft(2, '0');
@@ -681,12 +751,8 @@ class _CallScreenState extends State<CallScreen>
 
   @override
   Widget build(BuildContext context) {
-    final displayName = widget.peerFullName.isNotEmpty
-        ? widget.peerFullName
-        : '@${widget.peerUsername}';
-    final showIncomingChoice = !widget.isOutgoing && _phase == 'ringing';
-    final hasRemoteVideo =
-        widget.isVideo && _remoteVideoController != null && _remoteVideoEnabled;
+    final size = MediaQuery.sizeOf(context);
+    final isWide = size.width >= 720 || (kIsWeb && size.width >= 600);
 
     return PopScope(
       canPop: _phase == 'ended',
@@ -697,254 +763,797 @@ class _CallScreenState extends State<CallScreen>
       },
       child: Scaffold(
         backgroundColor: const Color(0xFF070B14),
-        body: Stack(
-          fit: StackFit.expand,
+        body: isWide ? _buildWidescreenWebLayout() : _buildMobileLayout(),
+      ),
+    );
+  }
+
+  /// Widescreen Desktop / Web Layout (Google Meet / Zoom grade experience)
+  Widget _buildWidescreenWebLayout() {
+    final displayName = widget.peerFullName.isNotEmpty
+        ? widget.peerFullName
+        : '@${widget.peerUsername}';
+    final showIncomingChoice = !widget.isOutgoing && _phase == 'ringing';
+    final hasRemoteVideo =
+        widget.isVideo && _remoteVideoController != null && _remoteVideoEnabled;
+
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF070B14),
+            Color(0xFF0F172A),
+            Color(0xFF0A0F1D),
+          ],
+        ),
+      ),
+      child: SafeArea(
+        child: Column(
           children: [
-            // Background: Remote Video or Sleek Obsidian Call Surface
-            if (hasRemoteVideo)
-              AgoraVideoView(
-                key: ValueKey('remote_$_remoteUid'),
-                controller: _remoteVideoController!,
-              )
-            else
-              Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFF070C18),
-                      Color(0xFF0D1B2A),
-                      Color(0xFF0A1426),
-                    ],
-                  ),
-                ),
-              ),
-
-            // Subtle dark scrim when remote video is shown so top/bottom HUD stays legible
-            if (hasRemoteVideo)
-              IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.55),
-                        Colors.transparent,
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.68),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-            // Main Call Foreground
-            SafeArea(
-              child: Column(
+            // Top Desktop HUD Bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              child: Row(
                 children: [
-                  // Top Bar
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  // App / Encryption Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
+                    ),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.16),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                widget.isVideo
-                                    ? Icons.videocam_rounded
-                                    : Icons.lock_rounded,
-                                size: 14,
-                                color: ZevColors.primaryBlue,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                widget.isVideo ? 'ZEV Video' : 'ZEV Voice',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ],
+                        Icon(
+                          widget.isVideo
+                              ? Icons.videocam_rounded
+                              : Icons.phone_in_talk_rounded,
+                          size: 16,
+                          color: ZevColors.primaryBlue,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          widget.isVideo ? 'ZEV Video Call' : 'ZEV Voice Call',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
-                        const Spacer(),
-                        if (_phase == 'accepted')
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: ZevColors.successGreen.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color: ZevColors.successGreen.withValues(alpha: 0.5),
-                              ),
-                            ),
-                            child: Text(
-                              _formatDuration(_elapsedSeconds),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w900,
-                                fontFeatures: [FontFeature.tabularFigures()],
-                              ),
-                            ),
+                        const SizedBox(width: 8),
+                        Container(
+                          width: 4,
+                          height: 4,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFF64748B),
                           ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(
+                          Icons.lock_rounded,
+                          size: 12,
+                          color: Color(0xFF10B981),
+                        ),
+                        const SizedBox(width: 4),
+                        const Text(
+                          'Encrypted',
+                          style: TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ],
                     ),
                   ),
 
                   const Spacer(),
 
-                  // Center Avatar & Peer Identity (shown for Voice calls or while Video is connecting/off)
-                  if (!hasRemoteVideo)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          AnimatedBuilder(
-                            animation: _pulseCtrl,
-                            builder: (context, child) {
-                              final glow = _phase == 'ringing' || _phase == 'accepted'
-                                  ? 10.0 + (_pulseCtrl.value * 14.0)
-                                  : 6.0;
-                              return Container(
-                                padding: const EdgeInsets.all(5),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: (_phase == 'accepted'
-                                            ? ZevColors.successGreen
-                                            : ZevColors.primaryBlue)
-                                        .withValues(alpha: 0.55),
-                                    width: 2.5,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: (_phase == 'accepted'
-                                              ? ZevColors.successGreen
-                                              : ZevColors.primaryBlue)
-                                          .withValues(alpha: 0.35),
-                                      blurRadius: glow,
-                                      spreadRadius: 2,
+                  // Call status & Duration Timer
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _phase == 'accepted'
+                          ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                          : Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: _phase == 'accepted'
+                            ? const Color(0xFF10B981).withValues(alpha: 0.4)
+                            : Colors.white.withValues(alpha: 0.12),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_phase == 'accepted') ...[
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Color(0xFF10B981),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _formatDuration(_elapsedSeconds),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                        ] else ...[
+                          Text(
+                            _statusLabel,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.9),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  const Spacer(),
+
+                  // Peer Mini Profile Pill
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ZevCachedImage.avatar(
+                          imageUrl: widget.peerAvatar,
+                          size: 26,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          displayName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        if (widget.isPeerVerified) ...[
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.verified_rounded,
+                            size: 14,
+                            color: ZevColors.primaryBlue,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Main Desktop Stage Area
+            Expanded(
+              child: Center(
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 1200),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF030712),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.14),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              blurRadius: 30,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            // Remote video or centered voice avatar
+                            if (hasRemoteVideo)
+                              AgoraVideoView(
+                                key: ValueKey('remote_wide_$_remoteUid'),
+                                controller: _remoteVideoController!,
+                              )
+                            else
+                              Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    AnimatedBuilder(
+                                      animation: _pulseCtrl,
+                                      builder: (context, child) {
+                                        final glow = 12.0 + (_pulseCtrl.value * 18.0);
+                                        return Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: (_phase == 'accepted'
+                                                      ? ZevColors.successGreen
+                                                      : ZevColors.primaryBlue)
+                                                  .withValues(alpha: 0.55),
+                                              width: 3.0,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: (_phase == 'accepted'
+                                                        ? ZevColors.successGreen
+                                                        : ZevColors.primaryBlue)
+                                                    .withValues(alpha: 0.35),
+                                                blurRadius: glow,
+                                                spreadRadius: 3,
+                                              ),
+                                            ],
+                                          ),
+                                          child: child,
+                                        );
+                                      },
+                                      child: ZevCachedImage.avatar(
+                                        imageUrl: widget.peerAvatar,
+                                        size: 130,
+                                      ),
                                     ),
+                                    const SizedBox(height: 20),
+                                    Text(
+                                      displayName,
+                                      style: const TextStyle(
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.w900,
+                                        color: Colors.white,
+                                        letterSpacing: -0.3,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      _phase == 'accepted' && !widget.isVideo
+                                          ? 'HD Voice Connected • ${_formatDuration(_elapsedSeconds)}'
+                                          : _statusLabel,
+                                      style: TextStyle(
+                                        fontSize: 14.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: _phase == 'accepted'
+                                            ? const Color(0xFF6EE7B7)
+                                            : Colors.white.withValues(alpha: 0.78),
+                                      ),
+                                    ),
+                                    if (_errorMsg != null) ...[
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        _errorMsg!,
+                                        style: const TextStyle(
+                                          color: Color(0xFFFCA5A5),
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
-                                child: child,
-                              );
-                            },
-                            child: ZevCachedImage.avatar(
-                              imageUrl: widget.peerAvatar,
-                              size: 112,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  displayName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 25,
-                                    fontWeight: FontWeight.w900,
-                                    color: Colors.white,
-                                    letterSpacing: -0.3,
+                              ),
+
+                            // Peer name pill inside video (bottom left)
+                            if (hasRemoteVideo)
+                              Positioned(
+                                left: 16,
+                                bottom: 16,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 7,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.65),
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.16),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        displayName,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
-                              if (widget.isPeerVerified) ...[
-                                const SizedBox(width: 6),
-                                const Icon(
-                                  Icons.verified_rounded,
-                                  size: 20,
-                                  color: ZevColors.primaryBlue,
+
+                            // Floating Self Camera PIP (top right of stage)
+                            if (widget.isVideo &&
+                                _localVideoController != null &&
+                                !_isCameraOff &&
+                                _phase != 'ended')
+                              Positioned(
+                                top: 16,
+                                right: 16,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Container(
+                                    width: 220,
+                                    height: 124,
+                                    decoration: BoxDecoration(
+                                      color: Colors.black,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: Colors.white.withValues(alpha: 0.4),
+                                        width: 1.5,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.5),
+                                          blurRadius: 16,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: AgoraVideoView(
+                                      key: const ValueKey('local_self_preview_wide'),
+                                      controller: _localVideoController!,
+                                    ),
+                                  ),
                                 ),
-                              ],
-                            ],
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Bottom Widescreen Floating Control Dock
+            if (showIncomingChoice)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildActionCircle(
+                      icon: Icons.call_end_rounded,
+                      label: 'Decline',
+                      bgColor: ZevColors.errorRed,
+                      size: 64,
+                      onTap: _isActionInFlight ? null : _hangupOrDecline,
+                    ),
+                    const SizedBox(width: 32),
+                    _buildActionCircle(
+                      icon: widget.isVideo
+                          ? Icons.videocam_rounded
+                          : Icons.call_rounded,
+                      label: 'Accept',
+                      bgColor: ZevColors.successGreen,
+                      size: 64,
+                      onTap: _isActionInFlight ? null : _acceptIncomingCall,
+                    ),
+                  ],
+                ),
+              )
+            else
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.88),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.16),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.4),
+                      blurRadius: 20,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildActionCircle(
+                      icon: _isMicMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                      label: _isMicMuted ? 'Muted' : 'Mute',
+                      bgColor: _isMicMuted
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.14),
+                      iconColor: _isMicMuted
+                          ? const Color(0xFF0F172A)
+                          : Colors.white,
+                      onTap: _phase == 'ended' ? null : _toggleMute,
+                    ),
+                    const SizedBox(width: 14),
+                    if (widget.isVideo) ...[
+                      _buildActionCircle(
+                        icon: _isCameraOff
+                            ? Icons.videocam_off_rounded
+                            : Icons.videocam_rounded,
+                        label: _isCameraOff ? 'Cam Off' : 'Camera',
+                        bgColor: _isCameraOff
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.14),
+                        iconColor: _isCameraOff
+                            ? const Color(0xFF0F172A)
+                            : Colors.white,
+                        onTap: _phase == 'ended' ? null : _toggleCamera,
+                      ),
+                      const SizedBox(width: 14),
+                      _buildActionCircle(
+                        icon: _isScreenSharing
+                            ? Icons.stop_screen_share_rounded
+                            : Icons.screen_share_rounded,
+                        label: _isScreenSharing ? 'Sharing' : 'Share Screen',
+                        bgColor: _isScreenSharing
+                            ? ZevColors.primaryBlue
+                            : Colors.white.withValues(alpha: 0.14),
+                        iconColor: _isScreenSharing
+                            ? ZevColors.deepNavy
+                            : Colors.white,
+                        onTap: _phase == 'accepted' ? _toggleScreenShare : null,
+                      ),
+                      const SizedBox(width: 14),
+                      _buildActionCircle(
+                        icon: Icons.cameraswitch_rounded,
+                        label: 'Flip',
+                        bgColor: Colors.white.withValues(alpha: 0.14),
+                        onTap: (_phase == 'ended' || _isCameraOff)
+                            ? null
+                            : _switchCamera,
+                      ),
+                      const SizedBox(width: 14),
+                    ],
+                    // Prominent End Call Button
+                    GestureDetector(
+                      onTap: _phase == 'ended' ? null : _hangupOrDecline,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 22,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: ZevColors.errorRed,
+                          borderRadius: BorderRadius.circular(999),
+                          boxShadow: [
+                            BoxShadow(
+                              color: ZevColors.errorRed.withValues(alpha: 0.35),
+                              blurRadius: 12,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.call_end_rounded, color: Colors.white, size: 20),
+                            SizedBox(width: 8),
+                            Text(
+                              'End Call',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Mobile Portrait Layout (Instagram / FaceTime grade experience)
+  Widget _buildMobileLayout() {
+    final displayName = widget.peerFullName.isNotEmpty
+        ? widget.peerFullName
+        : '@${widget.peerUsername}';
+    final showIncomingChoice = !widget.isOutgoing && _phase == 'ringing';
+    final hasRemoteVideo =
+        widget.isVideo && _remoteVideoController != null && _remoteVideoEnabled;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Background: Remote Video or Obsidian Gradient
+        if (hasRemoteVideo)
+          AgoraVideoView(
+            key: ValueKey('remote_$_remoteUid'),
+            controller: _remoteVideoController!,
+          )
+        else
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF070C18),
+                  Color(0xFF0D1B2A),
+                  Color(0xFF0A1426),
+                ],
+              ),
+            ),
+          ),
+
+        // Scrim when remote video is shown
+        if (hasRemoteVideo)
+          IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.55),
+                    Colors.transparent,
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.68),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+        // Foreground content
+        SafeArea(
+          child: Column(
+            children: [
+              // Top Bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.16),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            widget.isVideo
+                                ? Icons.videocam_rounded
+                                : Icons.lock_rounded,
+                            size: 14,
+                            color: ZevColors.primaryBlue,
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(width: 6),
                           Text(
-                            _phase == 'accepted' && !widget.isVideo
-                                ? 'Connected • ${_formatDuration(_elapsedSeconds)}'
-                                : _statusLabel,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: _phase == 'accepted'
-                                  ? const Color(0xFF6EE7B7)
-                                  : Colors.white.withValues(alpha: 0.78),
+                            widget.isVideo ? 'ZEV Video' : 'ZEV Voice',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
-                          if (_errorMsg != null) ...[
-                            const SizedBox(height: 10),
-                            Text(
-                              _errorMsg!,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Color(0xFFFCA5A5),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    if (_phase == 'accepted')
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: ZevColors.successGreen.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: ZevColors.successGreen.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: Text(
+                          _formatDuration(_elapsedSeconds),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w900,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
+              const Spacer(),
+
+              // Center Avatar & Peer Identity
+              if (!hasRemoteVideo)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AnimatedBuilder(
+                        animation: _pulseCtrl,
+                        builder: (context, child) {
+                          final glow = _phase == 'ringing' || _phase == 'accepted'
+                              ? 10.0 + (_pulseCtrl.value * 14.0)
+                              : 6.0;
+                          return Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: (_phase == 'accepted'
+                                        ? ZevColors.successGreen
+                                        : ZevColors.primaryBlue)
+                                    .withValues(alpha: 0.55),
+                                width: 2.5,
                               ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: (_phase == 'accepted'
+                                          ? ZevColors.successGreen
+                                          : ZevColors.primaryBlue)
+                                      .withValues(alpha: 0.35),
+                                  blurRadius: glow,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: child,
+                          );
+                        },
+                        child: ZevCachedImage.avatar(
+                          imageUrl: widget.peerAvatar,
+                          size: 112,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 25,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                          ),
+                          if (widget.isPeerVerified) ...[
+                            const SizedBox(width: 6),
+                            const Icon(
+                              Icons.verified_rounded,
+                              size: 20,
+                              color: ZevColors.primaryBlue,
                             ),
                           ],
                         ],
                       ),
-                    ),
-
-                  const Spacer(),
-
-                  // Bottom Controls Dock
-                  if (showIncomingChoice)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(32, 0, 32, 34),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildActionCircle(
-                            icon: Icons.call_end_rounded,
-                            label: 'Decline',
-                            bgColor: ZevColors.errorRed,
-                            size: 68,
-                            onTap: _isActionInFlight ? null : _hangupOrDecline,
-                          ),
-                          _buildActionCircle(
-                            icon: widget.isVideo
-                                ? Icons.videocam_rounded
-                                : Icons.call_rounded,
-                            label: 'Accept',
-                            bgColor: ZevColors.successGreen,
-                            size: 68,
-                            onTap: _isActionInFlight ? null : _acceptIncomingCall,
-                          ),
-                        ],
+                      const SizedBox(height: 6),
+                      Text(
+                        _phase == 'accepted' && !widget.isVideo
+                            ? 'Connected • ${_formatDuration(_elapsedSeconds)}'
+                            : _statusLabel,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: _phase == 'accepted'
+                              ? const Color(0xFF6EE7B7)
+                              : Colors.white.withValues(alpha: 0.78),
+                        ),
                       ),
-                    )
-                  else
-                    Container(
+                      if (_errorMsg != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          _errorMsg!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Color(0xFFFCA5A5),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+              const Spacer(),
+
+              // Bottom Mobile Controls Dock
+              if (showIncomingChoice)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(32, 0, 32, 34),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildActionCircle(
+                        icon: Icons.call_end_rounded,
+                        label: 'Decline',
+                        bgColor: ZevColors.errorRed,
+                        size: 68,
+                        onTap: _isActionInFlight ? null : _hangupOrDecline,
+                      ),
+                      _buildActionCircle(
+                        icon: widget.isVideo
+                            ? Icons.videocam_rounded
+                            : Icons.call_rounded,
+                        label: 'Accept',
+                        bgColor: ZevColors.successGreen,
+                        size: 68,
+                        onTap: _isActionInFlight ? null : _acceptIncomingCall,
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(30),
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                    child: Container(
                       margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
+                        horizontal: 10,
                         vertical: 14,
                       ),
                       decoration: BoxDecoration(
@@ -985,6 +1594,19 @@ class _CallScreenState extends State<CallScreen>
                               onTap: _phase == 'ended' ? null : _toggleCamera,
                             ),
                             _buildActionCircle(
+                              icon: _isScreenSharing
+                                  ? Icons.stop_screen_share_rounded
+                                  : Icons.screen_share_rounded,
+                              label: _isScreenSharing ? 'Sharing' : 'Share',
+                              bgColor: _isScreenSharing
+                                  ? ZevColors.primaryBlue
+                                  : Colors.white.withValues(alpha: 0.14),
+                              iconColor: _isScreenSharing
+                                  ? ZevColors.deepNavy
+                                  : Colors.white,
+                              onTap: _phase == 'accepted' ? _toggleScreenShare : null,
+                            ),
+                            _buildActionCircle(
                               icon: Icons.cameraswitch_rounded,
                               label: 'Flip',
                               bgColor: Colors.white.withValues(alpha: 0.14),
@@ -1016,41 +1638,41 @@ class _CallScreenState extends State<CallScreen>
                         ],
                       ),
                     ),
-                ],
-              ),
-            ),
-
-            // Local Self-View PIP for Video Calls
-            if (widget.isVideo &&
-                _localVideoController != null &&
-                !_isCameraOff &&
-                _phase != 'ended')
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 60,
-                right: 16,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: Container(
-                    width: 112,
-                    height: 160,
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.35),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: AgoraVideoView(
-                      key: const ValueKey('local_self_preview'),
-                      controller: _localVideoController!,
-                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
-      ),
+
+        // Local Self-View PIP for Video Calls
+        if (widget.isVideo &&
+            _localVideoController != null &&
+            !_isCameraOff &&
+            _phase != 'ended')
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 60,
+            right: 16,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: Container(
+                width: 112,
+                height: 160,
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.35),
+                    width: 1.5,
+                  ),
+                ),
+                child: AgoraVideoView(
+                  key: const ValueKey('local_self_preview'),
+                  controller: _localVideoController!,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 

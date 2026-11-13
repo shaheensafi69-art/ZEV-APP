@@ -388,6 +388,27 @@ class NotificationService {
               final body = (row['message'] ?? '').toString().trim();
               if (title.isEmpty && body.isEmpty) return;
 
+              // Check if user is actively viewing this chat conversation
+              String linkedConvId = '';
+              String linkedPeerId = senderId;
+              if (link.contains('/chat/')) {
+                final chatTarget = link.split('/chat/').last.split('?').first.trim();
+                if (chatTarget.startsWith('conv:')) {
+                  linkedConvId = chatTarget.replaceFirst('conv:', '');
+                } else if (chatTarget.isNotEmpty) {
+                  linkedPeerId = chatTarget;
+                }
+              }
+
+              if (_isViewingActiveChat(
+                type: type,
+                senderId: linkedPeerId.isNotEmpty ? linkedPeerId : senderId,
+                conversationId: linkedConvId,
+              )) {
+                // User is actively reading this conversation right now! Suppress in-app banner.
+                return;
+              }
+
               final notifId = row['id']?.toString() ?? '';
               final keyByContent = '$type|$link|$title|$body';
               if (_isDuplicateAlert(keyByContent) ||
@@ -535,16 +556,22 @@ class NotificationService {
     final t = type.toLowerCase();
     final isChat = t == 'message' ||
         t.contains('chat') ||
+        t.contains('message') ||
         t == 'dm' ||
         t == 'direct_message' ||
         t == 'group_message';
     if (!isChat) return false;
-    if (conversationId.isNotEmpty &&
-        activeChatConversationId == conversationId) {
-      return true;
+
+    final curConv = activeChatConversationId?.trim().toLowerCase();
+    final curPeer = activeChatPeerId?.trim().toLowerCase();
+    final targetConv = conversationId.trim().toLowerCase();
+    final targetSender = senderId.trim().toLowerCase();
+
+    if (curConv != null && curConv.isNotEmpty && targetConv.isNotEmpty) {
+      if (curConv == targetConv) return true;
     }
-    if (senderId.isNotEmpty && activeChatPeerId == senderId) {
-      return true;
+    if (curPeer != null && curPeer.isNotEmpty && targetSender.isNotEmpty) {
+      if (curPeer == targetSender) return true;
     }
     return false;
   }
