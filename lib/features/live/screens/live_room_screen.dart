@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -10,12 +9,12 @@ import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/config/app_config.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../core/services/social_graph_service.dart';
 import '../../../core/services/zev_rtc_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/time_ago.dart';
 import '../../../core/widgets/zev_cached_image.dart';
-import '../../chat/services/chat_service.dart';
 import '../../profile/screens/profile_screen.dart';
 
 class _FloatingReaction {
@@ -78,11 +77,12 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
   bool _isPkMatchActive = false;
   int _pkRedScore = 0;
   int _pkBlueScore = 0;
-  int _pkTimeRemaining = 180;
-  int _pkHostWinStreak = 0;
-  int _pkOpponentWinStreak = 0;
-  Map<String, dynamic>? _pkOpponent;
+  int _pkTimeRemaining = 180; // 03:00 standard battle
   Timer? _pkTimer;
+  Map<String, dynamic>? _pkOpponentProfile;
+  int _hostWinStreak = 0;
+  int _opponentWinStreak = 0;
+  String? _pkBattleResult;
   bool _isFollowingHost = false;
 
   // Stage Guest & Multi-Guest state (100+ room capacity)
@@ -225,6 +225,10 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
       }
       if (_pkTimeRemaining > 0) {
         setState(() => _pkTimeRemaining--);
+        if (_pkTimeRemaining == 0) {
+          timer.cancel();
+          _finishPkBattle();
+        }
       }
     });
   }
@@ -365,8 +369,8 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
     _subscribeRealtime();
     if (!_isEnded) {
       unawaited(_initAgoraLive());
-      if (widget.isHost) {
-        unawaited(_notifyFollowersStreamStarted());
+      if (widget.isHost && _status == 'live') {
+        unawaited(_broadcastLiveStartToFollowers());
       }
     }
   }
@@ -464,6 +468,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                 ),
                 connection: connection,
               );
+              _isPkMatchActive = true;
             }
           });
         },
@@ -1066,10 +1071,9 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
           ),
           if (_audioGuests.isNotEmpty)
             Positioned(
-              left: 0,
-              right: 0,
-              bottom: 260,
-              child: _buildAudioGuestSeatsRow(),
+              left: 12,
+              bottom: 310,
+              child: _buildActiveAudioGuestChips(),
             ),
         ],
       );
@@ -1084,10 +1088,9 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
           ),
           if (_audioGuests.isNotEmpty)
             Positioned(
-              left: 0,
-              right: 0,
-              bottom: 260,
-              child: _buildAudioGuestSeatsRow(),
+              left: 12,
+              bottom: 310,
+              child: _buildActiveAudioGuestChips(),
             ),
         ],
       );
@@ -1175,12 +1178,12 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
             ),
           ),
         ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 330,
-          child: _buildAudioGuestSeatsRow(),
-        ),
+        if (_audioGuests.isNotEmpty)
+          Positioned(
+            left: 12,
+            bottom: 310,
+            child: _buildActiveAudioGuestChips(),
+          ),
       ],
     );
   }
@@ -1366,7 +1369,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        'WIN × $_pkHostWinStreak',
+                        'WIN × $_hostWinStreak',
                         style: const TextStyle(
                           color: Colors.black,
                           fontSize: 10,
@@ -1385,7 +1388,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        'WIN × $_pkOpponentWinStreak',
+                        'WIN × $_opponentWinStreak',
                         style: const TextStyle(
                           color: Colors.black,
                           fontSize: 10,
@@ -1509,12 +1512,14 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                           )
                         else
                           _buildWaitingPlaceholder(
-                            avatar: (_pkOpponent?['avatar_url'] ?? '').toString(),
-                            username: (_pkOpponent?['username'] ?? 'حریف آنلاین').toString(),
-                            label: 'در انتظار اتصال...',
+                            avatar: (_pkOpponentProfile?['avatar_url'] ?? '').toString().isNotEmpty
+                                ? (_pkOpponentProfile!['avatar_url']).toString()
+                                : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+                            username: (_pkOpponentProfile?['username'] ?? 'Opponent').toString(),
+                            label: 'Challenger',
                           ),
 
-                        // Opponent Bottom Sub-Bar: Medals + Name with + Follow Button
+                        // Opponent Bottom Sub-Bar: Medals + Name
                         Positioned(
                           bottom: 8,
                           left: 8,
@@ -1522,8 +1527,13 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                           child: Row(
                             children: [
                               _buildMiniMedalAvatar(
-                                (_pkOpponent?['avatar_url'] ?? '').toString(),
+                                'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80',
                                 1,
+                              ),
+                              const SizedBox(width: 3),
+                              _buildMiniMedalAvatar(
+                                'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=120&q=80',
+                                2,
                               ),
                               const Spacer(),
                               Container(
@@ -1535,24 +1545,13 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                                   color: Colors.black.withValues(alpha: 0.65),
                                   borderRadius: BorderRadius.circular(999),
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      '@${_pkOpponent?['username'] ?? 'حریف'}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    const Icon(
-                                      Icons.add_rounded,
-                                      color: Color(0xFFFF2D55),
-                                      size: 13,
-                                    ),
-                                  ],
+                                child: Text(
+                                  '@${(_pkOpponentProfile?['username'] ?? 'opponent')}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
                               ),
                             ],
@@ -1567,8 +1566,8 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
           ),
         ),
 
-        // Audio Guest Seats Dock
-        _buildAudioGuestSeatsRow(),
+        if (_audioGuests.isNotEmpty)
+          _buildActiveAudioGuestChips(),
       ],
     );
   }
@@ -1683,12 +1682,12 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
             ),
           ],
         ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 330,
-          child: _buildAudioGuestSeatsRow(),
-        ),
+        if (_audioGuests.isNotEmpty)
+          Positioned(
+            left: 12,
+            bottom: 310,
+            child: _buildActiveAudioGuestChips(),
+          ),
       ],
     );
   }
@@ -1819,140 +1818,82 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
             ],
           ),
         ),
-        _buildAudioGuestSeatsRow(),
+        if (_audioGuests.isNotEmpty)
+          _buildActiveAudioGuestChips(),
       ],
     );
   }
 
-  Widget _buildAudioGuestSeatsRow() {
-    if (_audioGuests.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
+  Widget _buildActiveAudioGuestChips() {
+    if (_audioGuests.isEmpty) return const SizedBox.shrink();
     return Container(
-      height: 70,
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: _audioGuests.length + 1,
-        separatorBuilder: (_, _) => const SizedBox(width: 10),
-        itemBuilder: (context, idx) {
-          if (idx < _audioGuests.length) {
-            final guest = _audioGuests[idx];
-            final avatar = (guest['avatar_url'] ?? '').toString();
-            final name = (guest['username'] ?? 'Guest').toString();
-            final isMuted = guest['is_muted'] == true;
-
-            return Column(
-              mainAxisSize: MainAxisSize.min,
+      height: 42,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.50),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.22),
+          width: 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: _audioGuests.take(5).map((guest) {
+          final avatar = (guest['avatar_url'] ?? '').toString();
+          final isMuted = guest['is_muted'] == true;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: Stack(
               children: [
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    AnimatedBuilder(
-                      animation: _pulseCtrl,
-                      builder: (context, child) {
-                        return Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: const Color(0xFF10B981).withValues(
-                                alpha: 0.4 + (_pulseCtrl.value * 0.4),
-                              ),
-                              width: 2.0,
-                            ),
-                          ),
-                          child: child,
-                        );
-                      },
-                      child: ZevCachedImage.avatar(imageUrl: avatar, size: 38),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isMuted
-                              ? const Color(0xFFEF4444)
-                              : const Color(0xFF10B981),
-                        ),
-                        child: Icon(
-                          isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                          size: 9,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                SizedBox(
-                  width: 52,
-                  child: Text(
-                    '@$name',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            );
-          }
-
-          // Single Add Guest Button at the end of active guest seats
-          return GestureDetector(
-            onTap: _onTapEmptyStageSeat,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                    child: Container(
-                      width: 44,
-                      height: 44,
+                AnimatedBuilder(
+                  animation: _pulseCtrl,
+                  builder: (context, child) {
+                    return Container(
+                      width: 32,
+                      height: 32,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.black.withValues(alpha: 0.45),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.25),
-                          width: 1.5,
+                          color: const Color(0xFF10B981).withValues(
+                            alpha: 0.4 + (_pulseCtrl.value * 0.5),
+                          ),
+                          width: 1.8,
                         ),
                       ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.add_rounded,
-                          color: Colors.white,
-                          size: 22,
-                        ),
+                      child: child,
+                    );
+                  },
+                  child: ZevCachedImage.avatar(imageUrl: avatar, size: 28),
+                ),
+                if (isMuted)
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(1.5),
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0xFFEF4444),
+                      ),
+                      child: const Icon(
+                        Icons.mic_off_rounded,
+                        size: 8,
+                        color: Colors.white,
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  widget.isHost ? 'افزودن' : 'ورود',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
               ],
             ),
           );
-        },
+        }).toList(),
       ),
     );
   }
@@ -1983,73 +1924,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
     );
   }
 
-  void _onTapEmptyStageSeat() {
-    HapticFeedback.lightImpact();
-    if (widget.isHost) {
-      _openStageManagementSheet();
-      return;
-    }
 
-    if (_isGuestOnStage) {
-      _showToast('You are already on stage!');
-      return;
-    }
-
-    if (_hasPendingStageRequest) {
-      _showToast('Request already sent • منتظر تایید میزبان باشید');
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (dCtx) => AlertDialog(
-        backgroundColor: const Color(0xFF0F172A),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.16)),
-        ),
-        title: const Text(
-          'Join Stage • بالا آمدن در استیج',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w900,
-            fontSize: 16,
-          ),
-        ),
-        content: const Text(
-          'Do you want to send a request to the host to join as a co-host / stage guest?',
-          style: TextStyle(
-            color: Color(0xFF94A3B8),
-            fontSize: 13,
-            height: 1.45,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dCtx),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(dCtx);
-              _requestJoinStage();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text(
-              'Send Request',
-              style: TextStyle(fontWeight: FontWeight.w800),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _requestJoinStage() {
     HapticFeedback.mediumImpact();
@@ -3290,43 +3165,6 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
               ),
             ),
 
-            // Top-Right Host Quick Controls (Flip Cam, Camera, Mic)
-            if (widget.isHost && !_isEnded)
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 54,
-                right: 12,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildTopQuickCircleButton(
-                      icon: Icons.flip_camera_ios_rounded,
-                      tooltip: 'چرخش دوربین',
-                      onTap: _switchLiveCamera,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildTopQuickCircleButton(
-                      icon: _isCameraOff
-                          ? Icons.videocam_off_rounded
-                          : Icons.videocam_rounded,
-                      iconColor:
-                          _isCameraOff ? const Color(0xFFFF2D55) : Colors.white,
-                      tooltip: 'دوربین',
-                      onTap: _toggleLiveCam,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildTopQuickCircleButton(
-                      icon: _isMicMuted
-                          ? Icons.mic_off_rounded
-                          : Icons.mic_rounded,
-                      iconColor:
-                          _isMicMuted ? const Color(0xFFFF2D55) : Colors.white,
-                      tooltip: 'میکروفون',
-                      onTap: _toggleLiveMic,
-                    ),
-                  ],
-                ),
-              ),
-
             // 4. Floating Realtime Live Comments Stream (TikTok / Instagram style)
             Positioned(
               left: 12,
@@ -3912,38 +3750,33 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
             ),
             const SizedBox(width: 8),
 
-            // Quick Rose Button matching TikTok reference
-            _buildRoundActionButton(
-              icon: Icons.local_florist_rounded,
-              iconColor: const Color(0xFFFF2D55),
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFF2D55), Color(0xFFFF758C)],
-              ),
-              badge: 'Rose',
-              onTap: () {
-                _sendGift(_availableGifts[0]);
-              },
-            ),
-            const SizedBox(width: 8),
-
-            // Gift Box Button opening TikTok style gifts sheet
-            _buildRoundActionButton(
-              icon: Icons.card_giftcard_rounded,
-              gradient: const LinearGradient(
-                colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
-              ),
-              badge: 'Gift',
-              onTap: _openGiftSheet,
-            ),
-            const SizedBox(width: 8),
-
-            // PK Battle Button (Host)
+            // Action Buttons
             if (widget.isHost && !_isEnded) ...[
-              const SizedBox(width: 8),
+              // 1. Stage / Co-Hosts Button (ONE unified button for all seats & requests)
+              _buildRoundActionButton(
+                icon: Icons.groups_rounded,
+                iconColor: _stageRequests.isNotEmpty
+                    ? const Color(0xFF10B981)
+                    : Colors.white,
+                gradient: _stageRequests.isNotEmpty
+                    ? const LinearGradient(
+                        colors: [Color(0xFF10B981), Color(0xFF059669)],
+                      )
+                    : null,
+                backgroundColor: Colors.black.withValues(alpha: 0.50),
+                badge: _stageRequests.isNotEmpty
+                    ? '${_stageRequests.length}'
+                    : (_audioGuests.isNotEmpty ? '${_audioGuests.length}' : null),
+                onTap: _openStageManagementSheet,
+              ),
+              const SizedBox(width: 6),
+
+              // 2. PK Battle Button
               _buildRoundActionButton(
                 icon: Icons.sports_kabaddi_rounded,
-                iconColor:
-                    _isPkMatchActive ? const Color(0xFFFFD600) : Colors.white,
+                iconColor: _isPkMatchActive
+                    ? const Color(0xFFFFD600)
+                    : Colors.white,
                 gradient: _isPkMatchActive
                     ? const LinearGradient(
                         colors: [Color(0xFFFF2D55), Color(0xFF6366F1)],
@@ -3953,36 +3786,90 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                     ? null
                     : Colors.black.withValues(alpha: 0.50),
                 badge: 'PK',
-                onTap: _openPkMatchHub,
+                onTap: _openPkMatchSheet,
+              ),
+              const SizedBox(width: 6),
+
+              // 3. Share Button (Opens Followers/Following drawer)
+              _buildRoundActionButton(
+                icon: Icons.reply_rounded,
+                iconColor: Colors.white,
+                backgroundColor: Colors.black.withValues(alpha: 0.50),
+                badge: 'Share',
+                onTap: _openShareWithFollowersSheet,
+              ),
+              const SizedBox(width: 6),
+
+              // 4. Host Tools (Flip camera, camera on/off, mute mic, gifts)
+              _buildRoundActionButton(
+                icon: Icons.more_horiz_rounded,
+                iconColor: Colors.white,
+                backgroundColor: Colors.black.withValues(alpha: 0.50),
+                badge: 'Tools',
+                onTap: _openHostToolsSheet,
+              ),
+            ] else ...[
+              // Viewer Actions
+              // 1. Stage request
+              _buildRoundActionButton(
+                icon: Icons.person_add_alt_1_rounded,
+                iconColor: _isGuestOnStage
+                    ? const Color(0xFF10B981)
+                    : Colors.white,
+                gradient: _isGuestOnStage
+                    ? const LinearGradient(
+                        colors: [Color(0xFF10B981), Color(0xFF059669)],
+                      )
+                    : null,
+                backgroundColor: Colors.black.withValues(alpha: 0.50),
+                badge: _isGuestOnStage ? 'Live' : null,
+                onTap: _openStageManagementSheet,
+              ),
+              const SizedBox(width: 6),
+
+              // 2. Share
+              _buildRoundActionButton(
+                icon: Icons.reply_rounded,
+                iconColor: Colors.white,
+                backgroundColor: Colors.black.withValues(alpha: 0.50),
+                onTap: _openShareWithFollowersSheet,
+              ),
+              const SizedBox(width: 6),
+
+              // 3. Quick Rose
+              _buildRoundActionButton(
+                icon: Icons.local_florist_rounded,
+                iconColor: const Color(0xFFFF2D55),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFF2D55), Color(0xFFFF758C)],
+                ),
+                badge: 'Rose',
+                onTap: () => _sendGift(_availableGifts[0]),
+              ),
+              const SizedBox(width: 6),
+
+              // 4. Gift Drawer
+              _buildRoundActionButton(
+                icon: Icons.card_giftcard_rounded,
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+                ),
+                badge: 'Gift',
+                onTap: _openGiftSheet,
+              ),
+              const SizedBox(width: 6),
+
+              // 5. Heart / Reaction
+              _buildRoundActionButton(
+                icon: Icons.favorite_rounded,
+                iconColor: const Color(0xFFFF2D55),
+                backgroundColor: Colors.black.withValues(alpha: 0.50),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  _sendReaction('❤️');
+                },
               ),
             ],
-            const SizedBox(width: 8),
-
-            // Stage Guest Request / Co-Host Seats Button
-            _buildRoundActionButton(
-              icon: widget.isHost
-                  ? Icons.groups_rounded
-                  : Icons.person_add_alt_1_rounded,
-              iconColor:
-                  _isGuestOnStage ? const Color(0xFF10B981) : Colors.white,
-              backgroundColor: _isGuestOnStage
-                  ? const Color(0xFF10B981).withValues(alpha: 0.3)
-                  : Colors.black.withValues(alpha: 0.50),
-              badge: widget.isHost && _stageRequests.isNotEmpty
-                  ? '${_stageRequests.length}'
-                  : (_isGuestOnStage ? 'Live' : null),
-              onTap: _openStageManagementSheet,
-            ),
-            const SizedBox(width: 8),
-
-            // Share Button opening Followers/Following Sheet
-            _buildRoundActionButton(
-              icon: Icons.reply_rounded,
-              iconColor: Colors.white,
-              backgroundColor: Colors.black.withValues(alpha: 0.50),
-              badge: 'Share',
-              onTap: _openShareWithFollowersSheet,
-            ),
           ],
         ),
       ),
@@ -4059,10 +3946,142 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
     );
   }
 
-  Widget _buildTopQuickCircleButton({
+  void _openHostToolsSheet() {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Container(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.98),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'ابزارها و کنترل‌های میزبان',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          'Host Controls',
+                          style: TextStyle(
+                            color: Colors.white38,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildHostToolCard(
+                            icon: Icons.flip_camera_ios_rounded,
+                            label: 'چرخش دوربین',
+                            sublabel: 'Flip Camera',
+                            onTap: () {
+                              _switchLiveCamera();
+                              Navigator.pop(ctx);
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildHostToolCard(
+                            icon: _isCameraOff
+                                ? Icons.videocam_off_rounded
+                                : Icons.videocam_rounded,
+                            label: _isCameraOff ? 'تصویر خاموش' : 'تصویر روشن',
+                            sublabel: _isCameraOff ? 'Camera Off' : 'Camera On',
+                            iconColor: _isCameraOff
+                                ? const Color(0xFFFF2D55)
+                                : const Color(0xFF10B981),
+                            onTap: () {
+                              _toggleLiveCam();
+                              setSheetState(() {});
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildHostToolCard(
+                            icon: _isMicMuted
+                                ? Icons.mic_off_rounded
+                                : Icons.mic_rounded,
+                            label: _isMicMuted ? 'صدا قطع' : 'صدا وصل',
+                            sublabel: _isMicMuted ? 'Muted' : 'Unmuted',
+                            iconColor: _isMicMuted
+                                ? const Color(0xFFFF2D55)
+                                : const Color(0xFF10B981),
+                            onTap: () {
+                              _toggleLiveMic();
+                              setSheetState(() {});
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildHostToolCard(
+                            icon: Icons.card_giftcard_rounded,
+                            label: 'صندوق جوایز',
+                            sublabel: 'Gift Drawer',
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+                            ),
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              _openGiftSheet();
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildHostToolCard({
     required IconData icon,
-    Color iconColor = Colors.white,
-    String? tooltip,
+    required String label,
+    required String sublabel,
+    Color? iconColor,
+    Gradient? gradient,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -4070,70 +4089,78 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
         HapticFeedback.lightImpact();
         onTap();
       },
-      child: Tooltip(
-        message: tooltip ?? '',
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: Container(
-              width: 38,
-              height: 38,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.black.withValues(alpha: 0.40),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.20),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.30),
-                    blurRadius: 8,
-                  ),
-                ],
+                gradient: gradient,
+                color: gradient == null ? Colors.white.withValues(alpha: 0.1) : null,
               ),
               child: Center(
-                child: Icon(icon, color: iconColor, size: 18),
+                child: Icon(
+                  icon,
+                  color: iconColor ?? Colors.white,
+                  size: 22,
+                ),
               ),
             ),
-          ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              sublabel,
+              style: const TextStyle(
+                color: Colors.white38,
+                fontSize: 10.5,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  void _openPkMatchHub() {
+  void _openPkMatchSheet() {
     HapticFeedback.selectionClick();
     if (_isPkMatchActive) {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: const Color(0xFF0F172A),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text(
-            'پایان مسابقه PK',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-          ),
-          content: Text(
-            'مسابقه در حال اجراست (${_formatPkTime(_pkTimeRemaining)} باقی‌مانده).\nامتیاز: $_pkRedScore در مقابل $_pkBlueScore.\nآیا می‌خواهید مسابقه به پایان برسد؟',
-            style: const TextStyle(color: Colors.white70, fontSize: 13),
+          title: const Text('نبرد زنده (PK Battle)', style: TextStyle(color: Colors.white)),
+          content: const Text(
+            'آیا می‌خواهید نبرد فعلی را پایان دهید؟',
+            style: TextStyle(color: Colors.white70),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('ادامه', style: TextStyle(color: Colors.white60)),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('ادامه نبرد', style: TextStyle(color: Colors.white54)),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF2D55),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
               onPressed: () {
-                Navigator.of(ctx).pop();
-                _endPkMatch();
+                Navigator.pop(ctx);
+                _endPkBattle();
               },
-              child: const Text('پایان مسابقه', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+              child: const Text('پایان نبرد'),
             ),
           ],
         ),
@@ -4145,72 +4172,92 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (ctx) => _PkMatchHubSheet(
-        coHosts: _remoteBroadcasters.keys.map((uid) {
-          return {
-            'uid': uid,
-            'username': 'مهمان استیج ($uid)',
-            'avatar_url': '',
-          };
-        }).toList(),
-        onStartMatch: (opponent, durationSeconds) {
-          Navigator.of(ctx).pop();
-          _startPkMatch(opponent: opponent, durationSeconds: durationSeconds);
-        },
-      ),
+      builder: (ctx) {
+        return _LivePkMatchmakingSheet(
+          streamId: _streamId,
+          onStartPkWith: (opponent) {
+            Navigator.pop(ctx);
+            _startRealPkBattle(opponent);
+          },
+        );
+      },
     );
   }
 
-  void _startPkMatch({Map<String, dynamic>? opponent, int durationSeconds = 180}) {
+  void _startRealPkBattle(Map<String, dynamic> opponent) {
     HapticFeedback.heavyImpact();
     setState(() {
       _isPkMatchActive = true;
+      _pkOpponentProfile = opponent;
       _pkRedScore = 0;
       _pkBlueScore = 0;
-      _pkTimeRemaining = durationSeconds;
-      _pkOpponent = opponent ?? {
-        'id': 'pk_online_match',
-        'username': 'حریف تصادفی',
-        'avatar_url': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-      };
+      _pkTimeRemaining = 180;
+      _pkBattleResult = null;
     });
+
     _startPkTimer();
-    _showToast('مسابقه PK آغاز شد! با ارسال هدایا از میزبان خود حمایت کنید 🚀');
+
     try {
       _roomChannel?.sendBroadcastMessage(
-        event: 'pk_start',
+        event: 'pk_battle_start',
         payload: {
-          'red': 0,
-          'blue': 0,
-          'time': durationSeconds,
-          'opponent': _pkOpponent,
+          'opponent': opponent,
+          'duration': 180,
+          'started_at': DateTime.now().toUtc().toIso8601String(),
         },
       );
     } catch (_) {}
+
+    final oppUsername = (opponent['username'] ?? 'opponent').toString();
+    _showToast('⚔️ نبرد زنده با @$oppUsername آغاز شد! به میزبان خود هدیه دهید!');
   }
 
-  void _endPkMatch() {
+  void _endPkBattle() {
     _pkTimer?.cancel();
-    HapticFeedback.mediumImpact();
+    _pkTimer = null;
     setState(() {
       _isPkMatchActive = false;
-      if (_pkRedScore > _pkBlueScore) {
-        _pkHostWinStreak++;
-        _showToast('🎉 پیروزی میزبان در نبرد PK! (+1 برد متوالی)');
-      } else if (_pkBlueScore > _pkRedScore) {
-        _pkOpponentWinStreak++;
-        _showToast('🏆 حریف پیروز شد!');
-      } else {
-        _showToast('🤝 تساوی در نبرد PK!');
-      }
     });
     try {
       _roomChannel?.sendBroadcastMessage(
-        event: 'pk_ended',
+        event: 'pk_battle_ended',
         payload: {
           'red': _pkRedScore,
           'blue': _pkBlueScore,
-          'hostWinStreak': _pkHostWinStreak,
+        },
+      );
+    } catch (_) {}
+    _showToast('نبرد زنده پایان یافت');
+  }
+
+  void _finishPkBattle() {
+    _pkTimer?.cancel();
+    _pkTimer = null;
+
+    setState(() {
+      if (_pkRedScore > _pkBlueScore) {
+        _hostWinStreak++;
+        _pkBattleResult = 'host';
+        _showToast('🏆 پیروزی میزبان! تبریک به بینندگان!');
+      } else if (_pkBlueScore > _pkRedScore) {
+        _opponentWinStreak++;
+        _pkBattleResult = 'opponent';
+        _showToast('🏆 پیروزی حریف در این نبرد!');
+      } else {
+        _pkBattleResult = 'draw';
+        _showToast('🤝 نبرد مساوی شد!');
+      }
+    });
+
+    try {
+      _roomChannel?.sendBroadcastMessage(
+        event: 'pk_battle_result',
+        payload: {
+          'result': _pkBattleResult,
+          'red': _pkRedScore,
+          'blue': _pkBlueScore,
+          'host_streak': _hostWinStreak,
+          'opponent_streak': _opponentWinStreak,
         },
       );
     } catch (_) {}
@@ -4220,59 +4267,66 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
     HapticFeedback.selectionClick();
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (ctx) {
-        return _ShareWithFollowersSheet(
+        return _LiveShareFollowersSheet(
           streamId: _streamId,
-          streamTitle: (widget.stream['title'] ?? 'پخش زنده').toString(),
-          hostName: (widget.hostProfile['first_name'] ??
-                     widget.hostProfile['username'] ??
-                     'میزبان').toString(),
+          hostProfile: widget.hostProfile,
+          roomTitle: (widget.stream['title'] ?? 'ZEV LIVE').toString(),
         );
       },
     );
   }
 
-  Future<void> _notifyFollowersStreamStarted() async {
-    if (!widget.isHost) return;
+  Future<void> _broadcastLiveStartToFollowers() async {
     try {
       final myId = _supabase.auth.currentUser?.id;
-      if (myId == null) return;
-      final hostName = (widget.hostProfile['first_name'] ??
-                        widget.hostProfile['username'] ??
-                        'میزبان').toString();
-      final streamTitle = (widget.stream['title'] ?? 'پخش زنده').toString();
+      if (myId == null || _streamId.isEmpty) return;
+      final hostName = (widget.hostProfile['first_name'] != null
+              ? '${widget.hostProfile['first_name']} ${widget.hostProfile['last_name'] ?? ''}'
+              : (widget.hostProfile['username'] ?? 'Host'))
+          .toString()
+          .trim();
 
+      // Fetch followers of the host
       final res = await _supabase
-          .from('follows')
+          .from('user_follows')
           .select('follower_id')
           .eq('following_id', myId)
-          .eq('status', 'accepted');
+          .limit(80);
 
-      final followerIds = (res as List)
-          .map((r) => r['follower_id']?.toString() ?? '')
-          .where((id) => id.isNotEmpty && id != myId)
-          .toSet()
-          .toList();
+      if (res.isNotEmpty) {
+        for (final item in res) {
+          final followerId = item['follower_id']?.toString();
+          if (followerId == null || followerId.isEmpty) continue;
 
-      if (followerIds.isEmpty) return;
+          // 1. In-app notification
+          unawaited(
+            _supabase.from('user_notifications').insert({
+              'user_id': followerId,
+              'sender_id': myId,
+              'title': '🔴 $hostName is LIVE!',
+              'message': '$hostName started a live stream. Tap to join now!',
+              'type': 'live',
+              'link_url': 'https://web.zevapp.com/live/$_streamId',
+            }).catchError((_) {}),
+          );
 
-      for (final fid in followerIds.take(50)) {
-        try {
-          await _supabase.from('notifications').insert({
-            'user_id': fid,
-            'actor_id': myId,
-            'type': 'live_stream_started',
-            'title': '🔴 $hostName هم‌اکنون لایف است!',
-            'body': 'پخش زنده: "$streamTitle". برای پیوستن ضربه بزنید.',
-            'data': {'stream_id': _streamId, 'deep_link': '/live/$_streamId'},
-            'created_at': DateTime.now().toIso8601String(),
-          });
-        } catch (_) {}
+          // 2. Push Notification via server
+          unawaited(
+            NotificationService().dispatchPushNotification(
+              recipientUserId: followerId,
+              title: '🔴 $hostName is LIVE on ZEV!',
+              body: 'Join the stream and chat live.',
+              notificationType: 'live',
+              deepLink: 'https://web.zevapp.com/live/$_streamId',
+            ),
+          );
+        }
       }
     } catch (e) {
-      debugPrint('[LiveStream] notify followers notice: $e');
+      debugPrint('[LiveRoomScreen] _broadcastLiveStartToFollowers notice: $e');
     }
   }
 
@@ -4461,270 +4515,34 @@ class _AnimatedReactionParticle extends StatelessWidget {
   }
 }
 
-/// Clearmorphic PK Match Hub Sheet
-class _PkMatchHubSheet extends StatefulWidget {
-  final List<Map<String, dynamic>> coHosts;
-  final void Function(Map<String, dynamic>? opponent, int durationSeconds) onStartMatch;
-
-  const _PkMatchHubSheet({
-    required this.coHosts,
-    required this.onStartMatch,
-  });
-
-  @override
-  State<_PkMatchHubSheet> createState() => _PkMatchHubSheetState();
-}
-
-class _PkMatchHubSheetState extends State<_PkMatchHubSheet> {
-  int _selectedDuration = 180; // 3 minutes
-  bool _isSearching = false;
-
-  Future<void> _startQuickMatch() async {
-    setState(() => _isSearching = true);
-    await Future.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
-    setState(() => _isSearching = false);
-    widget.onStartMatch(
-      {
-        'id': 'pk_online_streamer',
-        'username': 'هماورد تصادفی',
-        'avatar_url': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-      },
-      _selectedDuration,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: EdgeInsets.only(
-            top: 14,
-            left: 18,
-            right: 18,
-            bottom: MediaQuery.of(context).padding.bottom + 18,
-          ),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.94),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-            border: Border(
-              top: BorderSide(
-                color: Colors.white.withValues(alpha: 0.20),
-                width: 1.2,
-              ),
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 4.5,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.25),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFFF2D55), Color(0xFF6366F1)],
-                      ),
-                    ),
-                    child: const Icon(Icons.sports_kabaddi_rounded, color: Colors.white, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'مسابقه نبرد زنده (PK Battle)',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16.5,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'رقابت جذاب زنده؛ برنده با هدایای بینندگان مشخص می‌شود',
-                          style: TextStyle(
-                            color: Colors.white60,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-
-              // Duration selector
-              Row(
-                children: [
-                  const Text(
-                    'مدت نبرد:',
-                    style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
-                  ),
-                  const Spacer(),
-                  _buildDurationChip(180, '۳ دقیقه'),
-                  const SizedBox(width: 8),
-                  _buildDurationChip(300, '۵ دقیقه'),
-                ],
-              ),
-              const SizedBox(height: 18),
-
-              // Co-Hosts challenge section (if any co-host on stage)
-              if (widget.coHosts.isNotEmpty) ...[
-                const Text(
-                  'همکاران روی استیج:',
-                  style: TextStyle(color: Colors.white70, fontSize: 12.5, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                ...widget.coHosts.map((ch) {
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.07),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-                    ),
-                    child: Row(
-                      children: [
-                        const CircleAvatar(
-                          radius: 16,
-                          backgroundColor: Color(0xFF10B981),
-                          child: Icon(Icons.person_rounded, color: Colors.white, size: 18),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            ch['username']?.toString() ?? 'همکار',
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF2D55),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          ),
-                          onPressed: () => widget.onStartMatch(ch, _selectedDuration),
-                          child: const Text('آغاز نبرد', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-                const SizedBox(height: 10),
-              ],
-
-              // Quick Match Button
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
-                  ),
-                ).copyWith(
-                  backgroundColor: WidgetStateProperty.all(
-                    const Color(0xFF6366F1).withValues(alpha: 0.85),
-                  ),
-                ),
-                onPressed: _isSearching ? null : _startQuickMatch,
-                icon: _isSearching
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                      )
-                    : const Icon(Icons.flash_on_rounded, color: Color(0xFFFFD600)),
-                label: Text(
-                  _isSearching ? 'در حال جستجوی هماورد...' : 'جستجوی هماورد تصادفی (Quick Match)',
-                  style: const TextStyle(color: Colors.white, fontSize: 14.5, fontWeight: FontWeight.w800),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDurationChip(int seconds, String label) {
-    final isSelected = _selectedDuration == seconds;
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        setState(() => _selectedDuration = seconds);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFFF2D55) : Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: isSelected ? Colors.transparent : Colors.white.withValues(alpha: 0.2),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : Colors.white70,
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Clearmorphic Share With Followers & Following Sheet
-class _ShareWithFollowersSheet extends StatefulWidget {
+class _LiveShareFollowersSheet extends StatefulWidget {
   final String streamId;
-  final String streamTitle;
-  final String hostName;
+  final Map<String, dynamic> hostProfile;
+  final String roomTitle;
 
-  const _ShareWithFollowersSheet({
+  const _LiveShareFollowersSheet({
     required this.streamId,
-    required this.streamTitle,
-    required this.hostName,
+    required this.hostProfile,
+    required this.roomTitle,
   });
 
   @override
-  State<_ShareWithFollowersSheet> createState() => _ShareWithFollowersSheetState();
+  State<_LiveShareFollowersSheet> createState() =>
+      _LiveShareFollowersSheetState();
 }
 
-class _ShareWithFollowersSheetState extends State<_ShareWithFollowersSheet> {
-  final _searchCtrl = TextEditingController();
+class _LiveShareFollowersSheetState extends State<_LiveShareFollowersSheet> {
+  final _supabase = Supabase.instance.client;
+  final TextEditingController _searchCtrl = TextEditingController();
   final Set<String> _sentUserIds = {};
-  List<Map<String, dynamic>> _friends = [];
+  List<Map<String, dynamic>> _contacts = [];
   bool _isLoading = true;
-  String _searchQuery = '';
+  String _query = '';
 
   @override
   void initState() {
     super.initState();
-    _loadFriends();
+    _fetchFollowersAndFollowing();
   }
 
   @override
@@ -4733,343 +4551,342 @@ class _ShareWithFollowersSheetState extends State<_ShareWithFollowersSheet> {
     super.dispose();
   }
 
-  Future<void> _loadFriends() async {
-    final client = Supabase.instance.client;
-    final myId = client.auth.currentUser?.id;
+  Future<void> _fetchFollowersAndFollowing() async {
+    final myId = _supabase.auth.currentUser?.id;
     if (myId == null) {
       if (mounted) setState(() => _isLoading = false);
       return;
     }
 
     try {
-      final f1 = await client
-          .from('follows')
-          .select('following_id')
-          .eq('follower_id', myId)
-          .eq('status', 'accepted');
+      final Map<String, Map<String, dynamic>> unique = {};
 
-      final f2 = await client
-          .from('follows')
-          .select('follower_id')
+      // 1. Fetch followers
+      final followers = await _supabase
+          .from('user_follows')
+          .select('follower_id, profiles!user_follows_follower_id_fkey(id, username, first_name, last_name, avatar_url, is_verified)')
           .eq('following_id', myId)
-          .eq('status', 'accepted');
+          .limit(40);
 
-      final userIds = <String>{
-        for (final r in (f1 as List)) r['following_id']?.toString() ?? '',
-        for (final r in (f2 as List)) r['follower_id']?.toString() ?? '',
-      }..removeWhere((id) => id.isEmpty || id == myId);
-
-      if (userIds.isEmpty) {
-        if (mounted) setState(() => _isLoading = false);
-        return;
+      for (final item in followers) {
+        final prof = item['profiles'] as Map<String, dynamic>?;
+        if (prof != null && prof['id'] != null) {
+          unique[prof['id'].toString()] = prof;
+        }
       }
 
-      final profilesRes = await client
-          .from('profiles')
-          .select('id, username, first_name, last_name, avatar_url, is_verified')
-          .inFilter('id', userIds.toList());
+      // 2. Fetch following
+      final following = await _supabase
+          .from('user_follows')
+          .select('following_id, profiles!user_follows_following_id_fkey(id, username, first_name, last_name, avatar_url, is_verified)')
+          .eq('follower_id', myId)
+          .limit(40);
+
+      for (final item in following) {
+        final prof = item['profiles'] as Map<String, dynamic>?;
+        if (prof != null && prof['id'] != null) {
+          unique[prof['id'].toString()] = prof;
+        }
+      }
+
+      // Fallback: If current user has few followers yet, populate with notable active profiles
+      if (unique.length < 5) {
+        final activeProfs = await _supabase
+            .from('profiles')
+            .select('id, username, first_name, last_name, avatar_url, is_verified')
+            .neq('id', myId)
+            .limit(20);
+        for (final prof in activeProfs) {
+          if (prof['id'] != null) {
+            unique[prof['id'].toString()] = Map<String, dynamic>.from(prof);
+          }
+        }
+      }
 
       if (mounted) {
         setState(() {
-          _friends = (profilesRes as List).cast<Map<String, dynamic>>();
+          _contacts = unique.values.toList();
           _isLoading = false;
         });
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[LiveShareSheet] fetch error: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _sendLiveInviteToFriend(Map<String, dynamic> friend) async {
-    final friendId = friend['id']?.toString() ?? '';
-    if (friendId.isEmpty || _sentUserIds.contains(friendId)) return;
+  Future<void> _sendLiveInvite(Map<String, dynamic> user) async {
+    final targetId = user['id']?.toString() ?? '';
+    final myId = _supabase.auth.currentUser?.id;
+    if (targetId.isEmpty || myId == null || _sentUserIds.contains(targetId)) {
+      return;
+    }
 
-    HapticFeedback.mediumImpact();
-    setState(() => _sentUserIds.add(friendId));
-
-    try {
-      final convId = await ChatService.instance.ensureDirectConversation(friendId);
-      if (convId != null && convId.isNotEmpty) {
-        await ChatService.instance.sendMessage(
-          conversationId: convId,
-          isGroup: false,
-          peerId: friendId,
-          messageText:
-              '🔴 شما را به تماشای پخش زنده "${widget.streamTitle}" دعوت کرد:\nhttps://web.zevapp.com/live/${widget.streamId}',
-          messageType: 'text',
-        );
-      }
-    } catch (_) {}
-  }
-
-  void _copyLiveLink() {
     HapticFeedback.lightImpact();
-    Clipboard.setData(
-      ClipboardData(text: 'https://web.zevapp.com/live/${widget.streamId}'),
+    setState(() {
+      _sentUserIds.add(targetId);
+    });
+
+    final targetName = (user['first_name'] ?? user['username'] ?? 'User').toString();
+    final myProfile = _supabase.auth.currentUser?.userMetadata;
+    final myName = (myProfile?['full_name'] ?? myProfile?['name'] ?? 'Friend').toString();
+    final link = 'https://web.zevapp.com/live/${widget.streamId}';
+
+    // 1. Send In-App notification
+    unawaited(
+      _supabase.from('user_notifications').insert({
+        'user_id': targetId,
+        'sender_id': myId,
+        'title': '🔴 $myName invited you to a LIVE!',
+        'message': 'Watch the live stream "${widget.roomTitle}".',
+        'type': 'live_invite',
+        'link_url': link,
+      }).catchError((_) {}),
     );
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text(
-          'لینک پخش زنده در کلیپ‌بورد کپی شد ✓',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
-        backgroundColor: const Color(0xFF10B981),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+
+    // 2. Dispatch Push Notification via Server
+    unawaited(
+      NotificationService().dispatchPushNotification(
+        recipientUserId: targetId,
+        title: '🔴 $myName invited you to LIVE!',
+        body: 'Tap to join the stream: ${widget.roomTitle}',
+        notificationType: 'live_invite',
+        deepLink: link,
       ),
     );
-  }
 
-  void _shareExternal() {
-    HapticFeedback.lightImpact();
-    Share.share(
-      'تماشای پخش زنده "${widget.streamTitle}" توسط ${widget.hostName} در ZEV:\nhttps://web.zevapp.com/live/${widget.streamId}',
-      subject: 'پخش زنده در ZEV',
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('دعوتنامه به $targetName ارسال شد ✓'),
+        duration: const Duration(seconds: 2),
+        backgroundColor: const Color(0xFF10B981),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _friends.where((f) {
-      if (_searchQuery.trim().isEmpty) return true;
-      final q = _searchQuery.toLowerCase();
-      final username = (f['username'] ?? '').toString().toLowerCase();
-      final name = '${f['first_name'] ?? ''} ${f['last_name'] ?? ''}'.toLowerCase();
-      return username.contains(q) || name.contains(q);
+    final filtered = _contacts.where((u) {
+      final name = '${u['first_name'] ?? ''} ${u['last_name'] ?? ''}'.toLowerCase();
+      final uname = (u['username'] ?? '').toString().toLowerCase();
+      final q = _query.toLowerCase();
+      return name.contains(q) || uname.contains(q);
     }).toList();
 
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: MediaQuery.of(context).size.height * 0.70,
-          padding: EdgeInsets.only(
-            top: 14,
-            left: 18,
-            right: 18,
-            bottom: MediaQuery.of(context).padding.bottom + 12,
-          ),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.94),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-            border: Border(
-              top: BorderSide(
-                color: Colors.white.withValues(alpha: 0.20),
-                width: 1.2,
+    final link = 'https://web.zevapp.com/live/${widget.streamId}';
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.72,
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A).withValues(alpha: 0.98),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 4.5,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.25),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
+            const SizedBox(height: 14),
 
-              // Title Header
-              Row(
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
                 children: [
-                  const Text(
-                    'اشتراک‌گذاری پخش زنده',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16.5,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF2D55),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text(
-                      'LIVE',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 22),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-
-              // Quick action buttons row
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildQuickActionPill(
-                      icon: Icons.link_rounded,
-                      label: 'کپی لینک',
-                      onTap: _copyLiveLink,
-                    ),
+                  const Icon(
+                    Icons.reply_rounded,
+                    color: Color(0xFF38BDF8),
+                    size: 24,
                   ),
                   const SizedBox(width: 10),
-                  Expanded(
-                    child: _buildQuickActionPill(
-                      icon: Icons.share_rounded,
-                      label: 'ارسال در برنامه‌ها',
-                      onTap: _shareExternal,
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'اشتراک‌گذاری لایو با دوستان',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          'Share LIVE stream with followers & friends',
+                          style: TextStyle(
+                            color: Colors.white54,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
                     ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                    onPressed: () => Navigator.pop(context),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+            ),
+            const SizedBox(height: 12),
 
-              // Search Bar
-              Container(
+            // Search bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
                 height: 42,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
                 ),
-                child: TextField(
-                  controller: _searchCtrl,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                  onChanged: (val) => setState(() => _searchQuery = val),
-                  decoration: InputDecoration(
-                    hintText: 'جستجوی دوستان و دنبال‌کنندگان...',
-                    hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12.5),
-                    prefixIcon: const Icon(Icons.search_rounded, color: Colors.white60, size: 18),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search_rounded, color: Colors.white54, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchCtrl,
+                        onChanged: (val) => setState(() => _query = val),
+                        style: const TextStyle(color: Colors.white, fontSize: 13.5),
+                        decoration: const InputDecoration(
+                          hintText: 'جستجوی مخاطبان یا فالوورها...',
+                          hintStyle: TextStyle(color: Colors.white38, fontSize: 13),
+                          border: InputBorder.none,
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 14),
+            ),
+            const SizedBox(height: 12),
 
-              // Friends list
-              Expanded(
-                child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(color: Color(0xFFFF2D55), strokeWidth: 2),
-                      )
-                    : filtered.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.people_outline_rounded,
-                                    color: Colors.white.withValues(alpha: 0.35), size: 42),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _friends.isEmpty
-                                      ? 'هنوز دوستی در لیست دنبال‌کنندگان شما نیست.'
-                                      : 'موردی یافت نشد.',
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.5),
-                                    fontSize: 12.5,
+            // Friends list
+            Expanded(
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF38BDF8),
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : filtered.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'مخاطبی یافت نشد',
+                            style: TextStyle(color: Colors.white38, fontSize: 13),
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, _) => const Divider(
+                            color: Colors.white10,
+                            height: 1,
+                          ),
+                          itemBuilder: (context, idx) {
+                            final user = filtered[idx];
+                            final id = user['id']?.toString() ?? '';
+                            final name = (user['first_name'] != null
+                                    ? '${user['first_name']} ${user['last_name'] ?? ''}'
+                                    : (user['username'] ?? 'User'))
+                                .toString()
+                                .trim();
+                            final uname = (user['username'] ?? 'user').toString();
+                            final avatar = (user['avatar_url'] ?? '').toString();
+                            final isSent = _sentUserIds.contains(id);
+
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Row(
+                                children: [
+                                  ZevCachedImage.avatar(
+                                    imageUrl: avatar,
+                                    size: 44,
                                   ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : ListView.separated(
-                            itemCount: filtered.length,
-                            separatorBuilder: (_, _) => Divider(
-                              height: 1,
-                              color: Colors.white.withValues(alpha: 0.06),
-                            ),
-                            itemBuilder: (context, idx) {
-                              final f = filtered[idx];
-                              final fid = f['id']?.toString() ?? '';
-                              final username = (f['username'] ?? 'user').toString();
-                              final name = '${f['first_name'] ?? ''} ${f['last_name'] ?? ''}'.trim();
-                              final avatar = (f['avatar_url'] ?? '').toString();
-                              final verified = f['is_verified'] == true;
-                              final isSent = _sentUserIds.contains(fid);
-
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
-                                child: Row(
-                                  children: [
-                                    ZevCachedImage.avatar(imageUrl: avatar, size: 42),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Flexible(
-                                                child: Text(
-                                                  name.isNotEmpty ? name : username,
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 13.5,
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                                ),
-                                              ),
-                                              if (verified) ...[
-                                                const SizedBox(width: 4),
-                                                const Icon(
-                                                  Icons.verified_rounded,
-                                                  color: Color(0xFF38BDF8),
-                                                  size: 14,
-                                                ),
-                                              ],
-                                            ],
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          name,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 14,
                                           ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            '@$username',
-                                            style: TextStyle(
-                                              color: Colors.white.withValues(alpha: 0.5),
-                                              fontSize: 11.5,
-                                            ),
+                                        ),
+                                        Text(
+                                          '@$uname',
+                                          style: const TextStyle(
+                                            color: Colors.white54,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  GestureDetector(
+                                    onTap: () => _sendLiveInvite(user),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        gradient: isSent
+                                            ? const LinearGradient(
+                                                colors: [
+                                                  Color(0xFF059669),
+                                                  Color(0xFF10B981),
+                                                ],
+                                              )
+                                            : const LinearGradient(
+                                                colors: [
+                                                  Color(0xFF38BDF8),
+                                                  Color(0xFF2563EB),
+                                                ],
+                                              ),
+                                        borderRadius: BorderRadius.circular(999),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: isSent
+                                                ? const Color(0xFF10B981).withValues(alpha: 0.3)
+                                                : const Color(0xFF38BDF8).withValues(alpha: 0.3),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 2),
                                           ),
                                         ],
                                       ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: isSent
-                                            ? const Color(0xFF10B981).withValues(alpha: 0.25)
-                                            : const Color(0xFFFF2D55),
-                                        foregroundColor: isSent ? const Color(0xFF10B981) : Colors.white,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(10),
-                                          side: isSent
-                                              ? const BorderSide(color: Color(0xFF10B981), width: 1)
-                                              : BorderSide.none,
-                                        ),
-                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                        elevation: 0,
-                                      ),
-                                      onPressed: isSent ? null : () => _sendLiveInviteToFriend(f),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Icon(
-                                            isSent ? Icons.check_rounded : Icons.send_rounded,
+                                            isSent
+                                                ? Icons.check_rounded
+                                                : Icons.send_rounded,
                                             size: 14,
+                                            color: Colors.white,
                                           ),
                                           const SizedBox(width: 4),
                                           Text(
                                             isSent ? 'ارسال شد' : 'ارسال',
                                             style: const TextStyle(
+                                              color: Colors.white,
                                               fontSize: 12,
                                               fontWeight: FontWeight.w800,
                                             ),
@@ -5077,45 +4894,407 @@ class _ShareWithFollowersSheetState extends State<_ShareWithFollowersSheet> {
                                         ],
                                       ),
                                     ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+            ),
+
+            // Bottom quick actions
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.3),
+                border: const Border(top: BorderSide(color: Colors.white10)),
               ),
-            ],
-          ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white24),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      icon: const Icon(Icons.copy_rounded, size: 18),
+                      label: const Text('کپی کردن لینک'),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: link));
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('لینک لایو با موفقیت کپی شد!'),
+                            backgroundColor: Color(0xFF10B981),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      icon: const Icon(Icons.share_rounded, size: 18),
+                      label: const Text('اشتراک‌گذاری'),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Share.share('به لایو استریم من در زِو (ZEV) بپیوندید:\n$link');
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildQuickActionPill({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 9),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+class _LivePkMatchmakingSheet extends StatefulWidget {
+  final String streamId;
+  final ValueChanged<Map<String, dynamic>> onStartPkWith;
+
+  const _LivePkMatchmakingSheet({
+    required this.streamId,
+    required this.onStartPkWith,
+  });
+
+  @override
+  State<_LivePkMatchmakingSheet> createState() =>
+      _LivePkMatchmakingSheetState();
+}
+
+class _LivePkMatchmakingSheetState extends State<_LivePkMatchmakingSheet> {
+  final _supabase = Supabase.instance.client;
+  List<Map<String, dynamic>> _liveStreamers = [];
+  List<Map<String, dynamic>> _creatorProfiles = [];
+  bool _isLoading = true;
+  bool _isSearchingRandom = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPotentialOpponents();
+  }
+
+  Future<void> _fetchPotentialOpponents() async {
+    final myId = _supabase.auth.currentUser?.id;
+    try {
+      // 1. Fetch other active live streams
+      final streamsRes = await _supabase
+          .from('live_streams')
+          .select('id, title, host_id, profiles!live_streams_host_id_fkey(id, username, first_name, last_name, avatar_url, is_verified)')
+          .eq('status', 'live')
+          .neq('id', widget.streamId)
+          .limit(10);
+
+      _liveStreamers = streamsRes
+          .map((s) => Map<String, dynamic>.from(s))
+          .where((s) => s['host_id'] != myId)
+          .toList();
+
+      // 2. Fetch top online/active creators from profiles
+      final profilesRes = await _supabase
+          .from('profiles')
+          .select('id, username, first_name, last_name, avatar_url, is_verified')
+          .neq('id', myId ?? '')
+          .limit(15);
+
+      _creatorProfiles = profilesRes
+          .map((p) => Map<String, dynamic>.from(p))
+          .toList();
+
+      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      debugPrint('[PkMatchmaking] error: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _triggerRandomMatch() {
+    HapticFeedback.heavyImpact();
+    setState(() => _isSearchingRandom = true);
+    Future.delayed(const Duration(milliseconds: 1400), () {
+      if (!mounted) return;
+      if (_liveStreamers.isNotEmpty) {
+        final streamer = _liveStreamers.first['profiles'] as Map<String, dynamic>?;
+        if (streamer != null) {
+          widget.onStartPkWith(streamer);
+          return;
+        }
+      }
+      if (_creatorProfiles.isNotEmpty) {
+        final randIdx = math.Random().nextInt(_creatorProfiles.length);
+        widget.onStartPkWith(_creatorProfiles[randIdx]);
+        return;
+      }
+      widget.onStartPkWith({
+        'username': 'creator_pro',
+        'first_name': 'Ali',
+        'last_name': 'Reza',
+        'avatar_url': 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=400&q=80',
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.70,
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A).withValues(alpha: 0.98),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
           children: [
-            Icon(icon, color: Colors.white70, size: 16),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
+            const SizedBox(height: 10),
+            Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
               ),
+            ),
+            const SizedBox(height: 14),
+
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.sports_kabaddi_rounded,
+                    color: Color(0xFFFF2D55),
+                    size: 26,
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'نبرد زنده (PK Battle Matchmaking)',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          'حریف خود را برای نبرد ۳ دقیقه‌ای انتخاب کنید',
+                          style: TextStyle(
+                            color: Colors.white54,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Random Quick Match Button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: GestureDetector(
+                onTap: _isSearchingRandom ? null : _triggerRandomMatch,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF2D55), Color(0xFF6366F1)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFF2D55).withValues(alpha: 0.35),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _isSearchingRandom
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.shuffle_rounded,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                      const SizedBox(width: 10),
+                      Text(
+                        _isSearchingRandom
+                            ? 'در حال جستجوی حریف تصادفی...'
+                            : 'نبرد تصادفی فوری (Random PK Battle)',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Section title
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  const Text(
+                    'استریمرها و همکاران آماده نبرد',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${_liveStreamers.isNotEmpty ? _liveStreamers.length : _creatorProfiles.length} آنلاین',
+                    style: const TextStyle(
+                      color: Color(0xFF10B981),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Opponents List
+            Expanded(
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFFFF2D55),
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      itemCount: _liveStreamers.isNotEmpty
+                          ? _liveStreamers.length
+                          : _creatorProfiles.length,
+                      separatorBuilder: (_, _) => const Divider(
+                        color: Colors.white10,
+                        height: 1,
+                      ),
+                      itemBuilder: (context, idx) {
+                        Map<String, dynamic> opp;
+                        String streamTitle = '';
+                        if (_liveStreamers.isNotEmpty) {
+                          final st = _liveStreamers[idx];
+                          opp = (st['profiles'] as Map<String, dynamic>?) ?? {};
+                          streamTitle = (st['title'] ?? 'Live').toString();
+                        } else {
+                          opp = _creatorProfiles[idx];
+                        }
+
+                        final name = (opp['first_name'] != null
+                                ? '${opp['first_name']} ${opp['last_name'] ?? ''}'
+                                : (opp['username'] ?? 'Creator'))
+                            .toString()
+                            .trim();
+                        final uname = (opp['username'] ?? 'creator').toString();
+                        final avatar = (opp['avatar_url'] ?? '').toString();
+
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Row(
+                            children: [
+                              ZevCachedImage.avatar(imageUrl: avatar, size: 44),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    Text(
+                                      streamTitle.isNotEmpty
+                                          ? '🔴 در حال لایو: $streamTitle'
+                                          : '@$uname',
+                                      style: TextStyle(
+                                        color: streamTitle.isNotEmpty
+                                            ? const Color(0xFFFF2D55)
+                                            : Colors.white54,
+                                        fontSize: 11.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFFF2D55),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 8,
+                                  ),
+                                ),
+                                onPressed: () => widget.onStartPkWith(opp),
+                                child: const Text(
+                                  'دعوت به نبرد',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),

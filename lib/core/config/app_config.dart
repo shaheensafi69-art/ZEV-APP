@@ -31,7 +31,7 @@ class AppConfig {
   static const String firebaseVapidKey = String.fromEnvironment(
     'FIREBASE_VAPID_KEY',
     defaultValue:
-        'BJHpXJtWyirbIrXTWNE2B40KGwXO7cTtdZNiBc0xTsQ1aTg1MhJcwDGhzA04qO1oSL4_BTNDwG6xQ-kycn-36VE',
+        'BIL055KsN3Q8f7GG3yk10awyV_xp6pVQtP54bgIH_zvwknIyYQcRu-hLrCJM18MVXW9ZH6Zo09uaFyFeQQ9fnyM',
   );
 
   static const String agoraAppId = String.fromEnvironment(
