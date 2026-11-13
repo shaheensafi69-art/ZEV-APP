@@ -131,3 +131,4 @@ CREATE TRIGGER trg_call_session_log_to_chat
   FOR EACH ROW
   WHEN (NEW.status IN ('ended', 'missed', 'rejected', 'busy') AND (OLD.status IS DISTINCT FROM NEW.status))
   EXECUTE FUNCTION public.trg_call_session_log_to_chat();
+

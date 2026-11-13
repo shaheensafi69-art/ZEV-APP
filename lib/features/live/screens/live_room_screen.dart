@@ -79,6 +79,67 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
   Timer? _pkTimer;
   bool _isFollowingHost = false;
 
+  // Stage Guest & Multi-Guest state (100+ room capacity)
+  bool _isGuestOnStage = false;
+  bool _hasPendingStageRequest = false;
+  final List<Map<String, dynamic>> _stageRequests = [];
+  final List<Map<String, dynamic>> _audioGuests = [];
+
+  // Realtime Gift Celebration Banner
+  Map<String, dynamic>? _activeGiftBanner;
+  Timer? _giftBannerTimer;
+
+  static const List<Map<String, dynamic>> _availableGifts = [
+    {
+      'id': 'rose',
+      'name': 'Rose',
+      'emoji': '🌹',
+      'coins': 1,
+    },
+    {
+      'id': 'heart',
+      'name': 'Heart Gem',
+      'emoji': '💖',
+      'coins': 5,
+    },
+    {
+      'id': 'diamond',
+      'name': 'Diamond',
+      'emoji': '💎',
+      'coins': 20,
+    },
+    {
+      'id': 'car',
+      'name': 'Supercar',
+      'emoji': '🏎️',
+      'coins': 100,
+    },
+    {
+      'id': 'crown',
+      'name': 'Royal Crown',
+      'emoji': '👑',
+      'coins': 250,
+    },
+    {
+      'id': 'rocket',
+      'name': 'Space Rocket',
+      'emoji': '🚀',
+      'coins': 500,
+    },
+    {
+      'id': 'lion',
+      'name': 'Golden Lion',
+      'emoji': '🦁',
+      'coins': 1000,
+    },
+    {
+      'id': 'dragon',
+      'name': 'Mythic Dragon',
+      'emoji': '🐉',
+      'coins': 2500,
+    },
+  ];
+
   late final String _streamId;
   late String _status;
   late int _viewerCount;
@@ -208,6 +269,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
   void dispose() {
     _pulseCtrl.dispose();
     _pkTimer?.cancel();
+    _giftBannerTimer?.cancel();
     final channel = _roomChannel;
     _roomChannel = null;
     if (channel != null) {
@@ -674,6 +736,97 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
               _spawnFloatingEmoji(emoji, incrementCounter: true);
             },
           )
+          .onBroadcast(
+            event: 'pk_update',
+            callback: (raw) {
+              final payload = raw['payload'] is Map
+                  ? Map<String, dynamic>.from(raw['payload'] as Map)
+                  : raw;
+              if (!mounted) return;
+              setState(() {
+                if (payload['red'] is num) {
+                  _pkRedScore = (payload['red'] as num).toInt();
+                }
+                if (payload['blue'] is num) {
+                  _pkBlueScore = (payload['blue'] as num).toInt();
+                }
+                if (payload['time'] is num) {
+                  _pkTimeRemaining = (payload['time'] as num).toInt();
+                }
+              });
+            },
+          )
+          .onBroadcast(
+            event: 'stage_request',
+            callback: (raw) {
+              if (!widget.isHost || !mounted) return;
+              final payload = raw['payload'] is Map
+                  ? Map<String, dynamic>.from(raw['payload'] as Map)
+                  : raw;
+              final uid = payload['user_id']?.toString() ?? '';
+              if (uid.isEmpty) return;
+              final uname = payload['username']?.toString() ?? 'User';
+              final avatar = payload['avatar_url']?.toString() ?? '';
+              setState(() {
+                _stageRequests.removeWhere((r) => r['user_id'] == uid);
+                _stageRequests.add({
+                  'user_id': uid,
+                  'username': uname,
+                  'avatar_url': avatar,
+                  'requested_at': DateTime.now().toIso8601String(),
+                });
+              });
+              _showToast('@$uname requested to join the stage!');
+            },
+          )
+          .onBroadcast(
+            event: 'stage_accepted',
+            callback: (raw) {
+              final payload = raw['payload'] is Map
+                  ? Map<String, dynamic>.from(raw['payload'] as Map)
+                  : raw;
+              final uid = payload['user_id']?.toString() ?? '';
+              final myUid = _supabase.auth.currentUser?.id;
+              if (uid == myUid && mounted) {
+                _becomeStageGuest();
+              }
+            },
+          )
+          .onBroadcast(
+            event: 'stage_kicked',
+            callback: (raw) {
+              final payload = raw['payload'] is Map
+                  ? Map<String, dynamic>.from(raw['payload'] as Map)
+                  : raw;
+              final uid = payload['user_id']?.toString() ?? '';
+              final myUid = _supabase.auth.currentUser?.id;
+              if (uid == myUid && mounted) {
+                _leaveStageGuest();
+              }
+            },
+          )
+          .onBroadcast(
+            event: 'gift_sent',
+            callback: (raw) {
+              if (!mounted) return;
+              final payload = raw['payload'] is Map
+                  ? Map<String, dynamic>.from(raw['payload'] as Map)
+                  : raw;
+              final senderName = payload['sender_name']?.toString() ?? 'Fan';
+              final senderAvatar = payload['sender_avatar']?.toString() ?? '';
+              final giftName = payload['gift_name']?.toString() ?? 'Rose';
+              final giftEmoji = payload['gift_emoji']?.toString() ?? '🌹';
+              final points = (payload['points'] as num?)?.toInt() ?? 1;
+
+              _showGiftCelebration(
+                senderName: senderName,
+                senderAvatar: senderAvatar,
+                giftName: giftName,
+                giftEmoji: giftEmoji,
+                points: points,
+              );
+            },
+          )
           .subscribe();
     } catch (e) {
       debugPrint('[LiveRoomScreen] subscribeRealtime notice: $e');
@@ -867,287 +1020,67 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
         _remoteHostController != null &&
         _remoteHostVideoOn;
     final hasRemoteGuest = _remoteBroadcasters.isNotEmpty;
-    final isSplitScreen = hasRemoteGuest || _isPkMatchActive;
+    if (_isPkMatchActive) {
+      return _buildPkBattleStage(
+        hostAvatar: hostAvatar,
+        hostUsername: hostUsername,
+        showHostLocal: showHostLocal,
+        showRemoteVideo: showRemoteVideo,
+        hasRemoteGuest: hasRemoteGuest,
+      );
+    }
 
-    if (isSplitScreen) {
-      // 50/50 Side-by-side vertical split screen (TikTok / Instagram PK Battle style)
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          Row(
-            children: [
-              // Broadcaster 1 (Left Tile: Host)
-              Expanded(
-                child: Container(
-                  color: const Color(0xFF0F172A),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (showHostLocal)
-                        AgoraVideoView(
-                          key: const ValueKey('live_host_local_split'),
-                          controller: _localBroadcasterController!,
-                        )
-                      else if (showRemoteVideo)
-                        AgoraVideoView(
-                          key: ValueKey('live_remote_split_$_remoteHostUid'),
-                          controller: _remoteHostController!,
-                        )
-                      else
-                        _buildWaitingPlaceholder(
-                          avatar: hostAvatar,
-                          username: hostUsername,
-                          label: 'Host',
-                        ),
+    if (_remoteBroadcasters.length >= 2) {
+      return _buildMultiGuestGridStage(
+        hostAvatar: hostAvatar,
+        hostUsername: hostUsername,
+        showHostLocal: showHostLocal,
+        showRemoteVideo: showRemoteVideo,
+      );
+    }
 
-                      // Host Name Pill at bottom of left tile
-                      Positioned(
-                        bottom: 8,
-                        left: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.6),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              ZevCachedImage.avatar(imageUrl: hostAvatar, size: 16),
-                              const SizedBox(width: 4),
-                              Text(
-                                '@$hostUsername',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // 1.5px divider
-              Container(width: 1.5, color: Colors.black.withValues(alpha: 0.5)),
-
-              // Broadcaster 2 (Right Tile: Co-Host / Guest)
-              Expanded(
-                child: Container(
-                  color: const Color(0xFF1E293B),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (hasRemoteGuest)
-                        AgoraVideoView(
-                          key: ValueKey('live_remote_guest_${_remoteBroadcasters.keys.first}'),
-                          controller: _remoteBroadcasters.values.first,
-                        )
-                      else
-                        _buildWaitingPlaceholder(
-                          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-                          username: 'Co-Host',
-                          label: 'PK Battle Opponent',
-                        ),
-
-                      // Guest Name Pill at bottom of right tile
-                      Positioned(
-                        bottom: 8,
-                        right: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.6),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.add_rounded, color: Color(0xFFFF2D55), size: 14),
-                              SizedBox(width: 2),
-                              Text(
-                                'Co-Host',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          // PK Battle Bar at top of split screen
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 74,
-            left: 0,
-            right: 0,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Score bar: Red vs Blue
-                Container(
-                  height: 28,
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(999),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.35),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: Row(
-                      children: [
-                        // Left Score (Red)
-                        Expanded(
-                          flex: _pkRedScore,
-                          child: Container(
-                            alignment: Alignment.centerLeft,
-                            padding: const EdgeInsets.only(left: 12),
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [Color(0xFFFF1E56), Color(0xFFFF4B72)],
-                              ),
-                            ),
-                            child: Text(
-                              '$_pkRedScore',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Center VS Capsule with Match Timer
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          color: const Color(0xFF0F172A),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text(
-                                'VS',
-                                style: TextStyle(
-                                  color: Color(0xFFFF3366),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w900,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                _formatPkTime(_pkTimeRemaining),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Right Score (Blue)
-                        Expanded(
-                          flex: _pkBlueScore,
-                          child: Container(
-                            alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.only(right: 12),
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [Color(0xFF0072FF), Color(0xFF00C6FF)],
-                              ),
-                            ),
-                            child: Text(
-                              '$_pkBlueScore',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 4),
-
-                // Win badges
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFB800).withValues(alpha: 0.85),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text(
-                          'WIN × 0',
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFB800).withValues(alpha: 0.85),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text(
-                          'WIN × 1',
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+    if (hasRemoteGuest) {
+      return _buildCoHostSplitStage(
+        hostAvatar: hostAvatar,
+        hostUsername: hostUsername,
+        showHostLocal: showHostLocal,
+        showRemoteVideo: showRemoteVideo,
       );
     }
 
     // Single Broadcaster: Full Screen 100% video
     if (showHostLocal) {
-      return AgoraVideoView(
-        key: const ValueKey('live_host_local_full'),
-        controller: _localBroadcasterController!,
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          AgoraVideoView(
+            key: const ValueKey('live_host_local_full'),
+            controller: _localBroadcasterController!,
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 330,
+            child: _buildAudioGuestSeatsRow(),
+          ),
+        ],
       );
     }
     if (showRemoteVideo) {
-      return AgoraVideoView(
-        key: ValueKey('live_remote_full_$_remoteHostUid'),
-        controller: _remoteHostController!,
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          AgoraVideoView(
+            key: ValueKey('live_remote_full_$_remoteHostUid'),
+            controller: _remoteHostController!,
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 330,
+            child: _buildAudioGuestSeatsRow(),
+          ),
+        ],
       );
     }
 
@@ -1233,6 +1166,12 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
             ),
           ),
         ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 330,
+          child: _buildAudioGuestSeatsRow(),
+        ),
       ],
     );
   }
@@ -1268,6 +1207,1685 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPkBattleStage({
+    required String hostAvatar,
+    required String hostUsername,
+    required bool showHostLocal,
+    required bool showRemoteVideo,
+    required bool hasRemoteGuest,
+  }) {
+    final opponentUid = _remoteBroadcasters.isNotEmpty
+        ? _remoteBroadcasters.keys.first
+        : null;
+    final opponentController = opponentUid != null
+        ? _remoteBroadcasters[opponentUid]
+        : null;
+
+    final totalScore = math.max(1, _pkRedScore + _pkBlueScore);
+    final redFlex = math.max(1, (_pkRedScore * 100) ~/ totalScore);
+    final blueFlex = math.max(1, 100 - redFlex);
+
+    final screenHeight = MediaQuery.of(context).size.height;
+    final stageHeight = (screenHeight * 0.44).clamp(310.0, 420.0);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Spacing from top HUD
+        SizedBox(height: MediaQuery.of(context).padding.top + 76),
+
+        // 1. PK Battle Score Bar matching reference exactly
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Dynamic Tug-of-War Score Bar
+              Container(
+                height: 32,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: Row(
+                    children: [
+                      // Red Side (Host)
+                      Expanded(
+                        flex: redFlex,
+                        child: Container(
+                          alignment: Alignment.centerLeft,
+                          padding: const EdgeInsets.only(left: 14),
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Color(0xFFFF1E56), Color(0xFFFF5252)],
+                            ),
+                          ),
+                          child: Text(
+                            '$_pkRedScore',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Center VS Capsule with Countdown Timer
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        color: const Color(0xFF0F172A),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              '⚡ VS',
+                              style: TextStyle(
+                                color: Color(0xFFFFD600),
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w900,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _formatPkTime(_pkTimeRemaining),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Blue Side (Opponent)
+                      Expanded(
+                        flex: blueFlex,
+                        child: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 14),
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Color(0xFF0072FF), Color(0xFF00C6FF)],
+                            ),
+                          ),
+                          child: Text(
+                            '$_pkBlueScore',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 4),
+
+              // Win Streak Badges directly under scores
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFB800).withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'WIN × 0',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFB800).withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'WIN × 1',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 6),
+
+        // 2. Side-by-Side Video Frames
+        SizedBox(
+          height: stageHeight,
+          child: Row(
+            children: [
+              // Left Video: Host
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.only(left: 8, right: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(0xFFFF2D55).withValues(alpha: 0.6),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(15),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (showHostLocal)
+                          AgoraVideoView(
+                            key: const ValueKey('live_host_local_split'),
+                            controller: _localBroadcasterController!,
+                          )
+                        else if (showRemoteVideo)
+                          AgoraVideoView(
+                            key: ValueKey('live_remote_split_$_remoteHostUid'),
+                            controller: _remoteHostController!,
+                          )
+                        else
+                          _buildWaitingPlaceholder(
+                            avatar: hostAvatar,
+                            username: hostUsername,
+                            label: 'Host',
+                          ),
+
+                        // Host Bottom Sub-Bar: Medals + Name
+                        Positioned(
+                          bottom: 8,
+                          left: 8,
+                          right: 8,
+                          child: Row(
+                            children: [
+                              _buildMiniMedalAvatar(
+                                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
+                                1,
+                              ),
+                              const SizedBox(width: 3),
+                              _buildMiniMedalAvatar(
+                                'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80',
+                                2,
+                              ),
+                              const Spacer(),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.65),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  '@$hostUsername',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Right Video: Opponent / Co-Host
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.only(left: 3, right: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(0xFF0072FF).withValues(alpha: 0.6),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(15),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (opponentController != null)
+                          AgoraVideoView(
+                            key: ValueKey('live_remote_guest_$opponentUid'),
+                            controller: opponentController,
+                          )
+                        else
+                          _buildWaitingPlaceholder(
+                            avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=400&q=80',
+                            username: 'دگروال میر...',
+                            label: 'Opponent',
+                          ),
+
+                        // Opponent Bottom Sub-Bar: Medals + Name with + Follow Button
+                        Positioned(
+                          bottom: 8,
+                          left: 8,
+                          right: 8,
+                          child: Row(
+                            children: [
+                              _buildMiniMedalAvatar(
+                                'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80',
+                                1,
+                              ),
+                              const SizedBox(width: 3),
+                              _buildMiniMedalAvatar(
+                                'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=120&q=80',
+                                2,
+                              ),
+                              const Spacer(),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.65),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'دگروال میر...',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    SizedBox(width: 4),
+                                    Icon(
+                                      Icons.add_rounded,
+                                      color: Color(0xFFFF2D55),
+                                      size: 13,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Audio Guest Seats Dock
+        _buildAudioGuestSeatsRow(),
+      ],
+    );
+  }
+
+  Widget _buildCoHostSplitStage({
+    required String hostAvatar,
+    required String hostUsername,
+    required bool showHostLocal,
+    required bool showRemoteVideo,
+  }) {
+    final opponentUid = _remoteBroadcasters.keys.first;
+    final opponentController = _remoteBroadcasters[opponentUid];
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Row(
+          children: [
+            // Broadcaster 1 (Left Tile: Host)
+            Expanded(
+              child: Container(
+                color: const Color(0xFF0F172A),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (showHostLocal)
+                      AgoraVideoView(
+                        key: const ValueKey('live_host_local_split'),
+                        controller: _localBroadcasterController!,
+                      )
+                    else if (showRemoteVideo)
+                      AgoraVideoView(
+                        key: ValueKey('live_remote_split_$_remoteHostUid'),
+                        controller: _remoteHostController!,
+                      )
+                    else
+                      _buildWaitingPlaceholder(
+                        avatar: hostAvatar,
+                        username: hostUsername,
+                        label: 'Host',
+                      ),
+                    Positioned(
+                      bottom: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '@$hostUsername',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Container(width: 1.5, color: Colors.black.withValues(alpha: 0.5)),
+            // Broadcaster 2 (Right Tile: Guest)
+            Expanded(
+              child: Container(
+                color: const Color(0xFF1E293B),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (opponentController != null)
+                      AgoraVideoView(
+                        key: ValueKey('live_remote_guest_$opponentUid'),
+                        controller: opponentController,
+                      )
+                    else
+                      _buildWaitingPlaceholder(
+                        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+                        username: 'Co-Host',
+                        label: 'Guest',
+                      ),
+                    Positioned(
+                      bottom: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Text(
+                          'Co-Host',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 330,
+          child: _buildAudioGuestSeatsRow(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMultiGuestGridStage({
+    required String hostAvatar,
+    required String hostUsername,
+    required bool showHostLocal,
+    required bool showRemoteVideo,
+  }) {
+    final guestUids = _remoteBroadcasters.keys.toList();
+
+    return Column(
+      children: [
+        SizedBox(height: MediaQuery.of(context).padding.top + 70),
+        Expanded(
+          child: GridView.count(
+            crossAxisCount: 2,
+            padding: const EdgeInsets.all(4),
+            mainAxisSpacing: 4,
+            crossAxisSpacing: 4,
+            children: [
+              // Host tile
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (showHostLocal)
+                        AgoraVideoView(
+                          key: const ValueKey('grid_host_local'),
+                          controller: _localBroadcasterController!,
+                        )
+                      else if (showRemoteVideo)
+                        AgoraVideoView(
+                          key: ValueKey('grid_remote_$_remoteHostUid'),
+                          controller: _remoteHostController!,
+                        )
+                      else
+                        _buildWaitingPlaceholder(
+                          avatar: hostAvatar,
+                          username: hostUsername,
+                          label: 'Host',
+                        ),
+                      Positioned(
+                        bottom: 4,
+                        left: 4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.65),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '@$hostUsername (Host)',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Remote guest tiles
+              ...guestUids.take(3).map((uid) {
+                final ctrl = _remoteBroadcasters[uid];
+                return Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (ctrl != null)
+                          AgoraVideoView(
+                            key: ValueKey('grid_guest_$uid'),
+                            controller: ctrl,
+                          )
+                        else
+                          _buildWaitingPlaceholder(
+                            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+                            username: 'Guest $uid',
+                            label: 'Co-Host',
+                          ),
+                        Positioned(
+                          bottom: 4,
+                          left: 4,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.65),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              'Guest $uid',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+        _buildAudioGuestSeatsRow(),
+      ],
+    );
+  }
+
+  Widget _buildAudioGuestSeatsRow() {
+    return Container(
+      height: 70,
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: 6,
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (context, idx) {
+          final isOccupied = idx < _audioGuests.length;
+          final guest = isOccupied ? _audioGuests[idx] : null;
+
+          if (isOccupied && guest != null) {
+            final avatar = (guest['avatar_url'] ?? '').toString();
+            final name = (guest['username'] ?? 'Guest').toString();
+            final isMuted = guest['is_muted'] == true;
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    AnimatedBuilder(
+                      animation: _pulseCtrl,
+                      builder: (context, child) {
+                        return Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: const Color(0xFF10B981).withValues(
+                                alpha: 0.4 + (_pulseCtrl.value * 0.4),
+                              ),
+                              width: 2.0,
+                            ),
+                          ),
+                          child: child,
+                        );
+                      },
+                      child: ZevCachedImage.avatar(imageUrl: avatar, size: 38),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isMuted
+                              ? const Color(0xFFEF4444)
+                              : const Color(0xFF10B981),
+                        ),
+                        child: Icon(
+                          isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                          size: 9,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                SizedBox(
+                  width: 52,
+                  child: Text(
+                    '@$name',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          // Empty seat inviting audience to join
+          return GestureDetector(
+            onTap: _onTapEmptyStageSeat,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.black.withValues(alpha: 0.45),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.add_rounded,
+                      color: Colors.white70,
+                      size: 20,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Seat ${idx + 1}',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.7),
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMiniMedalAvatar(String imageUrl, int rank) {
+    Color ringColor;
+    if (rank == 1) {
+      ringColor = const Color(0xFFFFD700); // Gold
+    } else if (rank == 2) {
+      ringColor = const Color(0xFFE2E8F0); // Silver
+    } else {
+      ringColor = const Color(0xFFCD7F32); // Bronze
+    }
+
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: ringColor, width: 1.5),
+      ),
+      child: ClipOval(
+        child: ZevCachedImage.avatar(
+          imageUrl: imageUrl,
+          size: 20,
+        ),
+      ),
+    );
+  }
+
+  void _onTapEmptyStageSeat() {
+    HapticFeedback.lightImpact();
+    if (widget.isHost) {
+      _openStageManagementSheet();
+      return;
+    }
+
+    if (_isGuestOnStage) {
+      _showToast('You are already on stage!');
+      return;
+    }
+
+    if (_hasPendingStageRequest) {
+      _showToast('Request already sent • منتظر تایید میزبان باشید');
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.16)),
+        ),
+        title: const Text(
+          'Join Stage • بالا آمدن در استیج',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w900,
+            fontSize: 16,
+          ),
+        ),
+        content: const Text(
+          'Do you want to send a request to the host to join as a co-host / stage guest?',
+          style: TextStyle(
+            color: Color(0xFF94A3B8),
+            fontSize: 13,
+            height: 1.45,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(dCtx);
+              _requestJoinStage();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              'Send Request',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _requestJoinStage() {
+    HapticFeedback.mediumImpact();
+    final myProfile = _supabase.auth.currentUser;
+    final myUid = myProfile?.id ?? '';
+    if (myUid.isEmpty) return;
+
+    final uname = (myProfile?.userMetadata?['username'] ??
+            myProfile?.userMetadata?['full_name'] ??
+            'User')
+        .toString();
+    final avatar = (myProfile?.userMetadata?['avatar_url'] ?? '').toString();
+
+    setState(() => _hasPendingStageRequest = true);
+
+    try {
+      _roomChannel?.sendBroadcastMessage(
+        event: 'stage_request',
+        payload: {
+          'user_id': myUid,
+          'username': uname,
+          'avatar_url': avatar,
+        },
+      );
+    } catch (_) {}
+
+    _showToast('Stage request sent to host • درخواست برای استیج ارسال شد');
+  }
+
+  Future<void> _becomeStageGuest() async {
+    final eng = _rtcEngine;
+    if (eng == null) return;
+    HapticFeedback.heavyImpact();
+
+    try {
+      await eng.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
+      await eng.enableLocalAudio(true);
+      await eng.enableLocalVideo(true);
+      try {
+        await eng.startPreview();
+      } catch (_) {}
+
+      if (mounted) {
+        setState(() {
+          _isGuestOnStage = true;
+          _hasPendingStageRequest = false;
+          _localBroadcasterController = VideoViewController(
+            rtcEngine: eng,
+            canvas: const VideoCanvas(
+              uid: 0,
+              renderMode: RenderModeType.renderModeHidden,
+            ),
+          );
+        });
+        _showToast('You are now live on stage! • شما در استیج هستید');
+      }
+    } catch (e) {
+      debugPrint('[LiveRoomScreen] Error becoming stage guest: $e');
+    }
+  }
+
+  Future<void> _leaveStageGuest() async {
+    final eng = _rtcEngine;
+    if (eng == null) return;
+    HapticFeedback.mediumImpact();
+
+    try {
+      await eng.stopPreview();
+      await eng.enableLocalVideo(false);
+      await eng.setClientRole(role: ClientRoleType.clientRoleAudience);
+      if (mounted) {
+        setState(() {
+          _isGuestOnStage = false;
+          _localBroadcasterController?.dispose();
+          _localBroadcasterController = null;
+        });
+        _showToast('You left the stage • از استیج خارج شدید');
+      }
+    } catch (e) {
+      debugPrint('[LiveRoomScreen] Error leaving stage: $e');
+    }
+  }
+
+  void _openStageManagementSheet() {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.65,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.98),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+              ),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white30,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.groups_rounded,
+                          color: Color(0xFF38BDF8),
+                          size: 22,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          widget.isHost ? 'Stage Guests & Queue' : 'Stage Co-host',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: Text(
+                            'Room: $_viewerCount viewers (100+ cap)',
+                            style: const TextStyle(
+                              color: Color(0xFF6EE7B7),
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Stage content
+                    Expanded(
+                      child: widget.isHost
+                          ? _buildHostStageContent(setSheetState)
+                          : _buildViewerStageContent(setSheetState),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildHostStageContent(StateSetter setSheetState) {
+    if (_stageRequests.isEmpty && _remoteBroadcasters.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.person_add_disabled_rounded,
+              color: Colors.white38,
+              size: 40,
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'No pending stage requests',
+              style: TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Viewers from the 100+ audience will appear here when they request to join.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.4),
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView(
+      children: [
+        if (_remoteBroadcasters.isNotEmpty) ...[
+          const Text(
+            'ACTIVE CO-HOSTS ON STAGE',
+            style: TextStyle(
+              color: Color(0xFF6EE7B7),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ..._remoteBroadcasters.keys.map((uid) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.videocam_rounded,
+                    color: Color(0xFF10B981),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'UID $uid (Co-Host)',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () {
+                      _roomChannel?.sendBroadcastMessage(
+                        event: 'stage_kicked',
+                        payload: {'user_id': '$uid'},
+                      );
+                      setState(() {
+                        _remoteBroadcasters[uid]?.dispose();
+                        _remoteBroadcasters.remove(uid);
+                      });
+                      setSheetState(() {});
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: const Color(0xFFEF4444)),
+                      ),
+                      child: const Text(
+                        'Remove',
+                        style: TextStyle(
+                          color: Color(0xFFFCA5A5),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          const SizedBox(height: 14),
+        ],
+
+        if (_stageRequests.isNotEmpty) ...[
+          Text(
+            'PENDING REQUESTS (${_stageRequests.length})',
+            style: const TextStyle(
+              color: Color(0xFFFFD600),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ..._stageRequests.map((req) {
+            final uid = req['user_id']?.toString() ?? '';
+            final uname = req['username']?.toString() ?? 'User';
+            final avatar = req['avatar_url']?.toString() ?? '';
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  ZevCachedImage.avatar(imageUrl: avatar, size: 34),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '@$uname',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      setState(() => _stageRequests.removeWhere((r) => r['user_id'] == uid));
+                      setSheetState(() {});
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Decline',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () {
+                      _roomChannel?.sendBroadcastMessage(
+                        event: 'stage_accepted',
+                        payload: {'user_id': uid},
+                      );
+                      setState(() {
+                        _stageRequests.removeWhere((r) => r['user_id'] == uid);
+                      });
+                      setSheetState(() {});
+                      _showToast('Accepted @$uname to stage!');
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF10B981), Color(0xFF059669)],
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Accept',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildViewerStageContent(StateSetter setSheetState) {
+    if (_isGuestOnStage) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF10B981).withValues(alpha: 0.2),
+              ),
+              child: const Icon(
+                Icons.videocam_rounded,
+                color: Color(0xFF10B981),
+                size: 40,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'You are live on stage!',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Your video and mic are active in the live room.',
+              style: TextStyle(color: Colors.white70, fontSize: 12.5),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                _leaveStageGuest();
+              },
+              icon: const Icon(Icons.logout_rounded, size: 16),
+              label: const Text('Leave Stage • خروج از استیج'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_hasPendingStageRequest) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.hourglass_top_rounded,
+              color: Color(0xFFFFD600),
+              size: 36,
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Request Sent • در انتظار تایید میزبان',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'The host has been notified. You will join the stage once approved.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white60, fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () {
+                setState(() => _hasPendingStageRequest = false);
+                setSheetState(() {});
+                _showToast('Request canceled');
+              },
+              child: const Text(
+                'Cancel Request',
+                style: TextStyle(color: Color(0xFFFCA5A5)),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.person_add_alt_1_rounded,
+            color: Color(0xFF38BDF8),
+            size: 40,
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Request to Join Stage',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Go live with the host in split screen or audio seats in front of 100+ viewers.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white70, fontSize: 12.5),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _requestJoinStage();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: const Text(
+              'Send Stage Request • درخواست استیج',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openGiftSheet() {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.96),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.16),
+            ),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Sheet Handle
+                Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white30,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Coins Header
+                Row(
+                  children: [
+                    const Text(
+                      'Send Gift',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFB800).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: const Color(0xFFFFB800).withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('🪙', style: TextStyle(fontSize: 13)),
+                          SizedBox(width: 4),
+                          Text(
+                            '1,250 Coins',
+                            style: TextStyle(
+                              color: Color(0xFFFFD600),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Gift Grid (8 gifts)
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: 0.85,
+                  ),
+                  itemCount: _availableGifts.length,
+                  itemBuilder: (ctx, idx) {
+                    final gift = _availableGifts[idx];
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _sendGift(gift);
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.12),
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              gift['emoji'] as String,
+                              style: const TextStyle(fontSize: 32),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              gift['name'] as String,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('🪙', style: TextStyle(fontSize: 9)),
+                                const SizedBox(width: 2),
+                                Text(
+                                  '${gift['coins']}',
+                                  style: const TextStyle(
+                                    color: Color(0xFFFFD600),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _sendGift(Map<String, dynamic> gift) {
+    HapticFeedback.heavyImpact();
+    final myProfile = _supabase.auth.currentUser;
+    final senderName = (myProfile?.userMetadata?['username'] ??
+            myProfile?.userMetadata?['full_name'] ??
+            'Viewer')
+        .toString();
+    final senderAvatar =
+        (myProfile?.userMetadata?['avatar_url'] ?? '').toString();
+
+    final giftName = gift['name'] as String;
+    final giftEmoji = gift['emoji'] as String;
+    final points = (gift['coins'] as num).toInt();
+
+    // Trigger local animation & haptics
+    _showGiftCelebration(
+      senderName: senderName,
+      senderAvatar: senderAvatar,
+      giftName: giftName,
+      giftEmoji: giftEmoji,
+      points: points,
+    );
+
+    // Broadcast realtime event to everyone in the room
+    try {
+      _roomChannel?.sendBroadcastMessage(
+        event: 'gift_sent',
+        payload: {
+          'sender_name': senderName,
+          'sender_avatar': senderAvatar,
+          'gift_name': giftName,
+          'gift_emoji': giftEmoji,
+          'points': points,
+        },
+      );
+    } catch (_) {}
+
+    // Add gift message to comment stream
+    final giftComment = {
+      'id': 'gift_${DateTime.now().millisecondsSinceEpoch}',
+      'user_id': myProfile?.id ?? '',
+      'comment_text': 'sent $giftName $giftEmoji',
+      'created_at': DateTime.now().toIso8601String(),
+    };
+    if (mounted) {
+      setState(() {
+        _comments.add(giftComment);
+      });
+      _scrollToBottom();
+    }
+    _showToast('Sent $giftName $giftEmoji to support the creator!');
+  }
+
+  void _showGiftCelebration({
+    required String senderName,
+    required String senderAvatar,
+    required String giftName,
+    required String giftEmoji,
+    required int points,
+  }) {
+    HapticFeedback.heavyImpact();
+    _spawnFloatingEmoji(giftEmoji, incrementCounter: true);
+    for (int i = 0; i < 6; i++) {
+      Future.delayed(Duration(milliseconds: i * 80), () {
+        if (mounted) _spawnFloatingEmoji(giftEmoji);
+      });
+    }
+
+    if (_isPkMatchActive) {
+      setState(() {
+        _pkRedScore += points;
+      });
+    }
+
+    setState(() {
+      _reactionTotal += points;
+      _activeGiftBanner = {
+        'sender': senderName,
+        'avatar': senderAvatar,
+        'gift': giftName,
+        'emoji': giftEmoji,
+        'points': points,
+      };
+    });
+
+    _giftBannerTimer?.cancel();
+    _giftBannerTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) {
+        setState(() => _activeGiftBanner = null);
+      }
+    });
+  }
+
+  Widget _buildGiftCelebrationBanner() {
+    final banner = _activeGiftBanner;
+    if (banner == null) return const SizedBox.shrink();
+
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 60,
+      left: 16,
+      right: 16,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.elasticOut,
+        builder: (context, val, child) {
+          return Transform.scale(
+            scale: 0.8 + (0.2 * val),
+            child: Opacity(
+              opacity: val.clamp(0.0, 1.0),
+              child: child,
+            ),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFFFF2D55),
+                Color(0xFFFF8A00),
+                Color(0xFFFFD600),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFF2D55).withValues(alpha: 0.6),
+                blurRadius: 18,
+                spreadRadius: 2,
+              ),
+            ],
+            border: Border.all(color: Colors.white, width: 1.5),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ZevCachedImage.avatar(
+                imageUrl: banner['avatar']?.toString() ?? '',
+                size: 28,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${banner['sender']} sent ${banner['gift']}!',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w900,
+                        shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                      ),
+                    ),
+                    Text(
+                      '+${banner['points']} points to host',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                '${banner['emoji']}',
+                style: const TextStyle(fontSize: 26),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1665,9 +3283,12 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
               left: 12,
               right: 84,
               bottom: 74,
-              height: 250,
+              height: _isPkMatchActive ? 210 : 250,
               child: _buildFloatingChatOverlay(hostId: hostId),
             ),
+
+            // Realtime Fullscreen Gift Celebration Banner
+            _buildGiftCelebrationBanner(),
 
             // 5. Floating Realtime Animated Emoji Reactions Layer
             Positioned.fill(
@@ -1866,46 +3487,23 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
 
                 const Spacer(),
 
-                // Top Contributor mini bubbles
+                // Top Contributor mini bubbles (Gold, Silver, Bronze medals)
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      width: 26,
-                      height: 26,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: const Color(0xFFFFD600),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: ClipOval(
-                        child: ZevCachedImage.avatar(
-                          imageUrl:
-                              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
-                          size: 24,
-                        ),
-                      ),
+                    _buildMiniMedalAvatar(
+                      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
+                      1,
                     ),
                     const SizedBox(width: 4),
-                    Container(
-                      width: 26,
-                      height: 26,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: const Color(0xFFE2E8F0),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: ClipOval(
-                        child: ZevCachedImage.avatar(
-                          imageUrl:
-                              'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80',
-                          size: 24,
-                        ),
-                      ),
+                    _buildMiniMedalAvatar(
+                      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80',
+                      2,
+                    ),
+                    const SizedBox(width: 4),
+                    _buildMiniMedalAvatar(
+                      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80',
+                      3,
                     ),
                   ],
                 ),
@@ -2265,51 +3863,54 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
             ),
             const SizedBox(width: 8),
 
-            // Rose / Gift Button matching TikTok reference
+            // Quick Rose Button matching TikTok reference
             _buildRoundActionButton(
-              icon: Icons.card_giftcard_rounded,
+              icon: Icons.local_florist_rounded,
+              iconColor: const Color(0xFFFF2D55),
               gradient: const LinearGradient(
                 colors: [Color(0xFFFF2D55), Color(0xFFFF758C)],
               ),
               badge: 'Rose',
               onTap: () {
-                HapticFeedback.heavyImpact();
-                _sendReaction('🌹');
-                if (_isPkMatchActive) {
-                  setState(() {
-                    if (widget.isHost) {
-                      _pkRedScore += 5;
-                    } else {
-                      _pkBlueScore += 5;
-                    }
-                  });
-                }
-                _showToast('Sent a Rose 🌹 to support the host!');
+                _sendGift(_availableGifts[0]);
               },
             ),
             const SizedBox(width: 8),
 
-            // Quick Like / Heart Button
+            // Gift Box Button opening TikTok style gifts sheet
             _buildRoundActionButton(
-              icon: Icons.favorite_rounded,
-              iconColor: const Color(0xFFFF2D55),
-              backgroundColor: Colors.black.withValues(alpha: 0.50),
-              badge: _reactionTotal > 0 ? '$_reactionTotal' : null,
-              onTap: () {
-                HapticFeedback.lightImpact();
-                _sendReaction('❤️');
-                if (_isPkMatchActive) {
-                  setState(() => _pkRedScore += 1);
-                }
-              },
+              icon: Icons.card_giftcard_rounded,
+              gradient: const LinearGradient(
+                colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+              ),
+              badge: 'Gift',
+              onTap: _openGiftSheet,
             ),
             const SizedBox(width: 8),
 
-            // Share Button
+            // Stage Guest Request / Co-Host Seats Button
+            _buildRoundActionButton(
+              icon: widget.isHost
+                  ? Icons.groups_rounded
+                  : Icons.person_add_alt_1_rounded,
+              iconColor:
+                  _isGuestOnStage ? const Color(0xFF10B981) : Colors.white,
+              backgroundColor: _isGuestOnStage
+                  ? const Color(0xFF10B981).withValues(alpha: 0.3)
+                  : Colors.black.withValues(alpha: 0.50),
+              badge: widget.isHost && _stageRequests.isNotEmpty
+                  ? '${_stageRequests.length}'
+                  : (_isGuestOnStage ? 'Live' : null),
+              onTap: _openStageManagementSheet,
+            ),
+            const SizedBox(width: 8),
+
+            // Share Button matching TikTok reference (with share count badge)
             _buildRoundActionButton(
               icon: Icons.reply_rounded,
               iconColor: Colors.white,
               backgroundColor: Colors.black.withValues(alpha: 0.50),
+              badge: '46',
               onTap: () {
                 HapticFeedback.lightImpact();
                 Clipboard.setData(
@@ -2321,6 +3922,22 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
 
             // Host Media Controls (Flip Cam, Camera Toggle, Mute Mic, PK Battle)
             if (widget.isHost && !_isEnded) ...[
+              const SizedBox(width: 8),
+              _buildRoundActionButton(
+                icon: Icons.sports_kabaddi_rounded,
+                iconColor:
+                    _isPkMatchActive ? const Color(0xFFFFD600) : Colors.white,
+                gradient: _isPkMatchActive
+                    ? const LinearGradient(
+                        colors: [Color(0xFFFF2D55), Color(0xFF6366F1)],
+                      )
+                    : null,
+                backgroundColor: _isPkMatchActive
+                    ? null
+                    : Colors.black.withValues(alpha: 0.50),
+                badge: 'PK',
+                onTap: _togglePkMatch,
+              ),
               const SizedBox(width: 8),
               _buildRoundActionButton(
                 icon: Icons.flip_camera_ios_rounded,
@@ -2344,22 +3961,6 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                 iconColor: _isMicMuted ? const Color(0xFFFF2D55) : Colors.white,
                 backgroundColor: Colors.black.withValues(alpha: 0.50),
                 onTap: _toggleLiveMic,
-              ),
-              const SizedBox(width: 8),
-              _buildRoundActionButton(
-                icon: Icons.sports_kabaddi_rounded,
-                iconColor:
-                    _isPkMatchActive ? const Color(0xFFFFD600) : Colors.white,
-                gradient: _isPkMatchActive
-                    ? const LinearGradient(
-                        colors: [Color(0xFFFF2D55), Color(0xFF6366F1)],
-                      )
-                    : null,
-                backgroundColor: _isPkMatchActive
-                    ? null
-                    : Colors.black.withValues(alpha: 0.50),
-                badge: 'PK',
-                onTap: _togglePkMatch,
               ),
             ],
           ],

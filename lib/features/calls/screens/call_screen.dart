@@ -478,7 +478,7 @@ class _CallScreenState extends State<CallScreen>
               rtcEngine: engine,
               canvas: VideoCanvas(
                 uid: remoteUid,
-                renderMode: RenderModeType.renderModeHidden,
+                renderMode: RenderModeType.renderModeFit,
               ),
               connection: connection,
             );
@@ -540,7 +540,7 @@ class _CallScreenState extends State<CallScreen>
             rtcEngine: engine,
             canvas: const VideoCanvas(
               uid: 0,
-              renderMode: RenderModeType.renderModeHidden,
+              renderMode: RenderModeType.renderModeFit,
             ),
           );
         });
@@ -687,14 +687,31 @@ class _CallScreenState extends State<CallScreen>
 
     try {
       if (!_isScreenSharing) {
-        await eng.startScreenCapture(
-          const ScreenCaptureParameters2(
-            captureAudio: true,
-            captureVideo: true,
-          ),
-        );
+        // Attempt screen capture with audio, fallback to video-only if platform/browser denies audio loopback
+        try {
+          await eng.startScreenCapture(
+            const ScreenCaptureParameters2(
+              captureAudio: true,
+              captureVideo: true,
+            ),
+          );
+        } catch (firstErr) {
+          debugPrint(
+            '[CallScreen] Screen capture with audio failed ($firstErr), retrying video-only...',
+          );
+          await eng.startScreenCapture(
+            const ScreenCaptureParameters2(
+              captureAudio: false,
+              captureVideo: true,
+            ),
+          );
+        }
+
+        // Web + Mobile + Desktop unified track publishing
         await eng.updateChannelMediaOptions(
           const ChannelMediaOptions(
+            publishScreenTrack: true,
+            publishSecondaryScreenTrack: true,
             publishScreenCaptureVideo: true,
             publishScreenCaptureAudio: true,
             publishCameraTrack: false,
@@ -704,16 +721,21 @@ class _CallScreenState extends State<CallScreen>
           setState(() => _isScreenSharing = true);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Screen sharing started'),
-              duration: Duration(seconds: 2),
+              content: Text('Screen sharing started • در حال اشتراک صفحه نمایش'),
+              duration: Duration(seconds: 3),
               behavior: SnackBarBehavior.floating,
+              backgroundColor: Color(0xFF0F172A),
             ),
           );
         }
       } else {
-        await eng.stopScreenCapture();
+        try {
+          await eng.stopScreenCapture();
+        } catch (_) {}
         await eng.updateChannelMediaOptions(
           ChannelMediaOptions(
+            publishScreenTrack: false,
+            publishSecondaryScreenTrack: false,
             publishScreenCaptureVideo: false,
             publishScreenCaptureAudio: false,
             publishCameraTrack: !_isCameraOff,
@@ -723,9 +745,10 @@ class _CallScreenState extends State<CallScreen>
           setState(() => _isScreenSharing = false);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Screen sharing stopped'),
+              content: Text('Screen sharing stopped • اشتراک صفحه پایان یافت'),
               duration: Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
+              backgroundColor: Color(0xFF0F172A),
             ),
           );
         }
@@ -733,12 +756,20 @@ class _CallScreenState extends State<CallScreen>
     } catch (e) {
       debugPrint('[CallScreen] Screen share error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Screen share notice: $e'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        setState(() => _isScreenSharing = false);
+        final isCancelled = e.toString().contains('NotAllowedError') ||
+            e.toString().contains('Permission denied') ||
+            e.toString().contains('cancelled') ||
+            e.toString().contains('canceled');
+        if (!isCancelled) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Screen share notice: $e'),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: const Color(0xFFDC2626),
+            ),
+          );
+        }
       }
     }
   }
@@ -991,9 +1022,11 @@ class _CallScreenState extends State<CallScreen>
                           children: [
                             // Remote video or centered voice avatar
                             if (hasRemoteVideo)
-                              AgoraVideoView(
-                                key: ValueKey('remote_wide_$_remoteUid'),
-                                controller: _remoteVideoController!,
+                              Center(
+                                child: AgoraVideoView(
+                                  key: ValueKey('remote_wide_$_remoteUid'),
+                                  controller: _remoteVideoController!,
+                                ),
                               )
                             else
                               Center(
@@ -1105,8 +1138,14 @@ class _CallScreenState extends State<CallScreen>
                                 ),
                               ),
 
-                            // Floating Self Camera PIP (top right of stage)
-                            if (widget.isVideo &&
+                            // Floating Self Camera PIP or Screen Share Indicator (top right of stage)
+                            if (_isScreenSharing && _phase != 'ended')
+                              Positioned(
+                                top: 16,
+                                right: 16,
+                                child: _buildScreenSharingPipCard(isWide: true),
+                              )
+                            else if (widget.isVideo &&
                                 _localVideoController != null &&
                                 !_isCameraOff &&
                                 _phase != 'ended')
@@ -1307,9 +1346,14 @@ class _CallScreenState extends State<CallScreen>
       children: [
         // Background: Remote Video or Obsidian Gradient
         if (hasRemoteVideo)
-          AgoraVideoView(
-            key: ValueKey('remote_$_remoteUid'),
-            controller: _remoteVideoController!,
+          Container(
+            color: const Color(0xFF030712),
+            child: Center(
+              child: AgoraVideoView(
+                key: ValueKey('remote_$_remoteUid'),
+                controller: _remoteVideoController!,
+              ),
+            ),
           )
         else
           Container(
@@ -1644,8 +1688,14 @@ class _CallScreenState extends State<CallScreen>
           ),
         ),
 
-        // Local Self-View PIP for Video Calls
-        if (widget.isVideo &&
+        // Local Self-View PIP or Screen Share Indicator
+        if (_isScreenSharing && _phase != 'ended')
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 60,
+            right: 16,
+            child: _buildScreenSharingPipCard(isWide: false),
+          )
+        else if (widget.isVideo &&
             _localVideoController != null &&
             !_isCameraOff &&
             _phase != 'ended')
@@ -1673,6 +1723,119 @@ class _CallScreenState extends State<CallScreen>
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildScreenSharingPipCard({required bool isWide}) {
+    final width = isWide ? 220.0 : 130.0;
+    final height = isWide ? 124.0 : 160.0;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          width: width,
+          height: height,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: const Color(0xFF38BDF8).withValues(alpha: 0.65),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF38BDF8).withValues(alpha: 0.3),
+                blurRadius: 18,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedBuilder(
+                animation: _pulseCtrl,
+                builder: (context, child) {
+                  return Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF38BDF8).withValues(
+                        alpha: 0.15 + (_pulseCtrl.value * 0.18),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.screen_share_rounded,
+                      color: Color(0xFF38BDF8),
+                      size: 22,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 6),
+              Text(
+                isWide ? 'You are sharing screen' : 'Sharing Screen',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 2),
+              const Text(
+                'Live to peer',
+                style: TextStyle(
+                  color: Color(0xFF6EE7B7),
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: _toggleScreenShare,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3.5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.7),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.stop_circle_rounded,
+                        color: Color(0xFFFCA5A5),
+                        size: 12,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'Stop',
+                        style: TextStyle(
+                          color: Color(0xFFFCA5A5),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
