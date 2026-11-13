@@ -56,6 +56,9 @@
 -keep class com.google.firebase.** { *; }
 -keep class io.flutter.plugins.firebase.** { *; }
 
+# Flutter Local Notifications
+-keep class com.dexterous.flutterlocalnotifications.** { *; }
+
 # Google Mobile Ads
 -keep class com.google.android.gms.ads.** { *; }
 -keep class io.flutter.plugins.googlemobileads.** { *; }

@@ -40,6 +40,34 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     debugPrint(
       'ZEV FCM Background notification: ${message.messageId} - ${message.notification?.title}',
     );
+
+    // If message is a data payload without automatic OS notification block,
+    // display it using FlutterLocalNotificationsPlugin so it's never dropped.
+    if (message.notification == null) {
+      final title = (message.data['title'] ?? 'ZEV').toString();
+      final body = (message.data['body'] ??
+              message.data['message'] ??
+              'You have a new update')
+          .toString();
+      final fln = FlutterLocalNotificationsPlugin();
+      const androidDetails = AndroidNotificationDetails(
+        NotificationService.androidChannelId,
+        NotificationService.androidChannelName,
+        channelDescription: NotificationService.androidChannelDescription,
+        importance: Importance.max,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+        playSound: true,
+        enableVibration: true,
+      );
+      await fln.show(
+        DateTime.now().millisecondsSinceEpoch.remainder(100000),
+        title,
+        body,
+        const NotificationDetails(android: androidDetails),
+        payload: jsonEncode(message.data),
+      );
+    }
   } catch (e) {
     debugPrint('ZEV FCM background message error: $e');
   }
@@ -47,7 +75,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 /// Production Notification & Deep-Link Dispatcher Service for ZEV.
 /// - Initializes Firebase with [DefaultFirebaseOptions.currentPlatform]
-/// - Configures Android `zev_notifications_channel` via `flutter_local_notifications`
+/// - Configures Android `zev_notifications_v3` channel via `flutter_local_notifications`
 /// - Listens to FCM `onTokenRefresh` and keeps `user_devices` / `profiles.fcm_token` synced
 /// - Handles foreground banners, background taps, and race-free cold-start routing
 /// - Writes in-app notifications (`user_notifications`) and triggers server `/api/v1/push/send`
@@ -57,10 +85,10 @@ class NotificationService {
 
   NotificationService._internal();
 
-  static const String androidChannelId = 'zev_notifications_channel';
-  static const String androidChannelName = 'ZEV Activity & Messages';
+  static const String androidChannelId = 'zev_notifications_v3';
+  static const String androidChannelName = 'ZEV Messages & Activity';
   static const String androidChannelDescription =
-      'Real-time messages, followers, likes, comments, and security alerts on ZEV.';
+      'Real-time messages, calls, followers, likes, comments, and security alerts on ZEV.';
 
   final SupabaseClient supabase = Supabase.instance.client;
   final FlutterLocalNotificationsPlugin _localNotifications =
@@ -187,7 +215,7 @@ class NotificationService {
 
       final messaging = FirebaseMessaging.instance;
 
-      // 3. Configure iOS foreground options & request permissions (including Android 13+)
+      // 3. Configure foreground presentation & request permissions (Android 13+)
       await messaging.setForegroundNotificationPresentationOptions(
         alert: true,
         badge: true,
@@ -230,7 +258,7 @@ class NotificationService {
         }
       });
 
-      // 5. Foreground messages -> refresh badge counts + show banner/tray alert
+      // 5. Foreground messages -> refresh badge counts + show banner AND system notification
       FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
         BadgeCounterService.instance.refreshCounts();
 
@@ -240,6 +268,8 @@ class NotificationService {
             .toString();
         final senderId = (message.data['sender_id'] ?? '').toString().trim();
         final convId = (message.data['conversation_id'] ?? '').toString().trim();
+
+        // If viewing this active chat conversation, suppress alert
         if (_isViewingActiveChat(
           type: type,
           senderId: senderId,
@@ -247,6 +277,7 @@ class NotificationService {
         )) {
           return;
         }
+
         final link = (message.data['deep_link'] ??
                 message.data['link_url'] ??
                 message.data['link'] ??
@@ -279,6 +310,7 @@ class NotificationService {
         final overlayReady =
             isAppInForeground && appNavigatorKey.currentState?.overlay != null;
 
+        // Show in-app banner for immediate user interaction
         if (overlayReady) {
           showInAppBanner(
             title: title,
@@ -286,14 +318,15 @@ class NotificationService {
             data: message.data,
             vibrate: vibrate,
           );
-        } else {
-          await _showTrayLocalNotification(
-            title: title,
-            body: body,
-            data: message.data,
-            vibrate: vibrate,
-          );
         }
+
+        // Show tray notification with sound and icon in status bar
+        await _showTrayLocalNotification(
+          title: title,
+          body: body,
+          data: message.data,
+          vibrate: vibrate,
+        );
       });
 
       // 6. Background tap handler
@@ -349,8 +382,8 @@ class NotificationService {
     }
   }
 
-  /// Subscribes to live `public.user_notifications` inserts so alerts created by
-  /// DB triggers or admin actions also push immediately when connected.
+  /// Subscribes to live `public.user_notifications` inserts and `direct_messages`
+  /// so alerts also arrive via Supabase Realtime when connected.
   void startRealtimeNotifications() {
     final uid = supabase.auth.currentUser?.id;
     if (uid == null || uid.isEmpty) {
@@ -392,7 +425,8 @@ class NotificationService {
               String linkedConvId = '';
               String linkedPeerId = senderId;
               if (link.contains('/chat/')) {
-                final chatTarget = link.split('/chat/').last.split('?').first.trim();
+                final chatTarget =
+                    link.split('/chat/').last.split('?').first.trim();
                 if (chatTarget.startsWith('conv:')) {
                   linkedConvId = chatTarget.replaceFirst('conv:', '');
                 } else if (chatTarget.isNotEmpty) {
@@ -405,7 +439,6 @@ class NotificationService {
                 senderId: linkedPeerId.isNotEmpty ? linkedPeerId : senderId,
                 conversationId: linkedConvId,
               )) {
-                // User is actively reading this conversation right now! Suppress in-app banner.
                 return;
               }
 
@@ -489,7 +522,8 @@ class NotificationService {
                 'image' => 'Sent a photo',
                 'video' => 'Sent a video',
                 'audio' => 'Sent a voice message',
-                'file' => fileName.isNotEmpty ? 'Sent $fileName' : 'Sent a file',
+                'file' =>
+                  fileName.isNotEmpty ? 'Sent $fileName' : 'Sent a file',
                 'post_share' => 'Shared a post with you',
                 'reel_share' => 'Shared a reel with you',
                 _ => rawText.isNotEmpty ? rawText : 'Sent you a message',
@@ -586,7 +620,7 @@ class NotificationService {
     if (key.isEmpty) return false;
     final now = DateTime.now();
     _recentAlertKeys.removeWhere(
-      (_, ts) => now.difference(ts) > const Duration(seconds: 20),
+      (_, ts) => now.difference(ts) > const Duration(seconds: 15),
     );
     if (_recentAlertKeys.containsKey(key)) {
       return true;
@@ -635,7 +669,7 @@ class NotificationService {
 
   Future<void> _initLocalNotifications() async {
     const androidSettings = AndroidInitializationSettings(
-      '@drawable/ic_notification',
+      '@mipmap/ic_launcher',
     );
     const darwinSettings = DarwinInitializationSettings(
       requestAlertPermission: false,
@@ -678,6 +712,7 @@ class NotificationService {
           importance: Importance.max,
           enableVibration: true,
           playSound: true,
+          showBadge: true,
         ),
       );
     }
@@ -696,9 +731,10 @@ class NotificationService {
         channelDescription: androidChannelDescription,
         importance: Importance.max,
         priority: Priority.high,
-        icon: '@drawable/ic_notification',
+        icon: '@mipmap/ic_launcher',
         color: ZevColors.primaryBlue,
         enableVibration: vibrate,
+        playSound: true,
       );
       const darwinDetails = DarwinNotificationDetails(
         presentAlert: true,
@@ -872,7 +908,7 @@ class NotificationService {
       return;
     }
 
-    // 4. Story (Like, Reaction, Reply, New Story) — check BEFORE generic like/reply!
+    // 4. Story (Like, Reaction, Reply, New Story)
     if (type.contains('story')) {
       final cleanStoryId = linkUrl
           .replaceFirst(RegExp(r'^/story/'), '')
@@ -1186,6 +1222,7 @@ class NotificationService {
           'title': title,
           'body': body,
           'notificationType': 'general',
+          'androidChannelId': androidChannelId,
           'data': {'type': 'general', 'sender_id': uid},
         },
       );
@@ -1243,6 +1280,7 @@ class NotificationService {
           'title': title,
           'body': body,
           'notificationType': notificationType,
+          'androidChannelId': androidChannelId,
           if (deepLink != null && deepLink.isNotEmpty) 'deepLink': deepLink,
           'data': {
             'type': notificationType,
