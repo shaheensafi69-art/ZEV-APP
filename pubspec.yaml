@@ -52,6 +52,7 @@ dependencies:
   cached_network_image: ^3.4.1
   image: ^4.3.0
   agora_rtc_engine: ^6.6.4
+  google_sign_in: 6.2.2
 
 dev_dependencies:
   flutter_test:

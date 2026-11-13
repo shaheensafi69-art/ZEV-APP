@@ -12,7 +12,12 @@
           "package_name": "com.zevapp.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "557150004230-mcvr3rp5dva5aid3neav5f8f9llaapf8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDMXc5s_L6DmkBxxYitxYbR-WrgD8aU_S8"
