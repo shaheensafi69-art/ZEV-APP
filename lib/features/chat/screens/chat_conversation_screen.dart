@@ -1648,19 +1648,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
               color: ZevColors.deepNavy,
               size: 20,
             ),
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              CallScreen.startOutgoing(
-                context,
-                peerId: widget.peerId,
-                peerUsername: widget.peerUsername,
-                peerFullName: widget.peerFullName,
-                peerAvatar: widget.peerAvatar,
-                isPeerVerified: widget.isPeerVerified,
-                conversationId: _conversationId.isNotEmpty ? _conversationId : null,
-                isVideo: false,
-              );
-            },
+            onPressed: () => _startCallWithPeer(isVideo: false),
           ),
           IconButton(
             tooltip: 'Video Call',
@@ -1669,19 +1657,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
               color: ZevColors.deepNavy,
               size: 22,
             ),
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              CallScreen.startOutgoing(
-                context,
-                peerId: widget.peerId,
-                peerUsername: widget.peerUsername,
-                peerFullName: widget.peerFullName,
-                peerAvatar: widget.peerAvatar,
-                isPeerVerified: widget.isPeerVerified,
-                conversationId: _conversationId.isNotEmpty ? _conversationId : null,
-                isVideo: true,
-              );
-            },
+            onPressed: () => _startCallWithPeer(isVideo: true),
           ),
         ],
         IconButton(
@@ -2040,12 +2016,220 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
   }
 
+  void _startCallWithPeer({required bool isVideo}) {
+    if (widget.peerId.isEmpty) return;
+    HapticFeedback.lightImpact();
+    CallScreen.startOutgoing(
+      context,
+      peerId: widget.peerId,
+      peerUsername: widget.peerUsername,
+      peerFullName: widget.peerFullName,
+      peerAvatar: widget.peerAvatar,
+      isPeerVerified: widget.isPeerVerified,
+      conversationId: _conversationId.isNotEmpty ? _conversationId : null,
+      isVideo: isVideo,
+    );
+  }
+
+  Widget _buildCallLogBubble(DirectMessageModel msg, bool isMine) {
+    final isVideo = msg.isVideoCall;
+    final isMissed = msg.isMissedCall;
+    final isDeclined = msg.isDeclinedCall;
+    final durationSec = msg.callDurationSeconds;
+
+    final Color badgeBg;
+    final Color iconColor;
+    final IconData callIcon;
+    final String titleText;
+    final String subtitleText;
+
+    if (isMissed) {
+      badgeBg = const Color(0xFFFEE2E2);
+      iconColor = const Color(0xFFEF4444);
+      callIcon = isVideo
+          ? Icons.missed_video_call_rounded
+          : (isMine ? Icons.call_made_rounded : Icons.phone_missed_rounded);
+      titleText = isMine
+          ? (isVideo ? 'Unanswered Video Call' : 'Unanswered Audio Call')
+          : (isVideo ? 'Missed Video Call' : 'Missed Audio Call');
+      subtitleText = isMine ? 'No answer' : 'Tap to call back';
+    } else if (isDeclined) {
+      badgeBg = const Color(0xFFF1F5F9);
+      iconColor = ZevColors.textMuted;
+      callIcon = isVideo ? Icons.videocam_off_rounded : Icons.call_end_rounded;
+      titleText = isVideo ? 'Declined Video Call' : 'Declined Audio Call';
+      subtitleText = 'Declined';
+    } else if (durationSec > 0) {
+      badgeBg = isVideo ? const Color(0xFFEEF2FF) : const Color(0xFFECFDF5);
+      iconColor = isVideo ? const Color(0xFF6366F1) : const Color(0xFF10B981);
+      callIcon = isVideo
+          ? Icons.videocam_rounded
+          : (isMine ? Icons.call_made_rounded : Icons.call_received_rounded);
+      titleText = isVideo ? 'Video Call' : 'Audio Call';
+      final m = durationSec ~/ 60;
+      final s = durationSec % 60;
+      final durStr = m > 0 ? '${m}m ${s}s' : '${s}s';
+      subtitleText = '$durStr • ${isMine ? "Outgoing" : "Incoming"}';
+    } else {
+      badgeBg = const Color(0xFFF1F5F9);
+      iconColor = ZevColors.textMuted;
+      callIcon = isVideo ? Icons.videocam_off_rounded : Icons.call_end_rounded;
+      titleText = isVideo ? 'Cancelled Video Call' : 'Cancelled Audio Call';
+      subtitleText = 'Cancelled';
+    }
+
+    final timeStr = _formatTime(msg.createdAt);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+      child: Center(
+        child: GestureDetector(
+          onLongPress: () => _showMessageActionMenu(msg, isMine),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 340),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isMissed
+                    ? const Color(0xFFFECACA)
+                    : const Color(0xFFE2E8F0),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: ZevColors.deepNavy.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(18),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: () => _startCallWithPeer(isVideo: isVideo),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: badgeBg,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Icon(callIcon, color: iconColor, size: 21),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              titleText,
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w800,
+                                color: isMissed
+                                    ? const Color(0xFFEF4444)
+                                    : ZevColors.deepNavy,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    subtitleText,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: isMissed
+                                          ? const Color(0xFFDC2626)
+                                          : ZevColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  '• $timeStr',
+                                  style: const TextStyle(
+                                    fontSize: 10.5,
+                                    color: ZevColors.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => _startCallWithPeer(isVideo: isVideo),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5.5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: ZevColors.primaryBlue.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isVideo
+                                    ? Icons.videocam_rounded
+                                    : Icons.call_rounded,
+                                size: 13,
+                                color: ZevColors.primaryBlue,
+                              ),
+                              const SizedBox(width: 4),
+                              const Text(
+                                'Call back',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: ZevColors.primaryBlue,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildMessageBubble(
     DirectMessageModel msg,
     bool isMine,
     List<MessageReactionSummary> reactions,
     DirectMessageModel? parentMsg,
   ) {
+    if (msg.isCallLog) {
+      return _buildCallLogBubble(msg, isMine);
+    }
+
     final type = msg.effectiveType;
     final isAudio = type == 'audio';
     final isHighlighted = _highlightedMsgId == msg.id;

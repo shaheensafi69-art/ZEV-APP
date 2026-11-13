@@ -1493,6 +1493,22 @@ class _ChatListScreenState extends State<ChatListScreen> {
         previewText = 'Message deleted';
         previewIcon = Icons.block_rounded;
         break;
+      case 'call_log':
+      case 'call':
+        final isVideo = previewText.toLowerCase().contains('video');
+        final isMissed = previewText.toLowerCase().contains('missed') ||
+            previewText.toLowerCase().contains('no answer');
+        if (isMissed) {
+          previewIcon = isVideo
+              ? Icons.missed_video_call_rounded
+              : Icons.phone_missed_rounded;
+        } else {
+          previewIcon = isVideo ? Icons.videocam_rounded : Icons.phone_rounded;
+        }
+        if (previewText.isEmpty) {
+          previewText = isVideo ? 'Video call' : 'Audio call';
+        }
+        break;
     }
 
     String senderPrefix = '';

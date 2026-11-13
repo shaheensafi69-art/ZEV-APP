@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 /// Data model representing a single direct or group message in ZEV.
 /// Mirrors `public.direct_messages` plus client-side offline outbox state.
 class DirectMessageModel {
@@ -70,6 +72,47 @@ class DirectMessageModel {
       return attachmentType!;
     }
     return messageType.isNotEmpty ? messageType : 'text';
+  }
+
+  bool get isCallLog => effectiveType == 'call_log' || messageType == 'call_log';
+
+  Map<String, dynamic>? get callLogData {
+    if (!isCallLog) return null;
+    final url = attachmentUrl;
+    if (url != null && url.trim().startsWith('{') && url.trim().endsWith('}')) {
+      try {
+        return jsonDecode(url.trim()) as Map<String, dynamic>;
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  bool get isVideoCall {
+    final data = callLogData;
+    if (data != null && data['call_type'] == 'video') return true;
+    return messageText.toLowerCase().contains('video');
+  }
+
+  bool get isMissedCall {
+    final data = callLogData;
+    if (data != null && data['status'] == 'missed') return true;
+    final txt = messageText.toLowerCase();
+    return txt.contains('missed') || txt.contains('no answer');
+  }
+
+  bool get isDeclinedCall {
+    final data = callLogData;
+    if (data != null && data['status'] == 'rejected') return true;
+    final txt = messageText.toLowerCase();
+    return txt.contains('declined') || txt.contains('rejected');
+  }
+
+  int get callDurationSeconds {
+    final data = callLogData;
+    if (data != null && data['duration_seconds'] is num) {
+      return (data['duration_seconds'] as num).toInt();
+    }
+    return 0;
   }
 
   /// Delivery status helper:
