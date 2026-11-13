@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/apple_sign_in_button.dart';
+import '../../../core/widgets/google_sign_in_button.dart';
 import '../../../core/widgets/zev_logo.dart';
 import 'login_screen.dart';
 import 'register_screen.dart';
@@ -305,6 +306,25 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
                           // Primary Action Button: "Get Started"
                           _buildGetStartedButton(),
+
+                          const SizedBox(height: 12),
+
+                          // Google Sign-In Action (Cross-Platform: Web, Android, iOS)
+                          GoogleSignInButton(
+                            text: "Continue with Google",
+                            onError: (msg) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(msg),
+                                  behavior: SnackBarBehavior.floating,
+                                  backgroundColor: const Color(0xFFDC2626),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
 
                           // Apple Sign-In Action on iOS & macOS
                           if (!kIsWeb &&

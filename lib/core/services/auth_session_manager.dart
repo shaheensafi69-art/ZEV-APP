@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'auth_helper.dart';
 import 'mfa_service.dart';
+import 'post_auth_service.dart';
 
 enum AccountStandingStatus {
   active,
@@ -61,6 +62,20 @@ class AuthSessionManager {
         unawaited(_touchDeviceSession(session.user.id));
       } else if (event == AuthChangeEvent.signedIn && session != null) {
         unawaited(_touchDeviceSession(session.user.id));
+        unawaited(() async {
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            final isMarked = prefs.getBool(AuthHelper.keyUserLoggedIn) ?? false;
+            if (!isMarked) {
+              await PostAuthService.handlePostAuthCheck(
+                explicitUser: session.user,
+                eventType: 'oauth_signin',
+              );
+            }
+          } catch (e) {
+            debugPrint('[AuthSessionManager] Post-auth check error: $e');
+          }
+        }());
       } else if (event == AuthChangeEvent.signedOut) {
         unawaited(_clearLocalFlagsOnly());
       }

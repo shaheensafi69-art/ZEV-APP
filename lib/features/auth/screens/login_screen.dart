@@ -11,6 +11,7 @@ import '../../../core/services/multi_account_service.dart';
 import '../../../core/services/passkey_auth_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/apple_sign_in_button.dart';
+import '../../../core/widgets/google_sign_in_button.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_logo.dart';
 import '../../../core/widgets/zev_text_field.dart';
@@ -1020,49 +1021,54 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
 
-          if ((!kIsWeb &&
-                  (defaultTargetPlatform == TargetPlatform.iOS ||
-                      defaultTargetPlatform == TargetPlatform.macOS)) ||
-              (_isPasskeySupported && _isPasskeyEnrolled)) ...[
-            const SizedBox(height: 20),
+          const SizedBox(height: 20),
 
-            // Clean OR Divider
-            Row(
-              children: [
-                const Expanded(
-                  child: Divider(
-                    color: Color(0xFFE2E8F0),
-                    thickness: 1.2,
+          // Clean OR Divider
+          Row(
+            children: [
+              const Expanded(
+                child: Divider(
+                  color: Color(0xFFE2E8F0),
+                  thickness: 1.2,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Text(
+                  "OR",
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF94A3B8),
+                    letterSpacing: 0.8,
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  child: Text(
-                    "OR",
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF94A3B8),
-                      letterSpacing: 0.8,
-                    ),
-                  ),
+              ),
+              const Expanded(
+                child: Divider(
+                  color: Color(0xFFE2E8F0),
+                  thickness: 1.2,
                 ),
-                const Expanded(
-                  child: Divider(
-                    color: Color(0xFFE2E8F0),
-                    thickness: 1.2,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
+          ),
 
-            const SizedBox(height: 20),
-          ],
+          const SizedBox(height: 20),
+
+          // Official Google Sign-In Button (Cross-Platform: Web, Android, iOS)
+          GoogleSignInButton(
+            text: "Continue with Google",
+            onSuccess: _handleSocialAuthSuccess,
+            onError: (msg) {
+              setState(() => _errorMsg = msg);
+            },
+          ),
 
           // Apple Sign-In on iOS & macOS
           if (!kIsWeb &&
               (defaultTargetPlatform == TargetPlatform.iOS ||
                   defaultTargetPlatform == TargetPlatform.macOS)) ...[
+            const SizedBox(height: 12),
             AppleSignInButton(
               text: "Continue with Apple",
               onSuccess: _handleSocialAuthSuccess,
