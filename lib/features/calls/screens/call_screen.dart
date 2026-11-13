@@ -160,6 +160,8 @@ class _CallScreenState extends State<CallScreen>
   bool _isMicMuted = false;
   bool _isSpeakerOn = true;
   bool _isCameraOff = false;
+  bool _isVideoActive = false;
+  bool _isBeautyFilterOn = false;
   bool _isScreenSharing = false;
   bool _isActionInFlight = false;
   bool _engineJoined = false;
@@ -169,8 +171,9 @@ class _CallScreenState extends State<CallScreen>
   void initState() {
     super.initState();
     _session = widget.initialSession;
-    _isSpeakerOn = widget.isVideo;
-    _isCameraOff = !widget.isVideo;
+    _isVideoActive = widget.isVideo || (_session?.isVideo ?? false);
+    _isSpeakerOn = _isVideoActive;
+    _isCameraOff = !_isVideoActive;
 
     _pulseCtrl = AnimationController(
       vsync: this,
@@ -245,7 +248,7 @@ class _CallScreenState extends State<CallScreen>
     if (!micStatus.isGranted) {
       return false;
     }
-    if (widget.isVideo) {
+    if (widget.isVideo || _isVideoActive) {
       final camStatus = await Permission.camera.request();
       if (!camStatus.isGranted) {
         return false;
@@ -402,6 +405,14 @@ class _CallScreenState extends State<CallScreen>
     if (!mounted || _phase == 'ended') return;
     _session = updated;
 
+    if (updated.isVideo && !_isVideoActive) {
+      setState(() => _isVideoActive = true);
+      _engine?.enableVideo();
+      _engine?.updateChannelMediaOptions(
+        const ChannelMediaOptions(autoSubscribeVideo: true),
+      );
+    }
+
     if (updated.status == 'accepted' && _phase != 'accepted') {
       _ringTimeoutTimer?.cancel();
       _statusPollTimer?.cancel();
@@ -472,7 +483,7 @@ class _CallScreenState extends State<CallScreen>
             _ringTimeoutTimer?.cancel();
             _startDurationTimer();
           }
-          if (widget.isVideo) {
+          if (_isVideoActive || widget.isVideo) {
             _remoteVideoController?.dispose();
             _remoteVideoController = VideoViewController.remote(
               rtcEngine: engine,
@@ -509,6 +520,34 @@ class _CallScreenState extends State<CallScreen>
           setState(() => _remoteVideoEnabled = !muted);
         }
       },
+      onRemoteVideoStateChanged: (
+        RtcConnection connection,
+        int remoteUid,
+        RemoteVideoState state,
+        RemoteVideoStateReason reason,
+        int elapsed,
+      ) {
+        if (!mounted || remoteUid == 0) return;
+        if (state == RemoteVideoState.remoteVideoStateDecoding ||
+            state == RemoteVideoState.remoteVideoStateStarting) {
+          setState(() {
+            _remoteUid = remoteUid;
+            _remoteVideoEnabled = true;
+            _isVideoActive = true;
+            _remoteVideoController?.dispose();
+            _remoteVideoController = VideoViewController.remote(
+              rtcEngine: engine,
+              canvas: VideoCanvas(
+                uid: remoteUid,
+                renderMode: RenderModeType.renderModeFit,
+              ),
+              connection: connection,
+            );
+          });
+        } else if (state == RemoteVideoState.remoteVideoStateStopped) {
+          setState(() => _remoteVideoEnabled = false);
+        }
+      },
     );
 
     engine.registerEventHandler(handler);
@@ -520,7 +559,7 @@ class _CallScreenState extends State<CallScreen>
       await engine.setEnableSpeakerphone(_isSpeakerOn);
     } catch (_) {}
 
-    if (widget.isVideo) {
+    if (_isVideoActive) {
       await engine.enableVideo();
       try {
         await engine.setVideoEncoderConfiguration(
@@ -557,9 +596,9 @@ class _CallScreenState extends State<CallScreen>
         channelProfile: ChannelProfileType.channelProfileCommunication,
         clientRoleType: ClientRoleType.clientRoleBroadcaster,
         publishMicrophoneTrack: !_isMicMuted,
-        publishCameraTrack: widget.isVideo && !_isCameraOff,
+        publishCameraTrack: _isVideoActive && !_isCameraOff,
         autoSubscribeAudio: true,
-        autoSubscribeVideo: widget.isVideo,
+        autoSubscribeVideo: _isVideoActive,
       ),
     );
   }
@@ -662,22 +701,169 @@ class _CallScreenState extends State<CallScreen>
   }
 
   Future<void> _toggleCamera() async {
-    if (!widget.isVideo) return;
+    final eng = _engine;
+    if (eng == null || _phase == 'ended') return;
     HapticFeedback.selectionClick();
-    final nextOff = !_isCameraOff;
-    setState(() => _isCameraOff = nextOff);
-    try {
-      await _engine?.muteLocalVideoStream(nextOff);
-      await _engine?.enableLocalVideo(!nextOff);
-    } catch (_) {}
+
+    if (!_isVideoActive) {
+      // Dynamic upgrade from voice call to video call!
+      if (!kIsWeb &&
+          (defaultTargetPlatform == TargetPlatform.android ||
+              defaultTargetPlatform == TargetPlatform.iOS)) {
+        final camStatus = await Permission.camera.request();
+        if (!camStatus.isGranted) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Camera permission required • اجازه دسترسی به کمره نیاز است'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      try {
+        await eng.enableVideo();
+        await eng.startPreview();
+        try {
+          await eng.setVideoEncoderConfiguration(
+            const VideoEncoderConfiguration(
+              dimensions: VideoDimensions(width: 720, height: 1280),
+              frameRate: 24,
+              bitrate: 1200,
+            ),
+          );
+        } catch (_) {}
+
+        await eng.updateChannelMediaOptions(
+          const ChannelMediaOptions(
+            publishCameraTrack: true,
+            autoSubscribeVideo: true,
+          ),
+        );
+
+        if (mounted) {
+          setState(() {
+            _isVideoActive = true;
+            _isCameraOff = false;
+            _localVideoController?.dispose();
+            _localVideoController = VideoViewController(
+              rtcEngine: eng,
+              canvas: const VideoCanvas(
+                uid: 0,
+                renderMode: RenderModeType.renderModeFit,
+              ),
+            );
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Camera turned on • کمره روشن شد'),
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Color(0xFF0F172A),
+            ),
+          );
+        }
+
+        if (_session != null) {
+          unawaited(
+            _supabase
+                .from('call_sessions')
+                .update({'call_type': 'video'})
+                .eq('id', _session!.id)
+                .catchError((_) => {}),
+          );
+        }
+      } catch (e) {
+        debugPrint('[CallScreen] enableVideo error: $e');
+      }
+    } else {
+      final nextOff = !_isCameraOff;
+      setState(() => _isCameraOff = nextOff);
+      try {
+        await eng.muteLocalVideoStream(nextOff);
+        await eng.enableLocalVideo(!nextOff);
+        await eng.updateChannelMediaOptions(
+          ChannelMediaOptions(
+            publishCameraTrack: !nextOff,
+          ),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                nextOff
+                    ? 'Camera turned off • کمره خاموش شد'
+                    : 'Camera turned on • کمره روشن شد',
+              ),
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: const Color(0xFF0F172A),
+            ),
+          );
+        }
+      } catch (_) {}
+    }
   }
 
   Future<void> _switchCamera() async {
-    if (!widget.isVideo) return;
+    if (!_isVideoActive || _isCameraOff) return;
     HapticFeedback.selectionClick();
     try {
       await _engine?.switchCamera();
     } catch (_) {}
+  }
+
+  Future<void> _toggleBeautyFilter() async {
+    final eng = _engine;
+    if (eng == null || !_isVideoActive || _isCameraOff) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Turn on camera to enable beauty filter • برای فعال‌سازی فیلتر، کمره را روشن کنید'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Color(0xFF0F172A),
+          ),
+        );
+      }
+      return;
+    }
+    HapticFeedback.selectionClick();
+    final next = !_isBeautyFilterOn;
+    setState(() => _isBeautyFilterOn = next);
+
+    try {
+      await eng.setBeautyEffectOptions(
+        enabled: next,
+        options: const BeautyOptions(
+          lighteningContrastLevel: LighteningContrastLevel.lighteningContrastNormal,
+          lighteningLevel: 0.65,
+          smoothnessLevel: 0.60,
+          rednessLevel: 0.20,
+          sharpnessLevel: 0.35,
+        ),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              next
+                  ? 'Beauty filter enabled ✨ • فیلتر زیبایی فعال شد'
+                  : 'Beauty filter disabled • فیلتر زیبایی خاموش شد',
+            ),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: const Color(0xFF0F172A),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[CallScreen] Beauty filter error: $e');
+    }
   }
 
   Future<void> _toggleScreenShare() async {
@@ -687,36 +873,55 @@ class _CallScreenState extends State<CallScreen>
 
     try {
       if (!_isScreenSharing) {
-        // Attempt screen capture with audio, fallback to video-only if platform/browser denies audio loopback
-        try {
-          await eng.startScreenCapture(
-            const ScreenCaptureParameters2(
-              captureAudio: true,
-              captureVideo: true,
+        // Attempt screen capture
+        if (kIsWeb) {
+          try {
+            await eng.startScreenCapture(
+              const ScreenCaptureParameters2(
+                captureAudio: false,
+                captureVideo: true,
+              ),
+            );
+          } catch (_) {
+            await eng.startScreenCapture(
+              const ScreenCaptureParameters2(
+                captureAudio: true,
+                captureVideo: true,
+              ),
+            );
+          }
+          await eng.updateChannelMediaOptions(
+            const ChannelMediaOptions(
+              publishScreenTrack: true,
+              publishScreenCaptureVideo: true,
+              publishCameraTrack: false,
             ),
           );
-        } catch (firstErr) {
-          debugPrint(
-            '[CallScreen] Screen capture with audio failed ($firstErr), retrying video-only...',
-          );
-          await eng.startScreenCapture(
-            const ScreenCaptureParameters2(
-              captureAudio: false,
-              captureVideo: true,
+        } else {
+          try {
+            await eng.startScreenCapture(
+              const ScreenCaptureParameters2(
+                captureAudio: true,
+                captureVideo: true,
+              ),
+            );
+          } catch (_) {
+            await eng.startScreenCapture(
+              const ScreenCaptureParameters2(
+                captureAudio: false,
+                captureVideo: true,
+              ),
+            );
+          }
+          await eng.updateChannelMediaOptions(
+            const ChannelMediaOptions(
+              publishScreenCaptureVideo: true,
+              publishScreenCaptureAudio: true,
+              publishCameraTrack: false,
             ),
           );
         }
 
-        // Web + Mobile + Desktop unified track publishing
-        await eng.updateChannelMediaOptions(
-          const ChannelMediaOptions(
-            publishScreenTrack: true,
-            publishSecondaryScreenTrack: true,
-            publishScreenCaptureVideo: true,
-            publishScreenCaptureAudio: true,
-            publishCameraTrack: false,
-          ),
-        );
         if (mounted) {
           setState(() => _isScreenSharing = true);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -732,15 +937,25 @@ class _CallScreenState extends State<CallScreen>
         try {
           await eng.stopScreenCapture();
         } catch (_) {}
-        await eng.updateChannelMediaOptions(
-          ChannelMediaOptions(
-            publishScreenTrack: false,
-            publishSecondaryScreenTrack: false,
-            publishScreenCaptureVideo: false,
-            publishScreenCaptureAudio: false,
-            publishCameraTrack: !_isCameraOff,
-          ),
-        );
+
+        if (kIsWeb) {
+          await eng.updateChannelMediaOptions(
+            ChannelMediaOptions(
+              publishScreenTrack: false,
+              publishScreenCaptureVideo: false,
+              publishCameraTrack: _isVideoActive && !_isCameraOff,
+            ),
+          );
+        } else {
+          await eng.updateChannelMediaOptions(
+            ChannelMediaOptions(
+              publishScreenCaptureVideo: false,
+              publishScreenCaptureAudio: false,
+              publishCameraTrack: _isVideoActive && !_isCameraOff,
+            ),
+          );
+        }
+
         if (mounted) {
           setState(() => _isScreenSharing = false);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -806,7 +1021,7 @@ class _CallScreenState extends State<CallScreen>
         : '@${widget.peerUsername}';
     final showIncomingChoice = !widget.isOutgoing && _phase == 'ringing';
     final hasRemoteVideo =
-        widget.isVideo && _remoteVideoController != null && _remoteVideoEnabled;
+        _isVideoActive && _remoteVideoController != null && _remoteVideoEnabled;
 
     return Container(
       width: double.infinity,
@@ -993,41 +1208,39 @@ class _CallScreenState extends State<CallScreen>
 
             // Main Desktop Stage Area
             Expanded(
-              child: Center(
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 1200),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+                child: Center(
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 1300),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF030712),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.14),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.6),
+                          blurRadius: 30,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(24),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF030712),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.14),
-                            width: 1.5,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.6),
-                              blurRadius: 30,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            // Remote video or centered voice avatar
-                            if (hasRemoteVideo)
-                              Center(
-                                child: AgoraVideoView(
-                                  key: ValueKey('remote_wide_$_remoteUid'),
-                                  controller: _remoteVideoController!,
-                                ),
-                              )
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // Remote video or centered voice avatar
+                          if (hasRemoteVideo)
+                            Center(
+                              child: AgoraVideoView(
+                                key: ValueKey('remote_wide_${_remoteUid}_$_remoteVideoEnabled'),
+                                controller: _remoteVideoController!,
+                              ),
+                            )
                             else
                               Center(
                                 child: Column(
@@ -1145,7 +1358,7 @@ class _CallScreenState extends State<CallScreen>
                                 right: 16,
                                 child: _buildScreenSharingPipCard(isWide: true),
                               )
-                            else if (widget.isVideo &&
+                            else if (_isVideoActive &&
                                 _localVideoController != null &&
                                 !_isCameraOff &&
                                 _phase != 'ended')
@@ -1186,7 +1399,6 @@ class _CallScreenState extends State<CallScreen>
                   ),
                 ),
               ),
-            ),
 
             // Bottom Widescreen Floating Control Dock
             if (showIncomingChoice)
@@ -1204,7 +1416,7 @@ class _CallScreenState extends State<CallScreen>
                     ),
                     const SizedBox(width: 32),
                     _buildActionCircle(
-                      icon: widget.isVideo
+                      icon: _isVideoActive
                           ? Icons.videocam_rounded
                           : Icons.call_rounded,
                       label: 'Accept',
@@ -1248,42 +1460,52 @@ class _CallScreenState extends State<CallScreen>
                       onTap: _phase == 'ended' ? null : _toggleMute,
                     ),
                     const SizedBox(width: 14),
-                    if (widget.isVideo) ...[
-                      _buildActionCircle(
-                        icon: _isCameraOff
-                            ? Icons.videocam_off_rounded
-                            : Icons.videocam_rounded,
-                        label: _isCameraOff ? 'Cam Off' : 'Camera',
-                        bgColor: _isCameraOff
-                            ? Colors.white
-                            : Colors.white.withValues(alpha: 0.14),
-                        iconColor: _isCameraOff
-                            ? const Color(0xFF0F172A)
-                            : Colors.white,
-                        onTap: _phase == 'ended' ? null : _toggleCamera,
-                      ),
-                      const SizedBox(width: 14),
-                      _buildActionCircle(
-                        icon: _isScreenSharing
-                            ? Icons.stop_screen_share_rounded
-                            : Icons.screen_share_rounded,
-                        label: _isScreenSharing ? 'Sharing' : 'Share Screen',
-                        bgColor: _isScreenSharing
-                            ? ZevColors.primaryBlue
-                            : Colors.white.withValues(alpha: 0.14),
-                        iconColor: _isScreenSharing
-                            ? ZevColors.deepNavy
-                            : Colors.white,
-                        onTap: _phase == 'accepted' ? _toggleScreenShare : null,
-                      ),
-                      const SizedBox(width: 14),
+                    _buildActionCircle(
+                      icon: (_isVideoActive && !_isCameraOff)
+                          ? Icons.videocam_rounded
+                          : Icons.videocam_off_rounded,
+                      label: (_isVideoActive && !_isCameraOff) ? 'Camera' : 'Cam Off',
+                      bgColor: (_isVideoActive && !_isCameraOff)
+                          ? Colors.white.withValues(alpha: 0.14)
+                          : Colors.white,
+                      iconColor: (_isVideoActive && !_isCameraOff)
+                          ? Colors.white
+                          : const Color(0xFF0F172A),
+                      onTap: _phase == 'ended' ? null : _toggleCamera,
+                    ),
+                    const SizedBox(width: 14),
+                    _buildActionCircle(
+                      icon: Icons.auto_awesome_rounded,
+                      label: _isBeautyFilterOn ? 'Filtered' : 'Filter',
+                      bgColor: _isBeautyFilterOn
+                          ? const Color(0xFFEC4899)
+                          : Colors.white.withValues(alpha: 0.14),
+                      iconColor: Colors.white,
+                      onTap: (_phase == 'ended' || !_isVideoActive || _isCameraOff)
+                          ? null
+                          : _toggleBeautyFilter,
+                    ),
+                    const SizedBox(width: 14),
+                    _buildActionCircle(
+                      icon: _isScreenSharing
+                          ? Icons.stop_screen_share_rounded
+                          : Icons.screen_share_rounded,
+                      label: _isScreenSharing ? 'Sharing' : 'Share Screen',
+                      bgColor: _isScreenSharing
+                          ? ZevColors.primaryBlue
+                          : Colors.white.withValues(alpha: 0.14),
+                      iconColor: _isScreenSharing
+                          ? ZevColors.deepNavy
+                          : Colors.white,
+                      onTap: _phase == 'accepted' ? _toggleScreenShare : null,
+                    ),
+                    const SizedBox(width: 14),
+                    if (_isVideoActive && !_isCameraOff) ...[
                       _buildActionCircle(
                         icon: Icons.cameraswitch_rounded,
                         label: 'Flip',
                         bgColor: Colors.white.withValues(alpha: 0.14),
-                        onTap: (_phase == 'ended' || _isCameraOff)
-                            ? null
-                            : _switchCamera,
+                        onTap: _switchCamera,
                       ),
                       const SizedBox(width: 14),
                     ],
@@ -1339,7 +1561,7 @@ class _CallScreenState extends State<CallScreen>
         : '@${widget.peerUsername}';
     final showIncomingChoice = !widget.isOutgoing && _phase == 'ringing';
     final hasRemoteVideo =
-        widget.isVideo && _remoteVideoController != null && _remoteVideoEnabled;
+        _isVideoActive && _remoteVideoController != null && _remoteVideoEnabled;
 
     return Stack(
       fit: StackFit.expand,
@@ -1578,7 +1800,7 @@ class _CallScreenState extends State<CallScreen>
                         onTap: _isActionInFlight ? null : _hangupOrDecline,
                       ),
                       _buildActionCircle(
-                        icon: widget.isVideo
+                        icon: _isVideoActive
                             ? Icons.videocam_rounded
                             : Icons.call_rounded,
                         label: 'Accept',
@@ -1623,42 +1845,50 @@ class _CallScreenState extends State<CallScreen>
                                 : Colors.white,
                             onTap: _phase == 'ended' ? null : _toggleMute,
                           ),
-                          if (widget.isVideo) ...[
-                            _buildActionCircle(
-                              icon: _isCameraOff
-                                  ? Icons.videocam_off_rounded
-                                  : Icons.videocam_rounded,
-                              label: _isCameraOff ? 'Cam Off' : 'Camera',
-                              bgColor: _isCameraOff
-                                  ? Colors.white
-                                  : Colors.white.withValues(alpha: 0.14),
-                              iconColor: _isCameraOff
-                                  ? const Color(0xFF0F172A)
-                                  : Colors.white,
-                              onTap: _phase == 'ended' ? null : _toggleCamera,
-                            ),
-                            _buildActionCircle(
-                              icon: _isScreenSharing
-                                  ? Icons.stop_screen_share_rounded
-                                  : Icons.screen_share_rounded,
-                              label: _isScreenSharing ? 'Sharing' : 'Share',
-                              bgColor: _isScreenSharing
-                                  ? ZevColors.primaryBlue
-                                  : Colors.white.withValues(alpha: 0.14),
-                              iconColor: _isScreenSharing
-                                  ? ZevColors.deepNavy
-                                  : Colors.white,
-                              onTap: _phase == 'accepted' ? _toggleScreenShare : null,
-                            ),
+                          _buildActionCircle(
+                            icon: (_isVideoActive && !_isCameraOff)
+                                ? Icons.videocam_rounded
+                                : Icons.videocam_off_rounded,
+                            label: (_isVideoActive && !_isCameraOff) ? 'Camera' : 'Cam Off',
+                            bgColor: (_isVideoActive && !_isCameraOff)
+                                ? Colors.white.withValues(alpha: 0.14)
+                                : Colors.white,
+                            iconColor: (_isVideoActive && !_isCameraOff)
+                                ? Colors.white
+                                : const Color(0xFF0F172A),
+                            onTap: _phase == 'ended' ? null : _toggleCamera,
+                          ),
+                          _buildActionCircle(
+                            icon: Icons.auto_awesome_rounded,
+                            label: _isBeautyFilterOn ? 'Filtered' : 'Filter',
+                            bgColor: _isBeautyFilterOn
+                                ? const Color(0xFFEC4899)
+                                : Colors.white.withValues(alpha: 0.14),
+                            iconColor: Colors.white,
+                            onTap: (_phase == 'ended' || !_isVideoActive || _isCameraOff)
+                                ? null
+                                : _toggleBeautyFilter,
+                          ),
+                          _buildActionCircle(
+                            icon: _isScreenSharing
+                                ? Icons.stop_screen_share_rounded
+                                : Icons.screen_share_rounded,
+                            label: _isScreenSharing ? 'Sharing' : 'Share',
+                            bgColor: _isScreenSharing
+                                ? ZevColors.primaryBlue
+                                : Colors.white.withValues(alpha: 0.14),
+                            iconColor: _isScreenSharing
+                                ? ZevColors.deepNavy
+                                : Colors.white,
+                            onTap: _phase == 'accepted' ? _toggleScreenShare : null,
+                          ),
+                          if (_isVideoActive && !_isCameraOff)
                             _buildActionCircle(
                               icon: Icons.cameraswitch_rounded,
                               label: 'Flip',
                               bgColor: Colors.white.withValues(alpha: 0.14),
-                              onTap: (_phase == 'ended' || _isCameraOff)
-                                  ? null
-                                  : _switchCamera,
+                              onTap: _switchCamera,
                             ),
-                          ],
                           if (!kIsWeb)
                             _buildActionCircle(
                               icon: _isSpeakerOn
@@ -1695,7 +1925,7 @@ class _CallScreenState extends State<CallScreen>
             right: 16,
             child: _buildScreenSharingPipCard(isWide: false),
           )
-        else if (widget.isVideo &&
+        else if (_isVideoActive &&
             _localVideoController != null &&
             !_isCameraOff &&
             _phase != 'ended')
