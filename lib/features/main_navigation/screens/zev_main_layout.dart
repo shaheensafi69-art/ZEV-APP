@@ -58,6 +58,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   late final Widget _feedTab;
   late final Widget _exploreTab;
   late final Widget _profileTab;
+  late final Widget _messagesTab;
+  late final Widget _notificationsTab;
 
   @override
   void initState() {
@@ -65,16 +67,26 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     _currentIndex = widget.initialIndex;
     _feedTab = FeedViewerScreen(
       onOpenNotifications: () async {
-        await NotificationsScreen.open(context);
-        BadgeCounterService.instance.refreshCounts();
+        if (MediaQuery.sizeOf(context).width >= 720) {
+          _onTabTapped(6);
+        } else {
+          await NotificationsScreen.open(context);
+          BadgeCounterService.instance.refreshCounts();
+        }
       },
       onOpenMessages: () async {
-        await ChatListScreen.open(context);
-        BadgeCounterService.instance.refreshCounts();
+        if (MediaQuery.sizeOf(context).width >= 720) {
+          _onTabTapped(5);
+        } else {
+          await ChatListScreen.open(context);
+          BadgeCounterService.instance.refreshCounts();
+        }
       },
     );
     _exploreTab = const ExploreScreen();
     _profileTab = const ProfileScreen();
+    _messagesTab = const ChatListScreen();
+    _notificationsTab = const NotificationsScreen();
 
     // Listen to static notifier updates
     ZevMainLayout.userAvatarNotifier.addListener(_onAvatarNotifierChanged);
@@ -197,6 +209,12 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
 
       // Tab 4: Profile
       _profileTab,
+
+      // Tab 5: Messages (Persistent Web & Tablet Shell)
+      _messagesTab,
+
+      // Tab 6: Notifications (Persistent Web & Tablet Shell)
+      _notificationsTab,
     ];
 
     // ========================================================
@@ -420,32 +438,28 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     ValueListenableBuilder<int>(
                       valueListenable:
                           BadgeCounterService.instance.unreadMessagesCount,
-                      builder: (context, count, _) => _buildSidebarActionItem(
+                      builder: (context, count, _) => _buildSidebarNavItem(
+                        index: 5,
                         icon: Icons.chat_bubble_outline_rounded,
+                        activeIcon: Icons.chat_bubble_rounded,
                         label: "Messages",
                         isExpanded: isExpanded,
                         isReels: isReels,
                         badgeCount: count,
-                        onTap: () async {
-                          await ChatListScreen.open(context);
-                          BadgeCounterService.instance.refreshCounts();
-                        },
                       ),
                     ),
                     const SizedBox(height: 6),
                     ValueListenableBuilder<int>(
                       valueListenable:
                           BadgeCounterService.instance.unreadNotificationsCount,
-                      builder: (context, count, _) => _buildSidebarActionItem(
+                      builder: (context, count, _) => _buildSidebarNavItem(
+                        index: 6,
                         icon: Icons.favorite_outline_rounded,
+                        activeIcon: Icons.favorite_rounded,
                         label: "Notifications",
                         isExpanded: isExpanded,
                         isReels: isReels,
                         badgeCount: count,
-                        onTap: () async {
-                          await NotificationsScreen.open(context);
-                          BadgeCounterService.instance.refreshCounts();
-                        },
                       ),
                     ),
                     const SizedBox(height: 18),
@@ -475,6 +489,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     required String label,
     required bool isExpanded,
     required bool isReels,
+    int badgeCount = 0,
   }) {
     final isSelected = _currentIndex == index;
     final inactiveColor = isReels ? Colors.white60 : const Color(0xFF64748B);
@@ -514,11 +529,26 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                   scale: isSelected ? 1.08 : 1.0,
                   duration: const Duration(milliseconds: 180),
                   curve: Curves.easeOutCubic,
-                  child: Icon(
-                    isSelected ? activeIcon : icon,
-                    size: 26,
-                    color: isSelected ? activeColor : inactiveColor,
-                  ),
+                  child: badgeCount > 0
+                      ? Badge.count(
+                          count: badgeCount,
+                          backgroundColor: const Color(0xFFEF4444),
+                          textColor: Colors.white,
+                          textStyle: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                          child: Icon(
+                            isSelected ? activeIcon : icon,
+                            size: 26,
+                            color: isSelected ? activeColor : inactiveColor,
+                          ),
+                        )
+                      : Icon(
+                          isSelected ? activeIcon : icon,
+                          size: 26,
+                          color: isSelected ? activeColor : inactiveColor,
+                        ),
                 ),
                 if (isExpanded) ...[
                   const SizedBox(width: 14),
@@ -548,144 +578,6 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                             offset: const Offset(0, 1),
                           ),
                         ],
-                      ),
-                    ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSidebarActionItem({
-    required IconData icon,
-    required String label,
-    required bool isExpanded,
-    required bool isReels,
-    required VoidCallback onTap,
-    int badgeCount = 0,
-  }) {
-    final inactiveColor = isReels ? Colors.white60 : const Color(0xFF64748B);
-    final hasBadge = badgeCount > 0;
-    final badgeText = badgeCount > 99 ? '99+' : '$badgeCount';
-
-    return Tooltip(
-      message: isExpanded ? '' : (hasBadge ? '$label ($badgeText)' : label),
-      preferBelow: false,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            HapticFeedback.lightImpact();
-            onTap();
-          },
-          hoverColor: (isReels ? Colors.white : ZevColors.primaryBlue)
-              .withValues(alpha: 0.06),
-          child: Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: isExpanded ? 14 : 10,
-              vertical: 11,
-            ),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              mainAxisAlignment: isExpanded
-                  ? MainAxisAlignment.start
-                  : MainAxisAlignment.center,
-              children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Icon(
-                      icon,
-                      size: 25,
-                      color: inactiveColor,
-                    ),
-                    if (!isExpanded && hasBadge)
-                      Positioned(
-                        top: -5,
-                        right: -7,
-                        child: Container(
-                          constraints: const BoxConstraints(
-                            minWidth: 16,
-                            minHeight: 16,
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 1,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFF3040),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: isReels
-                                  ? const Color(0xFF0F172A)
-                                  : Colors.white,
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Center(
-                            child: Text(
-                              badgeText,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w800,
-                                height: 1.1,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                if (isExpanded) ...[
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: inactiveColor,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                  ),
-                  if (hasBadge)
-                    Container(
-                      constraints: const BoxConstraints(
-                        minWidth: 22,
-                        minHeight: 20,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF3040),
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFFF3040).withValues(alpha: 0.28),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          badgeText,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
                       ),
                     ),
                 ],

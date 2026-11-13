@@ -3750,126 +3750,137 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
             ),
             const SizedBox(width: 8),
 
-            // Action Buttons
-            if (widget.isHost && !_isEnded) ...[
-              // 1. Stage / Co-Hosts Button (ONE unified button for all seats & requests)
-              _buildRoundActionButton(
-                icon: Icons.groups_rounded,
-                iconColor: _stageRequests.isNotEmpty
-                    ? const Color(0xFF10B981)
-                    : Colors.white,
-                gradient: _stageRequests.isNotEmpty
-                    ? const LinearGradient(
-                        colors: [Color(0xFF10B981), Color(0xFF059669)],
-                      )
-                    : null,
-                backgroundColor: Colors.black.withValues(alpha: 0.50),
-                badge: _stageRequests.isNotEmpty
-                    ? '${_stageRequests.length}'
-                    : (_audioGuests.isNotEmpty ? '${_audioGuests.length}' : null),
-                onTap: _openStageManagementSheet,
-              ),
-              const SizedBox(width: 6),
+            // Action Buttons (Overflow-proof with FittedBox scaling)
+            Flexible(
+              flex: 0,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.isHost && !_isEnded) ...[
+                      // 1. Stage / Co-Hosts Button (ONE unified button for all seats & requests)
+                      _buildRoundActionButton(
+                        icon: Icons.groups_rounded,
+                        iconColor: _stageRequests.isNotEmpty
+                            ? const Color(0xFF10B981)
+                            : Colors.white,
+                        gradient: _stageRequests.isNotEmpty
+                            ? const LinearGradient(
+                                colors: [Color(0xFF10B981), Color(0xFF059669)],
+                              )
+                            : null,
+                        backgroundColor: Colors.black.withValues(alpha: 0.50),
+                        badge: _stageRequests.isNotEmpty
+                            ? '${_stageRequests.length}'
+                            : (_audioGuests.isNotEmpty ? '${_audioGuests.length}' : null),
+                        onTap: _openStageManagementSheet,
+                      ),
+                      const SizedBox(width: 6),
 
-              // 2. PK Battle Button
-              _buildRoundActionButton(
-                icon: Icons.sports_kabaddi_rounded,
-                iconColor: _isPkMatchActive
-                    ? const Color(0xFFFFD600)
-                    : Colors.white,
-                gradient: _isPkMatchActive
-                    ? const LinearGradient(
-                        colors: [Color(0xFFFF2D55), Color(0xFF6366F1)],
-                      )
-                    : null,
-                backgroundColor: _isPkMatchActive
-                    ? null
-                    : Colors.black.withValues(alpha: 0.50),
-                badge: 'PK',
-                onTap: _openPkMatchSheet,
-              ),
-              const SizedBox(width: 6),
+                      // 2. PK Battle Button
+                      _buildRoundActionButton(
+                        icon: Icons.sports_kabaddi_rounded,
+                        iconColor: _isPkMatchActive
+                            ? const Color(0xFFFFD600)
+                            : Colors.white,
+                        gradient: _isPkMatchActive
+                            ? const LinearGradient(
+                                colors: [Color(0xFFFF2D55), Color(0xFF6366F1)],
+                              )
+                            : null,
+                        backgroundColor: _isPkMatchActive
+                            ? null
+                            : Colors.black.withValues(alpha: 0.50),
+                        badge: 'PK',
+                        onTap: _openPkMatchSheet,
+                      ),
+                      const SizedBox(width: 6),
 
-              // 3. Share Button (Opens Followers/Following drawer)
-              _buildRoundActionButton(
-                icon: Icons.reply_rounded,
-                iconColor: Colors.white,
-                backgroundColor: Colors.black.withValues(alpha: 0.50),
-                badge: 'Share',
-                onTap: _openShareWithFollowersSheet,
-              ),
-              const SizedBox(width: 6),
+                      // 3. Share Button (Opens Followers/Following drawer)
+                      _buildRoundActionButton(
+                        icon: Icons.reply_rounded,
+                        iconColor: Colors.white,
+                        backgroundColor: Colors.black.withValues(alpha: 0.50),
+                        badge: 'Share',
+                        onTap: _openShareWithFollowersSheet,
+                      ),
+                      const SizedBox(width: 6),
 
-              // 4. Host Tools (Flip camera, camera on/off, mute mic, gifts)
-              _buildRoundActionButton(
-                icon: Icons.more_horiz_rounded,
-                iconColor: Colors.white,
-                backgroundColor: Colors.black.withValues(alpha: 0.50),
-                badge: 'Tools',
-                onTap: _openHostToolsSheet,
-              ),
-            ] else ...[
-              // Viewer Actions
-              // 1. Stage request
-              _buildRoundActionButton(
-                icon: Icons.person_add_alt_1_rounded,
-                iconColor: _isGuestOnStage
-                    ? const Color(0xFF10B981)
-                    : Colors.white,
-                gradient: _isGuestOnStage
-                    ? const LinearGradient(
-                        colors: [Color(0xFF10B981), Color(0xFF059669)],
-                      )
-                    : null,
-                backgroundColor: Colors.black.withValues(alpha: 0.50),
-                badge: _isGuestOnStage ? 'Live' : null,
-                onTap: _openStageManagementSheet,
-              ),
-              const SizedBox(width: 6),
+                      // 4. Host Tools (Flip camera, camera on/off, mute mic, gifts)
+                      _buildRoundActionButton(
+                        icon: Icons.more_horiz_rounded,
+                        iconColor: Colors.white,
+                        backgroundColor: Colors.black.withValues(alpha: 0.50),
+                        badge: 'Tools',
+                        onTap: _openHostToolsSheet,
+                      ),
+                    ] else ...[
+                      // Viewer Actions
+                      // 1. Stage request
+                      _buildRoundActionButton(
+                        icon: Icons.person_add_alt_1_rounded,
+                        iconColor: _isGuestOnStage
+                            ? const Color(0xFF10B981)
+                            : Colors.white,
+                        gradient: _isGuestOnStage
+                            ? const LinearGradient(
+                                colors: [Color(0xFF10B981), Color(0xFF059669)],
+                              )
+                            : null,
+                        backgroundColor: Colors.black.withValues(alpha: 0.50),
+                        badge: _isGuestOnStage ? 'Live' : null,
+                        onTap: _openStageManagementSheet,
+                      ),
+                      const SizedBox(width: 6),
 
-              // 2. Share
-              _buildRoundActionButton(
-                icon: Icons.reply_rounded,
-                iconColor: Colors.white,
-                backgroundColor: Colors.black.withValues(alpha: 0.50),
-                onTap: _openShareWithFollowersSheet,
-              ),
-              const SizedBox(width: 6),
+                      // 2. Share
+                      _buildRoundActionButton(
+                        icon: Icons.reply_rounded,
+                        iconColor: Colors.white,
+                        backgroundColor: Colors.black.withValues(alpha: 0.50),
+                        onTap: _openShareWithFollowersSheet,
+                      ),
+                      const SizedBox(width: 6),
 
-              // 3. Quick Rose
-              _buildRoundActionButton(
-                icon: Icons.local_florist_rounded,
-                iconColor: const Color(0xFFFF2D55),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFF2D55), Color(0xFFFF758C)],
+                      // 3. Quick Rose
+                      _buildRoundActionButton(
+                        icon: Icons.local_florist_rounded,
+                        iconColor: const Color(0xFFFF2D55),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFF2D55), Color(0xFFFF758C)],
+                        ),
+                        badge: 'Rose',
+                        onTap: () => _sendGift(_availableGifts[0]),
+                      ),
+                      const SizedBox(width: 6),
+
+                      // 4. Gift Drawer
+                      _buildRoundActionButton(
+                        icon: Icons.card_giftcard_rounded,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+                        ),
+                        badge: 'Gift',
+                        onTap: _openGiftSheet,
+                      ),
+                      const SizedBox(width: 6),
+
+                      // 5. Heart / Reaction
+                      _buildRoundActionButton(
+                        icon: Icons.favorite_rounded,
+                        iconColor: const Color(0xFFFF2D55),
+                        backgroundColor: Colors.black.withValues(alpha: 0.50),
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          _sendReaction('❤️');
+                        },
+                      ),
+                    ],
+                  ],
                 ),
-                badge: 'Rose',
-                onTap: () => _sendGift(_availableGifts[0]),
               ),
-              const SizedBox(width: 6),
-
-              // 4. Gift Drawer
-              _buildRoundActionButton(
-                icon: Icons.card_giftcard_rounded,
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
-                ),
-                badge: 'Gift',
-                onTap: _openGiftSheet,
-              ),
-              const SizedBox(width: 6),
-
-              // 5. Heart / Reaction
-              _buildRoundActionButton(
-                icon: Icons.favorite_rounded,
-                iconColor: const Color(0xFFFF2D55),
-                backgroundColor: Colors.black.withValues(alpha: 0.50),
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  _sendReaction('❤️');
-                },
-              ),
-            ],
+            ),
           ],
         ),
       ),

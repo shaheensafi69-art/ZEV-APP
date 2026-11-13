@@ -13,6 +13,25 @@ import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../main.dart';
 
+/// Live Face / Camera AR Effect Model for ZEV Calls.
+class ZevCallEffect {
+  final String id;
+  final String name;
+  final String iconEmoji;
+  final String category; // 'effects', 'lighting', 'backgrounds'
+  final BeautyOptions? agoraBeauty;
+  final ColorFilter? colorFilter;
+
+  const ZevCallEffect({
+    required this.id,
+    required this.name,
+    required this.iconEmoji,
+    required this.category,
+    this.agoraBeauty,
+    this.colorFilter,
+  });
+}
+
 /// Production Agora RTC Voice & Video Call Screen for ZEV.
 /// Supports 1-to-1 outgoing & incoming calls, real-time Supabase signaling,
 /// Android/iOS/Web WebRTC (iris-web) transport, and responsive video PIP + voice UI.
@@ -161,11 +180,134 @@ class _CallScreenState extends State<CallScreen>
   bool _isSpeakerOn = true;
   bool _isCameraOff = false;
   bool _isVideoActive = false;
-  bool _isBeautyFilterOn = false;
   bool _isScreenSharing = false;
   bool _isActionInFlight = false;
   bool _engineJoined = false;
   bool _isClosing = false;
+
+  // AR Effects & Multi-platform stage state
+  bool _showEffectsTray = false;
+  String _selectedEffectId = 'none';
+  String _selectedEffectCategory = 'effects';
+  String _webAspectMode = 'phone'; // 'phone' (9:16 portrait), 'wide' (16:9), 'fit'
+
+  static const List<ZevCallEffect> _kCallEffects = [
+    ZevCallEffect(
+      id: 'none',
+      name: 'None',
+      iconEmoji: '🚫',
+      category: 'effects',
+    ),
+    ZevCallEffect(
+      id: 'glow',
+      name: 'Glow',
+      iconEmoji: '✨',
+      category: 'effects',
+      agoraBeauty: BeautyOptions(
+        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastNormal,
+        lighteningLevel: 0.70,
+        smoothnessLevel: 0.85,
+        rednessLevel: 0.30,
+        sharpnessLevel: 0.40,
+      ),
+    ),
+    ZevCallEffect(
+      id: 'warm',
+      name: 'Sunset',
+      iconEmoji: '🌅',
+      category: 'lighting',
+      agoraBeauty: BeautyOptions(
+        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastHigh,
+        lighteningLevel: 0.60,
+        smoothnessLevel: 0.50,
+        rednessLevel: 0.60,
+      ),
+      colorFilter: ColorFilter.matrix(<double>[
+        1.15, 0, 0, 0, 15,
+        0, 1.02, 0, 0, 5,
+        0, 0, 0.85, 0, -10,
+        0, 0, 0, 1, 0,
+      ]),
+    ),
+    ZevCallEffect(
+      id: 'studio',
+      name: 'Studio',
+      iconEmoji: '💡',
+      category: 'lighting',
+      agoraBeauty: BeautyOptions(
+        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastNormal,
+        lighteningLevel: 0.90,
+        smoothnessLevel: 0.65,
+        sharpnessLevel: 0.50,
+      ),
+    ),
+    ZevCallEffect(
+      id: 'cyber',
+      name: 'Cyber',
+      iconEmoji: '⚡',
+      category: 'effects',
+      colorFilter: ColorFilter.matrix(<double>[
+        1.2, 0, 0.2, 0, 10,
+        0, 1.1, 0, 0, 0,
+        0.2, 0, 1.3, 0, 20,
+        0, 0, 0, 1, 0,
+      ]),
+    ),
+    ZevCallEffect(
+      id: 'noir',
+      name: 'Noir',
+      iconEmoji: '🎬',
+      category: 'effects',
+      colorFilter: ColorFilter.matrix(<double>[
+        0.2126, 0.7152, 0.0722, 0, 0,
+        0.2126, 0.7152, 0.0722, 0, 0,
+        0.2126, 0.7152, 0.0722, 0, 0,
+        0, 0, 0, 1, 0,
+      ]),
+    ),
+    ZevCallEffect(
+      id: 'blush',
+      name: 'Blush',
+      iconEmoji: '🌸',
+      category: 'effects',
+      agoraBeauty: BeautyOptions(
+        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastNormal,
+        lighteningLevel: 0.60,
+        smoothnessLevel: 0.80,
+        rednessLevel: 0.50,
+      ),
+      colorFilter: ColorFilter.matrix(<double>[
+        1.1, 0, 0, 0, 15,
+        0, 0.98, 0, 0, 5,
+        0, 0, 1.0, 0, 8,
+        0, 0, 0, 1, 0,
+      ]),
+    ),
+    ZevCallEffect(
+      id: 'vintage',
+      name: 'Vintage',
+      iconEmoji: '🎞️',
+      category: 'lighting',
+      colorFilter: ColorFilter.matrix(<double>[
+        0.393, 0.769, 0.189, 0, 0,
+        0.349, 0.686, 0.168, 0, 0,
+        0.272, 0.534, 0.131, 0, 0,
+        0, 0, 0, 1, 0,
+      ]),
+    ),
+    ZevCallEffect(
+      id: 'ocean',
+      name: 'Ocean',
+      iconEmoji: '🌊',
+      category: 'backgrounds',
+      colorFilter: ColorFilter.matrix(<double>[
+        0.85, 0, 0, 0, -10,
+        0, 1.1, 0, 0, 10,
+        0, 0.1, 1.2, 0, 25,
+        0, 0, 0, 1, 0,
+      ]),
+    ),
+  ];
 
   @override
   void initState() {
@@ -817,53 +959,35 @@ class _CallScreenState extends State<CallScreen>
     } catch (_) {}
   }
 
-  Future<void> _toggleBeautyFilter() async {
+  Future<void> _applyEffect(ZevCallEffect effect) async {
     final eng = _engine;
-    if (eng == null || !_isVideoActive || _isCameraOff) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Turn on camera to enable beauty filter • برای فعال‌سازی فیلتر، کمره را روشن کنید'),
-            duration: Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Color(0xFF0F172A),
-          ),
-        );
-      }
-      return;
-    }
     HapticFeedback.selectionClick();
-    final next = !_isBeautyFilterOn;
-    setState(() => _isBeautyFilterOn = next);
+    setState(() {
+      _selectedEffectId = effect.id;
+    });
 
-    try {
-      await eng.setBeautyEffectOptions(
-        enabled: next,
-        options: const BeautyOptions(
-          lighteningContrastLevel: LighteningContrastLevel.lighteningContrastNormal,
-          lighteningLevel: 0.65,
-          smoothnessLevel: 0.60,
-          rednessLevel: 0.20,
-          sharpnessLevel: 0.35,
-        ),
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              next
-                  ? 'Beauty filter enabled ✨ • فیلتر زیبایی فعال شد'
-                  : 'Beauty filter disabled • فیلتر زیبایی خاموش شد',
-            ),
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: const Color(0xFF0F172A),
-          ),
-        );
+    if (eng != null) {
+      try {
+        if (effect.agoraBeauty != null) {
+          await eng.setBeautyEffectOptions(
+            enabled: true,
+            options: effect.agoraBeauty!,
+          );
+        } else {
+          await eng.setBeautyEffectOptions(
+            enabled: false,
+            options: const BeautyOptions(),
+          );
+        }
+      } catch (e) {
+        debugPrint('[CallScreen] Apply effect error: $e');
       }
-    } catch (e) {
-      debugPrint('[CallScreen] Beauty filter error: $e');
     }
+  }
+
+  Future<void> _toggleBeautyFilter() async {
+    HapticFeedback.lightImpact();
+    setState(() => _showEffectsTray = !_showEffectsTray);
   }
 
   Future<void> _toggleScreenShare() async {
@@ -1212,193 +1336,40 @@ class _CallScreenState extends State<CallScreen>
                 padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
                 child: Center(
                   child: Container(
-                    constraints: const BoxConstraints(maxWidth: 1300),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF030712),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.14),
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.6),
-                          blurRadius: 30,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          // Remote video or centered voice avatar
-                          if (hasRemoteVideo)
-                            Center(
-                              child: AgoraVideoView(
-                                key: ValueKey('remote_wide_${_remoteUid}_$_remoteVideoEnabled'),
-                                controller: _remoteVideoController!,
-                              ),
-                            )
-                            else
-                              Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    AnimatedBuilder(
-                                      animation: _pulseCtrl,
-                                      builder: (context, child) {
-                                        final glow = 12.0 + (_pulseCtrl.value * 18.0);
-                                        return Container(
-                                          padding: const EdgeInsets.all(6),
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: (_phase == 'accepted'
-                                                      ? ZevColors.successGreen
-                                                      : ZevColors.primaryBlue)
-                                                  .withValues(alpha: 0.55),
-                                              width: 3.0,
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: (_phase == 'accepted'
-                                                        ? ZevColors.successGreen
-                                                        : ZevColors.primaryBlue)
-                                                    .withValues(alpha: 0.35),
-                                                blurRadius: glow,
-                                                spreadRadius: 3,
-                                              ),
-                                            ],
-                                          ),
-                                          child: child,
-                                        );
-                                      },
-                                      child: ZevCachedImage.avatar(
-                                        imageUrl: widget.peerAvatar,
-                                        size: 130,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 20),
-                                    Text(
-                                      displayName,
-                                      style: const TextStyle(
-                                        fontSize: 26,
-                                        fontWeight: FontWeight.w900,
-                                        color: Colors.white,
-                                        letterSpacing: -0.3,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      _phase == 'accepted' && !widget.isVideo
-                                          ? 'HD Voice Connected • ${_formatDuration(_elapsedSeconds)}'
-                                          : _statusLabel,
-                                      style: TextStyle(
-                                        fontSize: 14.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: _phase == 'accepted'
-                                            ? const Color(0xFF6EE7B7)
-                                            : Colors.white.withValues(alpha: 0.78),
-                                      ),
-                                    ),
-                                    if (_errorMsg != null) ...[
-                                      const SizedBox(height: 10),
-                                      Text(
-                                        _errorMsg!,
-                                        style: const TextStyle(
-                                          color: Color(0xFFFCA5A5),
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
+                    constraints: const BoxConstraints(maxWidth: 1380),
+                    child: MediaQuery.sizeOf(context).width >= 960
+                        ? Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Left: Centered Presentation Canvas
+                              Expanded(
+                                child: _buildWebMainStage(
+                                  hasRemoteVideo: hasRemoteVideo,
+                                  displayName: displayName,
                                 ),
                               ),
-
-                            // Peer name pill inside video (bottom left)
-                            if (hasRemoteVideo)
-                              Positioned(
-                                left: 16,
-                                bottom: 16,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 7,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.65),
-                                    borderRadius: BorderRadius.circular(999),
-                                    border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.16),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        displayName,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                              const SizedBox(width: 16),
+                              // Right: Google Meet Participant Column
+                              SizedBox(
+                                width: 280,
+                                child: _buildWebSideColumn(
+                                  displayName: displayName,
+                                  hasRemoteVideo: hasRemoteVideo,
                                 ),
                               ),
-
-                            // Floating Self Camera PIP or Screen Share Indicator (top right of stage)
-                            if (_isScreenSharing && _phase != 'ended')
-                              Positioned(
-                                top: 16,
-                                right: 16,
-                                child: _buildScreenSharingPipCard(isWide: true),
-                              )
-                            else if (_isVideoActive &&
-                                _localVideoController != null &&
-                                !_isCameraOff &&
-                                _phase != 'ended')
-                              Positioned(
-                                top: 16,
-                                right: 16,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Container(
-                                    width: 220,
-                                    height: 124,
-                                    decoration: BoxDecoration(
-                                      color: Colors.black,
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color: Colors.white.withValues(alpha: 0.4),
-                                        width: 1.5,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(alpha: 0.5),
-                                          blurRadius: 16,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ],
-                                    ),
-                                    child: AgoraVideoView(
-                                      key: const ValueKey('local_self_preview_wide'),
-                                      controller: _localVideoController!,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
+                            ],
+                          )
+                        : _buildWebMainStage(
+                            hasRemoteVideo: hasRemoteVideo,
+                            displayName: displayName,
+                          ),
                   ),
                 ),
               ),
+            ),
+
+            // Live AR Effects Tray if toggled
+            if (_showEffectsTray) _buildArEffectsTray(),
 
             // Bottom Widescreen Floating Control Dock
             if (showIncomingChoice)
@@ -1476,14 +1447,12 @@ class _CallScreenState extends State<CallScreen>
                     const SizedBox(width: 14),
                     _buildActionCircle(
                       icon: Icons.auto_awesome_rounded,
-                      label: _isBeautyFilterOn ? 'Filtered' : 'Filter',
-                      bgColor: _isBeautyFilterOn
+                      label: _selectedEffectId != 'none' ? 'Effect On' : 'Effects',
+                      bgColor: _showEffectsTray || _selectedEffectId != 'none'
                           ? const Color(0xFFEC4899)
                           : Colors.white.withValues(alpha: 0.14),
                       iconColor: Colors.white,
-                      onTap: (_phase == 'ended' || !_isVideoActive || _isCameraOff)
-                          ? null
-                          : _toggleBeautyFilter,
+                      onTap: _phase == 'ended' ? null : _toggleBeautyFilter,
                     ),
                     const SizedBox(width: 14),
                     _buildActionCircle(
@@ -1554,6 +1523,477 @@ class _CallScreenState extends State<CallScreen>
     );
   }
 
+  /// Web Main Presentation Stage (Centered 9:16 phone / 16:9 widescreen)
+  Widget _buildWebMainStage({
+    required bool hasRemoteVideo,
+    required String displayName,
+  }) {
+    final activeEffect = _kCallEffects.firstWhere(
+      (e) => e.id == _selectedEffectId,
+      orElse: () => _kCallEffects[0],
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF030712),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.14),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.6),
+            blurRadius: 30,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Remote video in aspect-ratio container (NO STRETCHING)
+            if (hasRemoteVideo)
+              Center(
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  child: SizedBox(
+                    width: _webAspectMode == 'phone'
+                        ? 405
+                        : (_webAspectMode == 'wide' ? 1280 : 1280),
+                    height: 720,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: activeEffect.colorFilter != null
+                          ? ColorFiltered(
+                              colorFilter: activeEffect.colorFilter!,
+                              child: AgoraVideoView(
+                                key: ValueKey(
+                                  'remote_wide_${_remoteUid}_${_remoteVideoEnabled}_$_webAspectMode',
+                                ),
+                                controller: _remoteVideoController!,
+                              ),
+                            )
+                          : AgoraVideoView(
+                              key: ValueKey(
+                                'remote_wide_${_remoteUid}_${_remoteVideoEnabled}_$_webAspectMode',
+                              ),
+                              controller: _remoteVideoController!,
+                            ),
+                    ),
+                  ),
+                ),
+              )
+            else
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedBuilder(
+                      animation: _pulseCtrl,
+                      builder: (context, child) {
+                        final glow = 12.0 + (_pulseCtrl.value * 18.0);
+                        return Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: (_phase == 'accepted'
+                                      ? ZevColors.successGreen
+                                      : ZevColors.primaryBlue)
+                                  .withValues(alpha: 0.55),
+                              width: 3.0,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: (_phase == 'accepted'
+                                        ? ZevColors.successGreen
+                                        : ZevColors.primaryBlue)
+                                    .withValues(alpha: 0.35),
+                                blurRadius: glow,
+                                spreadRadius: 3,
+                              ),
+                            ],
+                          ),
+                          child: child,
+                        );
+                      },
+                      child: ZevCachedImage.avatar(
+                        imageUrl: widget.peerAvatar,
+                        size: 130,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      displayName,
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _phase == 'accepted' && !widget.isVideo
+                          ? 'HD Voice Connected • ${_formatDuration(_elapsedSeconds)}'
+                          : _statusLabel,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: _phase == 'accepted'
+                            ? const Color(0xFF6EE7B7)
+                            : Colors.white.withValues(alpha: 0.78),
+                      ),
+                    ),
+                    if (_errorMsg != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        _errorMsg!,
+                        style: const TextStyle(
+                          color: Color(0xFFFCA5A5),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+            // Top Bar: Google Meet Style Stream Banner & Aspect Ratio selector
+            Positioned(
+              left: 16,
+              top: 16,
+              right: 16,
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.72),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.18),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFF10B981),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          hasRemoteVideo
+                              ? '$displayName is presenting screen'
+                              : displayName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Spacer(),
+                  // Aspect Ratio Mode Switcher (Google Meet grade)
+                  if (hasRemoteVideo)
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.72),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.18),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildAspectModeButton('📱 9:16', 'phone'),
+                          _buildAspectModeButton('💻 16:9', 'wide'),
+                          _buildAspectModeButton('↔ Fit', 'fit'),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
+            // Floating Self Camera PIP on Narrow Web Screens
+            if (MediaQuery.sizeOf(context).width < 960) ...[
+              if (_isScreenSharing && _phase != 'ended')
+                Positioned(
+                  top: 16,
+                  right: 16,
+                  child: _buildScreenSharingPipCard(isWide: true),
+                )
+              else if (_isVideoActive &&
+                  _localVideoController != null &&
+                  !_isCameraOff &&
+                  _phase != 'ended')
+                Positioned(
+                  top: 16,
+                  right: 16,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      width: 220,
+                      height: 124,
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.4),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.5),
+                            blurRadius: 16,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: AgoraVideoView(
+                        key: const ValueKey('local_self_preview_wide'),
+                        controller: _localVideoController!,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAspectModeButton(String label, String mode) {
+    final isSelected = _webAspectMode == mode;
+    return GestureDetector(
+      onTap: () => setState(() => _webAspectMode = mode),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? ZevColors.primaryBlue
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: isSelected ? ZevColors.deepNavy : Colors.white70,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Google Meet Participant Stack (Right Column on Desktop Web)
+  Widget _buildWebSideColumn({
+    required String displayName,
+    required bool hasRemoteVideo,
+  }) {
+    return Column(
+      children: [
+        // Tile 1: Self Video or Avatar Card (NO BLACK BOX)
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.92),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.16),
+                  width: 1.5,
+                ),
+              ),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (_isScreenSharing)
+                    Center(child: _buildScreenSharingPipCard(isWide: true))
+                  else if (_isVideoActive &&
+                      !_isCameraOff &&
+                      _localVideoController != null)
+                    AgoraVideoView(
+                      key: const ValueKey('local_self_tile'),
+                      controller: _localVideoController!,
+                    )
+                  else
+                    // Camera off placeholder card with avatar (Google Meet style)
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.2),
+                              ),
+                            ),
+                            child: const CircleAvatar(
+                              radius: 36,
+                              backgroundColor: Color(0xFF1E293B),
+                              child: Icon(
+                                Icons.person_rounded,
+                                color: Colors.white70,
+                                size: 36,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'You (Camera Off)',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // Pill at bottom left of tile
+                  Positioned(
+                    left: 10,
+                    bottom: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.65),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _isMicMuted
+                                ? Icons.mic_off_rounded
+                                : Icons.mic_rounded,
+                            size: 13,
+                            color: _isMicMuted
+                                ? const Color(0xFFEF4444)
+                                : const Color(0xFF10B981),
+                          ),
+                          const SizedBox(width: 4),
+                          const Text(
+                            'You',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Tile 2: Peer Profile Summary Card
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.92),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.16),
+                  width: 1.5,
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ZevCachedImage.avatar(
+                    imageUrl: widget.peerAvatar,
+                    size: 64,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      if (widget.isPeerVerified) ...[
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.verified_rounded,
+                          size: 15,
+                          color: ZevColors.primaryBlue,
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      _phase == 'accepted' ? 'HD Connected' : _statusLabel,
+                      style: const TextStyle(
+                        color: Color(0xFF6EE7B7),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   /// Mobile Portrait Layout (Instagram / FaceTime grade experience)
   Widget _buildMobileLayout() {
     final displayName = widget.peerFullName.isNotEmpty
@@ -1562,6 +2002,10 @@ class _CallScreenState extends State<CallScreen>
     final showIncomingChoice = !widget.isOutgoing && _phase == 'ringing';
     final hasRemoteVideo =
         _isVideoActive && _remoteVideoController != null && _remoteVideoEnabled;
+    final activeEffect = _kCallEffects.firstWhere(
+      (e) => e.id == _selectedEffectId,
+      orElse: () => _kCallEffects[0],
+    );
 
     return Stack(
       fit: StackFit.expand,
@@ -1571,10 +2015,18 @@ class _CallScreenState extends State<CallScreen>
           Container(
             color: const Color(0xFF030712),
             child: Center(
-              child: AgoraVideoView(
-                key: ValueKey('remote_$_remoteUid'),
-                controller: _remoteVideoController!,
-              ),
+              child: activeEffect.colorFilter != null
+                  ? ColorFiltered(
+                      colorFilter: activeEffect.colorFilter!,
+                      child: AgoraVideoView(
+                        key: ValueKey('remote_$_remoteUid'),
+                        controller: _remoteVideoController!,
+                      ),
+                    )
+                  : AgoraVideoView(
+                      key: ValueKey('remote_$_remoteUid'),
+                      controller: _remoteVideoController!,
+                    ),
             ),
           )
         else
@@ -1763,8 +2215,8 @@ class _CallScreenState extends State<CallScreen>
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                           color: _phase == 'accepted'
-                              ? const Color(0xFF6EE7B7)
-                              : Colors.white.withValues(alpha: 0.78),
+                            ? const Color(0xFF6EE7B7)
+                            : Colors.white.withValues(alpha: 0.78),
                         ),
                       ),
                       if (_errorMsg != null) ...[
@@ -1785,7 +2237,10 @@ class _CallScreenState extends State<CallScreen>
 
               const Spacer(),
 
-              // Bottom Mobile Controls Dock
+              // AR Effects Carousel Tray directly above the dock
+              if (_showEffectsTray) _buildArEffectsTray(),
+
+              // Bottom Mobile Controls Dock (Overflow-proof 5-button responsive bar)
               if (showIncomingChoice)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(32, 0, 32, 34),
@@ -1819,11 +2274,11 @@ class _CallScreenState extends State<CallScreen>
                     child: Container(
                       margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
+                        horizontal: 12,
                         vertical: 14,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A).withValues(alpha: 0.82),
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.85),
                         borderRadius: BorderRadius.circular(30),
                         border: Border.all(
                           color: Colors.white.withValues(alpha: 0.14),
@@ -1849,7 +2304,9 @@ class _CallScreenState extends State<CallScreen>
                             icon: (_isVideoActive && !_isCameraOff)
                                 ? Icons.videocam_rounded
                                 : Icons.videocam_off_rounded,
-                            label: (_isVideoActive && !_isCameraOff) ? 'Camera' : 'Cam Off',
+                            label: (_isVideoActive && !_isCameraOff)
+                                ? 'Camera'
+                                : 'Cam Off',
                             bgColor: (_isVideoActive && !_isCameraOff)
                                 ? Colors.white.withValues(alpha: 0.14)
                                 : Colors.white,
@@ -1860,49 +2317,21 @@ class _CallScreenState extends State<CallScreen>
                           ),
                           _buildActionCircle(
                             icon: Icons.auto_awesome_rounded,
-                            label: _isBeautyFilterOn ? 'Filtered' : 'Filter',
-                            bgColor: _isBeautyFilterOn
+                            label: _selectedEffectId != 'none'
+                                ? 'Effect'
+                                : 'Filter',
+                            bgColor: _showEffectsTray || _selectedEffectId != 'none'
                                 ? const Color(0xFFEC4899)
                                 : Colors.white.withValues(alpha: 0.14),
                             iconColor: Colors.white,
-                            onTap: (_phase == 'ended' || !_isVideoActive || _isCameraOff)
-                                ? null
-                                : _toggleBeautyFilter,
+                            onTap: _phase == 'ended' ? null : _toggleBeautyFilter,
                           ),
                           _buildActionCircle(
-                            icon: _isScreenSharing
-                                ? Icons.stop_screen_share_rounded
-                                : Icons.screen_share_rounded,
-                            label: _isScreenSharing ? 'Sharing' : 'Share',
-                            bgColor: _isScreenSharing
-                                ? ZevColors.primaryBlue
-                                : Colors.white.withValues(alpha: 0.14),
-                            iconColor: _isScreenSharing
-                                ? ZevColors.deepNavy
-                                : Colors.white,
-                            onTap: _phase == 'accepted' ? _toggleScreenShare : null,
+                            icon: Icons.more_horiz_rounded,
+                            label: 'Tools',
+                            bgColor: Colors.white.withValues(alpha: 0.14),
+                            onTap: _phase == 'ended' ? null : _openMobileToolsSheet,
                           ),
-                          if (_isVideoActive && !_isCameraOff)
-                            _buildActionCircle(
-                              icon: Icons.cameraswitch_rounded,
-                              label: 'Flip',
-                              bgColor: Colors.white.withValues(alpha: 0.14),
-                              onTap: _switchCamera,
-                            ),
-                          if (!kIsWeb)
-                            _buildActionCircle(
-                              icon: _isSpeakerOn
-                                  ? Icons.volume_up_rounded
-                                  : Icons.hearing_rounded,
-                              label: _isSpeakerOn ? 'Speaker' : 'Earpiece',
-                              bgColor: _isSpeakerOn
-                                  ? ZevColors.primaryBlue
-                                  : Colors.white.withValues(alpha: 0.14),
-                              iconColor: _isSpeakerOn
-                                  ? ZevColors.deepNavy
-                                  : Colors.white,
-                              onTap: _phase == 'ended' ? null : _toggleSpeaker,
-                            ),
                           _buildActionCircle(
                             icon: Icons.call_end_rounded,
                             label: 'End',
@@ -1918,7 +2347,7 @@ class _CallScreenState extends State<CallScreen>
           ),
         ),
 
-        // Local Self-View PIP or Screen Share Indicator
+        // Local Self-View PIP (Hidden cleanly when camera is off - NO BLACK BOX)
         if (_isScreenSharing && _phase != 'ended')
           Positioned(
             top: MediaQuery.of(context).padding.top + 60,
@@ -1932,27 +2361,359 @@ class _CallScreenState extends State<CallScreen>
           Positioned(
             top: MediaQuery.of(context).padding.top + 60,
             right: 16,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: Container(
-                width: 112,
-                height: 160,
-                decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.35),
-                    width: 1.5,
+            child: GestureDetector(
+              onTap: _switchCamera,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: Container(
+                  width: 112,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.35),
+                      width: 1.5,
+                    ),
                   ),
-                ),
-                child: AgoraVideoView(
-                  key: const ValueKey('local_self_preview'),
-                  controller: _localVideoController!,
+                  child: AgoraVideoView(
+                    key: const ValueKey('local_self_preview'),
+                    controller: _localVideoController!,
+                  ),
                 ),
               ),
             ),
           ),
       ],
+    );
+  }
+
+  /// AR Face Effects Carousel Tray (Facebook Messenger / Snapchat reference)
+  Widget _buildArEffectsTray() {
+    final currentCatEffects = _kCallEffects.where(
+      (e) => e.id == 'none' || e.category == _selectedEffectCategory,
+    ).toList();
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.90),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.16),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.5),
+                blurRadius: 20,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Category Bar & Dismiss Button
+              Row(
+                children: [
+                  _buildCategoryPill('EFFECTS', 'effects'),
+                  const SizedBox(width: 8),
+                  _buildCategoryPill('LIGHTING', 'lighting'),
+                  const SizedBox(width: 8),
+                  _buildCategoryPill('BACKGROUNDS', 'backgrounds'),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => setState(() => _showEffectsTray = false),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close_rounded,
+                        size: 16,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // Horizontal Carousel of Circular AR Effects
+              SizedBox(
+                height: 80,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: currentCatEffects.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 14),
+                  itemBuilder: (context, idx) {
+                    final item = currentCatEffects[idx];
+                    final isSelected = item.id == _selectedEffectId;
+                    return GestureDetector(
+                      onTap: () => _applyEffect(item),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: isSelected
+                                  ? const LinearGradient(
+                                      colors: [
+                                        Color(0xFFEC4899),
+                                        Color(0xFF8B5CF6),
+                                      ],
+                                    )
+                                  : null,
+                              color: isSelected
+                                  ? null
+                                  : Colors.white.withValues(alpha: 0.12),
+                              border: Border.all(
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.white.withValues(alpha: 0.25),
+                                width: isSelected ? 2.5 : 1.2,
+                              ),
+                              boxShadow: isSelected
+                                  ? [
+                                      BoxShadow(
+                                        color: const Color(0xFFEC4899)
+                                            .withValues(alpha: 0.6),
+                                        blurRadius: 10,
+                                        spreadRadius: 1,
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Center(
+                              child: Text(
+                                item.iconEmoji,
+                                style: const TextStyle(fontSize: 22),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            item.name,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: isSelected
+                                  ? FontWeight.w900
+                                  : FontWeight.w600,
+                              color: isSelected ? Colors.white : Colors.white70,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryPill(String label, String catKey) {
+    final isSelected = _selectedEffectCategory == catKey;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedEffectCategory = catKey),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Colors.white.withValues(alpha: 0.22)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.5,
+            color: isSelected ? Colors.white : Colors.white60,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openMobileToolsSheet() {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.95),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.14),
+                ),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 4.5,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      'Call Controls & Tools',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: _isScreenSharing
+                              ? ZevColors.primaryBlue
+                              : Colors.white.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          _isScreenSharing
+                              ? Icons.stop_screen_share_rounded
+                              : Icons.screen_share_rounded,
+                          color: _isScreenSharing
+                              ? ZevColors.deepNavy
+                              : Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      title: Text(
+                        _isScreenSharing ? 'Stop Screen Share' : 'Share Screen',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      subtitle: Text(
+                        _isScreenSharing
+                            ? 'Currently streaming your screen'
+                            : 'Stream your screen to peer',
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 12,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        _toggleScreenShare();
+                      },
+                    ),
+                    if (_isVideoActive && !_isCameraOff)
+                      ListTile(
+                        leading: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.cameraswitch_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        title: const Text(
+                          'Flip Camera',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        subtitle: const Text(
+                          'Switch between front and back camera',
+                          style: TextStyle(
+                            color: Colors.white60,
+                            fontSize: 12,
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.of(ctx).pop();
+                          _switchCamera();
+                        },
+                      ),
+                    if (!kIsWeb)
+                      ListTile(
+                        leading: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: _isSpeakerOn
+                                ? ZevColors.primaryBlue
+                                : Colors.white.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            _isSpeakerOn
+                                ? Icons.volume_up_rounded
+                                : Icons.hearing_rounded,
+                            color: _isSpeakerOn
+                                ? ZevColors.deepNavy
+                                : Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        title: Text(
+                          _isSpeakerOn ? 'Speakerphone (Loud)' : 'Earpiece',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        subtitle: Text(
+                          _isSpeakerOn
+                              ? 'Playing through device speaker'
+                              : 'Playing through earpiece receiver',
+                          style: const TextStyle(
+                            color: Colors.white60,
+                            fontSize: 12,
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.of(ctx).pop();
+                          _toggleSpeaker();
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

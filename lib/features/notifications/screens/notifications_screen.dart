@@ -1344,14 +1344,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         scrolledUnderElevation: 1,
         shadowColor: ZevColors.deepNavy.withValues(alpha: 0.06),
         centerTitle: false,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: ZevColors.deepNavy,
-            size: 20,
-          ),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        automaticallyImplyLeading: false,
+        leading: Navigator.of(context).canPop()
+            ? IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: ZevColors.deepNavy,
+                  size: 20,
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+              )
+            : null,
         title: Row(
           children: [
             const Text(

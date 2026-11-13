@@ -792,31 +792,34 @@ class _ChatListScreenState extends State<ChatListScreen> {
         elevation: 0,
         scrolledUnderElevation: 1,
         centerTitle: false,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 10),
-          child: Center(
-            child: GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                Navigator.of(context).pop();
-              },
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: ZevColors.softSurface,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 1.5),
+        automaticallyImplyLeading: false,
+        leading: Navigator.of(context).canPop()
+            ? Padding(
+                padding: const EdgeInsets.only(left: 10),
+                child: Center(
+                  child: GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      Navigator.of(context).pop();
+                    },
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: ZevColors.softSurface,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: ZevColors.deepNavy,
+                        size: 17,
+                      ),
+                    ),
+                  ),
                 ),
-                child: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  color: ZevColors.deepNavy,
-                  size: 17,
-                ),
-              ),
-            ),
-          ),
-        ),
+              )
+            : null,
         title: GestureDetector(
           onTap: () {
             HapticFeedback.lightImpact();
