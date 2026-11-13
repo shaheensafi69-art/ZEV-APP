@@ -13,6 +13,7 @@ import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/services/multi_account_service.dart';
 import '../../../core/services/passkey_auth_service.dart';
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/google_sign_in_button.dart';
 import '../../../core/widgets/zev_text_field.dart';
 import '../../main_navigation/screens/zev_main_layout.dart';
 import 'login_screen.dart';
@@ -921,6 +922,48 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildStep1Identity() {
     return Column(
       children: [
+        // 1-Tap Fast-Track Google Sign-Up (Native In-App, ChatGPT & Gemini Grade)
+        GoogleSignInButton(
+          text: "Sign up with Google",
+          onError: (msg) {
+            setState(() => _errorMsg = msg);
+          },
+        ),
+
+        const SizedBox(height: 18),
+
+        // OR Divider
+        Row(
+          children: [
+            const Expanded(
+              child: Divider(
+                color: Color(0xFFE2E8F0),
+                thickness: 1.2,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Text(
+                "OR REGISTER MANUALLY",
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF94A3B8),
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+            const Expanded(
+              child: Divider(
+                color: Color(0xFFE2E8F0),
+                thickness: 1.2,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 20),
+
         // Avatar Picker
         GestureDetector(
           onTap: _pickAvatar,

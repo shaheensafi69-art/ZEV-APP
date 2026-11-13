@@ -427,10 +427,15 @@ class _GoogleProfileCompletionScreenState
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.account_circle_rounded,
-                          size: 17,
-                          color: ZevColors.secondaryBlue,
+                        Image.asset(
+                          'assets/icon/google_logo.png',
+                          width: 17,
+                          height: 17,
+                          errorBuilder: (context, error, stackTrace) => const Icon(
+                            Icons.account_circle_rounded,
+                            size: 17,
+                            color: ZevColors.secondaryBlue,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         Text(
