@@ -137,7 +137,7 @@
             android:resource="@color/notification_accent_color" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="zev_notifications_v3" />
+            android:value="zev_notifications_channel" />
 
         <!-- Google AdMob Application ID -->
         <meta-data

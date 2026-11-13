@@ -1379,47 +1379,24 @@ class ChatService {
         if (uname.isNotEmpty) senderName = '@$uname';
       }
 
-      if (!isGroup) {
-        String targetPeerId = peerId.trim();
-        if (targetPeerId.isEmpty &&
-            message.receiverId.trim().isNotEmpty &&
-            message.receiverId.trim() != myId) {
-          targetPeerId = message.receiverId.trim();
-        }
-        if (targetPeerId.isEmpty && conversationId.isNotEmpty) {
-          try {
-            final mem = await _supabase
-                .from('conversation_members')
-                .select('user_id')
-                .eq('conversation_id', conversationId)
-                .neq('user_id', myId)
-                .limit(1)
-                .maybeSingle();
-            if (mem != null) {
-              targetPeerId = mem['user_id']?.toString() ?? '';
-            }
-          } catch (_) {}
-        }
-
-        if (targetPeerId.isNotEmpty) {
-          final res = await ApiClient.instance.post(
-            '/api/v1/push/send',
-            data: {
-              'recipientUserId': targetPeerId,
-              'title': senderName,
-              'body': bodyText,
-              'notificationType': 'message',
-              'deepLink': '/chat/$myId',
-              'data': {
-                'type': 'chat',
-                'sender_id': myId,
-                'conversation_id': conversationId,
-              },
+      if (!isGroup && peerId.isNotEmpty) {
+        final res = await ApiClient.instance.post(
+          '/api/v1/push/send',
+          data: {
+            'recipientUserId': peerId,
+            'title': senderName,
+            'body': bodyText,
+            'notificationType': 'message',
+            'deepLink': '/chat/$myId',
+            'data': {
+              'type': 'chat',
+              'sender_id': myId,
+              'conversation_id': conversationId,
             },
-          );
-          if (res['ok'] == false) {
-            debugPrint('[ChatService] push/send returned non-ok: ${res['error'] ?? res}');
-          }
+          },
+        );
+        if (res['ok'] == false) {
+          debugPrint('[ChatService] push/send returned non-ok: ${res['error'] ?? res}');
         }
       } else if (isGroup) {
         final members = await _supabase
