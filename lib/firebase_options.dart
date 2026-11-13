@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
 /// Firebase client configuration generated from google-services.json & GoogleService-Info.plist
-/// for project `zevapp-3c6b5` (Sender ID `467206192154`).
+/// for project `zev-app-844ef` (Sender ID `557150004230`).
 class DefaultFirebaseOptions {
   DefaultFirebaseOptions._();
 
@@ -22,28 +22,29 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBwbaVJ_8LCkWlCZer5DfijbyCwYsBkckA',
-    appId: '1:467206192154:web:3bfe5b870b675fc6fc25a3',
-    messagingSenderId: '467206192154',
-    projectId: 'zevapp-3c6b5',
-    authDomain: 'zevapp-3c6b5.firebaseapp.com',
-    storageBucket: 'zevapp-3c6b5.firebasestorage.app',
+    apiKey: 'AIzaSyC93RFaZP68rcX_5GxRT4HY8a02XlviKpE',
+    appId: '1:557150004230:web:bac688ed8bf4f51d33cf87',
+    messagingSenderId: '557150004230',
+    projectId: 'zev-app-844ef',
+    authDomain: 'zev-app-844ef.firebaseapp.com',
+    storageBucket: 'zev-app-844ef.firebasestorage.app',
+    measurementId: 'G-6CB58SB5EL',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBwbaVJ_8LCkWlCZer5DfijbyCwYsBkckA',
-    appId: '1:467206192154:android:3bfe5b870b675fc6fc25a3',
-    messagingSenderId: '467206192154',
-    projectId: 'zevapp-3c6b5',
-    storageBucket: 'zevapp-3c6b5.firebasestorage.app',
+    apiKey: 'AIzaSyDMXc5s_L6DmkBxxYitxYbR-WrgD8aU_S8',
+    appId: '1:557150004230:android:5d9e8501608c6d8933cf87',
+    messagingSenderId: '557150004230',
+    projectId: 'zev-app-844ef',
+    storageBucket: 'zev-app-844ef.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBG6k76jkU_6tT6NUi4JY7DEs4lq5_QRkg',
-    appId: '1:467206192154:ios:9a30149aa891ddc5fc25a3',
-    messagingSenderId: '467206192154',
-    projectId: 'zevapp-3c6b5',
-    storageBucket: 'zevapp-3c6b5.firebasestorage.app',
+    apiKey: 'AIzaSyDwPetWEBJrpR5im8mPs-yvcqi_fNIX8mM',
+    appId: '1:557150004230:ios:5e7441bd05f98b6833cf87',
+    messagingSenderId: '557150004230',
+    projectId: 'zev-app-844ef',
+    storageBucket: 'zev-app-844ef.firebasestorage.app',
     iosBundleId: 'com.zevapp.app',
   );
 }

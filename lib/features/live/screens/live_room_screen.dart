@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/config/app_config.dart';
@@ -13,6 +15,7 @@ import '../../../core/services/zev_rtc_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/time_ago.dart';
 import '../../../core/widgets/zev_cached_image.dart';
+import '../../chat/services/chat_service.dart';
 import '../../profile/screens/profile_screen.dart';
 
 class _FloatingReaction {
@@ -73,9 +76,12 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
   late final AnimationController _pulseCtrl;
   final Map<int, VideoViewController> _remoteBroadcasters = {};
   bool _isPkMatchActive = false;
-  int _pkRedScore = 37;
-  int _pkBlueScore = 12;
-  int _pkTimeRemaining = 199; // 03:19
+  int _pkRedScore = 0;
+  int _pkBlueScore = 0;
+  int _pkTimeRemaining = 180;
+  int _pkHostWinStreak = 0;
+  int _pkOpponentWinStreak = 0;
+  Map<String, dynamic>? _pkOpponent;
   Timer? _pkTimer;
   bool _isFollowingHost = false;
 
@@ -207,7 +213,6 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
     }
 
     _bootstrapRoom();
-    _startPkTimer();
     _checkFollowingHost();
   }
 
@@ -360,6 +365,9 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
     _subscribeRealtime();
     if (!_isEnded) {
       unawaited(_initAgoraLive());
+      if (widget.isHost) {
+        unawaited(_notifyFollowersStreamStarted());
+      }
     }
   }
 
@@ -456,7 +464,6 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                 ),
                 connection: connection,
               );
-              _isPkMatchActive = true;
             }
           });
         },
@@ -1057,12 +1064,13 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
             key: const ValueKey('live_host_local_full'),
             controller: _localBroadcasterController!,
           ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 330,
-            child: _buildAudioGuestSeatsRow(),
-          ),
+          if (_audioGuests.isNotEmpty)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 260,
+              child: _buildAudioGuestSeatsRow(),
+            ),
         ],
       );
     }
@@ -1074,12 +1082,13 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
             key: ValueKey('live_remote_full_$_remoteHostUid'),
             controller: _remoteHostController!,
           ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 330,
-            child: _buildAudioGuestSeatsRow(),
-          ),
+          if (_audioGuests.isNotEmpty)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 260,
+              child: _buildAudioGuestSeatsRow(),
+            ),
         ],
       );
     }
@@ -1356,9 +1365,9 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                         color: const Color(0xFFFFB800).withValues(alpha: 0.9),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Text(
-                        'WIN × 0',
-                        style: TextStyle(
+                      child: Text(
+                        'WIN × $_pkHostWinStreak',
+                        style: const TextStyle(
                           color: Colors.black,
                           fontSize: 10,
                           fontWeight: FontWeight.w900,
@@ -1375,9 +1384,9 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                         color: const Color(0xFFFFB800).withValues(alpha: 0.9),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Text(
-                        'WIN × 1',
-                        style: TextStyle(
+                      child: Text(
+                        'WIN × $_pkOpponentWinStreak',
+                        style: const TextStyle(
                           color: Colors.black,
                           fontSize: 10,
                           fontWeight: FontWeight.w900,
@@ -1500,9 +1509,9 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                           )
                         else
                           _buildWaitingPlaceholder(
-                            avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=400&q=80',
-                            username: 'دگروال میر...',
-                            label: 'Opponent',
+                            avatar: (_pkOpponent?['avatar_url'] ?? '').toString(),
+                            username: (_pkOpponent?['username'] ?? 'حریف آنلاین').toString(),
+                            label: 'در انتظار اتصال...',
                           ),
 
                         // Opponent Bottom Sub-Bar: Medals + Name with + Follow Button
@@ -1513,13 +1522,8 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                           child: Row(
                             children: [
                               _buildMiniMedalAvatar(
-                                'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80',
+                                (_pkOpponent?['avatar_url'] ?? '').toString(),
                                 1,
-                              ),
-                              const SizedBox(width: 3),
-                              _buildMiniMedalAvatar(
-                                'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=120&q=80',
-                                2,
                               ),
                               const Spacer(),
                               Container(
@@ -1531,19 +1535,19 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                                   color: Colors.black.withValues(alpha: 0.65),
                                   borderRadius: BorderRadius.circular(999),
                                 ),
-                                child: const Row(
+                                child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      'دگروال میر...',
-                                      style: TextStyle(
+                                      '@${_pkOpponent?['username'] ?? 'حریف'}',
+                                      style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 10.5,
                                         fontWeight: FontWeight.w800,
                                       ),
                                     ),
-                                    SizedBox(width: 4),
-                                    Icon(
+                                    const SizedBox(width: 4),
+                                    const Icon(
                                       Icons.add_rounded,
                                       color: Color(0xFFFF2D55),
                                       size: 13,
@@ -1821,19 +1825,21 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
   }
 
   Widget _buildAudioGuestSeatsRow() {
+    if (_audioGuests.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Container(
       height: 70,
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        itemCount: 6,
+        itemCount: _audioGuests.length + 1,
         separatorBuilder: (_, _) => const SizedBox(width: 10),
         itemBuilder: (context, idx) {
-          final isOccupied = idx < _audioGuests.length;
-          final guest = isOccupied ? _audioGuests[idx] : null;
-
-          if (isOccupied && guest != null) {
+          if (idx < _audioGuests.length) {
+            final guest = _audioGuests[idx];
             final avatar = (guest['avatar_url'] ?? '').toString();
             final name = (guest['username'] ?? 'Guest').toString();
             final isMuted = guest['is_muted'] == true;
@@ -1903,38 +1909,44 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
             );
           }
 
-          // Empty seat inviting audience to join
+          // Single Add Guest Button at the end of active guest seats
           return GestureDetector(
             onTap: _onTapEmptyStageSeat,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.black.withValues(alpha: 0.45),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.25),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.add_rounded,
-                      color: Colors.white70,
-                      size: 20,
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.black.withValues(alpha: 0.45),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.25),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.add_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Seat ${idx + 1}',
+                  widget.isHost ? 'افزودن' : 'ورود',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7),
+                    color: Colors.white.withValues(alpha: 0.85),
                     fontSize: 9.5,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
@@ -3278,6 +3290,43 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
               ),
             ),
 
+            // Top-Right Host Quick Controls (Flip Cam, Camera, Mic)
+            if (widget.isHost && !_isEnded)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 54,
+                right: 12,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildTopQuickCircleButton(
+                      icon: Icons.flip_camera_ios_rounded,
+                      tooltip: 'چرخش دوربین',
+                      onTap: _switchLiveCamera,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildTopQuickCircleButton(
+                      icon: _isCameraOff
+                          ? Icons.videocam_off_rounded
+                          : Icons.videocam_rounded,
+                      iconColor:
+                          _isCameraOff ? const Color(0xFFFF2D55) : Colors.white,
+                      tooltip: 'دوربین',
+                      onTap: _toggleLiveCam,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildTopQuickCircleButton(
+                      icon: _isMicMuted
+                          ? Icons.mic_off_rounded
+                          : Icons.mic_rounded,
+                      iconColor:
+                          _isMicMuted ? const Color(0xFFFF2D55) : Colors.white,
+                      tooltip: 'میکروفون',
+                      onTap: _toggleLiveMic,
+                    ),
+                  ],
+                ),
+              ),
+
             // 4. Floating Realtime Live Comments Stream (TikTok / Instagram style)
             Positioned(
               left: 12,
@@ -3888,6 +3937,27 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
             ),
             const SizedBox(width: 8),
 
+            // PK Battle Button (Host)
+            if (widget.isHost && !_isEnded) ...[
+              const SizedBox(width: 8),
+              _buildRoundActionButton(
+                icon: Icons.sports_kabaddi_rounded,
+                iconColor:
+                    _isPkMatchActive ? const Color(0xFFFFD600) : Colors.white,
+                gradient: _isPkMatchActive
+                    ? const LinearGradient(
+                        colors: [Color(0xFFFF2D55), Color(0xFF6366F1)],
+                      )
+                    : null,
+                backgroundColor: _isPkMatchActive
+                    ? null
+                    : Colors.black.withValues(alpha: 0.50),
+                badge: 'PK',
+                onTap: _openPkMatchHub,
+              ),
+            ],
+            const SizedBox(width: 8),
+
             // Stage Guest Request / Co-Host Seats Button
             _buildRoundActionButton(
               icon: widget.isHost
@@ -3905,64 +3975,14 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
             ),
             const SizedBox(width: 8),
 
-            // Share Button matching TikTok reference (with share count badge)
+            // Share Button opening Followers/Following Sheet
             _buildRoundActionButton(
               icon: Icons.reply_rounded,
               iconColor: Colors.white,
               backgroundColor: Colors.black.withValues(alpha: 0.50),
-              badge: '46',
-              onTap: () {
-                HapticFeedback.lightImpact();
-                Clipboard.setData(
-                  ClipboardData(text: 'https://web.zevapp.com/live/$_streamId'),
-                );
-                _showToast('Live stream link copied to clipboard!');
-              },
+              badge: 'Share',
+              onTap: _openShareWithFollowersSheet,
             ),
-
-            // Host Media Controls (Flip Cam, Camera Toggle, Mute Mic, PK Battle)
-            if (widget.isHost && !_isEnded) ...[
-              const SizedBox(width: 8),
-              _buildRoundActionButton(
-                icon: Icons.sports_kabaddi_rounded,
-                iconColor:
-                    _isPkMatchActive ? const Color(0xFFFFD600) : Colors.white,
-                gradient: _isPkMatchActive
-                    ? const LinearGradient(
-                        colors: [Color(0xFFFF2D55), Color(0xFF6366F1)],
-                      )
-                    : null,
-                backgroundColor: _isPkMatchActive
-                    ? null
-                    : Colors.black.withValues(alpha: 0.50),
-                badge: 'PK',
-                onTap: _togglePkMatch,
-              ),
-              const SizedBox(width: 8),
-              _buildRoundActionButton(
-                icon: Icons.flip_camera_ios_rounded,
-                iconColor: Colors.white,
-                backgroundColor: Colors.black.withValues(alpha: 0.50),
-                onTap: _switchLiveCamera,
-              ),
-              const SizedBox(width: 8),
-              _buildRoundActionButton(
-                icon: _isCameraOff
-                    ? Icons.videocam_off_rounded
-                    : Icons.videocam_rounded,
-                iconColor:
-                    _isCameraOff ? const Color(0xFFFF2D55) : Colors.white,
-                backgroundColor: Colors.black.withValues(alpha: 0.50),
-                onTap: _toggleLiveCam,
-              ),
-              const SizedBox(width: 8),
-              _buildRoundActionButton(
-                icon: _isMicMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                iconColor: _isMicMuted ? const Color(0xFFFF2D55) : Colors.white,
-                backgroundColor: Colors.black.withValues(alpha: 0.50),
-                onTap: _toggleLiveMic,
-              ),
-            ],
           ],
         ),
       ),
@@ -4039,21 +4059,221 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
     );
   }
 
-  void _togglePkMatch() {
+  Widget _buildTopQuickCircleButton({
+    required IconData icon,
+    Color iconColor = Colors.white,
+    String? tooltip,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      child: Tooltip(
+        message: tooltip ?? '',
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black.withValues(alpha: 0.40),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.20),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.30),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Icon(icon, color: iconColor, size: 18),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openPkMatchHub() {
+    HapticFeedback.selectionClick();
+    if (_isPkMatchActive) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF0F172A),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text(
+            'پایان مسابقه PK',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+          ),
+          content: Text(
+            'مسابقه در حال اجراست (${_formatPkTime(_pkTimeRemaining)} باقی‌مانده).\nامتیاز: $_pkRedScore در مقابل $_pkBlueScore.\nآیا می‌خواهید مسابقه به پایان برسد؟',
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('ادامه', style: TextStyle(color: Colors.white60)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF2D55),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                _endPkMatch();
+              },
+              child: const Text('پایان مسابقه', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => _PkMatchHubSheet(
+        coHosts: _remoteBroadcasters.keys.map((uid) {
+          return {
+            'uid': uid,
+            'username': 'مهمان استیج ($uid)',
+            'avatar_url': '',
+          };
+        }).toList(),
+        onStartMatch: (opponent, durationSeconds) {
+          Navigator.of(ctx).pop();
+          _startPkMatch(opponent: opponent, durationSeconds: durationSeconds);
+        },
+      ),
+    );
+  }
+
+  void _startPkMatch({Map<String, dynamic>? opponent, int durationSeconds = 180}) {
     HapticFeedback.heavyImpact();
     setState(() {
-      _isPkMatchActive = !_isPkMatchActive;
-      if (_isPkMatchActive) {
-        _pkRedScore = 37;
-        _pkBlueScore = 12;
-        _pkTimeRemaining = 199;
-        _startPkTimer();
-        _showToast('PK Battle Match started! Cheer on your host!');
+      _isPkMatchActive = true;
+      _pkRedScore = 0;
+      _pkBlueScore = 0;
+      _pkTimeRemaining = durationSeconds;
+      _pkOpponent = opponent ?? {
+        'id': 'pk_online_match',
+        'username': 'حریف تصادفی',
+        'avatar_url': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+      };
+    });
+    _startPkTimer();
+    _showToast('مسابقه PK آغاز شد! با ارسال هدایا از میزبان خود حمایت کنید 🚀');
+    try {
+      _roomChannel?.sendBroadcastMessage(
+        event: 'pk_start',
+        payload: {
+          'red': 0,
+          'blue': 0,
+          'time': durationSeconds,
+          'opponent': _pkOpponent,
+        },
+      );
+    } catch (_) {}
+  }
+
+  void _endPkMatch() {
+    _pkTimer?.cancel();
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _isPkMatchActive = false;
+      if (_pkRedScore > _pkBlueScore) {
+        _pkHostWinStreak++;
+        _showToast('🎉 پیروزی میزبان در نبرد PK! (+1 برد متوالی)');
+      } else if (_pkBlueScore > _pkRedScore) {
+        _pkOpponentWinStreak++;
+        _showToast('🏆 حریف پیروز شد!');
       } else {
-        _pkTimer?.cancel();
-        _showToast('PK Battle Match ended');
+        _showToast('🤝 تساوی در نبرد PK!');
       }
     });
+    try {
+      _roomChannel?.sendBroadcastMessage(
+        event: 'pk_ended',
+        payload: {
+          'red': _pkRedScore,
+          'blue': _pkBlueScore,
+          'hostWinStreak': _pkHostWinStreak,
+        },
+      );
+    } catch (_) {}
+  }
+
+  void _openShareWithFollowersSheet() {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return _ShareWithFollowersSheet(
+          streamId: _streamId,
+          streamTitle: (widget.stream['title'] ?? 'پخش زنده').toString(),
+          hostName: (widget.hostProfile['first_name'] ??
+                     widget.hostProfile['username'] ??
+                     'میزبان').toString(),
+        );
+      },
+    );
+  }
+
+  Future<void> _notifyFollowersStreamStarted() async {
+    if (!widget.isHost) return;
+    try {
+      final myId = _supabase.auth.currentUser?.id;
+      if (myId == null) return;
+      final hostName = (widget.hostProfile['first_name'] ??
+                        widget.hostProfile['username'] ??
+                        'میزبان').toString();
+      final streamTitle = (widget.stream['title'] ?? 'پخش زنده').toString();
+
+      final res = await _supabase
+          .from('follows')
+          .select('follower_id')
+          .eq('following_id', myId)
+          .eq('status', 'accepted');
+
+      final followerIds = (res as List)
+          .map((r) => r['follower_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty && id != myId)
+          .toSet()
+          .toList();
+
+      if (followerIds.isEmpty) return;
+
+      for (final fid in followerIds.take(50)) {
+        try {
+          await _supabase.from('notifications').insert({
+            'user_id': fid,
+            'actor_id': myId,
+            'type': 'live_stream_started',
+            'title': '🔴 $hostName هم‌اکنون لایف است!',
+            'body': 'پخش زنده: "$streamTitle". برای پیوستن ضربه بزنید.',
+            'data': {'stream_id': _streamId, 'deep_link': '/live/$_streamId'},
+            'created_at': DateTime.now().toIso8601String(),
+          });
+        } catch (_) {}
+      }
+    } catch (e) {
+      debugPrint('[LiveStream] notify followers notice: $e');
+    }
   }
 
   void _openCommentSheet() {
@@ -4236,6 +4456,669 @@ class _AnimatedReactionParticle extends StatelessWidget {
           ],
         ),
         child: Text(emoji, style: const TextStyle(fontSize: 22)),
+      ),
+    );
+  }
+}
+
+/// Clearmorphic PK Match Hub Sheet
+class _PkMatchHubSheet extends StatefulWidget {
+  final List<Map<String, dynamic>> coHosts;
+  final void Function(Map<String, dynamic>? opponent, int durationSeconds) onStartMatch;
+
+  const _PkMatchHubSheet({
+    required this.coHosts,
+    required this.onStartMatch,
+  });
+
+  @override
+  State<_PkMatchHubSheet> createState() => _PkMatchHubSheetState();
+}
+
+class _PkMatchHubSheetState extends State<_PkMatchHubSheet> {
+  int _selectedDuration = 180; // 3 minutes
+  bool _isSearching = false;
+
+  Future<void> _startQuickMatch() async {
+    setState(() => _isSearching = true);
+    await Future.delayed(const Duration(milliseconds: 900));
+    if (!mounted) return;
+    setState(() => _isSearching = false);
+    widget.onStartMatch(
+      {
+        'id': 'pk_online_streamer',
+        'username': 'هماورد تصادفی',
+        'avatar_url': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+      },
+      _selectedDuration,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          padding: EdgeInsets.only(
+            top: 14,
+            left: 18,
+            right: 18,
+            bottom: MediaQuery.of(context).padding.bottom + 18,
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.94),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+            border: Border(
+              top: BorderSide(
+                color: Colors.white.withValues(alpha: 0.20),
+                width: 1.2,
+              ),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4.5,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFF2D55), Color(0xFF6366F1)],
+                      ),
+                    ),
+                    child: const Icon(Icons.sports_kabaddi_rounded, color: Colors.white, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'مسابقه نبرد زنده (PK Battle)',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'رقابت جذاب زنده؛ برنده با هدایای بینندگان مشخص می‌شود',
+                          style: TextStyle(
+                            color: Colors.white60,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+
+              // Duration selector
+              Row(
+                children: [
+                  const Text(
+                    'مدت نبرد:',
+                    style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                  const Spacer(),
+                  _buildDurationChip(180, '۳ دقیقه'),
+                  const SizedBox(width: 8),
+                  _buildDurationChip(300, '۵ دقیقه'),
+                ],
+              ),
+              const SizedBox(height: 18),
+
+              // Co-Hosts challenge section (if any co-host on stage)
+              if (widget.coHosts.isNotEmpty) ...[
+                const Text(
+                  'همکاران روی استیج:',
+                  style: TextStyle(color: Colors.white70, fontSize: 12.5, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                ...widget.coHosts.map((ch) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.07),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                    ),
+                    child: Row(
+                      children: [
+                        const CircleAvatar(
+                          radius: 16,
+                          backgroundColor: Color(0xFF10B981),
+                          child: Icon(Icons.person_rounded, color: Colors.white, size: 18),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            ch['username']?.toString() ?? 'همکار',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF2D55),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          ),
+                          onPressed: () => widget.onStartMatch(ch, _selectedDuration),
+                          child: const Text('آغاز نبرد', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                const SizedBox(height: 10),
+              ],
+
+              // Quick Match Button
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                  ),
+                ).copyWith(
+                  backgroundColor: WidgetStateProperty.all(
+                    const Color(0xFF6366F1).withValues(alpha: 0.85),
+                  ),
+                ),
+                onPressed: _isSearching ? null : _startQuickMatch,
+                icon: _isSearching
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Icon(Icons.flash_on_rounded, color: Color(0xFFFFD600)),
+                label: Text(
+                  _isSearching ? 'در حال جستجوی هماورد...' : 'جستجوی هماورد تصادفی (Quick Match)',
+                  style: const TextStyle(color: Colors.white, fontSize: 14.5, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDurationChip(int seconds, String label) {
+    final isSelected = _selectedDuration == seconds;
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _selectedDuration = seconds);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFFF2D55) : Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: isSelected ? Colors.transparent : Colors.white.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.white70,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Clearmorphic Share With Followers & Following Sheet
+class _ShareWithFollowersSheet extends StatefulWidget {
+  final String streamId;
+  final String streamTitle;
+  final String hostName;
+
+  const _ShareWithFollowersSheet({
+    required this.streamId,
+    required this.streamTitle,
+    required this.hostName,
+  });
+
+  @override
+  State<_ShareWithFollowersSheet> createState() => _ShareWithFollowersSheetState();
+}
+
+class _ShareWithFollowersSheetState extends State<_ShareWithFollowersSheet> {
+  final _searchCtrl = TextEditingController();
+  final Set<String> _sentUserIds = {};
+  List<Map<String, dynamic>> _friends = [];
+  bool _isLoading = true;
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFriends();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadFriends() async {
+    final client = Supabase.instance.client;
+    final myId = client.auth.currentUser?.id;
+    if (myId == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      final f1 = await client
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', myId)
+          .eq('status', 'accepted');
+
+      final f2 = await client
+          .from('follows')
+          .select('follower_id')
+          .eq('following_id', myId)
+          .eq('status', 'accepted');
+
+      final userIds = <String>{
+        for (final r in (f1 as List)) r['following_id']?.toString() ?? '',
+        for (final r in (f2 as List)) r['follower_id']?.toString() ?? '',
+      }..removeWhere((id) => id.isEmpty || id == myId);
+
+      if (userIds.isEmpty) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
+      final profilesRes = await client
+          .from('profiles')
+          .select('id, username, first_name, last_name, avatar_url, is_verified')
+          .inFilter('id', userIds.toList());
+
+      if (mounted) {
+        setState(() {
+          _friends = (profilesRes as List).cast<Map<String, dynamic>>();
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _sendLiveInviteToFriend(Map<String, dynamic> friend) async {
+    final friendId = friend['id']?.toString() ?? '';
+    if (friendId.isEmpty || _sentUserIds.contains(friendId)) return;
+
+    HapticFeedback.mediumImpact();
+    setState(() => _sentUserIds.add(friendId));
+
+    try {
+      final convId = await ChatService.instance.ensureDirectConversation(friendId);
+      if (convId != null && convId.isNotEmpty) {
+        await ChatService.instance.sendMessage(
+          conversationId: convId,
+          isGroup: false,
+          peerId: friendId,
+          messageText:
+              '🔴 شما را به تماشای پخش زنده "${widget.streamTitle}" دعوت کرد:\nhttps://web.zevapp.com/live/${widget.streamId}',
+          messageType: 'text',
+        );
+      }
+    } catch (_) {}
+  }
+
+  void _copyLiveLink() {
+    HapticFeedback.lightImpact();
+    Clipboard.setData(
+      ClipboardData(text: 'https://web.zevapp.com/live/${widget.streamId}'),
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'لینک پخش زنده در کلیپ‌بورد کپی شد ✓',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        backgroundColor: const Color(0xFF10B981),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  void _shareExternal() {
+    HapticFeedback.lightImpact();
+    Share.share(
+      'تماشای پخش زنده "${widget.streamTitle}" توسط ${widget.hostName} در ZEV:\nhttps://web.zevapp.com/live/${widget.streamId}',
+      subject: 'پخش زنده در ZEV',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _friends.where((f) {
+      if (_searchQuery.trim().isEmpty) return true;
+      final q = _searchQuery.toLowerCase();
+      final username = (f['username'] ?? '').toString().toLowerCase();
+      final name = '${f['first_name'] ?? ''} ${f['last_name'] ?? ''}'.toLowerCase();
+      return username.contains(q) || name.contains(q);
+    }).toList();
+
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          height: MediaQuery.of(context).size.height * 0.70,
+          padding: EdgeInsets.only(
+            top: 14,
+            left: 18,
+            right: 18,
+            bottom: MediaQuery.of(context).padding.bottom + 12,
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.94),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+            border: Border(
+              top: BorderSide(
+                color: Colors.white.withValues(alpha: 0.20),
+                width: 1.2,
+              ),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4.5,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Title Header
+              Row(
+                children: [
+                  const Text(
+                    'اشتراک‌گذاری پخش زنده',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF2D55),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'LIVE',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 22),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // Quick action buttons row
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildQuickActionPill(
+                      icon: Icons.link_rounded,
+                      label: 'کپی لینک',
+                      onTap: _copyLiveLink,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildQuickActionPill(
+                      icon: Icons.share_rounded,
+                      label: 'ارسال در برنامه‌ها',
+                      onTap: _shareExternal,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Search Bar
+              Container(
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                ),
+                child: TextField(
+                  controller: _searchCtrl,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  onChanged: (val) => setState(() => _searchQuery = val),
+                  decoration: InputDecoration(
+                    hintText: 'جستجوی دوستان و دنبال‌کنندگان...',
+                    hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12.5),
+                    prefixIcon: const Icon(Icons.search_rounded, color: Colors.white60, size: 18),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Friends list
+              Expanded(
+                child: _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(color: Color(0xFFFF2D55), strokeWidth: 2),
+                      )
+                    : filtered.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.people_outline_rounded,
+                                    color: Colors.white.withValues(alpha: 0.35), size: 42),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _friends.isEmpty
+                                      ? 'هنوز دوستی در لیست دنبال‌کنندگان شما نیست.'
+                                      : 'موردی یافت نشد.',
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.5),
+                                    fontSize: 12.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.separated(
+                            itemCount: filtered.length,
+                            separatorBuilder: (_, _) => Divider(
+                              height: 1,
+                              color: Colors.white.withValues(alpha: 0.06),
+                            ),
+                            itemBuilder: (context, idx) {
+                              final f = filtered[idx];
+                              final fid = f['id']?.toString() ?? '';
+                              final username = (f['username'] ?? 'user').toString();
+                              final name = '${f['first_name'] ?? ''} ${f['last_name'] ?? ''}'.trim();
+                              final avatar = (f['avatar_url'] ?? '').toString();
+                              final verified = f['is_verified'] == true;
+                              final isSent = _sentUserIds.contains(fid);
+
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                child: Row(
+                                  children: [
+                                    ZevCachedImage.avatar(imageUrl: avatar, size: 42),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Flexible(
+                                                child: Text(
+                                                  name.isNotEmpty ? name : username,
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 13.5,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                              if (verified) ...[
+                                                const SizedBox(width: 4),
+                                                const Icon(
+                                                  Icons.verified_rounded,
+                                                  color: Color(0xFF38BDF8),
+                                                  size: 14,
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            '@$username',
+                                            style: TextStyle(
+                                              color: Colors.white.withValues(alpha: 0.5),
+                                              fontSize: 11.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: isSent
+                                            ? const Color(0xFF10B981).withValues(alpha: 0.25)
+                                            : const Color(0xFFFF2D55),
+                                        foregroundColor: isSent ? const Color(0xFF10B981) : Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                          side: isSent
+                                              ? const BorderSide(color: Color(0xFF10B981), width: 1)
+                                              : BorderSide.none,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                        elevation: 0,
+                                      ),
+                                      onPressed: isSent ? null : () => _sendLiveInviteToFriend(f),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            isSent ? Icons.check_rounded : Icons.send_rounded,
+                                            size: 14,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            isSent ? 'ارسال شد' : 'ارسال',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickActionPill({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white70, size: 16),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

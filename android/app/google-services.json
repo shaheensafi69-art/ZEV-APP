@@ -1,44 +1,26 @@
 {
   "project_info": {
-    "project_number": "467206192154",
-    "project_id": "zevapp-3c6b5",
-    "storage_bucket": "zevapp-3c6b5.firebasestorage.app"
+    "project_number": "557150004230",
+    "project_id": "zev-app-844ef",
+    "storage_bucket": "zev-app-844ef.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:467206192154:android:3bfe5b870b675fc6fc25a3",
+        "mobilesdk_app_id": "1:557150004230:android:5d9e8501608c6d8933cf87",
         "android_client_info": {
           "package_name": "com.zevapp.app"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "467206192154-6opg0v3iafqhovalsjpngdb3gmtc6586.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.zevapp.app",
-            "certificate_hash": "fc97d5ec8b6f690a4b2715e84ca971a2fa730a53"
-          }
-        },
-        {
-          "client_id": "467206192154-kcmjgeh1ashtoq02k6cqut56trj6rhqg.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBwbaVJ_8LCkWlCZer5DfijbyCwYsBkckA"
+          "current_key": "AIzaSyDMXc5s_L6DmkBxxYitxYbR-WrgD8aU_S8"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "467206192154-kcmjgeh1ashtoq02k6cqut56trj6rhqg.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
+          "other_platform_oauth_client": []
         }
       }
     }
