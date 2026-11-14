@@ -724,8 +724,8 @@ class NotificationService {
         } catch (_) {}
       }
 
-      // Elegant fallback to official high-resolution ZEV app logo
-      largeIconBitmap ??= const DrawableResourceAndroidBitmap('@mipmap/ic_launcher');
+      // Elegant fallback to official high-resolution ZEV app logo (crisp binary PNG in drawable)
+      largeIconBitmap ??= const DrawableResourceAndroidBitmap('@drawable/ic_zev_logo');
 
       StyleInformation styleInfo;
       if (pictureBitmap != null) {

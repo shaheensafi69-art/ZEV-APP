@@ -1150,10 +1150,31 @@ class _CallScreenState extends State<CallScreen>
 
   /// Widescreen Desktop / Web Layout (Google Meet / Zoom grade experience)
   Widget _buildWidescreenWebLayout() {
+    final showIncomingChoice = !widget.isOutgoing && _phase == 'ringing';
+    if (showIncomingChoice) {
+      return Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 480, maxHeight: 860),
+          clipBehavior: Clip.antiAlias,
+          margin: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(32),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.65),
+                blurRadius: 48,
+                spreadRadius: 8,
+              ),
+            ],
+          ),
+          child: _buildIncomingCallView(),
+        ),
+      );
+    }
+
     final displayName = widget.peerFullName.isNotEmpty
         ? widget.peerFullName
         : '@${widget.peerUsername}';
-    final showIncomingChoice = !widget.isOutgoing && _phase == 'ringing';
     final hasRemoteVideo =
         _isVideoActive && _remoteVideoController != null && _remoteVideoEnabled;
 
@@ -2004,12 +2025,683 @@ class _CallScreenState extends State<CallScreen>
     );
   }
 
-  /// Mobile Portrait Layout (Instagram / FaceTime grade experience)
-  Widget _buildMobileLayout() {
+  Future<void> _showQuickDeclineMessageSheet() async {
+    final quickMessages = [
+      "Can't talk right now. What's up?",
+      "I'll call you right back.",
+      "I'm in a meeting, please message me.",
+      "On my way, see you soon.",
+    ];
+
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+        decoration: const BoxDecoration(
+          color: Color(0xFF0F172A),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const Text(
+                'Decline with Message',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...quickMessages.map(
+                (msg) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    msg,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  trailing: const Icon(
+                    Icons.send_rounded,
+                    size: 18,
+                    color: Color(0xFF3B82F6),
+                  ),
+                  onTap: () => Navigator.pop(ctx, msg),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (selected != null && selected.isNotEmpty && mounted) {
+      if (widget.peerId.isNotEmpty) {
+        final myId = _supabase.auth.currentUser?.id;
+        if (myId != null && myId.isNotEmpty) {
+          unawaited(
+            _supabase.from('direct_messages').insert({
+              'sender_id': myId,
+              'receiver_id': widget.peerId,
+              if (widget.conversationId != null &&
+                  widget.conversationId!.isNotEmpty)
+                'conversation_id': widget.conversationId,
+              'message_text': selected,
+              'message_type': 'text',
+              'created_at': DateTime.now().toIso8601String(),
+            }),
+          );
+        }
+      }
+      await _hangupOrDecline();
+    }
+  }
+
+  /// Flagship Incoming Call Screen (Ambient blurred backdrop, acoustic pulse rings, verified card & glowing controls)
+  Widget _buildIncomingCallView() {
     final displayName = widget.peerFullName.isNotEmpty
         ? widget.peerFullName
         : '@${widget.peerUsername}';
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // 1. Deep blurred ambient background from caller avatar
+        if (widget.peerAvatar.isNotEmpty)
+          Positioned.fill(
+            child: ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 55, sigmaY: 55),
+              child: Transform.scale(
+                scale: 1.35,
+                child: ZevCachedImage(
+                  imageUrl: widget.peerAvatar,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          ),
+
+        // 2. Multi-stop vignette scrim overlay for rich contrast & readability
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  const Color(0xDC050914),
+                  const Color(0xEA090E1F),
+                  const Color(0xF803060E),
+                ],
+                stops: const [0.0, 0.45, 1.0],
+              ),
+            ),
+          ),
+        ),
+
+        // 3. Ambient colored backlight flares
+        Positioned(
+          top: -40,
+          right: -40,
+          child: Container(
+            width: 220,
+            height: 220,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF2563EB).withValues(alpha: 0.16),
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: 120,
+          left: -40,
+          child: Container(
+            width: 220,
+            height: 220,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF06B6D4).withValues(alpha: 0.12),
+            ),
+          ),
+        ),
+
+        // 4. Foreground Content
+        SafeArea(
+          child: Column(
+            children: [
+              // Top Bar with Security Capsule
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.18),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 12,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.shield_rounded,
+                            size: 15,
+                            color: Color(0xFF10B981),
+                          ),
+                          const SizedBox(width: 7),
+                          const Text(
+                            'End-to-End Encrypted',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 8),
+                            width: 3,
+                            height: 3,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white54,
+                            ),
+                          ),
+                          Text(
+                            widget.isVideo ? '1080p HD Video' : 'HD Voice',
+                            style: const TextStyle(
+                              color: Color(0xFF60A5FA),
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const Spacer(),
+
+              // Animated Radial Acoustic Wave Rings & Avatar Card
+              AnimatedBuilder(
+                animation: _pulseCtrl,
+                builder: (context, child) {
+                  final t = _pulseCtrl.value;
+                  return SizedBox(
+                    width: 270,
+                    height: 270,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Wave 3 (Outermost)
+                        Transform.scale(
+                          scale: 1.0 + (t * 0.45),
+                          child: Container(
+                            width: 210,
+                            height: 210,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: const Color(0xFF2563EB).withValues(
+                                  alpha: (1.0 - t) * 0.25,
+                                ),
+                                width: 1.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Wave 2 (Middle)
+                        Transform.scale(
+                          scale: 1.0 + (t * 0.28),
+                          child: Container(
+                            width: 180,
+                            height: 180,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: const Color(0xFF06B6D4).withValues(
+                                  alpha: (1.0 - t) * 0.40,
+                                ),
+                                width: 2,
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Wave 1 (Inner glow)
+                        Transform.scale(
+                          scale: 1.0 + (t * 0.12),
+                          child: Container(
+                            width: 154,
+                            height: 154,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [
+                                  const Color(0xFF2563EB).withValues(alpha: 0.0),
+                                  const Color(0xFF2563EB).withValues(
+                                    alpha: (1.0 - t) * 0.35,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Avatar Card with Neon Gradient Border
+                        Container(
+                          width: 136,
+                          height: 136,
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFF3B82F6),
+                                Color(0xFF06B6D4),
+                              ],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF2563EB).withValues(
+                                  alpha: 0.50 + (t * 0.25),
+                                ),
+                                blurRadius: 28 + (t * 12),
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Color(0xFF090E1A),
+                            ),
+                            child: ClipOval(
+                              child: ZevCachedImage.avatar(
+                                imageUrl: widget.peerAvatar,
+                                size: 124,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 18),
+
+              // Caller Display Name with Verified Badge
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: -0.6,
+                        ),
+                      ),
+                    ),
+                    if (widget.isPeerVerified) ...[
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.verified_rounded,
+                        size: 22,
+                        color: Color(0xFF00B2FF),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 6),
+
+              // Username badge pill
+              if (widget.peerUsername.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.12),
+                    ),
+                  ),
+                  child: Text(
+                    '@${widget.peerUsername}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ),
+
+              const SizedBox(height: 14),
+
+              // Glowing Call Status Pill with Pulsing Indicator
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: (widget.isVideo
+                          ? const Color(0xFF2563EB)
+                          : const Color(0xFF10B981))
+                      .withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: (widget.isVideo
+                            ? const Color(0xFF3B82F6)
+                            : const Color(0xFF10B981))
+                        .withValues(alpha: 0.40),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedBuilder(
+                      animation: _pulseCtrl,
+                      builder: (context, child) {
+                        return Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFF10B981).withValues(
+                              alpha: 0.4 + (_pulseCtrl.value * 0.6),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF10B981).withValues(
+                                  alpha: 0.8,
+                                ),
+                                blurRadius: 6,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      widget.isVideo
+                          ? 'Incoming Video Call...'
+                          : 'Incoming Voice Call...',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFFE2E8F0),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              if (_errorMsg != null) ...[
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    _errorMsg!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Color(0xFFFCA5A5),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+
+              const Spacer(),
+
+              // Quick message reply option
+              Padding(
+                padding: const EdgeInsets.only(bottom: 24),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _isActionInFlight ? null : _showQuickDeclineMessageSheet,
+                    borderRadius: BorderRadius.circular(999),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.15),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.chat_bubble_outline_rounded,
+                            size: 15,
+                            color: Colors.white,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Reply with Message',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Accept & Decline Action Buttons
+              Padding(
+                padding: const EdgeInsets.fromLTRB(40, 0, 40, 38),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Decline Button
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        GestureDetector(
+                          onTap: () {
+                            HapticFeedback.heavyImpact();
+                            if (!_isActionInFlight) _hangupOrDecline();
+                          },
+                          child: Container(
+                            width: 72,
+                            height: 72,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Color(0xFFEF4444),
+                                  Color(0xFFB91C1C),
+                                ],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFFEF4444).withValues(
+                                    alpha: 0.45,
+                                  ),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: const Center(
+                              child: Icon(
+                                Icons.call_end_rounded,
+                                color: Colors.white,
+                                size: 34,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Decline',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    // Accept Button (Pulsating green aura)
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AnimatedBuilder(
+                          animation: _pulseCtrl,
+                          builder: (context, child) {
+                            return Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF10B981).withValues(
+                                      alpha: 0.35 + (_pulseCtrl.value * 0.35),
+                                    ),
+                                    blurRadius: 18 + (_pulseCtrl.value * 14),
+                                    spreadRadius: 2 + (_pulseCtrl.value * 4),
+                                  ),
+                                ],
+                              ),
+                              child: child,
+                            );
+                          },
+                          child: GestureDetector(
+                            onTap: () {
+                              HapticFeedback.heavyImpact();
+                              if (!_isActionInFlight) _acceptIncomingCall();
+                            },
+                            child: Container(
+                              width: 72,
+                              height: 72,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Color(0xFF10B981),
+                                    Color(0xFF047857),
+                                  ],
+                                ),
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  widget.isVideo
+                                      ? Icons.videocam_rounded
+                                      : Icons.call_rounded,
+                                  color: Colors.white,
+                                  size: 34,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Accept',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Tap to answer',
+                          style: TextStyle(
+                            color: Color(0xFF6EE7B7),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Mobile Portrait Layout (Instagram / FaceTime grade experience)
+  Widget _buildMobileLayout() {
     final showIncomingChoice = !widget.isOutgoing && _phase == 'ringing';
+    if (showIncomingChoice) {
+      return _buildIncomingCallView();
+    }
+
+    final displayName = widget.peerFullName.isNotEmpty
+        ? widget.peerFullName
+        : '@${widget.peerUsername}';
     final hasRemoteVideo =
         _isVideoActive && _remoteVideoController != null && _remoteVideoEnabled;
     final activeEffect = _kCallEffects.firstWhere(
