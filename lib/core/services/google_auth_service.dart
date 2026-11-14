@@ -96,9 +96,29 @@ class GoogleAuthService {
       return authResponse;
     } catch (e) {
       debugPrint('[GoogleAuthService] Native Google Sign-In error: $e');
-      final errorStr = e.toString().replaceFirst('Exception: ', '');
-      onError?.call(errorStr);
-      return null;
+
+      // Seamless Fallback: If native Google Play Services is still propagating or
+      // encounters a local device cache issue, seamlessly invoke Supabase OAuth flow
+      // so the user is never blocked by a technical error dialog.
+      try {
+        debugPrint('[GoogleAuthService] Engaging seamless in-app Google OAuth fallback...');
+        final bool launched = await _supabase.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: kIsWeb ? null : 'zev://auth/callback',
+          authScreenLaunchMode: kIsWeb
+              ? LaunchMode.platformDefault
+              : LaunchMode.externalApplication,
+        );
+        if (!launched) {
+          onCancel?.call();
+        }
+        return null;
+      } catch (fallbackError) {
+        debugPrint('[GoogleAuthService] OAuth fallback also failed: $fallbackError');
+        final errorStr = e.toString().replaceFirst('Exception: ', '');
+        onError?.call(errorStr);
+        return null;
+      }
     }
   }
 
