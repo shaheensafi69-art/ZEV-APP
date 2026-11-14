@@ -3,15 +3,8 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- Stylized clean white ZEV Z logo on transparent background -->
+    <!-- Clean, aerodynamic ZEV lightning ribbon on transparent background -->
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M3.8,4.3 L20.2,4.3 L20.2,7.7 L10.1,16.3 L20.2,16.3 L20.2,19.7 L3.8,19.7 L3.8,16.3 L13.9,7.7 L3.8,7.7 Z" />
-    <!-- Center triangle cutout (transparent) -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="1"
-        android:pathData="M11,10 L15,12 L11,14 Z" />
+        android:pathData="M 3.5,4.5 L 20.5,4.5 L 18.0,8.5 L 9.5,15.5 L 20.5,15.5 L 19.0,19.5 L 3.5,19.5 L 6.0,15.5 L 14.5,8.5 L 3.5,8.5 Z" />
 </vector>
-

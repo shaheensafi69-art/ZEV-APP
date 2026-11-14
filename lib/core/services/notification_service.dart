@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -690,6 +691,62 @@ class NotificationService {
     bool vibrate = true,
   }) async {
     try {
+      AndroidBitmap<Object>? largeIconBitmap;
+      ByteArrayAndroidBitmap? pictureBitmap;
+
+      final avatarUrl = (data['avatar_url'] ??
+              data['sender_avatar'] ??
+              data['user_avatar'] ??
+              '')
+          .toString()
+          .trim();
+
+      if (avatarUrl.isNotEmpty &&
+          (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://'))) {
+        try {
+          final res = await http.get(Uri.parse(avatarUrl)).timeout(const Duration(seconds: 2));
+          if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+            largeIconBitmap = ByteArrayAndroidBitmap(res.bodyBytes);
+          }
+        } catch (_) {}
+      }
+
+      final mediaUrl = (data['image'] ?? data['image_url'] ?? data['media_url'] ?? '')
+          .toString()
+          .trim();
+      if (mediaUrl.isNotEmpty &&
+          (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://'))) {
+        try {
+          final res = await http.get(Uri.parse(mediaUrl)).timeout(const Duration(seconds: 3));
+          if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+            pictureBitmap = ByteArrayAndroidBitmap(res.bodyBytes);
+          }
+        } catch (_) {}
+      }
+
+      // Elegant fallback to official high-resolution ZEV app logo
+      largeIconBitmap ??= const DrawableResourceAndroidBitmap('@mipmap/ic_launcher');
+
+      StyleInformation styleInfo;
+      if (pictureBitmap != null) {
+        styleInfo = BigPictureStyleInformation(
+          pictureBitmap,
+          largeIcon: largeIconBitmap,
+          contentTitle: title,
+          summaryText: body,
+          htmlFormatContent: true,
+          htmlFormatContentTitle: true,
+        );
+      } else {
+        styleInfo = BigTextStyleInformation(
+          body,
+          contentTitle: title,
+          summaryText: 'ZEV',
+          htmlFormatContent: true,
+          htmlFormatContentTitle: true,
+        );
+      }
+
       final androidDetails = AndroidNotificationDetails(
         androidChannelId,
         androidChannelName,
@@ -697,7 +754,11 @@ class NotificationService {
         importance: Importance.max,
         priority: Priority.high,
         icon: '@drawable/ic_notification',
-        color: ZevColors.primaryBlue,
+        color: const Color(0xFF2563EB),
+        largeIcon: largeIconBitmap,
+        styleInformation: styleInfo,
+        subText: 'ZEV',
+        ticker: title,
         enableVibration: vibrate,
       );
       const darwinDetails = DarwinNotificationDetails(
