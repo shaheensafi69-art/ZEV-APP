@@ -181,7 +181,7 @@ class _CallScreenState extends State<CallScreen>
   bool _isSpeakerOn = true;
   bool _isCameraOff = false;
   bool _isVideoActive = false;
-  bool _isScreenSharing = false;
+  final bool _isScreenSharing = false;
   bool _isActionInFlight = false;
   bool _engineJoined = false;
   bool _isClosing = false;
@@ -1001,126 +1001,32 @@ class _CallScreenState extends State<CallScreen>
   }
 
   Future<void> _toggleScreenShare() async {
-    final eng = _engine;
-    if (eng == null || _phase != 'accepted') return;
-    HapticFeedback.mediumImpact();
-
-    try {
-      if (!_isScreenSharing) {
-        // Attempt screen capture
-        if (kIsWeb) {
-          try {
-            await eng.startScreenCapture(
-              const ScreenCaptureParameters2(
-                captureAudio: false,
-                captureVideo: true,
+    HapticFeedback.lightImpact();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            Icon(Icons.screen_share_rounded, color: Color(0xFF60A5FA), size: 20),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Screen Sharing is coming soon in the next update!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
+                ),
               ),
-            );
-          } catch (_) {
-            await eng.startScreenCapture(
-              const ScreenCaptureParameters2(
-                captureAudio: true,
-                captureVideo: true,
-              ),
-            );
-          }
-          await eng.updateChannelMediaOptions(
-            const ChannelMediaOptions(
-              publishScreenTrack: true,
-              publishScreenCaptureVideo: true,
-              publishCameraTrack: false,
             ),
-          );
-        } else {
-          try {
-            await eng.startScreenCapture(
-              const ScreenCaptureParameters2(
-                captureAudio: true,
-                captureVideo: true,
-              ),
-            );
-          } catch (_) {
-            await eng.startScreenCapture(
-              const ScreenCaptureParameters2(
-                captureAudio: false,
-                captureVideo: true,
-              ),
-            );
-          }
-          await eng.updateChannelMediaOptions(
-            const ChannelMediaOptions(
-              publishScreenCaptureVideo: true,
-              publishScreenCaptureAudio: true,
-              publishCameraTrack: false,
-            ),
-          );
-        }
-
-        if (mounted) {
-          setState(() => _isScreenSharing = true);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Screen sharing started'),
-              duration: Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: Color(0xFF0F172A),
-            ),
-          );
-        }
-      } else {
-        try {
-          await eng.stopScreenCapture();
-        } catch (_) {}
-
-        if (kIsWeb) {
-          await eng.updateChannelMediaOptions(
-            ChannelMediaOptions(
-              publishScreenTrack: false,
-              publishScreenCaptureVideo: false,
-              publishCameraTrack: _isVideoActive && !_isCameraOff,
-            ),
-          );
-        } else {
-          await eng.updateChannelMediaOptions(
-            ChannelMediaOptions(
-              publishScreenCaptureVideo: false,
-              publishScreenCaptureAudio: false,
-              publishCameraTrack: _isVideoActive && !_isCameraOff,
-            ),
-          );
-        }
-
-        if (mounted) {
-          setState(() => _isScreenSharing = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Screen sharing stopped'),
-              duration: Duration(seconds: 2),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: Color(0xFF0F172A),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('[CallScreen] Screen share error: $e');
-      if (mounted) {
-        setState(() => _isScreenSharing = false);
-        final isCancelled = e.toString().contains('NotAllowedError') ||
-            e.toString().contains('Permission denied') ||
-            e.toString().contains('cancelled') ||
-            e.toString().contains('canceled');
-        if (!isCancelled) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Screen share notice: $e'),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: const Color(0xFFDC2626),
-            ),
-          );
-        }
-      }
-    }
+          ],
+        ),
+        backgroundColor: const Color(0xFF0F172A),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   String _formatDuration(int totalSeconds) {

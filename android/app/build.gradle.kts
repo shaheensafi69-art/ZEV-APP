@@ -65,10 +65,23 @@ android {
                 signingConfigs.getByName("debug")
             }
             isMinifyEnabled = true
-            isShrinkResources = false
+            isShrinkResources = true
             proguardFiles(
-                getDefaultProguardFile("proguard-android.txt"),
+                getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
+            )
+        }
+    }
+
+    packaging {
+        resources {
+            excludes += setOf(
+                "META-INF/*.version",
+                "META-INF/LICENSE*",
+                "META-INF/NOTICE*",
+                "META-INF/*.txt",
+                "META-INF/*.md",
+                "META-INF/DEPENDENCIES"
             )
         }
     }
