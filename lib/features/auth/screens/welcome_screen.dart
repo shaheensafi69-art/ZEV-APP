@@ -8,7 +8,6 @@ import '../../../core/widgets/apple_sign_in_button.dart';
 import '../../../core/widgets/google_sign_in_button.dart';
 import '../../../core/widgets/zev_logo.dart';
 import 'login_screen.dart';
-import 'register_screen.dart';
 
 /// Flagship Serene Welcome & Onboarding Screen for ZEV.
 /// Engineered to provide an immediate sense of peace, clarity, and trust:
@@ -158,18 +157,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     super.dispose();
   }
 
-  void _handleExplore() {
-    HapticFeedback.lightImpact();
-    if (widget.onRegisterTap != null) {
-      widget.onRegisterTap!();
-    } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const RegisterScreen()),
-      );
-    }
-  }
-
   void _handleLogin() {
     HapticFeedback.lightImpact();
     if (widget.onLoginTap != null) {
@@ -304,12 +291,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
                           SizedBox(height: isSmallScreen ? 22 : 30),
 
-                          // Primary Action Button: "Get Started"
-                          _buildGetStartedButton(),
-
-                          const SizedBox(height: 12),
-
-                          // Google Sign-In Action (Cross-Platform: Web, Android, iOS)
+                          // 1. Primary Action: Official Native Google Sign-In (ChatGPT / Gemini Grade)
                           GoogleSignInButton(
                             text: "Continue with Google",
                             onError: (msg) {
@@ -326,7 +308,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                             },
                           ),
 
-                          // Apple Sign-In Action on iOS & macOS
+                          // 2. Apple Sign-In Action on iOS & macOS
                           if (!kIsWeb &&
                               (defaultTargetPlatform == TargetPlatform.iOS ||
                                   defaultTargetPlatform == TargetPlatform.macOS)) ...[
@@ -350,8 +332,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
                           const SizedBox(height: 12),
 
-                          // Secondary Action: "Log In"
-                          _buildLoginButton(),
+                          // 3. Secondary Action: Continue with Email
+                          _buildEmailAuthButton(),
 
                           SizedBox(height: isSmallScreen ? 16 : 22),
 
@@ -690,64 +672,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     );
   }
 
-  /// Primary Action: "Explore ZEV" / "Get Started"
-  Widget _buildGetStartedButton() {
-    return Container(
-      width: double.infinity,
-      height: 54,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF00D4FF),
-            Color(0xFF0084FF),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF00D4FF).withValues(alpha: 0.38),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: ElevatedButton(
-        onPressed: _handleExplore,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-        ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              "Get Started",
-              style: TextStyle(
-                color: ZevColors.deepNavy,
-                fontSize: 16.5,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.2,
-              ),
-            ),
-            SizedBox(width: 8),
-            Icon(
-              Icons.arrow_forward_rounded,
-              color: ZevColors.deepNavy,
-              size: 20,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Secondary Action: "Log In"
-  Widget _buildLoginButton() {
+  /// Secondary Action: "Continue with Email"
+  Widget _buildEmailAuthButton() {
     return SizedBox(
       width: double.infinity,
       height: 52,
@@ -760,18 +686,29 @@ class _WelcomeScreenState extends State<WelcomeScreen>
             width: 1.5,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
           ),
           elevation: 0,
         ),
-        child: const Text(
-          "I already have an account • Log In",
-          style: TextStyle(
-            color: ZevColors.deepNavy,
-            fontSize: 14.5,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.2,
-          ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.mail_outline_rounded,
+              color: ZevColors.deepNavy,
+              size: 20,
+            ),
+            SizedBox(width: 10),
+            Text(
+              "Continue with Email",
+              style: TextStyle(
+                color: ZevColors.deepNavy,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ],
         ),
       ),
     );
