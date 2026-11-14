@@ -818,6 +818,7 @@ class _UserActivityScreenState extends State<UserActivityScreen>
   Widget build(BuildContext context) {
     final safeIdx = _selectedDayIndex.clamp(0, _weeklyUsage.length - 1);
     final selectedDay = _weeklyUsage[safeIdx];
+    final isDesktop = MediaQuery.of(context).size.width >= 720;
 
     return Scaffold(
       backgroundColor: ZevColors.softSurface,
@@ -825,14 +826,17 @@ class _UserActivityScreenState extends State<UserActivityScreen>
         backgroundColor: ZevColors.white,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: ZevColors.deepNavy,
-            size: 20,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: ZevColors.deepNavy,
+                  size: 20,
+                ),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
         title: const Text(
           "Your activity",
           style: TextStyle(
@@ -845,7 +849,12 @@ class _UserActivityScreenState extends State<UserActivityScreen>
         centerTitle: true,
       ),
       body: SafeArea(
-        child: FadeTransition(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: isDesktop ? 720 : double.infinity,
+            ),
+            child: FadeTransition(
           opacity: _fadeAnim,
           child: SlideTransition(
             position: _slideAnim,
@@ -1268,8 +1277,10 @@ class _UserActivityScreenState extends State<UserActivityScreen>
           ),
         ),
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 
   Widget _buildSectionTitle(String title) {
     return Padding(

@@ -231,6 +231,18 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
         case 10:
           setBrowserUrl('/zev-blue');
           break;
+        case 11:
+          setBrowserUrl('/settings');
+          break;
+        case 12:
+          setBrowserUrl('/activity');
+          break;
+        case 13:
+          setBrowserUrl('/security');
+          break;
+        case 14:
+          setBrowserUrl('/help');
+          break;
       }
     }
     if (index == 4 || _myAvatarUrl.isEmpty) {
@@ -279,6 +291,30 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
 
       // Tab 10: ZEV Blue Verification
       ZevBlueVerificationScreen(userProfile: _myProfileMap),
+
+      // Tab 11: Settings & Privacy (Web/Tablet Shell with Sidebar)
+      ProfileSettingsScreen(
+        profile: _myProfileMap,
+        onProfileUpdated: (updated) {
+          setState(() {
+            _myProfileMap = updated;
+            final avatar = updated['avatar_url']?.toString();
+            if (avatar != null && avatar.isNotEmpty) {
+              _myAvatarUrl = avatar;
+              ZevMainLayout.userAvatarNotifier.value = avatar;
+            }
+          });
+        },
+      ),
+
+      // Tab 12: Your Activity (Web/Tablet Shell with Sidebar)
+      UserActivityScreen(profile: _myProfileMap),
+
+      // Tab 13: Security & 2FA (Web/Tablet Shell with Sidebar)
+      const MfaSettingsScreen(),
+
+      // Tab 14: Help & Support (Web/Tablet Shell with Sidebar)
+      const HelpSupportScreen(),
     ];
 
     // ========================================================
@@ -937,7 +973,11 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => _showSidebarMoreMenu(context, isReels: isReels),
+          onTap: () => _showSidebarMoreMenu(
+            context,
+            isReels: isReels,
+            isExpanded: isExpanded,
+          ),
           hoverColor: (isReels ? Colors.white : ZevColors.primaryBlue)
               .withValues(alpha: 0.08),
           child: Padding(
@@ -977,109 +1017,161 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     );
   }
 
-  void _showSidebarMoreMenu(BuildContext context, {required bool isReels}) {
+  void _showSidebarMoreMenu(
+    BuildContext context, {
+    required bool isReels,
+    required bool isExpanded,
+  }) {
     HapticFeedback.lightImpact();
-    showModalBottomSheet(
+    showGeneralDialog(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return Align(
-          alignment: Alignment.bottomLeft,
-          child: Container(
-            width: 280,
-            margin: const EdgeInsets.only(left: 20, bottom: 28),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.16),
-                  blurRadius: 30,
-                  offset: const Offset(4, 10),
-                ),
-              ],
-            ),
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildMoreMenuItem(
-                      icon: Icons.settings_outlined,
-                      label: 'Settings & Privacy',
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ProfileSettingsScreen(
-                              profile: _myProfileMap,
+      barrierDismissible: true,
+      barrierLabel: 'MoreSettingsMenu',
+      barrierColor: Colors.black.withValues(alpha: 0.16),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (ctx, anim1, anim2) {
+        return Stack(
+          children: [
+            Positioned(
+              left: isExpanded ? 16 : 80,
+              bottom: 64,
+              child: Material(
+                color: Colors.transparent,
+                child: FadeTransition(
+                  opacity: CurvedAnimation(
+                    parent: anim1,
+                    curve: Curves.easeOut,
+                  ),
+                  child: ScaleTransition(
+                    scale: Tween<double>(begin: 0.88, end: 1.0).animate(
+                      CurvedAnimation(
+                        parent: anim1,
+                        curve: Curves.easeOutCubic,
+                      ),
+                    ),
+                    alignment: Alignment.bottomLeft,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                        child: Container(
+                          width: 270,
+                          decoration: BoxDecoration(
+                            color: isReels
+                                ? const Color(0xFF0F172A).withValues(alpha: 0.85)
+                                : Colors.white.withValues(alpha: 0.88),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: isReels
+                                  ? Colors.white.withValues(alpha: 0.15)
+                                  : Colors.white.withValues(alpha: 0.92),
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF0F172A).withValues(alpha: 0.14),
+                                blurRadius: 28,
+                                offset: const Offset(4, 10),
+                              ),
+                              BoxShadow(
+                                color: ZevColors.primaryBlue.withValues(alpha: 0.08),
+                                blurRadius: 16,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildMoreMenuItem(
+                                  icon: Icons.settings_outlined,
+                                  label: 'Settings & Privacy',
+                                  isReels: isReels,
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    _onTabTapped(11);
+                                  },
+                                ),
+                                _buildMoreMenuItem(
+                                  icon: Icons.history_rounded,
+                                  label: 'Your Activity',
+                                  isReels: isReels,
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    _onTabTapped(12);
+                                  },
+                                ),
+                                _buildMoreMenuItem(
+                                  icon: Icons.campaign_outlined,
+                                  label: 'Ads Manager',
+                                  isReels: isReels,
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    _onTabTapped(7);
+                                  },
+                                ),
+                                _buildMoreMenuItem(
+                                  icon: Icons.security_rounded,
+                                  label: 'Security & 2FA',
+                                  isReels: isReels,
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    _onTabTapped(13);
+                                  },
+                                ),
+                                _buildMoreMenuItem(
+                                  icon: Icons.switch_account_outlined,
+                                  label: 'Switch Accounts',
+                                  isReels: isReels,
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    MultiAccountService.showAccountSwitcherSheet(context);
+                                  },
+                                ),
+                                _buildMoreMenuItem(
+                                  icon: Icons.help_outline_rounded,
+                                  label: 'Help & Support',
+                                  isReels: isReels,
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    _onTabTapped(14);
+                                  },
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 4,
+                                  ),
+                                  child: Divider(
+                                    color: isReels
+                                        ? const Color(0xFF334155)
+                                        : const Color(0xFFE2E8F0),
+                                    height: 1,
+                                  ),
+                                ),
+                                _buildMoreMenuItem(
+                                  icon: Icons.logout_rounded,
+                                  label: 'Log Out',
+                                  isDestructive: true,
+                                  isReels: isReels,
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    _showLogoutDialog(context);
+                                  },
+                                ),
+                              ],
                             ),
                           ),
-                        );
-                      },
+                        ),
+                      ),
                     ),
-                    _buildMoreMenuItem(
-                      icon: Icons.history_rounded,
-                      label: 'Your Activity',
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        UserActivityScreen.open(context, profile: _myProfileMap);
-                      },
-                    ),
-                    _buildMoreMenuItem(
-                      icon: Icons.campaign_outlined,
-                      label: 'Ads Manager',
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        AdsManagerScreen.open(context);
-                      },
-                    ),
-                    _buildMoreMenuItem(
-                      icon: Icons.security_rounded,
-                      label: 'Security & 2FA',
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        MfaSettingsScreen.open(context);
-                      },
-                    ),
-                    _buildMoreMenuItem(
-                      icon: Icons.switch_account_outlined,
-                      label: 'Switch Accounts',
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        MultiAccountService.showAccountSwitcherSheet(context);
-                      },
-                    ),
-                    _buildMoreMenuItem(
-                      icon: Icons.help_outline_rounded,
-                      label: 'Help & Support',
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        HelpSupportScreen.open(context);
-                      },
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      child: Divider(color: Color(0xFFE2E8F0), height: 1),
-                    ),
-                    _buildMoreMenuItem(
-                      icon: Icons.logout_rounded,
-                      label: 'Log Out',
-                      isDestructive: true,
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _showLogoutDialog(context);
-                      },
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
         );
       },
     );
@@ -1090,24 +1182,29 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     required String label,
     required VoidCallback onTap,
     bool isDestructive = false,
+    bool isReels = false,
   }) {
+    final defaultColor = isReels ? Colors.white : const Color(0xFF334155);
+    final color = isDestructive ? const Color(0xFFEF4444) : defaultColor;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        borderRadius: BorderRadius.circular(14),
         onTap: () {
           HapticFeedback.lightImpact();
           onTap();
         },
+        hoverColor: (isReels ? Colors.white : ZevColors.primaryBlue)
+            .withValues(alpha: 0.08),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
             children: [
               Icon(
                 icon,
                 size: 20,
-                color: isDestructive
-                    ? const Color(0xFFEF4444)
-                    : const Color(0xFF334155),
+                color: color,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1116,9 +1213,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: isDestructive ? FontWeight.w800 : FontWeight.w600,
-                    color: isDestructive
-                        ? const Color(0xFFEF4444)
-                        : const Color(0xFF0F172A),
+                    color: color,
+                    letterSpacing: -0.2,
                   ),
                 ),
               ),

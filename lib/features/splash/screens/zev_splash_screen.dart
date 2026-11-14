@@ -152,6 +152,14 @@ class _ZevSplashScreenState extends State<ZevSplashScreen>
               initialTabIndex = 9;
             } else if (path.contains('blue') || path.contains('verification')) {
               initialTabIndex = 10;
+            } else if (path.contains('settings') || path.contains('privacy')) {
+              initialTabIndex = 11;
+            } else if (path.contains('activity') || path.contains('history')) {
+              initialTabIndex = 12;
+            } else if (path.contains('security') || path.contains('2fa') || path.contains('mfa')) {
+              initialTabIndex = 13;
+            } else if (path.contains('help') || path.contains('support')) {
+              initialTabIndex = 14;
             }
           }
           targetScreen = ZevMainLayout(initialIndex: initialTabIndex);

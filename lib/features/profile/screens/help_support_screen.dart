@@ -696,6 +696,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
       'Referrals',
       'Safety'
     ];
+    final isDesktop = MediaQuery.of(context).size.width >= 720;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -703,14 +704,17 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Color(0xFF0F172A),
-            size: 20,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: Color(0xFF0F172A),
+                  size: 20,
+                ),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
         title: const Text(
           "Help & Support",
           style: TextStyle(
@@ -731,7 +735,12 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
         ],
       ),
       body: SafeArea(
-        child: ListView(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: isDesktop ? 760 : double.infinity,
+            ),
+            child: ListView(
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 36),
           children: [
@@ -1128,8 +1137,10 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 
   Widget _buildSectionHeader(String title) {
     return Padding(

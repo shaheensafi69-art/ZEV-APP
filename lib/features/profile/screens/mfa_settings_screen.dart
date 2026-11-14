@@ -311,20 +311,25 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.of(context).size.width >= 720;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Color(0xFF0F172A),
-            size: 20,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: Color(0xFF0F172A),
+                  size: 20,
+                ),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
         title: const Text(
           "Two-Factor Authentication",
           style: TextStyle(
@@ -337,7 +342,12 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
         centerTitle: true,
       ),
       body: SafeArea(
-        child: _isLoading
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: isDesktop ? 680 : double.infinity,
+            ),
+            child: _isLoading
             ? const Center(
                 child: CircularProgressIndicator(
                   valueColor:
@@ -1010,6 +1020,8 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
                   ],
                 ),
               ),
+          ),
+        ),
       ),
     );
   }

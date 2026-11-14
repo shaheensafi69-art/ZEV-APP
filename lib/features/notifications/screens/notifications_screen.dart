@@ -1335,6 +1335,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final unreadCount = _notifications.where((n) => !n.isRead).length;
     final filtered = _filteredNotifications;
     final grouped = _groupNotifications(filtered);
+    final isDesktop = MediaQuery.of(context).size.width >= 720;
 
     return Scaffold(
       backgroundColor: ZevColors.softSurface,
@@ -1420,9 +1421,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            _buildCategoryFilterRow(),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: isDesktop ? 680 : double.infinity,
+            ),
+            child: Column(
+              children: [
+                _buildCategoryFilterRow(),
             Expanded(
               child: RefreshIndicator(
                 color: ZevColors.primaryBlue,
@@ -1512,8 +1518,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 
   Widget _buildCategoryFilterRow() {
     return Container(

@@ -104,6 +104,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         "${_profile['first_name'] ?? ''} ${_profile['last_name'] ?? ''}".trim();
     final username = _profile['username'] ?? 'user';
     final avatarUrl = _profile['avatar_url'] ?? '';
+    final isDesktop = MediaQuery.of(context).size.width >= 720;
 
     return Scaffold(
       backgroundColor: ZevColors.softSurface,
@@ -111,14 +112,17 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         backgroundColor: ZevColors.white,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: ZevColors.deepNavy,
-            size: 20,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: ZevColors.deepNavy,
+                  size: 20,
+                ),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
         title: const Text(
           "Settings and activity",
           style: TextStyle(
@@ -130,10 +134,16 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(18, 12, 18, 36),
-        child: Column(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: isDesktop ? 680 : double.infinity,
+            ),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 36),
+              child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Clay Search Bar
@@ -446,8 +456,11 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  ),
+),
+);
+}
 
   Widget _buildSectionHeader(String title) {
     return Padding(
