@@ -66,6 +66,7 @@ flutter:
   assets:
     - assets/
     - assets/icon/
+    - assets/audio/
 
 flutter_launcher_icons:
   image_path: "assets/icon/icon-1024x1024.png"

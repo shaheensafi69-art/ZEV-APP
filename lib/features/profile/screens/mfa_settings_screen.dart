@@ -13,9 +13,7 @@ class MfaSettingsScreen extends StatefulWidget {
   static Future<void> open(BuildContext context) {
     return Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const MfaSettingsScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const MfaSettingsScreen()),
     );
   }
 
@@ -61,14 +59,14 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
     try {
       final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
       final factors = await MfaService.instance.getEnrolledFactors();
-      final hasPasskeySupport =
-          await PasskeyAuthService.instance.isDeviceSupported();
-      final hasPasskey =
-          await PasskeyAuthService.instance.isPasskeyEnrolled();
+      final hasPasskeySupport = await PasskeyAuthService.instance
+          .isDeviceSupported();
+      final hasPasskey = await PasskeyAuthService.instance.isPasskeyEnrolled();
 
       final currentDeviceId = await MfaService.instance.getOrCreateDeviceId();
-      final trustedDevices =
-          userId.isNotEmpty ? await MfaService.instance.getTrustedDevices(userId) : <Map<String, dynamic>>[];
+      final trustedDevices = userId.isNotEmpty
+          ? await MfaService.instance.getTrustedDevices(userId)
+          : <Map<String, dynamic>>[];
 
       if (mounted) {
         setState(() {
@@ -108,7 +106,9 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
         SnackBar(
           backgroundColor: const Color(0xFF0F172A),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           content: const Text(
             "All other devices revoked. They will require 2FA next time.",
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
@@ -147,7 +147,8 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
     final code = _codeCtrl.text.trim();
     if (code.length < 6 || _enrollFactorId == null) {
       setState(
-          () => _enrollError = "Please enter the 6-digit verification code.");
+        () => _enrollError = "Please enter the 6-digit verification code.",
+      );
       return;
     }
 
@@ -181,10 +182,15 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
               backgroundColor: const Color(0xFF10B981),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
               content: const Row(
                 children: [
-                  Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                  Icon(
+                    Icons.check_circle_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                   SizedBox(width: 10),
                   Text(
                     "Two-Factor Authentication is now active!",
@@ -238,7 +244,8 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
               backgroundColor: const Color(0xFFEF4444),
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             child: const Text("Disable 2FA"),
           ),
@@ -290,11 +297,15 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
               backgroundColor: const Color(0xFF10B981),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
               content: const Row(
                 children: [
-                  Icon(Icons.fingerprint_rounded,
-                      color: Colors.white, size: 20),
+                  Icon(
+                    Icons.fingerprint_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                   SizedBox(width: 10),
                   Text(
                     "ZEV Passkey enabled for 1-Tap Biometric sign-in!",
@@ -348,235 +359,51 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
               maxWidth: isDesktop ? 680 : double.infinity,
             ),
             child: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(Color(0xFF0284C7)),
-                ),
-              )
-            : SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 36),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Security Shield Banner
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF0284C7), Color(0xFF0369A1)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(22),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF0284C7).withValues(alpha: 0.28),
-                            blurRadius: 16,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.security_rounded,
-                              color: Colors.white,
-                              size: 26,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _hasMfa
-                                      ? "Account is Highly Protected"
-                                      : "Upgrade Your Account Protection",
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  _hasMfa
-                                      ? "Two-Factor Authentication is currently active on your ZEV profile."
-                                      : "Prevent unauthorized logins by adding an authenticator app or biometric passkey.",
-                                  style: const TextStyle(
-                                    color: Color(0xFFE0F2FE),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xFF0284C7),
                       ),
                     ),
-
-                    const SizedBox(height: 20),
-
-                    // ==========================================
-                    // 1. PASSKEY / BIOMETRICS CARD
-                    // ==========================================
-                    if (_isPasskeySupported) ...[
-                      const Padding(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                        child: Text(
-                          "BIOMETRICS & PASSKEYS",
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF94A3B8),
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(22),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.95),
-                            width: 1.2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-                              blurRadius: 10,
-                              offset: const Offset(0, 3),
+                  )
+                : SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(18, 14, 18, 36),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Security Shield Banner
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF0284C7), Color(0xFF0369A1)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
-                            const BoxShadow(
-                              color: Colors.white,
-                              blurRadius: 4,
-                              offset: Offset(0, -1),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0284C7)
-                                    .withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(22),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFF0284C7,
+                                ).withValues(alpha: 0.28),
+                                blurRadius: 16,
+                                offset: const Offset(0, 5),
                               ),
-                              child: const Icon(
-                                Icons.fingerprint_rounded,
-                                color: Color(0xFF0284C7),
-                                size: 24,
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    "Passkey (Face / Fingerprint)",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 14.5,
-                                      color: Color(0xFF0F172A),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    _isPasskeyEnrolled
-                                        ? "Active on this device"
-                                        : "Fast, passwordless sign-in",
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: _isPasskeyEnrolled
-                                          ? const Color(0xFF10B981)
-                                          : const Color(0xFF64748B),
-                                      fontWeight: _isPasskeyEnrolled
-                                          ? FontWeight.w700
-                                          : FontWeight.normal,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Switch.adaptive(
-                              value: _isPasskeyEnrolled,
-                              activeTrackColor: const Color(0xFF0284C7),
-                              onChanged: (_) => _togglePasskey(),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-
-                    // ==========================================
-                    // 2. TOTP AUTHENTICATOR APP CARD
-                    // ==========================================
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                      child: Text(
-                        "AUTHENTICATOR APP (TOTP)",
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF94A3B8),
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                    ),
-
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.95),
-                          width: 1.2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-                            blurRadius: 10,
-                            offset: const Offset(0, 3),
+                            ],
                           ),
-                          const BoxShadow(
-                            color: Colors.white,
-                            blurRadius: 4,
-                            offset: Offset(0, -1),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                          child: Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.all(10),
+                                padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF6366F1)
-                                      .withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(14),
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  shape: BoxShape.circle,
                                 ),
                                 child: const Icon(
-                                  Icons.vpn_key_rounded,
-                                  color: Color(0xFF6366F1),
-                                  size: 24,
+                                  Icons.security_rounded,
+                                  color: Colors.white,
+                                  size: 26,
                                 ),
                               ),
                               const SizedBox(width: 14),
@@ -584,446 +411,716 @@ class _MfaSettingsScreenState extends State<MfaSettingsScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text(
-                                      "Authenticator App",
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 14.5,
-                                        color: Color(0xFF0F172A),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
                                     Text(
                                       _hasMfa
-                                          ? "Active (${_activeFactor?.friendlyName ?? 'ZEV 2FA'})"
-                                          : "Google Authenticator, Apple, Microsoft",
-                                      style: TextStyle(
+                                          ? "Account is Highly Protected"
+                                          : "Upgrade Your Account Protection",
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      _hasMfa
+                                          ? "Two-Factor Authentication is currently active on your ZEV profile."
+                                          : "Prevent unauthorized logins by adding an authenticator app or biometric passkey.",
+                                      style: const TextStyle(
+                                        color: Color(0xFFE0F2FE),
                                         fontSize: 12,
-                                        color: _hasMfa
-                                            ? const Color(0xFF10B981)
-                                            : const Color(0xFF64748B),
-                                        fontWeight: _hasMfa
-                                            ? FontWeight.w700
-                                            : FontWeight.normal,
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              if (_hasMfa)
-                                IconButton(
-                                  icon: const Icon(Icons.delete_outline_rounded,
-                                      color: Color(0xFFEF4444)),
-                                  tooltip: "Disable 2FA",
-                                  onPressed: _disableTotp,
-                                )
-                              else if (!_isEnrolling)
-                                ElevatedButton(
-                                  onPressed: _startTotpEnrollment,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF0284C7),
-                                    foregroundColor: Colors.white,
-                                    elevation: 0,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 8),
-                                  ),
-                                  child: const Text("Set Up",
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.w800)),
-                                ),
                             ],
                           ),
+                        ),
 
-                          // Enrollment Sub-panel
-                          if (_isEnrolling) ...[
-                            const SizedBox(height: 18),
-                            const Divider(color: Color(0xFFF1F5F9)),
-                            const SizedBox(height: 12),
-                            const Text(
-                              "1. Copy this setup key and paste it into your Authenticator app:",
+                        const SizedBox(height: 20),
+
+                        // ==========================================
+                        // 1. PASSKEY / BIOMETRICS CARD
+                        // ==========================================
+                        if (_isPasskeySupported) ...[
+                          const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 4,
+                            ),
+                            child: Text(
+                              "BIOMETRICS & PASSKEYS",
                               style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF0F172A)),
-                            ),
-                            const SizedBox(height: 10),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
-                                borderRadius: BorderRadius.circular(12),
-                                border:
-                                    Border.all(color: const Color(0xFFE2E8F0)),
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: SelectableText(
-                                      _enrollSecret ?? "Loading secret...",
-                                      style: const TextStyle(
-                                        fontFamily: 'monospace',
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
-                                        color: Color(0xFF0284C7),
-                                      ),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.copy_rounded,
-                                        size: 18, color: Color(0xFF0284C7)),
-                                    onPressed: () {
-                                      if (_enrollSecret != null) {
-                                        Clipboard.setData(ClipboardData(
-                                            text: _enrollSecret!));
-                                        HapticFeedback.lightImpact();
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                                "Secret key copied to clipboard!"),
-                                            behavior: SnackBarBehavior.floating,
-                                            duration: Duration(seconds: 2),
-                                          ),
-                                        );
-                                      }
-                                    },
-                                  ),
-                                ],
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF94A3B8),
+                                letterSpacing: 0.8,
                               ),
                             ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              "2. Enter the 6-digit code shown in your Authenticator:",
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF0F172A)),
-                            ),
-                            const SizedBox(height: 10),
-                            TextField(
-                              controller: _codeCtrl,
-                              keyboardType: TextInputType.number,
-                              maxLength: 6,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 8,
-                                color: Color(0xFF0F172A),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(22),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.95),
+                                width: 1.2,
                               ),
-                              decoration: InputDecoration(
-                                counterText: "",
-                                hintText: "000000",
-                                hintStyle: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 8,
-                                  color: Color(0xFFCBD5E1),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(
+                                    0xFF0F172A,
+                                  ).withValues(alpha: 0.04),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 3),
                                 ),
-                                filled: true,
-                                fillColor: const Color(0xFFF8FAFC),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: const BorderSide(
-                                      color: Color(0xFFE2E8F0)),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: const BorderSide(
-                                      color: Color(0xFF0284C7), width: 1.5),
-                                ),
-                              ),
-                            ),
-                            if (_enrollError != null) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                _enrollError!,
-                                style: const TextStyle(
-                                    color: Color(0xFFEF4444), fontSize: 12),
-                              ),
-                            ],
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: () =>
-                                        setState(() => _isEnrolling = false),
-                                    style: OutlinedButton.styleFrom(
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                    child: const Text("Cancel"),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: _isVerifyingEnrollment
-                                        ? null
-                                        : _confirmTotpEnrollment,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor:
-                                          const Color(0xFF0284C7),
-                                      foregroundColor: Colors.white,
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                    child: _isVerifyingEnrollment
-                                        ? const SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : const Text("Verify & Activate",
-                                            style: TextStyle(
-                                                fontWeight: FontWeight.w800)),
-                                  ),
+                                const BoxShadow(
+                                  color: Colors.white,
+                                  blurRadius: 4,
+                                  offset: Offset(0, -1),
                                 ),
                               ],
                             ),
-                          ],
-                        ],
-                      ),
-                    ),
-
-                    if (_hasMfa) ...[
-                      const SizedBox(height: 24),
-                      const Padding(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                        child: Text(
-                          "TRUSTED DEVICES (VERIFIED ONCE)",
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF94A3B8),
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(22),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.95),
-                            width: 1.2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF0F172A)
-                                  .withValues(alpha: 0.04),
-                              blurRadius: 10,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                            child: Row(
                               children: [
                                 Container(
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF10B981)
-                                        .withValues(alpha: 0.12),
+                                    color: const Color(
+                                      0xFF0284C7,
+                                    ).withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(14),
                                   ),
-                                  child: const Icon(Icons.devices_rounded,
-                                      color: Color(0xFF10B981), size: 22),
+                                  child: const Icon(
+                                    Icons.fingerprint_rounded,
+                                    color: Color(0xFF0284C7),
+                                    size: 24,
+                                  ),
                                 ),
-                                const SizedBox(width: 12),
-                                const Expanded(
+                                const SizedBox(width: 14),
+                                Expanded(
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        "Device Verification Hub",
+                                      const Text(
+                                        "Passkey (Face / Fingerprint)",
                                         style: TextStyle(
                                           fontWeight: FontWeight.w800,
                                           fontSize: 14.5,
                                           color: Color(0xFF0F172A),
                                         ),
                                       ),
-                                      SizedBox(height: 2),
+                                      const SizedBox(height: 2),
                                       Text(
-                                        "New devices must enter your 6-digit Authenticator code once.",
+                                        _isPasskeyEnrolled
+                                            ? "Active on this device"
+                                            : "Fast, passwordless sign-in",
                                         style: TextStyle(
-                                            fontSize: 11.5,
-                                            color: Color(0xFF64748B)),
+                                          fontSize: 12,
+                                          color: _isPasskeyEnrolled
+                                              ? const Color(0xFF10B981)
+                                              : const Color(0xFF64748B),
+                                          fontWeight: _isPasskeyEnrolled
+                                              ? FontWeight.w700
+                                              : FontWeight.normal,
+                                        ),
                                       ),
                                     ],
                                   ),
+                                ),
+                                Switch.adaptive(
+                                  value: _isPasskeyEnrolled,
+                                  activeTrackColor: const Color(0xFF0284C7),
+                                  onChanged: (_) => _togglePasskey(),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 16),
-                            const Divider(color: Color(0xFFF1F5F9), height: 1),
-                            const SizedBox(height: 12),
-                            if (_trustedDevices.isEmpty)
-                              const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 8),
-                                child: Text(
-                                  "This device is currently authorized and active.",
-                                  style: TextStyle(
-                                      fontSize: 12.5,
-                                      color: Color(0xFF475569)),
-                                ),
-                              )
-                            else
-                              ..._trustedDevices.map((dev) {
-                                final isCurrent =
-                                    dev['device_id'] == _currentDeviceId;
-                                final name =
-                                    dev['device_name']?.toString() ??
-                                        'Authorized Device';
-                                final platform =
-                                    dev['platform']?.toString().toLowerCase() ??
-                                        'mobile';
+                          ),
+                          const SizedBox(height: 20),
+                        ],
 
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        platform == 'ios'
-                                            ? Icons.apple_rounded
-                                            : (platform == 'macos'
-                                                ? Icons.laptop_mac_rounded
-                                                : Icons.phone_android_rounded),
-                                        size: 20,
-                                        color: const Color(0xFF475569),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Flexible(
-                                                  child: Text(
-                                                    name,
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      fontSize: 13,
-                                                      color: Color(0xFF0F172A),
-                                                    ),
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                                if (isCurrent) ...[
-                                                  const SizedBox(width: 6),
-                                                  Container(
-                                                    padding: const EdgeInsets
-                                                        .symmetric(
-                                                        horizontal: 6,
-                                                        vertical: 1),
-                                                    decoration: BoxDecoration(
-                                                      color: const Color(
-                                                              0xFF10B981)
-                                                          .withValues(
-                                                              alpha: 0.12),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              6),
-                                                    ),
-                                                    child: const Text(
-                                                      "THIS DEVICE",
-                                                      style: TextStyle(
-                                                        fontSize: 9,
-                                                        fontWeight:
-                                                            FontWeight.w900,
-                                                        color:
-                                                            Color(0xFF10B981),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ],
-                                            ),
-                                            const Text(
-                                              "Trusted • Verified via 2FA",
-                                              style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: Color(0xFF64748B)),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      if (!isCurrent)
-                                        IconButton(
-                                          icon: const Icon(Icons.close_rounded,
-                                              size: 18,
-                                              color: Color(0xFF94A3B8)),
-                                          tooltip: "Revoke trust",
-                                          onPressed: () => _revokeDevice(
-                                              dev['device_id']?.toString() ??
-                                                  ''),
-                                        ),
-                                    ],
-                                  ),
-                                );
-                              }),
-                            if (_trustedDevices.length > 1) ...[
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                width: double.infinity,
-                                child: OutlinedButton.icon(
-                                  onPressed: _revokeAllOtherDevices,
-                                  icon: const Icon(
-                                      Icons.security_update_warning_rounded,
-                                      size: 16,
-                                      color: Color(0xFFEF4444)),
-                                  label: const Text(
-                                    "Log Out & Revoke All Other Devices",
-                                    style: TextStyle(
-                                      color: Color(0xFFEF4444),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  style: OutlinedButton.styleFrom(
-                                    side: BorderSide(
-                                        color: const Color(0xFFEF4444)
-                                            .withValues(alpha: 0.4)),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                ),
+                        // ==========================================
+                        // 2. TOTP AUTHENTICATOR APP CARD
+                        // ==========================================
+                        const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 4,
+                          ),
+                          child: Text(
+                            "AUTHENTICATOR APP (TOTP)",
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF94A3B8),
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.95),
+                              width: 1.2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFF0F172A,
+                                ).withValues(alpha: 0.04),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                              const BoxShadow(
+                                color: Colors.white,
+                                blurRadius: 4,
+                                offset: Offset(0, -1),
                               ),
                             ],
-                          ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: const Color(
+                                        0xFF6366F1,
+                                      ).withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: const Icon(
+                                      Icons.vpn_key_rounded,
+                                      color: Color(0xFF6366F1),
+                                      size: 24,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          "Authenticator App",
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 14.5,
+                                            color: Color(0xFF0F172A),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          _hasMfa
+                                              ? "Active (${_activeFactor?.friendlyName ?? 'ZEV 2FA'})"
+                                              : "Google Authenticator, Apple, Microsoft",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: _hasMfa
+                                                ? const Color(0xFF10B981)
+                                                : const Color(0xFF64748B),
+                                            fontWeight: _hasMfa
+                                                ? FontWeight.w700
+                                                : FontWeight.normal,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (_hasMfa)
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.delete_outline_rounded,
+                                        color: Color(0xFFEF4444),
+                                      ),
+                                      tooltip: "Disable 2FA",
+                                      onPressed: _disableTotp,
+                                    )
+                                  else if (!_isEnrolling)
+                                    ElevatedButton(
+                                      onPressed: _startTotpEnrollment,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFF0284C7,
+                                        ),
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                          vertical: 8,
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        "Set Up",
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+
+                              // Enrollment Sub-panel
+                              if (_isEnrolling) ...[
+                                const SizedBox(height: 18),
+                                const Divider(color: Color(0xFFF1F5F9)),
+                                const SizedBox(height: 12),
+                                const Text(
+                                  "1. Copy this setup key and paste it into your Authenticator app:",
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: SelectableText(
+                                          _enrollSecret ?? "Loading secret...",
+                                          style: const TextStyle(
+                                            fontFamily: 'monospace',
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13,
+                                            color: Color(0xFF0284C7),
+                                          ),
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.copy_rounded,
+                                          size: 18,
+                                          color: Color(0xFF0284C7),
+                                        ),
+                                        onPressed: () {
+                                          if (_enrollSecret != null) {
+                                            Clipboard.setData(
+                                              ClipboardData(
+                                                text: _enrollSecret!,
+                                              ),
+                                            );
+                                            HapticFeedback.lightImpact();
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  "Secret key copied to clipboard!",
+                                                ),
+                                                behavior:
+                                                    SnackBarBehavior.floating,
+                                                duration: Duration(seconds: 2),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  "2. Enter the 6-digit code shown in your Authenticator:",
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                TextField(
+                                  controller: _codeCtrl,
+                                  keyboardType: TextInputType.number,
+                                  maxLength: 6,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 8,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                  decoration: InputDecoration(
+                                    counterText: "",
+                                    hintText: "000000",
+                                    hintStyle: const TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 8,
+                                      color: Color(0xFFCBD5E1),
+                                    ),
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF0284C7),
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                if (_enrollError != null) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _enrollError!,
+                                    style: const TextStyle(
+                                      color: Color(0xFFEF4444),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 16),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        onPressed: () => setState(
+                                          () => _isEnrolling = false,
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                        ),
+                                        child: const Text("Cancel"),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        onPressed: _isVerifyingEnrollment
+                                            ? null
+                                            : _confirmTotpEnrollment,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(
+                                            0xFF0284C7,
+                                          ),
+                                          foregroundColor: Colors.white,
+                                          elevation: 0,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                        ),
+                                        child: _isVerifyingEnrollment
+                                            ? const SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Colors.white,
+                                                    ),
+                                              )
+                                            : const Text(
+                                                "Verify & Activate",
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+
+                        if (_hasMfa) ...[
+                          const SizedBox(height: 24),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 4,
+                            ),
+                            child: Text(
+                              "TRUSTED DEVICES (VERIFIED ONCE)",
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF94A3B8),
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(22),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.95),
+                                width: 1.2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(
+                                    0xFF0F172A,
+                                  ).withValues(alpha: 0.04),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: const Color(
+                                          0xFF10B981,
+                                        ).withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      child: const Icon(
+                                        Icons.devices_rounded,
+                                        color: Color(0xFF10B981),
+                                        size: 22,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            "Device Verification Hub",
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 14.5,
+                                              color: Color(0xFF0F172A),
+                                            ),
+                                          ),
+                                          SizedBox(height: 2),
+                                          Text(
+                                            "New devices must enter your 6-digit Authenticator code once.",
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              color: Color(0xFF64748B),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                const Divider(
+                                  color: Color(0xFFF1F5F9),
+                                  height: 1,
+                                ),
+                                const SizedBox(height: 12),
+                                if (_trustedDevices.isEmpty)
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 8),
+                                    child: Text(
+                                      "This device is currently authorized and active.",
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        color: Color(0xFF475569),
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  ..._trustedDevices.map((dev) {
+                                    final isCurrent =
+                                        dev['device_id'] == _currentDeviceId;
+                                    final name =
+                                        dev['device_name']?.toString() ??
+                                        'Authorized Device';
+                                    final platform =
+                                        dev['platform']
+                                            ?.toString()
+                                            .toLowerCase() ??
+                                        'mobile';
+
+                                    return Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 10,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            platform == 'ios'
+                                                ? Icons.apple_rounded
+                                                : (platform == 'macos'
+                                                      ? Icons.laptop_mac_rounded
+                                                      : Icons
+                                                            .phone_android_rounded),
+                                            size: 20,
+                                            color: const Color(0xFF475569),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Flexible(
+                                                      child: Text(
+                                                        name,
+                                                        style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          fontSize: 13,
+                                                          color: Color(
+                                                            0xFF0F172A,
+                                                          ),
+                                                        ),
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
+                                                    ),
+                                                    if (isCurrent) ...[
+                                                      const SizedBox(width: 6),
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 6,
+                                                              vertical: 1,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color:
+                                                              const Color(
+                                                                0xFF10B981,
+                                                              ).withValues(
+                                                                alpha: 0.12,
+                                                              ),
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                6,
+                                                              ),
+                                                        ),
+                                                        child: const Text(
+                                                          "THIS DEVICE",
+                                                          style: TextStyle(
+                                                            fontSize: 9,
+                                                            fontWeight:
+                                                                FontWeight.w900,
+                                                            color: Color(
+                                                              0xFF10B981,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
+                                                ),
+                                                const Text(
+                                                  "Trusted • Verified via 2FA",
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: Color(0xFF64748B),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          if (!isCurrent)
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.close_rounded,
+                                                size: 18,
+                                                color: Color(0xFF94A3B8),
+                                              ),
+                                              tooltip: "Revoke trust",
+                                              onPressed: () => _revokeDevice(
+                                                dev['device_id']?.toString() ??
+                                                    '',
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                                if (_trustedDevices.length > 1) ...[
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton.icon(
+                                      onPressed: _revokeAllOtherDevices,
+                                      icon: const Icon(
+                                        Icons.security_update_warning_rounded,
+                                        size: 16,
+                                        color: Color(0xFFEF4444),
+                                      ),
+                                      label: const Text(
+                                        "Log Out & Revoke All Other Devices",
+                                        style: TextStyle(
+                                          color: Color(0xFFEF4444),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      style: OutlinedButton.styleFrom(
+                                        side: BorderSide(
+                                          color: const Color(
+                                            0xFFEF4444,
+                                          ).withValues(alpha: 0.4),
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
           ),
         ),
       ),
     );
   }
 }
-

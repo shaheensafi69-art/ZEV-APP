@@ -1444,22 +1444,13 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                             label: 'Host',
                           ),
 
-                        // Host Bottom Sub-Bar: Medals + Name
+                        // Host Bottom Sub-Bar: Real Name Pill
                         Positioned(
                           bottom: 8,
                           left: 8,
                           right: 8,
                           child: Row(
                             children: [
-                              _buildMiniMedalAvatar(
-                                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
-                                1,
-                              ),
-                              const SizedBox(width: 3),
-                              _buildMiniMedalAvatar(
-                                'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80',
-                                2,
-                              ),
                               const Spacer(),
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -1512,29 +1503,18 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                           )
                         else
                           _buildWaitingPlaceholder(
-                            avatar: (_pkOpponentProfile?['avatar_url'] ?? '').toString().isNotEmpty
-                                ? (_pkOpponentProfile!['avatar_url']).toString()
-                                : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+                            avatar: (_pkOpponentProfile?['avatar_url'] ?? '').toString(),
                             username: (_pkOpponentProfile?['username'] ?? 'Opponent').toString(),
                             label: 'Challenger',
                           ),
 
-                        // Opponent Bottom Sub-Bar: Medals + Name
+                        // Opponent Bottom Sub-Bar: Real Name Pill
                         Positioned(
                           bottom: 8,
                           left: 8,
                           right: 8,
                           child: Row(
                             children: [
-                              _buildMiniMedalAvatar(
-                                'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80',
-                                1,
-                              ),
-                              const SizedBox(width: 3),
-                              _buildMiniMedalAvatar(
-                                'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=120&q=80',
-                                2,
-                              ),
                               const Spacer(),
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -1650,7 +1630,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                       )
                     else
                       _buildWaitingPlaceholder(
-                        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+                        avatar: '',
                         username: 'Co-Host',
                         label: 'Guest',
                       ),
@@ -1784,7 +1764,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                           )
                         else
                           _buildWaitingPlaceholder(
-                            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+                            avatar: '',
                             username: 'Guest $uid',
                             label: 'Co-Host',
                           ),
@@ -1898,34 +1878,6 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
     );
   }
 
-  Widget _buildMiniMedalAvatar(String imageUrl, int rank) {
-    Color ringColor;
-    if (rank == 1) {
-      ringColor = const Color(0xFFFFD700); // Gold
-    } else if (rank == 2) {
-      ringColor = const Color(0xFFE2E8F0); // Silver
-    } else {
-      ringColor = const Color(0xFFCD7F32); // Bronze
-    }
-
-    return Container(
-      width: 22,
-      height: 22,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: ringColor, width: 1.5),
-      ),
-      child: ClipOval(
-        child: ZevCachedImage.avatar(
-          imageUrl: imageUrl,
-          size: 20,
-        ),
-      ),
-    );
-  }
-
-
-
   void _requestJoinStage() {
     HapticFeedback.mediumImpact();
     final myProfile = _supabase.auth.currentUser;
@@ -1951,7 +1903,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
       );
     } catch (_) {}
 
-    _showToast('Stage request sent to host • درخواست برای استیج ارسال شد');
+    _showToast('Stage request sent to host');
   }
 
   Future<void> _becomeStageGuest() async {
@@ -1979,7 +1931,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
             ),
           );
         });
-        _showToast('You are now live on stage! • شما در استیج هستید');
+        _showToast('You are now live on stage!');
       }
     } catch (e) {
       debugPrint('[LiveRoomScreen] Error becoming stage guest: $e');
@@ -2001,7 +1953,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
           _localBroadcasterController?.dispose();
           _localBroadcasterController = null;
         });
-        _showToast('You left the stage • از استیج خارج شدید');
+        _showToast('You left the stage');
       }
     } catch (e) {
       debugPrint('[LiveRoomScreen] Error leaving stage: $e');
@@ -2344,7 +2296,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                 _leaveStageGuest();
               },
               icon: const Icon(Icons.logout_rounded, size: 16),
-              label: const Text('Leave Stage • خروج از استیج'),
+              label: const Text('Leave Stage'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFEF4444),
                 foregroundColor: Colors.white,
@@ -2370,7 +2322,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
             ),
             const SizedBox(height: 10),
             const Text(
-              'Request Sent • در انتظار تایید میزبان',
+              'Request Sent (Pending Approval)',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 15,
@@ -2439,7 +2391,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
               ),
             ),
             child: const Text(
-              'Send Stage Request • درخواست استیج',
+              'Send Stage Request',
               style: TextStyle(fontWeight: FontWeight.w800),
             ),
           ),
@@ -3374,28 +3326,6 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
 
                 const Spacer(),
 
-                // Top Contributor mini bubbles (Gold, Silver, Bronze medals)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildMiniMedalAvatar(
-                      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
-                      1,
-                    ),
-                    const SizedBox(width: 4),
-                    _buildMiniMedalAvatar(
-                      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80',
-                      2,
-                    ),
-                    const SizedBox(width: 4),
-                    _buildMiniMedalAvatar(
-                      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80',
-                      3,
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 6),
-
                 // Viewers Pill
                 GestureDetector(
                   onTap: _showParticipantsSheet,
@@ -3991,7 +3921,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'ابزارها و کنترل‌های میزبان',
+                          'Host Controls',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 16,
@@ -3999,7 +3929,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                           ),
                         ),
                         Text(
-                          'Host Controls',
+                          'Tools & Settings',
                           style: TextStyle(
                             color: Colors.white38,
                             fontSize: 12,
@@ -4014,8 +3944,8 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                         Expanded(
                           child: _buildHostToolCard(
                             icon: Icons.flip_camera_ios_rounded,
-                            label: 'چرخش دوربین',
-                            sublabel: 'Flip Camera',
+                            label: 'Flip Camera',
+                            sublabel: 'Front / Back',
                             onTap: () {
                               _switchLiveCamera();
                               Navigator.pop(ctx);
@@ -4028,8 +3958,8 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                             icon: _isCameraOff
                                 ? Icons.videocam_off_rounded
                                 : Icons.videocam_rounded,
-                            label: _isCameraOff ? 'تصویر خاموش' : 'تصویر روشن',
-                            sublabel: _isCameraOff ? 'Camera Off' : 'Camera On',
+                            label: _isCameraOff ? 'Camera Off' : 'Camera On',
+                            sublabel: _isCameraOff ? 'Disabled' : 'Streaming',
                             iconColor: _isCameraOff
                                 ? const Color(0xFFFF2D55)
                                 : const Color(0xFF10B981),
@@ -4049,8 +3979,8 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                             icon: _isMicMuted
                                 ? Icons.mic_off_rounded
                                 : Icons.mic_rounded,
-                            label: _isMicMuted ? 'صدا قطع' : 'صدا وصل',
-                            sublabel: _isMicMuted ? 'Muted' : 'Unmuted',
+                            label: _isMicMuted ? 'Muted' : 'Unmuted',
+                            sublabel: _isMicMuted ? 'Mic Off' : 'Mic Live',
                             iconColor: _isMicMuted
                                 ? const Color(0xFFFF2D55)
                                 : const Color(0xFF10B981),
@@ -4064,8 +3994,8 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                         Expanded(
                           child: _buildHostToolCard(
                             icon: Icons.card_giftcard_rounded,
-                            label: 'صندوق جوایز',
-                            sublabel: 'Gift Drawer',
+                            label: 'Gift Drawer',
+                            sublabel: 'Rewards & Chest',
                             gradient: const LinearGradient(
                               colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
                             ),
@@ -4155,15 +4085,15 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: const Color(0xFF0F172A),
-          title: const Text('نبرد زنده (PK Battle)', style: TextStyle(color: Colors.white)),
+          title: const Text('Live PK Battle', style: TextStyle(color: Colors.white)),
           content: const Text(
-            'آیا می‌خواهید نبرد فعلی را پایان دهید؟',
+            'Do you want to end the current PK battle?',
             style: TextStyle(color: Colors.white70),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('ادامه نبرد', style: TextStyle(color: Colors.white54)),
+              child: const Text('Continue Battle', style: TextStyle(color: Colors.white54)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
@@ -4171,7 +4101,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                 Navigator.pop(ctx);
                 _endPkBattle();
               },
-              child: const Text('پایان نبرد'),
+              child: const Text('End Battle'),
             ),
           ],
         ),
@@ -4220,7 +4150,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
     } catch (_) {}
 
     final oppUsername = (opponent['username'] ?? 'opponent').toString();
-    _showToast('⚔️ نبرد زنده با @$oppUsername آغاز شد! به میزبان خود هدیه دهید!');
+    _showToast('⚔️ PK Battle with @$oppUsername started! Send gifts to support!');
   }
 
   void _endPkBattle() {
@@ -4238,7 +4168,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
         },
       );
     } catch (_) {}
-    _showToast('نبرد زنده پایان یافت');
+    _showToast('PK Battle ended');
   }
 
   void _finishPkBattle() {
@@ -4249,14 +4179,14 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
       if (_pkRedScore > _pkBlueScore) {
         _hostWinStreak++;
         _pkBattleResult = 'host';
-        _showToast('🏆 پیروزی میزبان! تبریک به بینندگان!');
+        _showToast('🏆 Host Victory! Congratulations!');
       } else if (_pkBlueScore > _pkRedScore) {
         _opponentWinStreak++;
         _pkBattleResult = 'opponent';
-        _showToast('🏆 پیروزی حریف در این نبرد!');
+        _showToast('🏆 Opponent won this battle!');
       } else {
         _pkBattleResult = 'draw';
-        _showToast('🤝 نبرد مساوی شد!');
+        _showToast('🤝 It\'s a tie!');
       }
     });
 
@@ -4668,7 +4598,7 @@ class _LiveShareFollowersSheetState extends State<_LiveShareFollowersSheet> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('دعوتنامه به $targetName ارسال شد ✓'),
+        content: Text('Invitation sent to $targetName ✓'),
         duration: const Duration(seconds: 2),
         backgroundColor: const Color(0xFF10B981),
       ),
@@ -4724,7 +4654,7 @@ class _LiveShareFollowersSheetState extends State<_LiveShareFollowersSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'اشتراک‌گذاری لایو با دوستان',
+                          'Share LIVE Stream',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 16,
@@ -4732,7 +4662,7 @@ class _LiveShareFollowersSheetState extends State<_LiveShareFollowersSheet> {
                           ),
                         ),
                         Text(
-                          'Share LIVE stream with followers & friends',
+                          'Invite followers & friends to join',
                           style: TextStyle(
                             color: Colors.white54,
                             fontSize: 11,
@@ -4771,7 +4701,7 @@ class _LiveShareFollowersSheetState extends State<_LiveShareFollowersSheet> {
                         onChanged: (val) => setState(() => _query = val),
                         style: const TextStyle(color: Colors.white, fontSize: 13.5),
                         decoration: const InputDecoration(
-                          hintText: 'جستجوی مخاطبان یا فالوورها...',
+                          hintText: 'Search followers or friends...',
                           hintStyle: TextStyle(color: Colors.white38, fontSize: 13),
                           border: InputBorder.none,
                           isDense: true,
@@ -4796,7 +4726,7 @@ class _LiveShareFollowersSheetState extends State<_LiveShareFollowersSheet> {
                   : filtered.isEmpty
                       ? const Center(
                           child: Text(
-                            'مخاطبی یافت نشد',
+                            'No users found',
                             style: TextStyle(color: Colors.white38, fontSize: 13),
                           ),
                         )
@@ -4895,7 +4825,7 @@ class _LiveShareFollowersSheetState extends State<_LiveShareFollowersSheet> {
                                           ),
                                           const SizedBox(width: 4),
                                           Text(
-                                            isSent ? 'ارسال شد' : 'ارسال',
+                                            isSent ? 'Sent' : 'Send',
                                             style: const TextStyle(
                                               color: Colors.white,
                                               fontSize: 12,
@@ -4933,13 +4863,13 @@ class _LiveShareFollowersSheetState extends State<_LiveShareFollowersSheet> {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       icon: const Icon(Icons.copy_rounded, size: 18),
-                      label: const Text('کپی کردن لینک'),
+                      label: const Text('Copy Link'),
                       onPressed: () {
                         Clipboard.setData(ClipboardData(text: link));
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('لینک لایو با موفقیت کپی شد!'),
+                            content: Text('Live link copied to clipboard!'),
                             backgroundColor: Color(0xFF10B981),
                           ),
                         );
@@ -4958,10 +4888,10 @@ class _LiveShareFollowersSheetState extends State<_LiveShareFollowersSheet> {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       icon: const Icon(Icons.share_rounded, size: 18),
-                      label: const Text('اشتراک‌گذاری'),
+                      label: const Text('Share Link'),
                       onPressed: () {
                         Navigator.pop(context);
-                        Share.share('به لایو استریم من در زِو (ZEV) بپیوندید:\n$link');
+                        Share.share('Join my live stream on ZEV:\n$link');
                       },
                     ),
                   ),
@@ -5055,9 +4985,9 @@ class _LivePkMatchmakingSheetState extends State<_LivePkMatchmakingSheet> {
       }
       widget.onStartPkWith({
         'username': 'creator_pro',
-        'first_name': 'Ali',
-        'last_name': 'Reza',
-        'avatar_url': 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=400&q=80',
+        'first_name': 'Creator',
+        'last_name': 'Pro',
+        'avatar_url': '',
       });
     });
   }
@@ -5102,7 +5032,7 @@ class _LivePkMatchmakingSheetState extends State<_LivePkMatchmakingSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'نبرد زنده (PK Battle Matchmaking)',
+                          'PK Battle Matchmaking',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 16,
@@ -5110,7 +5040,7 @@ class _LivePkMatchmakingSheetState extends State<_LivePkMatchmakingSheet> {
                           ),
                         ),
                         Text(
-                          'حریف خود را برای نبرد ۳ دقیقه‌ای انتخاب کنید',
+                          'Choose an opponent for a 3-minute PK battle',
                           style: TextStyle(
                             color: Colors.white54,
                             fontSize: 11,
@@ -5169,8 +5099,8 @@ class _LivePkMatchmakingSheetState extends State<_LivePkMatchmakingSheet> {
                       const SizedBox(width: 10),
                       Text(
                         _isSearchingRandom
-                            ? 'در حال جستجوی حریف تصادفی...'
-                            : 'نبرد تصادفی فوری (Random PK Battle)',
+                            ? 'Searching for random opponent...'
+                            : 'Quick Random PK Battle',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 14,
@@ -5190,7 +5120,7 @@ class _LivePkMatchmakingSheetState extends State<_LivePkMatchmakingSheet> {
               child: Row(
                 children: [
                   const Text(
-                    'استریمرها و همکاران آماده نبرد',
+                    'Live Streamers & Creators',
                     style: TextStyle(
                       color: Colors.white70,
                       fontSize: 13,
@@ -5199,7 +5129,7 @@ class _LivePkMatchmakingSheetState extends State<_LivePkMatchmakingSheet> {
                   ),
                   const Spacer(),
                   Text(
-                    '${_liveStreamers.isNotEmpty ? _liveStreamers.length : _creatorProfiles.length} آنلاین',
+                    '${_liveStreamers.isNotEmpty ? _liveStreamers.length : _creatorProfiles.length} online',
                     style: const TextStyle(
                       color: Color(0xFF10B981),
                       fontSize: 11,
@@ -5268,7 +5198,7 @@ class _LivePkMatchmakingSheetState extends State<_LivePkMatchmakingSheet> {
                                     ),
                                     Text(
                                       streamTitle.isNotEmpty
-                                          ? '🔴 در حال لایو: $streamTitle'
+                                          ? '🔴 Live: $streamTitle'
                                           : '@$uname',
                                       style: TextStyle(
                                         color: streamTitle.isNotEmpty
@@ -5294,7 +5224,7 @@ class _LivePkMatchmakingSheetState extends State<_LivePkMatchmakingSheet> {
                                 ),
                                 onPressed: () => widget.onStartPkWith(opp),
                                 child: const Text(
-                                  'دعوت به نبرد',
+                                  'Invite to Battle',
                                   style: TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 12,

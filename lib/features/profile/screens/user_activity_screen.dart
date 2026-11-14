@@ -20,10 +20,7 @@ import 'privacy_security_screen.dart';
 class UserActivityScreen extends StatefulWidget {
   final Map<String, dynamic> profile;
 
-  const UserActivityScreen({
-    super.key,
-    required this.profile,
-  });
+  const UserActivityScreen({super.key, required this.profile});
 
   static Future<void> open(
     BuildContext context, {
@@ -31,9 +28,7 @@ class UserActivityScreen extends StatefulWidget {
   }) {
     return Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => UserActivityScreen(profile: profile),
-      ),
+      MaterialPageRoute(builder: (_) => UserActivityScreen(profile: profile)),
     );
   }
 
@@ -79,20 +74,12 @@ class _UserActivityScreenState extends State<UserActivityScreen>
       duration: const Duration(milliseconds: 650),
     );
 
-    _fadeAnim = CurvedAnimation(
-      parent: _animCtrl,
-      curve: Curves.easeOutCubic,
-    );
+    _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic);
 
     _slideAnim = Tween<Offset>(
       begin: const Offset(0, 0.08),
       end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _animCtrl,
-        curve: Curves.easeOutCubic,
-      ),
-    );
+    ).animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic));
 
     _loadActivityStats();
     _animCtrl.forward();
@@ -165,11 +152,7 @@ class _UserActivityScreenState extends State<UserActivityScreen>
         final ratio = maxMinutes <= 0
             ? 0.05
             : (mins / maxMinutes).clamp(0.05, 1.0);
-        bars.add({
-          'day': usage.dayLabels[i],
-          'minutes': mins,
-          'ratio': ratio,
-        });
+        bars.add({'day': usage.dayLabels[i], 'minutes': mins, 'ratio': ratio});
       }
 
       if (mounted) {
@@ -233,7 +216,10 @@ class _UserActivityScreenState extends State<UserActivityScreen>
               const SizedBox(height: 4),
               const Text(
                 "ZEV will remind you to take a breather after continuous active screen time.",
-                style: TextStyle(fontSize: 12.5, color: ZevColors.textSecondary),
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: ZevColors.textSecondary,
+                ),
               ),
               const SizedBox(height: 16),
               ...[15, 20, 30, 45, 60].map((mins) {
@@ -267,8 +253,9 @@ class _UserActivityScreenState extends State<UserActivityScreen>
                     "Every $mins minutes",
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight:
-                          isSelected ? FontWeight.w800 : FontWeight.w600,
+                      fontWeight: isSelected
+                          ? FontWeight.w800
+                          : FontWeight.w600,
                       color: isSelected
                           ? ZevColors.secondaryBlue
                           : ZevColors.deepNavy,
@@ -452,7 +439,10 @@ class _UserActivityScreenState extends State<UserActivityScreen>
                               subtitle: "Member since $memberSince",
                               color: ZevColors.secondaryBlue,
                             ),
-                            const Divider(color: ZevColors.softSurface, height: 18),
+                            const Divider(
+                              color: ZevColors.softSurface,
+                              height: 18,
+                            ),
                             _buildHistoryItem(
                               icon: Icons.shield_rounded,
                               title: "Privacy Setting",
@@ -461,7 +451,10 @@ class _UserActivityScreenState extends State<UserActivityScreen>
                                   : "Account is Public (Discoverable by everyone)",
                               color: const Color(0xFFF59E0B),
                             ),
-                            const Divider(color: ZevColors.softSurface, height: 18),
+                            const Divider(
+                              color: ZevColors.softSurface,
+                              height: 18,
+                            ),
                             _buildHistoryItem(
                               icon: Icons.badge_rounded,
                               title: "Username Handle",
@@ -510,7 +503,8 @@ class _UserActivityScreenState extends State<UserActivityScreen>
                                   ),
                                   subtitle:
                                       '${(log['status'] ?? 'ok').toString().toUpperCase()} • ${formatLogDate(log['created_at']?.toString())}',
-                                  color: (log['status'] ?? '')
+                                  color:
+                                      (log['status'] ?? '')
                                               .toString()
                                               .toLowerCase() ==
                                           'failed'
@@ -695,8 +689,8 @@ class _UserActivityScreenState extends State<UserActivityScreen>
                             final item = history[idx];
                             final rowId = (item['id'] ?? '').toString();
                             final query = (item['query'] ?? '').toString();
-                            final type =
-                                (item['search_type'] ?? 'general').toString();
+                            final type = (item['search_type'] ?? 'general')
+                                .toString();
 
                             return Padding(
                               padding: const EdgeInsets.symmetric(vertical: 3),
@@ -855,432 +849,442 @@ class _UserActivityScreenState extends State<UserActivityScreen>
               maxWidth: isDesktop ? 720 : double.infinity,
             ),
             child: FadeTransition(
-          opacity: _fadeAnim,
-          child: SlideTransition(
-            position: _slideAnim,
-            child: ListView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 36),
-              children: [
-                // ==========================================
-                // 1. TIME ON ZEV HERO (Interactive Graph)
-                // ==========================================
-                _buildClayCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+              opacity: _fadeAnim,
+              child: SlideTransition(
+                position: _slideAnim,
+                child: ListView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 36),
+                  children: [
+                    // ==========================================
+                    // 1. TIME ON ZEV HERO (Interactive Graph)
+                    // ==========================================
+                    _buildClayCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: ZevColors.secondaryBlue
-                                  .withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: const Icon(
-                              Icons.access_time_filled_rounded,
-                              color: ZevColors.secondaryBlue,
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "Time on ZEV",
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w900,
-                                    color: ZevColors.deepNavy,
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: ZevColors.secondaryBlue.withValues(
+                                    alpha: 0.12,
                                   ),
+                                  borderRadius: BorderRadius.circular(14),
                                 ),
-                                Text(
-                                  "Daily average this week",
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: ZevColors.textSecondary,
-                                  ),
+                                child: const Icon(
+                                  Icons.access_time_filled_rounded,
+                                  color: ZevColors.secondaryBlue,
+                                  size: 24,
                                 ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            _isLoading ? '...' : '${_dailyAverageMinutes}m',
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w900,
-                              color: ZevColors.secondaryBlue,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-
-                      // Day inspection tooltip pill
-                      Center(
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: ZevColors.secondaryBlue
-                                .withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: ZevColors.secondaryBlue
-                                  .withValues(alpha: 0.2),
-                              width: 1,
-                            ),
-                          ),
-                          child: Text(
-                            "${selectedDay['day']}: ${selectedDay['minutes']} minutes on ZEV",
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: ZevColors.secondaryBlue,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-
-                      // Interactive 7-Day Graph
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: List.generate(_weeklyUsage.length, (idx) {
-                          final item = _weeklyUsage[idx];
-                          final isSelected = safeIdx == idx;
-                          final ratio = (item['ratio'] as num).toDouble();
-
-                          return GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () {
-                              HapticFeedback.selectionClick();
-                              setState(() => _selectedDayIndex = idx);
-                            },
-                            child: Column(
-                              children: [
-                                AnimatedContainer(
-                                  duration: const Duration(milliseconds: 250),
-                                  curve: Curves.easeOutBack,
-                                  width: 18,
-                                  height: 68,
-                                  decoration: BoxDecoration(
-                                    color: ZevColors.softSurface,
-                                    borderRadius: BorderRadius.circular(9),
-                                    border: isSelected
-                                        ? Border.all(
-                                            color: ZevColors.secondaryBlue,
-                                            width: 1.5,
-                                          )
-                                        : null,
-                                  ),
-                                  alignment: Alignment.bottomCenter,
-                                  child: Container(
-                                    width: 18,
-                                    height: 68 * ratio,
-                                    decoration: BoxDecoration(
-                                      gradient: isSelected
-                                          ? const LinearGradient(
-                                              colors: [
-                                                ZevColors.primaryBlue,
-                                                ZevColors.secondaryBlue,
-                                              ],
-                                              begin: Alignment.bottomCenter,
-                                              end: Alignment.topCenter,
-                                            )
-                                          : const LinearGradient(
-                                              colors: [
-                                                ZevColors.textMuted,
-                                                ZevColors.border,
-                                              ],
-                                              begin: Alignment.bottomCenter,
-                                              end: Alignment.topCenter,
-                                            ),
-                                      borderRadius: BorderRadius.circular(8),
+                              ),
+                              const SizedBox(width: 14),
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Time on ZEV",
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w900,
+                                        color: ZevColors.deepNavy,
+                                      ),
                                     ),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  item['day'] as String,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: isSelected
-                                        ? FontWeight.w900
-                                        : FontWeight.w600,
-                                    color: isSelected
-                                        ? ZevColors.secondaryBlue
-                                        : ZevColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                      ),
-
-                      const SizedBox(height: 18),
-                      const Divider(color: ZevColors.softSurface),
-                      const SizedBox(height: 10),
-
-                      // Break Reminder Action
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: _showBreakReminderPicker,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    "Daily Break Reminder",
-                                    style: TextStyle(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: ZevColors.deepNavy,
+                                    Text(
+                                      "Daily average this week",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: ZevColors.textSecondary,
+                                      ),
                                     ),
+                                  ],
+                                ),
+                              ),
+                              Text(
+                                _isLoading ? '...' : '${_dailyAverageMinutes}m',
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w900,
+                                  color: ZevColors.secondaryBlue,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 18),
+
+                          // Day inspection tooltip pill
+                          Center(
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: ZevColors.secondaryBlue.withValues(
+                                  alpha: 0.08,
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: ZevColors.secondaryBlue.withValues(
+                                    alpha: 0.2,
                                   ),
-                                  Text(
-                                    _breakReminderEnabled
-                                        ? "Reminds every $_breakReminderMinutes mins • Tap to change"
-                                        : "Schedule reminders to take a break from screen",
-                                    style: const TextStyle(
-                                      fontSize: 11.5,
-                                      color: ZevColors.textSecondary,
-                                    ),
-                                  ),
-                                ],
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                "${selectedDay['day']}: ${selectedDay['minutes']} minutes on ZEV",
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: ZevColors.secondaryBlue,
+                                ),
                               ),
                             ),
                           ),
-                          Switch.adaptive(
-                            value: _breakReminderEnabled,
-                            activeTrackColor: ZevColors.secondaryBlue,
-                            onChanged: (val) async {
-                              if (val) {
-                                _showBreakReminderPicker();
-                              } else {
-                                HapticFeedback.selectionClick();
-                                await AppSessionTrackerService.instance
-                                    .setBreakReminder(
-                                  enabled: false,
-                                  minutes: _breakReminderMinutes,
-                                );
-                                if (mounted) {
-                                  setState(
-                                    () => _breakReminderEnabled = false,
-                                  );
-                                }
-                              }
-                            },
+                          const SizedBox(height: 14),
+
+                          // Interactive 7-Day Graph
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: List.generate(_weeklyUsage.length, (idx) {
+                              final item = _weeklyUsage[idx];
+                              final isSelected = safeIdx == idx;
+                              final ratio = (item['ratio'] as num).toDouble();
+
+                              return GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  setState(() => _selectedDayIndex = idx);
+                                },
+                                child: Column(
+                                  children: [
+                                    AnimatedContainer(
+                                      duration: const Duration(
+                                        milliseconds: 250,
+                                      ),
+                                      curve: Curves.easeOutBack,
+                                      width: 18,
+                                      height: 68,
+                                      decoration: BoxDecoration(
+                                        color: ZevColors.softSurface,
+                                        borderRadius: BorderRadius.circular(9),
+                                        border: isSelected
+                                            ? Border.all(
+                                                color: ZevColors.secondaryBlue,
+                                                width: 1.5,
+                                              )
+                                            : null,
+                                      ),
+                                      alignment: Alignment.bottomCenter,
+                                      child: Container(
+                                        width: 18,
+                                        height: 68 * ratio,
+                                        decoration: BoxDecoration(
+                                          gradient: isSelected
+                                              ? const LinearGradient(
+                                                  colors: [
+                                                    ZevColors.primaryBlue,
+                                                    ZevColors.secondaryBlue,
+                                                  ],
+                                                  begin: Alignment.bottomCenter,
+                                                  end: Alignment.topCenter,
+                                                )
+                                              : const LinearGradient(
+                                                  colors: [
+                                                    ZevColors.textMuted,
+                                                    ZevColors.border,
+                                                  ],
+                                                  begin: Alignment.bottomCenter,
+                                                  end: Alignment.topCenter,
+                                                ),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      item['day'] as String,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: isSelected
+                                            ? FontWeight.w900
+                                            : FontWeight.w600,
+                                        color: isSelected
+                                            ? ZevColors.secondaryBlue
+                                            : ZevColors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ),
+
+                          const SizedBox(height: 18),
+                          const Divider(color: ZevColors.softSurface),
+                          const SizedBox(height: 10),
+
+                          // Break Reminder Action
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: _showBreakReminderPicker,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        "Daily Break Reminder",
+                                        style: TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: ZevColors.deepNavy,
+                                        ),
+                                      ),
+                                      Text(
+                                        _breakReminderEnabled
+                                            ? "Reminds every $_breakReminderMinutes mins • Tap to change"
+                                            : "Schedule reminders to take a break from screen",
+                                        style: const TextStyle(
+                                          fontSize: 11.5,
+                                          color: ZevColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              Switch.adaptive(
+                                value: _breakReminderEnabled,
+                                activeTrackColor: ZevColors.secondaryBlue,
+                                onChanged: (val) async {
+                                  if (val) {
+                                    _showBreakReminderPicker();
+                                  } else {
+                                    HapticFeedback.selectionClick();
+                                    await AppSessionTrackerService.instance
+                                        .setBreakReminder(
+                                          enabled: false,
+                                          minutes: _breakReminderMinutes,
+                                        );
+                                    if (mounted) {
+                                      setState(
+                                        () => _breakReminderEnabled = false,
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
+                    ),
 
-                const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                // ==========================================
-                // 2. QUICK METRICS CAROUSEL (Likes, Comments, Posts, Reels)
-                // ==========================================
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildClayStatCard(
-                        title: "Likes Given",
-                        count: _isLoading ? "..." : "$_totalLikes",
-                        icon: Icons.favorite_rounded,
-                        color: const Color(0xFFFF2D55),
-                        onTap: () => ActivityLikesScreen.open(context),
+                    // ==========================================
+                    // 2. QUICK METRICS CAROUSEL (Likes, Comments, Posts, Reels)
+                    // ==========================================
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildClayStatCard(
+                            title: "Likes Given",
+                            count: _isLoading ? "..." : "$_totalLikes",
+                            icon: Icons.favorite_rounded,
+                            color: const Color(0xFFFF2D55),
+                            onTap: () => ActivityLikesScreen.open(context),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildClayStatCard(
+                            title: "Comments",
+                            count: _isLoading ? "..." : "$_totalComments",
+                            icon: Icons.chat_bubble_rounded,
+                            color: ZevColors.secondaryBlue,
+                            onTap: () => ActivityCommentsScreen.open(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildClayStatCard(
+                            title: "Posts Shared",
+                            count: _isLoading ? "..." : "$_totalPosts",
+                            icon: Icons.grid_on_rounded,
+                            color: ZevColors.successGreen,
+                            onTap: () => ActivityContentScreen.open(
+                              context,
+                              initialTabIndex: 0,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildClayStatCard(
+                            title: "Reels Shared",
+                            count: _isLoading ? "..." : "$_totalReels",
+                            icon: Icons.play_circle_fill_rounded,
+                            color: const Color(0xFF6366F1),
+                            onTap: () => ActivityContentScreen.open(
+                              context,
+                              initialTabIndex: 1,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // ==========================================
+                    // 3. INTERACTIONS (Likes, Comments, Tags)
+                    // ==========================================
+                    _buildSectionTitle("INTERACTIONS"),
+
+                    _buildActionTile(
+                      icon: Icons.favorite_rounded,
+                      title: "Likes",
+                      subtitle: "Review posts and reels you've liked",
+                      iconColor: const Color(0xFFFF2D55),
+                      countBadge: _totalLikes > 0 ? "$_totalLikes" : null,
+                      onTap: () => ActivityLikesScreen.open(context),
+                    ),
+                    const SizedBox(height: 9),
+
+                    _buildActionTile(
+                      icon: Icons.chat_bubble_rounded,
+                      title: "Comments",
+                      subtitle: "Review your discussions and replies",
+                      iconColor: ZevColors.secondaryBlue,
+                      countBadge: _totalComments > 0 ? "$_totalComments" : null,
+                      onTap: () => ActivityCommentsScreen.open(context),
+                    ),
+                    const SizedBox(height: 9),
+
+                    _buildActionTile(
+                      icon: Icons.sell_rounded,
+                      title: "Tags & Mentions",
+                      subtitle: "Manage who can tag or @mention you",
+                      iconColor: ZevColors.successGreen,
+                      onTap: () => PrivacySecurityScreen.open(
+                        context,
+                        profile: widget.profile,
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _buildClayStatCard(
-                        title: "Comments",
-                        count: _isLoading ? "..." : "$_totalComments",
-                        icon: Icons.chat_bubble_rounded,
-                        color: ZevColors.secondaryBlue,
-                        onTap: () => ActivityCommentsScreen.open(context),
+
+                    const SizedBox(height: 20),
+
+                    // ==========================================
+                    // 4. CONTENT SHARED
+                    // ==========================================
+                    _buildSectionTitle("CONTENT YOU SHARED"),
+
+                    _buildActionTile(
+                      icon: Icons.insights_rounded,
+                      title: "Creator Insights",
+                      subtitle:
+                          "Views, engagement trends, and top performing content",
+                      iconColor: ZevColors.secondaryBlue,
+                      onTap: () => CreatorInsightsScreen.open(
+                        context,
+                        userProfile: widget.profile,
                       ),
+                    ),
+                    const SizedBox(height: 9),
+
+                    _buildActionTile(
+                      icon: Icons.schedule_send_rounded,
+                      title: "Drafts & Scheduled Posts",
+                      subtitle: "Publish or edit drafts and queued posts",
+                      iconColor: const Color(0xFF0EA5E9),
+                      onTap: () => DraftsScheduledScreen.open(
+                        context,
+                        onPostPublished: _loadActivityStats,
+                      ),
+                    ),
+                    const SizedBox(height: 9),
+
+                    _buildActionTile(
+                      icon: Icons.perm_media_rounded,
+                      title: "Photos, Posts & Reels",
+                      subtitle: "Manage all media you've published on ZEV",
+                      iconColor: const Color(0xFF6366F1),
+                      onTap: () => ActivityContentScreen.open(context),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // ==========================================
+                    // 5. REMOVED AND ARCHIVED (Recently Deleted, Archive)
+                    // ==========================================
+                    _buildSectionTitle("REMOVED AND ARCHIVED"),
+
+                    _buildActionTile(
+                      icon: Icons.delete_outline_rounded,
+                      title: "Recently Deleted",
+                      subtitle: "Content deleted in the last 30 days",
+                      iconColor: const Color(0xFFEF4444),
+                      onTap: () => ActivityDeletedScreen.open(context),
+                    ),
+                    const SizedBox(height: 9),
+
+                    _buildActionTile(
+                      icon: Icons.archive_outlined,
+                      title: "Archive",
+                      subtitle: "Stories and posts hidden from your profile",
+                      iconColor: const Color(0xFF0284C7),
+                      onTap: () => ActivityArchiveScreen.open(context),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // ==========================================
+                    // 6. HOW YOU USE ZEV (Search History, Account History)
+                    // ==========================================
+                    _buildSectionTitle("HOW YOU USE ZEV"),
+
+                    _buildActionTile(
+                      icon: Icons.history_rounded,
+                      title: "Recent Searches",
+                      subtitle:
+                          "Clear cached searches and query recommendations",
+                      iconColor: const Color(0xFF8B5CF6),
+                      onTap: _showSearchHistoryManager,
+                    ),
+                    const SizedBox(height: 9),
+
+                    _buildActionTile(
+                      icon: Icons.timeline_rounded,
+                      title: "Account History",
+                      subtitle: "Milestones and security changes you've made",
+                      iconColor: const Color(0xFFF59E0B),
+                      onTap: _showAccountHistoryModal,
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildClayStatCard(
-                        title: "Posts Shared",
-                        count: _isLoading ? "..." : "$_totalPosts",
-                        icon: Icons.grid_on_rounded,
-                        color: ZevColors.successGreen,
-                        onTap: () => ActivityContentScreen.open(
-                          context,
-                          initialTabIndex: 0,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _buildClayStatCard(
-                        title: "Reels Shared",
-                        count: _isLoading ? "..." : "$_totalReels",
-                        icon: Icons.play_circle_fill_rounded,
-                        color: const Color(0xFF6366F1),
-                        onTap: () => ActivityContentScreen.open(
-                          context,
-                          initialTabIndex: 1,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 20),
-
-                // ==========================================
-                // 3. INTERACTIONS (Likes, Comments, Tags)
-                // ==========================================
-                _buildSectionTitle("INTERACTIONS"),
-
-                _buildActionTile(
-                  icon: Icons.favorite_rounded,
-                  title: "Likes",
-                  subtitle: "Review posts and reels you've liked",
-                  iconColor: const Color(0xFFFF2D55),
-                  countBadge: _totalLikes > 0 ? "$_totalLikes" : null,
-                  onTap: () => ActivityLikesScreen.open(context),
-                ),
-                const SizedBox(height: 9),
-
-                _buildActionTile(
-                  icon: Icons.chat_bubble_rounded,
-                  title: "Comments",
-                  subtitle: "Review your discussions and replies",
-                  iconColor: ZevColors.secondaryBlue,
-                  countBadge: _totalComments > 0 ? "$_totalComments" : null,
-                  onTap: () => ActivityCommentsScreen.open(context),
-                ),
-                const SizedBox(height: 9),
-
-                _buildActionTile(
-                  icon: Icons.sell_rounded,
-                  title: "Tags & Mentions",
-                  subtitle: "Manage who can tag or @mention you",
-                  iconColor: ZevColors.successGreen,
-                  onTap: () => PrivacySecurityScreen.open(
-                    context,
-                    profile: widget.profile,
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // ==========================================
-                // 4. CONTENT SHARED
-                // ==========================================
-                _buildSectionTitle("CONTENT YOU SHARED"),
-
-                _buildActionTile(
-                  icon: Icons.insights_rounded,
-                  title: "Creator Insights",
-                  subtitle: "Views, engagement trends, and top performing content",
-                  iconColor: ZevColors.secondaryBlue,
-                  onTap: () => CreatorInsightsScreen.open(
-                    context,
-                    userProfile: widget.profile,
-                  ),
-                ),
-                const SizedBox(height: 9),
-
-                _buildActionTile(
-                  icon: Icons.schedule_send_rounded,
-                  title: "Drafts & Scheduled Posts",
-                  subtitle: "Publish or edit drafts and queued posts",
-                  iconColor: const Color(0xFF0EA5E9),
-                  onTap: () => DraftsScheduledScreen.open(
-                    context,
-                    onPostPublished: _loadActivityStats,
-                  ),
-                ),
-                const SizedBox(height: 9),
-
-                _buildActionTile(
-                  icon: Icons.perm_media_rounded,
-                  title: "Photos, Posts & Reels",
-                  subtitle: "Manage all media you've published on ZEV",
-                  iconColor: const Color(0xFF6366F1),
-                  onTap: () => ActivityContentScreen.open(context),
-                ),
-
-                const SizedBox(height: 20),
-
-                // ==========================================
-                // 5. REMOVED AND ARCHIVED (Recently Deleted, Archive)
-                // ==========================================
-                _buildSectionTitle("REMOVED AND ARCHIVED"),
-
-                _buildActionTile(
-                  icon: Icons.delete_outline_rounded,
-                  title: "Recently Deleted",
-                  subtitle: "Content deleted in the last 30 days",
-                  iconColor: const Color(0xFFEF4444),
-                  onTap: () => ActivityDeletedScreen.open(context),
-                ),
-                const SizedBox(height: 9),
-
-                _buildActionTile(
-                  icon: Icons.archive_outlined,
-                  title: "Archive",
-                  subtitle: "Stories and posts hidden from your profile",
-                  iconColor: const Color(0xFF0284C7),
-                  onTap: () => ActivityArchiveScreen.open(context),
-                ),
-
-                const SizedBox(height: 20),
-
-                // ==========================================
-                // 6. HOW YOU USE ZEV (Search History, Account History)
-                // ==========================================
-                _buildSectionTitle("HOW YOU USE ZEV"),
-
-                _buildActionTile(
-                  icon: Icons.history_rounded,
-                  title: "Recent Searches",
-                  subtitle: "Clear cached searches and query recommendations",
-                  iconColor: const Color(0xFF8B5CF6),
-                  onTap: _showSearchHistoryManager,
-                ),
-                const SizedBox(height: 9),
-
-                _buildActionTile(
-                  icon: Icons.timeline_rounded,
-                  title: "Account History",
-                  subtitle: "Milestones and security changes you've made",
-                  iconColor: const Color(0xFFF59E0B),
-                  onTap: _showAccountHistoryModal,
-                ),
-              ],
+              ),
             ),
           ),
         ),
       ),
-    ),
-  ),
-);
-}
+    );
+  }
 
   Widget _buildSectionTitle(String title) {
     return Padding(
@@ -1486,8 +1490,10 @@ class _UserActivityScreenState extends State<UserActivityScreen>
                 if (countBadge != null)
                   Container(
                     margin: const EdgeInsets.only(right: 8),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: iconColor.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),

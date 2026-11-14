@@ -87,7 +87,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     'He/Him',
     'She/Her',
     'They/Them',
-    'او / ایشان',
   ];
 
   @override
@@ -1046,7 +1045,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           _buildClayInputField(
                             label: "Pronouns",
                             controller: _pronounsCtrl,
-                            hint: "He/Him, She/Her, او / ایشان",
+                            hint: "He/Him, She/Her, They/Them",
                             isSmall: isSmall,
                           ),
                           const SizedBox(height: 8),

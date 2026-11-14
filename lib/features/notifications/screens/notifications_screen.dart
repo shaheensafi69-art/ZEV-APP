@@ -26,9 +26,9 @@ class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
 
   static Future<void> open(BuildContext context) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const NotificationsScreen()));
   }
 
   @override
@@ -323,15 +323,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           }
 
           final isSystem =
-              sId.isEmpty || sId == uid || nType == 'system' || nType == 'verified';
+              sId.isEmpty ||
+              sId == uid ||
+              nType == 'system' ||
+              nType == 'verified';
           if (!isSystem && sId.isNotEmpty) {
             allSenderIds.add(sId);
           }
 
           final mediaThumb = (link != null && link.isNotEmpty)
               ? (postThumbnails[link] ??
-                  reelThumbnails[link] ??
-                  storyThumbnails[link])
+                    reelThumbnails[link] ??
+                    storyThumbnails[link])
               : null;
 
           items.add(
@@ -342,7 +345,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               senderUsername: isSystem ? 'ZEV' : 'user',
               title: r['title']?.toString() ?? 'Notification',
               message: r['message']?.toString() ?? '',
-              notificationType: (r['notification_type'] != null &&
+              notificationType:
+                  (r['notification_type'] != null &&
                       r['notification_type'].toString().isNotEmpty)
                   ? r['notification_type'].toString()
                   : 'system',
@@ -351,10 +355,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               isRead: r['is_read'] == true,
               createdAt:
                   DateTime.tryParse(r['created_at']?.toString() ?? '') ??
-                      DateTime.now(),
+                  DateTime.now(),
               canDelete: true,
-              requestId:
-                  nType == 'follow_request' ? reqIdByRequester[sId] : null,
+              requestId: nType == 'follow_request'
+                  ? reqIdByRequester[sId]
+                  : null,
             ),
           );
         }
@@ -382,7 +387,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               requestId: reqId,
               createdAt:
                   DateTime.tryParse(fr['created_at']?.toString() ?? '') ??
-                      DateTime.now(),
+                  DateTime.now(),
             ),
           );
         }
@@ -408,7 +413,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 isRead: true,
                 createdAt:
                     DateTime.tryParse(f['created_at']?.toString() ?? '') ??
-                        DateTime.now(),
+                    DateTime.now(),
               ),
             );
           }
@@ -526,7 +531,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 isRead: true,
                 createdAt:
                     DateTime.tryParse(l['created_at']?.toString() ?? '') ??
-                        DateTime.now(),
+                    DateTime.now(),
               ),
             );
           }
@@ -562,7 +567,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 isRead: true,
                 createdAt:
                     DateTime.tryParse(c['created_at']?.toString() ?? '') ??
-                        DateTime.now(),
+                    DateTime.now(),
               ),
             );
           }
@@ -594,7 +599,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 isRead: true,
                 createdAt:
                     DateTime.tryParse(l['created_at']?.toString() ?? '') ??
-                        DateTime.now(),
+                    DateTime.now(),
               ),
             );
           }
@@ -630,7 +635,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 isRead: true,
                 createdAt:
                     DateTime.tryParse(c['created_at']?.toString() ?? '') ??
-                        DateTime.now(),
+                    DateTime.now(),
               ),
             );
           }
@@ -660,7 +665,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 isRead: true,
                 createdAt:
                     DateTime.tryParse(m['created_at']?.toString() ?? '') ??
-                        DateTime.now(),
+                    DateTime.now(),
               ),
             );
           }
@@ -689,7 +694,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 isRead: true,
                 createdAt:
                     DateTime.tryParse(r['created_at']?.toString() ?? '') ??
-                        DateTime.now(),
+                    DateTime.now(),
               ),
             );
           }
@@ -718,7 +723,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 isRead: true,
                 createdAt:
                     DateTime.tryParse(s['created_at']?.toString() ?? '') ??
-                        DateTime.now(),
+                    DateTime.now(),
               ),
             );
           }
@@ -759,7 +764,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       final results = await Future.wait([
         supabase
             .from('profiles')
-            .select('id, username, first_name, last_name, avatar_url, is_verified')
+            .select(
+              'id, username, first_name, last_name, avatar_url, is_verified',
+            )
             .inFilter('id', senderIds.toList())
             .catchError((_) => []),
         supabase
@@ -794,7 +801,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         final uName = profile['username']?.toString() ?? '';
         if (uName.isNotEmpty) username = uName;
         fullName =
-            '${profile['first_name'] ?? ''} ${profile['last_name'] ?? ''}'.trim();
+            '${profile['first_name'] ?? ''} ${profile['last_name'] ?? ''}'
+                .trim();
         avatar = profile['avatar_url']?.toString() ?? '';
         isVerified = profile['is_verified'] == true;
       }
@@ -847,12 +855,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           continue;
         }
         final id = r['id']?.toString() ?? '';
-        if (id.isEmpty || existingIds.contains(id) || _hiddenLocalIds.contains(id)) {
+        if (id.isEmpty ||
+            existingIds.contains(id) ||
+            _hiddenLocalIds.contains(id)) {
           continue;
         }
         final sId = r['sender_id']?.toString() ?? '';
         final isSystem =
-            sId.isEmpty || sId == uid || nType == 'system' || nType == 'verified';
+            sId.isEmpty ||
+            sId == uid ||
+            nType == 'system' ||
+            nType == 'verified';
         if (!isSystem && sId.isNotEmpty) senderIds.add(sId);
 
         older.add(
@@ -869,7 +882,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             canDelete: true,
             createdAt:
                 DateTime.tryParse(r['created_at']?.toString() ?? '') ??
-                    DateTime.now(),
+                DateTime.now(),
           ),
         );
       }
@@ -1071,8 +1084,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         clusterIndexByKey[clusterKey] = result.length;
         result.add(
           item.copyWith(
-            groupAvatars:
-                item.senderAvatar.isNotEmpty ? [item.senderAvatar] : const [],
+            groupAvatars: item.senderAvatar.isNotEmpty
+                ? [item.senderAvatar]
+                : const [],
             groupUsernames: [item.senderUsername],
           ),
         );
@@ -1122,7 +1136,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }).toList();
     });
 
-    final status = await SocialGraphService.instance.toggleFollow(item.senderId);
+    final status = await SocialGraphService.instance.toggleFollow(
+      item.senderId,
+    );
     if (!mounted) return;
 
     if (status == FollowToggleStatus.following) {
@@ -1175,8 +1191,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     HapticFeedback.lightImpact();
     setState(() {
-      _notifications =
-          _notifications.map((n) => n.copyWith(isRead: true)).toList();
+      _notifications = _notifications
+          .map((n) => n.copyWith(isRead: true))
+          .toList();
     });
 
     try {
@@ -1262,7 +1279,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             commentsCount: (res['comments_count'] as num?)?.toInt() ?? 0,
             createdAt:
                 DateTime.tryParse(res['created_at']?.toString() ?? '') ??
-                    DateTime.now(),
+                DateTime.now(),
           );
 
           await Navigator.of(context).push(
@@ -1429,13 +1446,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             child: Column(
               children: [
                 _buildCategoryFilterRow(),
-            Expanded(
-              child: RefreshIndicator(
-                color: ZevColors.primaryBlue,
-                onRefresh: () => _fetchActivity(isBackgroundSync: false),
-                child: _isLoading && _notifications.isEmpty
-                    ? _buildLoadingShimmer()
-                    : filtered.isEmpty
+                Expanded(
+                  child: RefreshIndicator(
+                    color: ZevColors.primaryBlue,
+                    onRefresh: () => _fetchActivity(isBackgroundSync: false),
+                    child: _isLoading && _notifications.isEmpty
+                        ? _buildLoadingShimmer()
+                        : filtered.isEmpty
                         ? _buildEmptyState()
                         : ListView.builder(
                             controller: _scrollCtrl,
@@ -1513,15 +1530,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               );
                             },
                           ),
-              ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
-    ),
-  ),
-);
-}
+    );
+  }
 
   Widget _buildCategoryFilterRow() {
     return Container(
@@ -1550,15 +1567,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 color: isSelected ? null : Colors.white,
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(
-                  color: isSelected
-                      ? Colors.transparent
-                      : ZevColors.border,
+                  color: isSelected ? Colors.transparent : ZevColors.border,
                   width: 1.5,
                 ),
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: ZevColors.secondaryBlue.withValues(alpha: 0.28),
+                          color: ZevColors.secondaryBlue.withValues(
+                            alpha: 0.28,
+                          ),
                           blurRadius: 10,
                           offset: const Offset(0, 3),
                         ),
@@ -1647,11 +1664,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           text: item.isSystem || item.senderUsername == 'ZEV'
                               ? '${item.title} '
                               : (item.senderUsername.startsWith('@')
-                                  ? '${item.senderUsername} '
-                                  : '@${item.senderUsername} '),
+                                    ? '${item.senderUsername} '
+                                    : '@${item.senderUsername} '),
                           style: TextStyle(
                             fontWeight: FontWeight.w900,
-                            color: (item.isSystem || item.senderUsername == 'ZEV')
+                            color:
+                                (item.isSystem || item.senderUsername == 'ZEV')
                                 ? ZevColors.primaryBlue
                                 : ZevColors.deepNavy,
                           ),
@@ -1659,8 +1677,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         TextSpan(
                           text: '${item.message} ',
                           style: TextStyle(
-                            fontWeight:
-                                item.isRead ? FontWeight.w500 : FontWeight.w700,
+                            fontWeight: item.isRead
+                                ? FontWeight.w500
+                                : FontWeight.w700,
                             color: const Color(0xFF334155),
                           ),
                         ),
@@ -1671,8 +1690,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             color: item.isRead
                                 ? ZevColors.textMuted
                                 : ZevColors.secondaryBlue,
-                            fontWeight:
-                                item.isRead ? FontWeight.w500 : FontWeight.w700,
+                            fontWeight: item.isRead
+                                ? FontWeight.w500
+                                : FontWeight.w700,
                           ),
                         ),
                       ],
@@ -1698,9 +1718,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         decoration: BoxDecoration(
           color: ZevColors.errorRed.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: ZevColors.errorRed.withValues(alpha: 0.35),
-          ),
+          border: Border.all(color: ZevColors.errorRed.withValues(alpha: 0.35)),
         ),
         child: const Icon(
           Icons.delete_outline_rounded,
@@ -1725,8 +1743,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               child: CircleAvatar(
                 radius: 17,
                 backgroundColor: const Color(0xFFE2E8F0),
-                backgroundImage:
-                    CachedNetworkImageProvider(item.groupAvatars[0]),
+                backgroundImage: CachedNetworkImageProvider(
+                  item.groupAvatars[0],
+                ),
               ),
             ),
             Positioned(
@@ -1741,8 +1760,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 child: CircleAvatar(
                   radius: 17,
                   backgroundColor: const Color(0xFFE2E8F0),
-                  backgroundImage:
-                      CachedNetworkImageProvider(item.groupAvatars[1]),
+                  backgroundImage: CachedNetworkImageProvider(
+                    item.groupAvatars[1],
+                  ),
                 ),
               ),
             ),
@@ -1780,16 +1800,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 : null,
             child: item.senderAvatar.isEmpty
                 ? (item.isSystem
-                    ? const Icon(
-                        Icons.star_rounded,
-                        color: ZevColors.primaryBlue,
-                        size: 24,
-                      )
-                    : const Icon(
-                        Icons.person,
-                        color: Color(0xFF94A3B8),
-                        size: 22,
-                      ))
+                      ? const Icon(
+                          Icons.star_rounded,
+                          color: ZevColors.primaryBlue,
+                          size: 24,
+                        )
+                      : const Icon(
+                          Icons.person,
+                          color: Color(0xFF94A3B8),
+                          size: 22,
+                        ))
                 : null,
           ),
         ),
@@ -1877,7 +1897,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           GestureDetector(
             onTap: () => _respondFollowRequest(item, accept: true),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6.5),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 11,
+                vertical: 6.5,
+              ),
               decoration: BoxDecoration(
                 gradient: ZevColors.brandGradient,
                 borderRadius: BorderRadius.circular(12),

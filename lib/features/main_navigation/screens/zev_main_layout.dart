@@ -45,7 +45,9 @@ class ZevMainLayout extends StatefulWidget {
 
   /// Global notifier for user's active avatar URL so any screen (EditProfileSheet, etc.)
   /// can update the bottom bar in real-time.
-  static final ValueNotifier<String> userAvatarNotifier = ValueNotifier<String>('');
+  static final ValueNotifier<String> userAvatarNotifier = ValueNotifier<String>(
+    '',
+  );
 
   static void notifyAvatarChanged(String newAvatarUrl) {
     if (newAvatarUrl.isNotEmpty) {
@@ -153,7 +155,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     }
 
     // Instant fallback from auth metadata (e.g. Google Sign-In avatar)
-    final metaAvatar = user.userMetadata?['avatar_url']?.toString() ??
+    final metaAvatar =
+        user.userMetadata?['avatar_url']?.toString() ??
         user.userMetadata?['picture']?.toString() ??
         '';
     if (metaAvatar.isNotEmpty && _myAvatarUrl.isEmpty && mounted) {
@@ -163,7 +166,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     try {
       final res = await supabase
           .from('profiles')
-          .select('id, avatar_url, username, first_name, last_name, bio, is_verified')
+          .select(
+            'id, avatar_url, username, first_name, last_name, bio, is_verified',
+          )
           .eq('id', user.id)
           .maybeSingle();
 
@@ -333,10 +338,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
             ),
             // Right Screen Area
             Expanded(
-              child: IndexedStack(
-                index: _currentIndex,
-                children: tabChildren,
-              ),
+              child: IndexedStack(index: _currentIndex, children: tabChildren),
             ),
           ],
         ),
@@ -352,10 +354,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
       body: Stack(
         children: [
           // Five Tab Screens
-          IndexedStack(
-            index: _currentIndex,
-            children: tabChildren,
-          ),
+          IndexedStack(index: _currentIndex, children: tabChildren),
 
           // Pure Floating Claymorphic Navigation Capsule Dock
           Positioned(
@@ -416,9 +415,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                             label: "Search",
                           ),
                         ),
-                        Expanded(
-                          child: _buildCenterCreateButton(),
-                        ),
+                        Expanded(child: _buildCenterCreateButton()),
                         Expanded(
                           child: _buildNavItem(
                             index: 3,
@@ -427,9 +424,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                             label: "Reels",
                           ),
                         ),
-                        Expanded(
-                          child: _buildProfileNavItem(index: 4),
-                        ),
+                        Expanded(child: _buildProfileNavItem(index: 4)),
                       ],
                     ),
                   ),
@@ -450,9 +445,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     required bool isExpanded,
     required bool isReels,
   }) {
-    final sidebarBg = isReels
-        ? const Color(0xFF0F172A)
-        : Colors.white;
+    final sidebarBg = isReels ? const Color(0xFF0F172A) : Colors.white;
     final borderColor = isReels
         ? const Color(0xFF1E293B)
         : const Color(0xFFE2E8F0);
@@ -463,9 +456,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
       width: isExpanded ? 248 : 84,
       decoration: BoxDecoration(
         color: sidebarBg,
-        border: Border(
-          right: BorderSide(color: borderColor, width: 1.2),
-        ),
+        border: Border(right: BorderSide(color: borderColor, width: 1.2)),
         boxShadow: [
           BoxShadow(
             color: isReels
@@ -626,10 +617,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
               ),
               const SizedBox(height: 6),
               // 6. More / Settings Menu (Instagram Web style)
-              _buildSidebarMoreButton(
-                isExpanded: isExpanded,
-                isReels: isReels,
-              ),
+              _buildSidebarMoreButton(isExpanded: isExpanded, isReels: isReels),
             ],
           ),
         ),
@@ -648,8 +636,10 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     Color? accentColor,
   }) {
     final isSelected = _currentIndex == index;
-    final inactiveColor = accentColor ?? (isReels ? Colors.white60 : const Color(0xFF64748B));
-    final activeColor = accentColor ?? (isReels ? Colors.white : ZevColors.deepNavy);
+    final inactiveColor =
+        accentColor ?? (isReels ? Colors.white60 : const Color(0xFF64748B));
+    final activeColor =
+        accentColor ?? (isReels ? Colors.white : ZevColors.deepNavy);
 
     return Tooltip(
       message: isExpanded ? '' : label,
@@ -671,8 +661,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
             decoration: BoxDecoration(
               color: isSelected
                   ? (isReels
-                      ? Colors.white.withValues(alpha: 0.12)
-                      : ZevColors.primaryBlue.withValues(alpha: 0.12))
+                        ? Colors.white.withValues(alpha: 0.12)
+                        : ZevColors.primaryBlue.withValues(alpha: 0.12))
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(16),
             ),
@@ -713,8 +703,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                       label,
                       style: TextStyle(
                         fontSize: 15,
-                        fontWeight:
-                            isSelected ? FontWeight.w800 : FontWeight.w600,
+                        fontWeight: isSelected
+                            ? FontWeight.w800
+                            : FontWeight.w600,
                         color: isSelected ? activeColor : inactiveColor,
                         letterSpacing: -0.2,
                       ),
@@ -839,7 +830,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     final inactiveColor = isReels ? Colors.white60 : const Color(0xFF64748B);
 
     return Tooltip(
-      message: isExpanded ? '' : (_myUsername.isNotEmpty ? "@$_myUsername" : "Profile"),
+      message: isExpanded
+          ? ''
+          : (_myUsername.isNotEmpty ? "@$_myUsername" : "Profile"),
       preferBelow: false,
       child: Material(
         color: Colors.transparent,
@@ -858,8 +851,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
             decoration: BoxDecoration(
               color: isSelected
                   ? (isReels
-                      ? Colors.white.withValues(alpha: 0.12)
-                      : ZevColors.primaryBlue.withValues(alpha: 0.12))
+                        ? Colors.white.withValues(alpha: 0.12)
+                        : ZevColors.primaryBlue.withValues(alpha: 0.12))
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(16),
             ),
@@ -911,7 +904,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                         Text(
                           _myFullName.isNotEmpty
                               ? _myFullName
-                              : (_myUsername.isNotEmpty ? _myUsername : "Profile"),
+                              : (_myUsername.isNotEmpty
+                                    ? _myUsername
+                                    : "Profile"),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -1058,7 +1053,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                           width: 270,
                           decoration: BoxDecoration(
                             color: isReels
-                                ? const Color(0xFF0F172A).withValues(alpha: 0.85)
+                                ? const Color(
+                                    0xFF0F172A,
+                                  ).withValues(alpha: 0.85)
                                 : Colors.white.withValues(alpha: 0.88),
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(
@@ -1069,12 +1066,16 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF0F172A).withValues(alpha: 0.14),
+                                color: const Color(
+                                  0xFF0F172A,
+                                ).withValues(alpha: 0.14),
                                 blurRadius: 28,
                                 offset: const Offset(4, 10),
                               ),
                               BoxShadow(
-                                color: ZevColors.primaryBlue.withValues(alpha: 0.08),
+                                color: ZevColors.primaryBlue.withValues(
+                                  alpha: 0.08,
+                                ),
                                 blurRadius: 16,
                                 offset: const Offset(0, 2),
                               ),
@@ -1127,7 +1128,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                                   isReels: isReels,
                                   onTap: () {
                                     Navigator.pop(ctx);
-                                    MultiAccountService.showAccountSwitcherSheet(context);
+                                    MultiAccountService.showAccountSwitcherSheet(
+                                      context,
+                                    );
                                   },
                                 ),
                                 _buildMoreMenuItem(
@@ -1195,24 +1198,23 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
           HapticFeedback.lightImpact();
           onTap();
         },
-        hoverColor: (isReels ? Colors.white : ZevColors.primaryBlue)
-            .withValues(alpha: 0.08),
+        hoverColor: (isReels ? Colors.white : ZevColors.primaryBlue).withValues(
+          alpha: 0.08,
+        ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
             children: [
-              Icon(
-                icon,
-                size: 20,
-                color: color,
-              ),
+              Icon(icon, size: 20, color: color),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   label,
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: isDestructive ? FontWeight.w800 : FontWeight.w600,
+                    fontWeight: isDestructive
+                        ? FontWeight.w800
+                        : FontWeight.w600,
                     color: color,
                     letterSpacing: -0.2,
                   ),
@@ -1291,9 +1293,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => Container(
-        constraints: BoxConstraints(
-          maxHeight: screenHeight * 0.85,
-        ),
+        constraints: BoxConstraints(maxHeight: screenHeight * 0.85),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
           color: const Color(0xFFF1F5F9),
@@ -1584,7 +1584,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                 width: isSelected ? 12 : 0,
                 height: 3,
                 decoration: BoxDecoration(
-                  color: isSelected ? ZevColors.primaryBlue : Colors.transparent,
+                  color: isSelected
+                      ? ZevColors.primaryBlue
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(2),
                   boxShadow: isSelected
                       ? [
@@ -1635,7 +1637,10 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                         ? LinearGradient(
                             colors: isReels
                                 ? [const Color(0xFF00D4FF), Colors.white]
-                                : [const Color(0xFF00D4FF), const Color(0xFF536DFE)],
+                                : [
+                                    const Color(0xFF00D4FF),
+                                    const Color(0xFF536DFE),
+                                  ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           )
@@ -1646,7 +1651,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     boxShadow: isSelected
                         ? [
                             BoxShadow(
-                              color: const Color(0xFF00D4FF).withValues(alpha: 0.45),
+                              color: const Color(
+                                0xFF00D4FF,
+                              ).withValues(alpha: 0.45),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -1679,7 +1686,9 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                 width: isSelected ? 12 : 0,
                 height: 3,
                 decoration: BoxDecoration(
-                  color: isSelected ? ZevColors.primaryBlue : Colors.transparent,
+                  color: isSelected
+                      ? ZevColors.primaryBlue
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(2),
                   boxShadow: isSelected
                       ? [

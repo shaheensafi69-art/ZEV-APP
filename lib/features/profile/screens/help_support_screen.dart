@@ -20,9 +20,7 @@ class HelpSupportScreen extends StatefulWidget {
   static Future<void> open(BuildContext context) {
     return Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const HelpSupportScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const HelpSupportScreen()),
     );
   }
 
@@ -161,7 +159,9 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                          color: const Color(
+                            0xFF0284C7,
+                          ).withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: const Icon(
@@ -194,8 +194,10 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close_rounded,
-                            color: Color(0xFF64748B)),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Color(0xFF64748B),
+                        ),
                         onPressed: () => Navigator.pop(ctx),
                       ),
                     ],
@@ -227,7 +229,9 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 180),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? const Color(0xFF0284C7)
@@ -238,8 +242,9 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                             cat,
                             style: TextStyle(
                               fontSize: 12,
-                              fontWeight:
-                                  isSelected ? FontWeight.w800 : FontWeight.w600,
+                              fontWeight: isSelected
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
                               color: isSelected
                                   ? Colors.white
                                   : const Color(0xFF64748B),
@@ -351,12 +356,13 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                           ? null
                           : () async {
                               final text = reportController.text.trim();
-                              final contactEmail =
-                                  emailController.text.trim();
+                              final contactEmail = emailController.text.trim();
 
                               if (text.length < 5) {
-                                setModalState(() => errorMsg =
-                                    "Please provide a few more details about the issue.");
+                                setModalState(
+                                  () => errorMsg =
+                                      "Please provide a few more details about the issue.",
+                                );
                                 return;
                               }
 
@@ -366,17 +372,18 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                               });
 
                               // 1. Create persistent support ticket in DB & dispatch Admin Telegram
-                              final result = await TelegramNotificationService
-                                  .submitSupportTicket(
-                                category: selectedTopic,
-                                description: text,
-                                email: contactEmail,
-                              );
+                              final result =
+                                  await TelegramNotificationService.submitSupportTicket(
+                                    category: selectedTopic,
+                                    description: text,
+                                    email: contactEmail,
+                                  );
 
                               if (!result.ok) {
                                 setModalState(() {
                                   isSubmitting = false;
-                                  errorMsg = result.error ??
+                                  errorMsg =
+                                      result.error ??
                                       'Could not submit report. Please check your connection and try again.';
                                 });
                                 return;
@@ -388,16 +395,20 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                               try {
                                 final prefs =
                                     await SharedPreferences.getInstance();
-                                final savedTickets = prefs.getStringList(
-                                        'zev_user_tickets') ??
+                                final savedTickets =
+                                    prefs.getStringList('zev_user_tickets') ??
                                     [];
                                 savedTickets.insert(
-                                    0, "$ticketId|$selectedTopic|$text");
+                                  0,
+                                  "$ticketId|$selectedTopic|$text",
+                                );
                                 if (savedTickets.length > 20) {
                                   savedTickets.removeLast();
                                 }
                                 await prefs.setStringList(
-                                    'zev_user_tickets', savedTickets);
+                                  'zev_user_tickets',
+                                  savedTickets,
+                                );
                               } catch (_) {}
 
                               HapticFeedback.heavyImpact();
@@ -489,11 +500,15 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 10,
+                ),
               ),
-              child: const Text("Done",
-                  style: TextStyle(fontWeight: FontWeight.w800)),
+              child: const Text(
+                "Done",
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
             ),
           ],
         ),
@@ -558,8 +573,11 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                           color: Color(0xFFF1F5F9),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.inbox_rounded,
-                            size: 30, color: Color(0xFF94A3B8)),
+                        child: const Icon(
+                          Icons.inbox_rounded,
+                          size: 30,
+                          color: Color(0xFF94A3B8),
+                        ),
                       ),
                       const SizedBox(height: 10),
                       const Text(
@@ -594,12 +612,16 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color:
-                              const Color(0xFF0284C7).withValues(alpha: 0.12),
+                          color: const Color(
+                            0xFF0284C7,
+                          ).withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.confirmation_number_rounded,
-                            size: 18, color: Color(0xFF0284C7)),
+                        child: const Icon(
+                          Icons.confirmation_number_rounded,
+                          size: 18,
+                          color: Color(0xFF0284C7),
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -619,10 +641,13 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                                 const SizedBox(width: 8),
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF10B981)
-                                        .withValues(alpha: 0.12),
+                                    color: const Color(
+                                      0xFF10B981,
+                                    ).withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: const Text(
@@ -694,7 +719,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
       'Privacy',
       'Media',
       'Referrals',
-      'Safety'
+      'Safety',
     ];
     final isDesktop = MediaQuery.of(context).size.width >= 720;
 
@@ -727,8 +752,10 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.receipt_long_rounded,
-                color: Color(0xFF0284C7)),
+            icon: const Icon(
+              Icons.receipt_long_rounded,
+              color: Color(0xFF0284C7),
+            ),
             tooltip: "My Tickets",
             onPressed: _showMyTicketsModal,
           ),
@@ -741,406 +768,437 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
               maxWidth: isDesktop ? 760 : double.infinity,
             ),
             child: ListView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 36),
-          children: [
-            // ==========================================
-            // 1. LIVE SYSTEM STATUS CARD
-            // ==========================================
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.25),
-                  width: 1,
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 36),
+              children: [
+                // ==========================================
+                // 1. LIVE SYSTEM STATUS CARD
+                // ==========================================
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.25),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF10B981),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          "All ZEV Systems Operational • Avg reply < 2h",
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF065F46),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF10B981),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      "All ZEV Systems Operational • Avg reply < 2h",
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF065F46),
+
+                const SizedBox(height: 14),
+
+                // ==========================================
+                // 2. PRIMARY HERO: REPORT A PROBLEM
+                // ==========================================
+                GestureDetector(
+                  onTap: _showReportProblemModal,
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF0284C7), Color(0xFF0369A1)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(
+                            0xFF0284C7,
+                          ).withValues(alpha: 0.28),
+                          blurRadius: 16,
+                          offset: const Offset(0, 5),
+                        ),
+                        const BoxShadow(
+                          color: Colors.white,
+                          blurRadius: 4,
+                          offset: Offset(0, -1),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.report_problem_rounded,
+                            color: Colors.white,
+                            size: 26,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Report a Problem",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                "Let us know if something isn't working right on your app.",
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: Color(0xFFE0F2FE),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 14),
-
-            // ==========================================
-            // 2. PRIMARY HERO: REPORT A PROBLEM
-            // ==========================================
-            GestureDetector(
-              onTap: _showReportProblemModal,
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF0284C7), Color(0xFF0369A1)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(22),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF0284C7).withValues(alpha: 0.28),
-                      blurRadius: 16,
-                      offset: const Offset(0, 5),
-                    ),
-                    const BoxShadow(
-                      color: Colors.white,
-                      blurRadius: 4,
-                      offset: Offset(0, -1),
-                    ),
-                  ],
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.report_problem_rounded,
-                        color: Colors.white,
-                        size: 26,
-                      ),
+
+                const SizedBox(height: 20),
+
+                // ==========================================
+                // 3. SEARCHABLE HELP CENTER & FAQ
+                // ==========================================
+                _buildSectionHeader("HELP CENTER & FAQS"),
+
+                // Clay Search Input
+                Container(
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.95),
+                      width: 1.5,
                     ),
-                    const SizedBox(width: 14),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Report a Problem",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.search_rounded,
+                        color: Color(0xFF0284C7),
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _searchCtrl,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF0F172A),
+                          ),
+                          decoration: const InputDecoration(
+                            hintText: "Search help articles and questions...",
+                            hintStyle: TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontSize: 12.5,
+                            ),
+                            border: InputBorder.none,
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      if (_searchQuery.isNotEmpty)
+                        GestureDetector(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            _searchCtrl.clear();
+                          },
+                          child: const Icon(
+                            Icons.close_rounded,
+                            size: 16,
+                            color: Color(0xFF94A3B8),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // Category Filter Pills
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  child: Row(
+                    children: categories.map((cat) {
+                      final isSelected = _selectedCategory == cat;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: GestureDetector(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() => _selectedCategory = cat);
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? const Color(0xFF0284C7)
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFF0284C7)
+                                    : const Color(0xFFE2E8F0),
+                              ),
+                              boxShadow: isSelected
+                                  ? [
+                                      BoxShadow(
+                                        color: const Color(
+                                          0xFF0284C7,
+                                        ).withValues(alpha: 0.25),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Text(
+                              cat,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: isSelected
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                color: isSelected
+                                    ? Colors.white
+                                    : const Color(0xFF64748B),
+                              ),
                             ),
                           ),
-                          SizedBox(height: 2),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                // FAQ Items
+                if (filteredFaqs.isEmpty)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Column(
+                        children: [
+                          const Icon(
+                            Icons.search_off_rounded,
+                            size: 32,
+                            color: Color(0xFF94A3B8),
+                          ),
+                          const SizedBox(height: 8),
                           Text(
-                            "Let us know if something isn't working right on your app.",
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: Color(0xFFE0F2FE),
+                            "No articles found for '$_searchQuery'",
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF64748B),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      color: Colors.white,
-                      size: 14,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // ==========================================
-            // 3. SEARCHABLE HELP CENTER & FAQ
-            // ==========================================
-            _buildSectionHeader("HELP CENTER & FAQS"),
-
-            // Clay Search Input
-            Container(
-              height: 44,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.95),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Row(
-                children: [
-                  const Icon(Icons.search_rounded,
-                      color: Color(0xFF0284C7), size: 18),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchCtrl,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF0F172A),
+                  )
+                else
+                  ...filteredFaqs.map((faq) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _buildFaqTile(
+                        title: faq['title']!,
+                        content: faq['content']!,
                       ),
-                      decoration: const InputDecoration(
-                        hintText: "Search help articles and questions...",
-                        hintStyle: TextStyle(
-                          color: Color(0xFF94A3B8),
-                          fontSize: 12.5,
-                        ),
-                        border: InputBorder.none,
-                        isDense: true,
-                      ),
-                    ),
+                    );
+                  }),
+
+                const SizedBox(height: 20),
+
+                // ==========================================
+                // 4. DIRECT CONTACT CHANNELS
+                // ==========================================
+                _buildSectionHeader("DIRECT CONTACT"),
+
+                _buildActionCard(
+                  icon: Icons.mail_rounded,
+                  title: "Email Support",
+                  subtitle: "support@zevapp.com",
+                  trailing: const Icon(
+                    Icons.copy_rounded,
+                    size: 18,
+                    color: Color(0xFF0284C7),
                   ),
-                  if (_searchQuery.isNotEmpty)
-                    GestureDetector(
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        _searchCtrl.clear();
-                      },
-                      child: const Icon(Icons.close_rounded,
-                          size: 16, color: Color(0xFF94A3B8)),
-                    ),
-                ],
-              ),
-            ),
+                  onTap: () => _copyToClipboard(
+                    "support@zevapp.com",
+                    "Support email address",
+                  ),
+                ),
+                const SizedBox(height: 9),
 
-            const SizedBox(height: 12),
+                _buildActionCard(
+                  icon: Icons.send_rounded,
+                  title: "Official Telegram Support",
+                  subtitle: "@zevsupport",
+                  trailing: const Icon(
+                    Icons.copy_rounded,
+                    size: 18,
+                    color: Color(0xFF0284C7),
+                  ),
+                  onTap: () => _copyToClipboard(
+                    "@zevsupport",
+                    "Official Telegram support handle",
+                  ),
+                ),
 
-            // Category Filter Pills
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                children: categories.map((cat) {
-                  final isSelected = _selectedCategory == cat;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: GestureDetector(
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        setState(() => _selectedCategory = cat);
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? const Color(0xFF0284C7)
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: isSelected
-                                ? const Color(0xFF0284C7)
-                                : const Color(0xFFE2E8F0),
-                          ),
-                          boxShadow: isSelected
-                              ? [
-                                  BoxShadow(
-                                    color: const Color(0xFF0284C7)
-                                        .withValues(alpha: 0.25),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ]
-                              : null,
+                const SizedBox(height: 20),
+
+                // ==========================================
+                // 5. SAFETY & COMMUNITY RULES
+                // ==========================================
+                _buildSectionHeader("COMMUNITY & SAFETY"),
+
+                _buildActionCard(
+                  icon: Icons.gavel_rounded,
+                  title: "Appeal a Restriction",
+                  subtitle:
+                      "Review account standing notices and submit an appeal",
+                  onTap: () => AppealRestrictionSheet.show(context),
+                ),
+                const SizedBox(height: 9),
+
+                _buildActionCard(
+                  icon: Icons.shield_rounded,
+                  title: "Community Guidelines",
+                  subtitle:
+                      "Our principles for a peaceful and authentic community",
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
                         ),
-                        child: Text(
-                          cat,
+                        title: const Text(
+                          "Community Guidelines",
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight:
-                                isSelected ? FontWeight.w800 : FontWeight.w600,
-                            color: isSelected
-                                ? Colors.white
-                                : const Color(0xFF64748B),
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF0F172A),
                           ),
                         ),
+                        content: const SingleChildScrollView(
+                          child: Text(
+                            "ZEV is dedicated to providing a calm, authentic social world free from toxic algorithms.\n\n"
+                            "1. Kindness First: Harassment, hate speech, or targeted attacks result in permanent termination.\n"
+                            "2. Original Content: Respect intellectual property and do not claim another creator's art as your own.\n"
+                            "3. Privacy Respect: Never share another person's private information without their consent.\n"
+                            "4. Honest Engagement: Botting, spamming, or fraudulent referrals lead to immediate disqualification from ZEV Blue.",
+                            style: TextStyle(
+                              color: Color(0xFF64748B),
+                              fontSize: 13,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text(
+                              "I Understand",
+                              style: TextStyle(
+                                color: Color(0xFF0284C7),
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
+                    );
+                  },
+                ),
 
-            const SizedBox(height: 14),
+                const SizedBox(height: 28),
 
-            // FAQ Items
-            if (filteredFaqs.isEmpty)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
+                // App Version Footer
+                const Center(
                   child: Column(
                     children: [
-                      const Icon(Icons.search_off_rounded,
-                          size: 32, color: Color(0xFF94A3B8)),
-                      const SizedBox(height: 8),
                       Text(
-                        "No articles found for '$_searchQuery'",
-                        style: const TextStyle(
+                        "ZEV Official Platform",
+                        style: TextStyle(
                           fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        "Version 1.0.0 (Build 2026) • A Peaceful Social Space",
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFFCBD5E1),
                         ),
                       ),
                     ],
                   ),
                 ),
-              )
-            else
-              ...filteredFaqs.map((faq) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _buildFaqTile(
-                    title: faq['title']!,
-                    content: faq['content']!,
-                  ),
-                );
-              }),
-
-            const SizedBox(height: 20),
-
-            // ==========================================
-            // 4. DIRECT CONTACT CHANNELS
-            // ==========================================
-            _buildSectionHeader("DIRECT CONTACT"),
-
-            _buildActionCard(
-              icon: Icons.mail_rounded,
-              title: "Email Support",
-              subtitle: "support@zevapp.com",
-              trailing: const Icon(Icons.copy_rounded,
-                  size: 18, color: Color(0xFF0284C7)),
-              onTap: () => _copyToClipboard(
-                  "support@zevapp.com", "Support email address"),
+              ],
             ),
-            const SizedBox(height: 9),
-
-            _buildActionCard(
-              icon: Icons.send_rounded,
-              title: "Official Telegram Support",
-              subtitle: "@zevsupport",
-              trailing: const Icon(Icons.copy_rounded,
-                  size: 18, color: Color(0xFF0284C7)),
-              onTap: () => _copyToClipboard(
-                  "@zevsupport", "Official Telegram support handle"),
-            ),
-
-            const SizedBox(height: 20),
-
-            // ==========================================
-            // 5. SAFETY & COMMUNITY RULES
-            // ==========================================
-            _buildSectionHeader("COMMUNITY & SAFETY"),
-
-            _buildActionCard(
-              icon: Icons.gavel_rounded,
-              title: "Appeal a Restriction",
-              subtitle: "Review account standing notices and submit an appeal",
-              onTap: () => AppealRestrictionSheet.show(context),
-            ),
-            const SizedBox(height: 9),
-
-            _buildActionCard(
-              icon: Icons.shield_rounded,
-              title: "Community Guidelines",
-              subtitle: "Our principles for a peaceful and authentic community",
-              onTap: () {
-                showDialog(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    backgroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24)),
-                    title: const Text(
-                      "Community Guidelines",
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF0F172A),
-                      ),
-                    ),
-                    content: const SingleChildScrollView(
-                      child: Text(
-                        "ZEV is dedicated to providing a calm, authentic social world free from toxic algorithms.\n\n"
-                        "1. Kindness First: Harassment, hate speech, or targeted attacks result in permanent termination.\n"
-                        "2. Original Content: Respect intellectual property and do not claim another creator's art as your own.\n"
-                        "3. Privacy Respect: Never share another person's private information without their consent.\n"
-                        "4. Honest Engagement: Botting, spamming, or fraudulent referrals lead to immediate disqualification from ZEV Blue.",
-                        style: TextStyle(
-                          color: Color(0xFF64748B),
-                          fontSize: 13,
-                          height: 1.5,
-                        ),
-                      ),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child: const Text(
-                          "I Understand",
-                          style: TextStyle(
-                            color: Color(0xFF0284C7),
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-
-            const SizedBox(height: 28),
-
-            // App Version Footer
-            const Center(
-              child: Column(
-                children: [
-                  Text(
-                    "ZEV Official Platform",
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF94A3B8),
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    "Version 1.0.0 (Build 2026) • A Peaceful Social Space",
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFFCBD5E1),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
-    ),
-  ),
-);
-}
+    );
+  }
 
   Widget _buildSectionHeader(String title) {
     return Padding(

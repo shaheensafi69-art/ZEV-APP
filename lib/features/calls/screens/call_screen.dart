@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/config/app_config.dart';
+import '../../../core/services/zev_call_audio_service.dart';
 import '../../../core/services/zev_rtc_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_cached_image.dart';
@@ -347,6 +348,7 @@ class _CallScreenState extends State<CallScreen>
       ZevRtcService.instance.clearActiveCall(_session!.id);
     }
 
+    unawaited(ZevCallAudioService.instance.stopAll());
     unawaited(_teardownEngine());
     super.dispose();
   }
@@ -448,6 +450,7 @@ class _CallScreenState extends State<CallScreen>
           _phase = 'ringing';
           _statusLabel = 'Ringing...';
         });
+        unawaited(ZevCallAudioService.instance.startOutgoingCallingTone());
 
         _subscribeCallSession(created.id);
         _startRingTimeout(created.id);
@@ -463,6 +466,9 @@ class _CallScreenState extends State<CallScreen>
           _phase = session.isAccepted ? 'accepted' : 'ringing';
           _statusLabel = session.isVideo ? 'Incoming Video Call' : 'Incoming Voice Call';
         });
+        if (!session.isAccepted) {
+          unawaited(ZevCallAudioService.instance.startIncomingRingtone());
+        }
         _subscribeCallSession(session.id);
         _startStatusPoll(session.id);
 
@@ -559,6 +565,7 @@ class _CallScreenState extends State<CallScreen>
       _ringTimeoutTimer?.cancel();
       _statusPollTimer?.cancel();
       HapticFeedback.mediumImpact();
+      unawaited(ZevCallAudioService.instance.playCallConnectedTone());
       setState(() {
         _phase = 'accepted';
         _statusLabel = 'Connected';
@@ -624,6 +631,7 @@ class _CallScreenState extends State<CallScreen>
             _statusLabel = 'Connected';
             _ringTimeoutTimer?.cancel();
             _startDurationTimer();
+            unawaited(ZevCallAudioService.instance.playCallConnectedTone());
           }
           if (_isVideoActive || widget.isVideo) {
             _remoteVideoController?.dispose();
@@ -808,6 +816,8 @@ class _CallScreenState extends State<CallScreen>
     _durationTimer?.cancel();
     _statusPollTimer?.cancel();
 
+    unawaited(ZevCallAudioService.instance.stopLoop());
+    unawaited(ZevCallAudioService.instance.playCallEndedTone());
     unawaited(_teardownEngine());
 
     if (!mounted) return;
@@ -857,7 +867,7 @@ class _CallScreenState extends State<CallScreen>
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Camera permission required • اجازه دسترسی به کمره نیاز است'),
+                content: Text('Camera permission required'),
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -902,7 +912,7 @@ class _CallScreenState extends State<CallScreen>
 
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Camera turned on • کمره روشن شد'),
+              content: Text('Camera turned on'),
               duration: Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
               backgroundColor: Color(0xFF0F172A),
@@ -938,8 +948,8 @@ class _CallScreenState extends State<CallScreen>
             SnackBar(
               content: Text(
                 nextOff
-                    ? 'Camera turned off • کمره خاموش شد'
-                    : 'Camera turned on • کمره روشن شد',
+                    ? 'Camera turned off'
+                    : 'Camera turned on',
               ),
               duration: const Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
@@ -1050,7 +1060,7 @@ class _CallScreenState extends State<CallScreen>
           setState(() => _isScreenSharing = true);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Screen sharing started • در حال اشتراک صفحه نمایش'),
+              content: Text('Screen sharing started'),
               duration: Duration(seconds: 3),
               behavior: SnackBarBehavior.floating,
               backgroundColor: Color(0xFF0F172A),
@@ -1084,7 +1094,7 @@ class _CallScreenState extends State<CallScreen>
           setState(() => _isScreenSharing = false);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Screen sharing stopped • اشتراک صفحه پایان یافت'),
+              content: Text('Screen sharing stopped'),
               duration: Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
               backgroundColor: Color(0xFF0F172A),
