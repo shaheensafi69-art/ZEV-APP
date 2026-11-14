@@ -188,6 +188,8 @@ class _CreatorInsightsScreenState extends State<CreatorInsightsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.of(context).size.width >= 720;
+
     return Scaffold(
       backgroundColor: ZevColors.softSurface,
       appBar: AppBar(
@@ -225,31 +227,45 @@ class _CreatorInsightsScreenState extends State<CreatorInsightsScreen> {
         ),
         centerTitle: true,
       ),
-      body: RefreshIndicator(
-        color: ZevColors.primaryBlue,
-        onRefresh: _loadInsights,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(
-            parent: BouncingScrollPhysics(),
-          ),
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 36),
-          children: [
-            _buildRangeSelector(),
-            const SizedBox(height: 14),
-            if (_isLoading)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 80),
-                child: Center(
-                  child: CircularProgressIndicator(
-                    color: ZevColors.primaryBlue,
-                  ),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: isDesktop ? 900 : double.infinity,
+            ),
+            child: RefreshIndicator(
+              color: ZevColors.primaryBlue,
+              onRefresh: _loadInsights,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
                 ),
-              )
-            else if (_errorMsg != null)
-              _buildErrorCard()
-            else
-              _buildInsightsBody(),
-          ],
+                padding: EdgeInsets.fromLTRB(
+                  isDesktop ? 24 : 16,
+                  isDesktop ? 20 : 14,
+                  isDesktop ? 24 : 16,
+                  36,
+                ),
+                children: [
+                  _buildRangeSelector(),
+                  const SizedBox(height: 14),
+                  if (_isLoading)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 80),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: ZevColors.primaryBlue,
+                        ),
+                      ),
+                    )
+                  else if (_errorMsg != null)
+                    _buildErrorCard()
+                  else
+                    _buildInsightsBody(),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

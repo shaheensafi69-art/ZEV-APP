@@ -224,6 +224,7 @@ class _DraftsScheduledScreenState extends State<DraftsScheduledScreen> {
     final scheduledCount =
         _items.where((p) => !p.isDraft && p.scheduledAt != null).length;
     final visible = _filteredItems;
+    final isDesktop = MediaQuery.of(context).size.width >= 720;
 
     return Scaffold(
       backgroundColor: ZevColors.softSurface,
@@ -261,63 +262,91 @@ class _DraftsScheduledScreenState extends State<DraftsScheduledScreen> {
         ],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            // Filter Pills Bar
-            Container(
-              color: ZevColors.white,
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-              child: Row(
-                children: [
-                  _buildFilterChip(
-                    keyId: 'all',
-                    label: 'All (${_items.length})',
-                  ),
-                  const SizedBox(width: 8),
-                  _buildFilterChip(
-                    keyId: 'drafts',
-                    label: 'Drafts ($draftsCount)',
-                  ),
-                  const SizedBox(width: 8),
-                  _buildFilterChip(
-                    keyId: 'scheduled',
-                    label: 'Scheduled ($scheduledCount)',
-                  ),
-                ],
-              ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: isDesktop ? 680 : double.infinity,
             ),
-
-            Expanded(
-              child: _isLoading
-                  ? ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: 3,
-                      itemBuilder: (_, _) => const Padding(
-                        padding: EdgeInsets.only(bottom: 14),
-                        child: ZevFeedCardSkeleton(),
-                      ),
-                    )
-                  : _errorMsg != null
-                      ? _buildErrorState()
-                      : visible.isEmpty
-                          ? _buildEmptyState()
-                          : RefreshIndicator(
-                              color: ZevColors.primaryBlue,
-                              onRefresh: _loadItems,
-                              child: ListView.builder(
-                                physics:
-                                    const AlwaysScrollableScrollPhysics(
-                                  parent: BouncingScrollPhysics(),
-                                ),
-                                padding:
-                                    const EdgeInsets.fromLTRB(16, 14, 16, 36),
-                                itemCount: visible.length,
-                                itemBuilder: (context, idx) =>
-                                    _buildPostCard(visible[idx]),
-                              ),
+            child: Column(
+              children: [
+                if (isDesktop) const SizedBox(height: 12),
+                // Filter Pills Bar
+                Container(
+                  margin: isDesktop
+                      ? const EdgeInsets.symmetric(horizontal: 16)
+                      : EdgeInsets.zero,
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  decoration: BoxDecoration(
+                    color: ZevColors.white,
+                    borderRadius: isDesktop
+                        ? BorderRadius.circular(16)
+                        : BorderRadius.zero,
+                    border: isDesktop
+                        ? Border.all(color: ZevColors.border)
+                        : null,
+                    boxShadow: isDesktop
+                        ? [
+                            BoxShadow(
+                              color: ZevColors.deepNavy.withValues(alpha: 0.04),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
                             ),
+                          ]
+                        : null,
+                  ),
+                  child: Row(
+                    children: [
+                      _buildFilterChip(
+                        keyId: 'all',
+                        label: 'All (${_items.length})',
+                      ),
+                      const SizedBox(width: 8),
+                      _buildFilterChip(
+                        keyId: 'drafts',
+                        label: 'Drafts ($draftsCount)',
+                      ),
+                      const SizedBox(width: 8),
+                      _buildFilterChip(
+                        keyId: 'scheduled',
+                        label: 'Scheduled ($scheduledCount)',
+                      ),
+                    ],
+                  ),
+                ),
+
+                Expanded(
+                  child: _isLoading
+                      ? ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: 3,
+                          itemBuilder: (_, _) => const Padding(
+                            padding: EdgeInsets.only(bottom: 14),
+                            child: ZevFeedCardSkeleton(),
+                          ),
+                        )
+                      : _errorMsg != null
+                          ? _buildErrorState()
+                          : visible.isEmpty
+                              ? _buildEmptyState()
+                              : RefreshIndicator(
+                                  color: ZevColors.primaryBlue,
+                                  onRefresh: _loadItems,
+                                  child: ListView.builder(
+                                    physics:
+                                        const AlwaysScrollableScrollPhysics(
+                                      parent: BouncingScrollPhysics(),
+                                    ),
+                                    padding:
+                                        const EdgeInsets.fromLTRB(16, 14, 16, 36),
+                                    itemCount: visible.length,
+                                    itemBuilder: (context, idx) =>
+                                        _buildPostCard(visible[idx]),
+                                  ),
+                                ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

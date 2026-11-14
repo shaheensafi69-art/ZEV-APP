@@ -855,6 +855,8 @@ class _AdsManagerScreenState extends State<AdsManagerScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.of(context).size.width >= 720;
+
     return Scaffold(
       backgroundColor: ZevColors.softSurface,
       appBar: AppBar(
@@ -887,61 +889,70 @@ class _AdsManagerScreenState extends State<AdsManagerScreen>
         ],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(
-                height: 46,
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: ZevColors.white,
-                  borderRadius: BorderRadius.circular(23),
-                  border: Border.all(color: ZevColors.border, width: 1.2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: ZevColors.deepNavy.withValues(alpha: 0.04),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    _buildTabPill(0, 'Campaigns'),
-                    _buildTabPill(1, 'Create Ad'),
-                    _buildTabPill(2, 'Billing'),
-                  ],
-                ),
-              ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: isDesktop ? 960 : double.infinity,
             ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: _isLoading
-                  ? ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: const [
-                        ZevSkeleton(width: double.infinity, height: 140),
-                        SizedBox(height: 14),
-                        ZevSkeleton(width: double.infinity, height: 180),
-                        SizedBox(height: 14),
-                        ZevSkeleton(width: double.infinity, height: 160),
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isDesktop ? 20 : 16,
+                  ),
+                  child: Container(
+                    height: 46,
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: ZevColors.white,
+                      borderRadius: BorderRadius.circular(23),
+                      border: Border.all(color: ZevColors.border, width: 1.2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: ZevColors.deepNavy.withValues(alpha: 0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
                       ],
-                    )
-                  : _errorMsg != null
-                  ? _buildErrorState()
-                  : TabBarView(
-                      controller: _tabCtrl,
-                      physics: const BouncingScrollPhysics(),
+                    ),
+                    child: Row(
                       children: [
-                        _buildCampaignsTab(),
-                        _buildCreateAdTab(),
-                        _buildBillingTab(),
+                        _buildTabPill(0, 'Campaigns'),
+                        _buildTabPill(1, 'Create Ad'),
+                        _buildTabPill(2, 'Billing'),
                       ],
                     ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: _isLoading
+                      ? ListView(
+                          padding: const EdgeInsets.all(16),
+                          children: const [
+                            ZevSkeleton(width: double.infinity, height: 140),
+                            SizedBox(height: 14),
+                            ZevSkeleton(width: double.infinity, height: 180),
+                            SizedBox(height: 14),
+                            ZevSkeleton(width: double.infinity, height: 160),
+                          ],
+                        )
+                      : _errorMsg != null
+                      ? _buildErrorState()
+                      : TabBarView(
+                          controller: _tabCtrl,
+                          physics: const BouncingScrollPhysics(),
+                          children: [
+                            _buildCampaignsTab(),
+                            _buildCreateAdTab(),
+                            _buildBillingTab(),
+                          ],
+                        ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

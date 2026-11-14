@@ -394,6 +394,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
         "${widget.userProfile['first_name'] ?? ''} ${widget.userProfile['last_name'] ?? ''}"
             .trim();
     final avatarUrl = (widget.userProfile['avatar_url'] ?? '').toString();
+    final isDesktop = MediaQuery.of(context).size.width >= 720;
 
     return Scaffold(
       backgroundColor: ZevColors.softSurface,
@@ -421,55 +422,64 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
         centerTitle: true,
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 10),
-
-            // Segmented 3-Tab Bar
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(
-                height: 46,
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE2E8F0),
-                  borderRadius: BorderRadius.circular(23),
-                ),
-                child: Row(
-                  children: [
-                    _buildTabPill(index: 0, label: "Plans"),
-                    _buildTabPill(index: 1, label: "Free Pathway"),
-                    _buildTabPill(index: 2, label: "Guidelines"),
-                  ],
-                ),
-              ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: isDesktop ? 760 : double.infinity,
             ),
-            const SizedBox(height: 12),
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
 
-            Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(Color(0xFF0284C7)),
-                      ),
-                    )
-                  : TabBarView(
-                      controller: _tabCtrl,
-                      physics: const BouncingScrollPhysics(),
+                // Segmented 3-Tab Bar
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isDesktop ? 20 : 16,
+                  ),
+                  child: Container(
+                    height: 46,
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(23),
+                    ),
+                    child: Row(
                       children: [
-                        // Tab 1: Premium Subscription Plans
-                        _buildPlansTab(username, fullName, avatarUrl),
-
-                        // Tab 2: Free 100-Referral Pathway
-                        _buildReferralTab(username, fullName),
-
-                        // Tab 3: Official Verification Guidelines & Terms
-                        _buildGuidelinesTab(),
+                        _buildTabPill(index: 0, label: "Plans"),
+                        _buildTabPill(index: 1, label: "Free Pathway"),
+                        _buildTabPill(index: 2, label: "Guidelines"),
                       ],
                     ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                Expanded(
+                  child: _isLoading
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Color(0xFF0284C7)),
+                          ),
+                        )
+                      : TabBarView(
+                          controller: _tabCtrl,
+                          physics: const BouncingScrollPhysics(),
+                          children: [
+                            // Tab 1: Premium Subscription Plans
+                            _buildPlansTab(username, fullName, avatarUrl),
+
+                            // Tab 2: Free 100-Referral Pathway
+                            _buildReferralTab(username, fullName),
+
+                            // Tab 3: Official Verification Guidelines & Terms
+                            _buildGuidelinesTab(),
+                          ],
+                        ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

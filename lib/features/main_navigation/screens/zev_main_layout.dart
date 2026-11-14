@@ -513,13 +513,15 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     ),
                     const SizedBox(height: 10),
 
-                    // 4. Quick Access Hub (Saved, Insights, Drafts, VIP Blue)
+                    // 4. Quick Access Hub (Advertise, Insights, Drafts, VIP Blue)
                     _buildSidebarActionItem(
-                      icon: Icons.bookmark_outline_rounded,
-                      label: "Saved",
+                      icon: Icons.campaign_rounded,
+                      label: "Advertise",
                       isExpanded: isExpanded,
                       isReels: isReels,
-                      onTap: () => _onTabTapped(4),
+                      onTap: () {
+                        AdsManagerScreen.open(context);
+                      },
                     ),
                     const SizedBox(height: 4),
                     _buildSidebarActionItem(
