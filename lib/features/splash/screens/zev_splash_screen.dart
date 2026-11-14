@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -124,7 +125,28 @@ class _ZevSplashScreenState extends State<ZevSplashScreen>
           session.user.id,
         );
         if (standing.isAllowed) {
-          targetScreen = const ZevMainLayout();
+          int initialTabIndex = 0;
+          if (kIsWeb) {
+            final path = Uri.base.path.toLowerCase();
+            final query = Uri.base.queryParameters;
+            if (path.contains('messages') ||
+                path.contains('chat') ||
+                path.contains('direct') ||
+                query.containsKey('id') ||
+                query.containsKey('conv') ||
+                query.containsKey('user')) {
+              initialTabIndex = 5;
+            } else if (path.contains('explore') || path.contains('search')) {
+              initialTabIndex = 1;
+            } else if (path.contains('reels')) {
+              initialTabIndex = 3;
+            } else if (path.contains('profile') || path.contains('@')) {
+              initialTabIndex = 4;
+            } else if (path.contains('notifications')) {
+              initialTabIndex = 6;
+            }
+          }
+          targetScreen = ZevMainLayout(initialIndex: initialTabIndex);
           unawaited(AuthHelper.syncZevFcmToken(session.user.id));
         } else if (standing.status == AccountStandingStatus.banned) {
           targetScreen = AccountStandingScreen(standing: standing);

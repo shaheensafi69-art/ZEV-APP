@@ -34,6 +34,8 @@ class ChatConversationScreen extends StatefulWidget {
   final String peerFullName;
   final String peerAvatar;
   final bool isPeerVerified;
+  final bool isEmbedded;
+  final VoidCallback? onCloseEmbedded;
 
   const ChatConversationScreen({
     super.key,
@@ -46,6 +48,8 @@ class ChatConversationScreen extends StatefulWidget {
     this.peerFullName = '',
     this.peerAvatar = '',
     this.isPeerVerified = false,
+    this.isEmbedded = false,
+    this.onCloseEmbedded,
   });
 
   static Future<void> open(
@@ -1531,15 +1535,18 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       backgroundColor: Colors.white.withValues(alpha: 0.96),
       elevation: 0,
       scrolledUnderElevation: 1,
-      leadingWidth: 38,
-      leading: IconButton(
-        icon: const Icon(
-          Icons.arrow_back_ios_new_rounded,
-          color: ZevColors.deepNavy,
-          size: 20,
-        ),
-        onPressed: () => Navigator.of(context).pop(),
-      ),
+      automaticallyImplyLeading: !widget.isEmbedded,
+      leadingWidth: widget.isEmbedded ? 14 : 38,
+      leading: widget.isEmbedded
+          ? const SizedBox(width: 14)
+          : IconButton(
+              icon: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: ZevColors.deepNavy,
+                size: 20,
+              ),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
       title: GestureDetector(
         onTap: () {
           if (_isGroup && _conversationId.isNotEmpty) {
@@ -1547,7 +1554,13 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
               context,
               conversationId: _conversationId,
               onGroupUpdated: _fetchGroupDetails,
-              onLeftGroup: () => Navigator.of(context).pop(),
+              onLeftGroup: () {
+                if (widget.isEmbedded) {
+                  widget.onCloseEmbedded?.call();
+                } else if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).pop();
+                }
+              },
             );
           } else if (widget.peerId.isNotEmpty) {
             ProfileScreen.open(context, userId: widget.peerId);
@@ -1691,7 +1704,13 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                   context,
                   conversationId: _conversationId,
                   onGroupUpdated: _fetchGroupDetails,
-                  onLeftGroup: () => Navigator.of(context).pop(),
+                  onLeftGroup: () {
+                    if (widget.isEmbedded) {
+                      widget.onCloseEmbedded?.call();
+                    } else if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop();
+                    }
+                  },
                 );
               }
             },
@@ -1746,6 +1765,16 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 ),
               ),
             ],
+          ),
+        if (widget.onCloseEmbedded != null)
+          IconButton(
+            tooltip: 'Close Chat',
+            icon: const Icon(
+              Icons.close_rounded,
+              color: ZevColors.textMuted,
+              size: 22,
+            ),
+            onPressed: widget.onCloseEmbedded,
           ),
       ],
     );
@@ -1871,7 +1900,13 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                       conversationId: _conversationId,
                       accept: false,
                     );
-                    if (mounted) Navigator.of(context).pop();
+                    if (mounted) {
+                      if (widget.isEmbedded) {
+                        widget.onCloseEmbedded?.call();
+                      } else if (Navigator.of(context).canPop()) {
+                        Navigator.of(context).pop();
+                      }
+                    }
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: ZevColors.errorRed,

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -8,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/multi_account_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/time_ago.dart';
+import '../../../core/utils/web_url_helper.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../models/chat_conversation_item.dart';
 import '../services/chat_cache_service.dart';
@@ -18,12 +20,30 @@ import 'chat_conversation_screen.dart';
 
 /// Light Clearmorphic Direct & Group Messages Inbox Screen for ZEV.
 class ChatListScreen extends StatefulWidget {
-  const ChatListScreen({super.key});
+  final String? initialConversationId;
+  final String? initialPeerId;
+  final String? initialPeerUsername;
 
-  static Future<void> open(BuildContext context) async {
+  const ChatListScreen({
+    super.key,
+    this.initialConversationId,
+    this.initialPeerId,
+    this.initialPeerUsername,
+  });
+
+  static Future<void> open(
+    BuildContext context, {
+    String? initialConversationId,
+    String? initialPeerId,
+    String? initialPeerUsername,
+  }) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const ChatListScreen(),
+        builder: (_) => ChatListScreen(
+          initialConversationId: initialConversationId,
+          initialPeerId: initialPeerId,
+          initialPeerUsername: initialPeerUsername,
+        ),
       ),
     );
   }
@@ -48,6 +68,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
   List<MessageSearchHit> _messageHits = [];
   bool _isSearchingMessages = false;
 
+  ChatConversationItem? _selectedConversation;
+  String? _pendingTargetId;
+  String? _pendingTargetUsername;
+  bool _hasAttemptedAutoSelect = false;
+
   String _selectedTab = 'Primary'; // 'Primary', 'Groups', 'Requests'
   String _searchQuery = '';
 
@@ -60,10 +85,185 @@ class _ChatListScreenState extends State<ChatListScreen> {
   @override
   void initState() {
     super.initState();
+    _extractInitialWebTarget();
     _loadFromCacheFirst();
     _loadCurrentUserProfile();
     _fetchInbox(isBackgroundUpdate: _conversations.isNotEmpty);
     _subscribeToInboxRealtime();
+  }
+
+  void _extractInitialWebTarget() {
+    String? targetId = widget.initialConversationId ?? widget.initialPeerId;
+    String? targetUser = widget.initialPeerUsername;
+
+    if (kIsWeb) {
+      final queryParams = getBrowserQueryParams();
+      targetId ??= queryParams['id'] ?? queryParams['conv'] ?? queryParams['conversationId'];
+      targetUser ??= queryParams['user'] ?? queryParams['username'];
+
+      final path = getBrowserPath();
+      if ((targetId == null || targetId.isEmpty) && path.contains('/messages/')) {
+        final uri = Uri.tryParse(getBrowserUrl());
+        final segments = uri?.pathSegments ?? [];
+        final msgIdx = segments.indexOf('messages');
+        if (msgIdx != -1 && segments.length > msgIdx + 1) {
+          final param = segments[msgIdx + 1].trim();
+          if (param.startsWith('@')) {
+            targetUser = param.substring(1);
+          } else {
+            targetId = param;
+          }
+        }
+      }
+    }
+
+    if (targetId != null && targetId.isNotEmpty) {
+      _pendingTargetId = targetId;
+    }
+    if (targetUser != null && targetUser.isNotEmpty) {
+      _pendingTargetUsername = targetUser;
+    }
+  }
+
+  Future<void> _resolveAndSelectPendingTarget() async {
+    final targetId = _pendingTargetId;
+    final targetUser = _pendingTargetUsername;
+    if (targetId == null && targetUser == null) return;
+
+    // 1. Try finding in existing conversations list
+    ChatConversationItem? match;
+    for (final item in _conversations) {
+      if (targetId != null &&
+          (item.conversationId == targetId ||
+              item.peerId == targetId ||
+              item.threadKey == targetId)) {
+        match = item;
+        break;
+      }
+      if (targetUser != null &&
+          item.peerUsername.toLowerCase() == targetUser.toLowerCase()) {
+        match = item;
+        break;
+      }
+    }
+
+    if (match != null) {
+      if (mounted) {
+        final isDesktop = MediaQuery.sizeOf(context).width >= 720;
+        if (isDesktop) {
+          setState(() => _selectedConversation = match);
+        } else {
+          _openConversation(match);
+        }
+      }
+      return;
+    }
+
+    // 2. Fetch conversation or user from Supabase
+    try {
+      if (targetId != null && targetId.isNotEmpty) {
+        final conv = await _supabase
+            .from('conversations')
+            .select('id, is_group, title, avatar_url')
+            .eq('id', targetId)
+            .maybeSingle();
+
+        if (conv != null && mounted) {
+          final isGroup = conv['is_group'] == true;
+          String pId = '';
+          String pName = '';
+          String pAvatar = '';
+          String pFull = '';
+          bool pVer = false;
+
+          if (!isGroup) {
+            final myId = _supabase.auth.currentUser?.id ?? '';
+            final m = await _supabase
+                .from('conversation_members')
+                .select('user_id')
+                .eq('conversation_id', targetId)
+                .neq('user_id', myId)
+                .limit(1)
+                .maybeSingle();
+            if (m != null) {
+              pId = m['user_id']?.toString() ?? '';
+              final prof = await _supabase
+                  .from('profiles')
+                  .select('username, avatar_url, first_name, last_name, is_verified')
+                  .eq('id', pId)
+                  .maybeSingle();
+              if (prof != null) {
+                pName = prof['username']?.toString() ?? 'User';
+                pAvatar = prof['avatar_url']?.toString() ?? '';
+                pFull = '${prof['first_name'] ?? ''} ${prof['last_name'] ?? ''}'.trim();
+                pVer = prof['is_verified'] == true;
+              }
+            }
+          }
+
+          final restoredItem = ChatConversationItem(
+            conversationId: targetId,
+            isGroup: isGroup,
+            groupTitle: conv['title']?.toString() ?? (isGroup ? 'Group Chat' : ''),
+            groupAvatar: conv['avatar_url']?.toString() ?? '',
+            peerId: pId,
+            peerUsername: pName.isNotEmpty ? pName : 'User',
+            peerFullName: pFull,
+            peerAvatar: pAvatar,
+            isPeerVerified: pVer,
+            lastMessageId: '',
+            lastMessageText: '',
+            lastMessageAt: DateTime.now(),
+          );
+
+          if (mounted) {
+            final isDesktop = MediaQuery.sizeOf(context).width >= 720;
+            if (isDesktop) {
+              setState(() => _selectedConversation = restoredItem);
+            } else {
+              _openConversation(restoredItem);
+            }
+          }
+          return;
+        }
+      }
+
+      final userQuery = _supabase
+          .from('profiles')
+          .select('id, username, first_name, last_name, avatar_url, is_verified');
+      final Map<String, dynamic>? profile;
+      if (targetUser != null && targetUser.isNotEmpty) {
+        profile = await userQuery.eq('username', targetUser).maybeSingle();
+      } else if (targetId != null && targetId.isNotEmpty) {
+        profile = await userQuery.eq('id', targetId).maybeSingle();
+      } else {
+        profile = null;
+      }
+
+      if (profile != null && mounted) {
+        final restoredItem = ChatConversationItem(
+          conversationId: '',
+          peerId: profile['id']?.toString() ?? '',
+          peerUsername: profile['username']?.toString() ?? 'User',
+          peerFullName:
+              '${profile['first_name'] ?? ''} ${profile['last_name'] ?? ''}'.trim(),
+          peerAvatar: profile['avatar_url']?.toString() ?? '',
+          isPeerVerified: profile['is_verified'] == true,
+          lastMessageId: '',
+          lastMessageText: '',
+          lastMessageAt: DateTime.now(),
+        );
+
+        final isDesktop = MediaQuery.sizeOf(context).width >= 720;
+        if (isDesktop) {
+          setState(() => _selectedConversation = restoredItem);
+        } else {
+          _openConversation(restoredItem);
+        }
+      }
+    } catch (e) {
+      debugPrint('[ChatListScreen] _resolveAndSelectPendingTarget error: $e');
+    }
   }
 
   @override
@@ -198,6 +398,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
           _myNote = snapshot.myNote;
           _isLoading = false;
         });
+
+        if (!_hasAttemptedAutoSelect &&
+            (_pendingTargetId != null || _pendingTargetUsername != null)) {
+          _hasAttemptedAutoSelect = true;
+          _resolveAndSelectPendingTarget();
+        }
       }
     } catch (e) {
       debugPrint('[ChatListScreen] Inbox fetch error: $e');
@@ -266,6 +472,16 @@ class _ChatListScreenState extends State<ChatListScreen> {
       );
     }
 
+    final isDesktop = MediaQuery.sizeOf(context).width >= 720;
+    if (isDesktop) {
+      setState(() => _selectedConversation = item);
+      final idParam = item.conversationId.isNotEmpty ? item.conversationId : item.peerId;
+      if (kIsWeb) {
+        setBrowserUrl('/messages?id=$idParam');
+      }
+      return;
+    }
+
     ChatConversationScreen.open(
       context,
       conversationId: item.conversationId,
@@ -290,6 +506,38 @@ class _ChatListScreenState extends State<ChatListScreen> {
     required bool isVerified,
   }) {
     HapticFeedback.lightImpact();
+    final isDesktop = MediaQuery.sizeOf(context).width >= 720;
+    if (isDesktop) {
+      final existingIdx = _conversations.indexWhere(
+        (c) =>
+            !c.isGroup &&
+            (c.peerId == peerId ||
+                (peerUsername.isNotEmpty &&
+                    c.peerUsername.toLowerCase() == peerUsername.toLowerCase())),
+      );
+      if (existingIdx != -1) {
+        _openConversation(_conversations[existingIdx]);
+      } else {
+        final directItem = ChatConversationItem(
+          conversationId: '',
+          peerId: peerId,
+          peerUsername: peerUsername,
+          peerFullName: peerFullName,
+          peerAvatar: peerAvatar,
+          isPeerVerified: isVerified,
+          lastMessageId: '',
+          lastMessageText: '',
+          lastMessageAt: DateTime.now(),
+        );
+        setState(() => _selectedConversation = directItem);
+        if (kIsWeb) {
+          final idParam = peerId.isNotEmpty ? peerId : peerUsername;
+          setBrowserUrl('/messages?id=$idParam');
+        }
+      }
+      return;
+    }
+
     ChatConversationScreen.open(
       context,
       peerId: peerId,
@@ -317,6 +565,25 @@ class _ChatListScreenState extends State<ChatListScreen> {
         );
       },
       onCreateGroup: (conversationId, title) {
+        final isDesktop = MediaQuery.sizeOf(context).width >= 720;
+        if (isDesktop) {
+          final groupItem = ChatConversationItem(
+            conversationId: conversationId,
+            isGroup: true,
+            groupTitle: title,
+            peerId: '',
+            peerUsername: '',
+            lastMessageId: '',
+            lastMessageText: '',
+            lastMessageAt: DateTime.now(),
+          );
+          setState(() => _selectedConversation = groupItem);
+          if (kIsWeb) {
+            setBrowserUrl('/messages?id=$conversationId');
+          }
+          if (mounted) _fetchInbox(isBackgroundUpdate: true);
+          return;
+        }
         ChatConversationScreen.open(
           context,
           conversationId: conversationId,
@@ -784,6 +1051,106 @@ class _ChatListScreenState extends State<ChatListScreen> {
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredConversations;
+    final isDesktop = MediaQuery.sizeOf(context).width >= 720;
+
+    if (isDesktop) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: Row(
+          children: [
+            // Left Pane: Fixed 380px Chat List Column
+            SizedBox(
+              width: 380,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(
+                    right: BorderSide(
+                      color: Color(0xFFE2E8F0),
+                      width: 1.2,
+                    ),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    _buildDesktopInboxHeader(),
+                    Expanded(
+                      child: RefreshIndicator(
+                        color: ZevColors.primaryBlue,
+                        onRefresh: () => _fetchInbox(isBackgroundUpdate: false),
+                        child: CustomScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(
+                            parent: BouncingScrollPhysics(),
+                          ),
+                          slivers: [
+                            SliverToBoxAdapter(child: _buildSearchBar()),
+                            SliverToBoxAdapter(
+                              child: _buildNotesAndActiveFriendsTray(),
+                            ),
+                            SliverToBoxAdapter(child: _buildFilterTabs()),
+                            if (_isLoading && _conversations.isEmpty)
+                              SliverFillRemaining(child: _buildShimmerLoading())
+                            else if (filtered.isEmpty && _messageHits.isEmpty)
+                              SliverToBoxAdapter(child: _buildEmptyInbox())
+                            else ...[
+                              if (filtered.isNotEmpty)
+                                SliverPadding(
+                                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 16),
+                                  sliver: SliverList(
+                                    delegate: SliverChildBuilderDelegate(
+                                      (context, index) => Padding(
+                                        padding: const EdgeInsets.only(bottom: 8),
+                                        child: _buildConversationCard(
+                                          filtered[index],
+                                          isSelected: _selectedConversation?.threadKey ==
+                                              filtered[index].threadKey,
+                                        ),
+                                      ),
+                                      childCount: filtered.length,
+                                    ),
+                                  ),
+                                ),
+                              if (_searchQuery.trim().length >= 2)
+                                SliverToBoxAdapter(
+                                  child: _buildMessageSearchResults(),
+                                ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Right Pane: Active Chat Conversation or Instagram Web Empty Placeholder
+            Expanded(
+              child: _selectedConversation != null
+                  ? ChatConversationScreen(
+                      key: ValueKey(
+                        'embed_${_selectedConversation!.threadKey}',
+                      ),
+                      isEmbedded: true,
+                      conversationId: _selectedConversation!.conversationId,
+                      isGroup: _selectedConversation!.isGroup,
+                      groupTitle: _selectedConversation!.groupTitle,
+                      groupAvatar: _selectedConversation!.groupAvatar,
+                      peerId: _selectedConversation!.peerId,
+                      peerUsername: _selectedConversation!.peerUsername,
+                      peerFullName: _selectedConversation!.peerFullName,
+                      peerAvatar: _selectedConversation!.peerAvatar,
+                      isPeerVerified: _selectedConversation!.isPeerVerified,
+                      onCloseEmbedded: () {
+                        setState(() => _selectedConversation = null);
+                        if (kIsWeb) setBrowserUrl('/messages');
+                      },
+                    )
+                  : _buildEmptyChatSelectionPlaceholder(),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: ZevColors.softSurface,
@@ -939,6 +1306,202 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
+  Widget _buildDesktopInboxHeader() {
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          bottom: BorderSide(
+            color: const Color(0xFFE2E8F0).withValues(alpha: 0.8),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                MultiAccountService.showAccountSwitcherSheet(context);
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      '@$_myUsername',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: ZevColors.deepNavy,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                  ),
+                  if (_isMyVerified) ...[
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.verified_rounded,
+                      size: 16,
+                      color: ZevColors.primaryBlue,
+                    ),
+                  ],
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 20,
+                    color: ZevColors.textMuted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'New Group',
+            onPressed: () => _openNewChatSheet(initialGroupMode: true),
+            icon: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: ZevColors.softSurface,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+              child: const Icon(
+                Icons.group_add_outlined,
+                color: ZevColors.deepNavy,
+                size: 18,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: () => _openNewChatSheet(),
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: ZevColors.softSurface,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+              child: const Icon(
+                Icons.edit_square,
+                color: ZevColors.deepNavy,
+                size: 18,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyChatSelectionPlaceholder() {
+    return Container(
+      color: const Color(0xFFF8FAFC),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 96,
+                height: 96,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: ZevColors.primaryBlue.withValues(alpha: 0.3),
+                    width: 2.5,
+                  ),
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: ZevColors.primaryBlue.withValues(alpha: 0.12),
+                      blurRadius: 28,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    size: 44,
+                    color: ZevColors.primaryBlue,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Your Messages',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: ZevColors.deepNavy,
+                  letterSpacing: -0.4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Send private photos, audio, and messages to a friend or group.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: ZevColors.textMuted,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 22),
+              Container(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [ZevColors.primaryBlue, ZevColors.secondaryBlue],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: ZevColors.primaryBlue.withValues(alpha: 0.3),
+                      blurRadius: 14,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton.icon(
+                  onPressed: () => _openNewChatSheet(),
+                  icon: const Icon(Icons.send_rounded, size: 16, color: Colors.white),
+                  label: const Text(
+                    'Send Message',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
@@ -1047,6 +1610,22 @@ class _ChatListScreenState extends State<ChatListScreen> {
               ),
               child: ListTile(
                 onTap: () {
+                  final isDesktop = MediaQuery.sizeOf(context).width >= 720;
+                  if (isDesktop) {
+                    final item = ChatConversationItem(
+                      conversationId: hit.message.conversationId ?? '',
+                      isGroup: hit.isGroup,
+                      groupTitle: hit.isGroup ? hit.conversationTitle : '',
+                      peerId: hit.peerId,
+                      peerUsername: hit.peerUsername,
+                      peerAvatar: hit.peerAvatar,
+                      lastMessageId: hit.message.id,
+                      lastMessageText: hit.message.messageText,
+                      lastMessageAt: hit.message.createdAt,
+                    );
+                    _openConversation(item);
+                    return;
+                  }
                   ChatConversationScreen.open(
                     context,
                     conversationId: hit.message.conversationId ?? '',
@@ -1461,7 +2040,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
-  Widget _buildConversationCard(ChatConversationItem item) {
+  Widget _buildConversationCard(ChatConversationItem item, {bool isSelected = false}) {
     final hasUnread = item.unreadCount > 0 && !item.isLastMessageMine;
 
     String previewText = item.lastMessageText;
@@ -1523,19 +2102,25 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.94),
+        color: isSelected
+            ? const Color(0xFFF1F5F9)
+            : Colors.white.withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: hasUnread
-              ? ZevColors.primaryBlue.withValues(alpha: 0.4)
-              : Colors.white,
-          width: 1.5,
+          color: isSelected
+              ? ZevColors.primaryBlue.withValues(alpha: 0.8)
+              : (hasUnread
+                  ? ZevColors.primaryBlue.withValues(alpha: 0.4)
+                  : Colors.white),
+          width: isSelected ? 1.8 : 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: hasUnread
-                ? ZevColors.primaryBlue.withValues(alpha: 0.08)
-                : ZevColors.deepNavy.withValues(alpha: 0.04),
+            color: isSelected
+                ? ZevColors.primaryBlue.withValues(alpha: 0.12)
+                : (hasUnread
+                    ? ZevColors.primaryBlue.withValues(alpha: 0.08)
+                    : ZevColors.deepNavy.withValues(alpha: 0.04)),
             blurRadius: 14,
             offset: const Offset(0, 4),
           ),

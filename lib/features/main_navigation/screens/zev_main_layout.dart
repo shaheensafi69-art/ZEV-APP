@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -8,6 +9,7 @@ import '../../../core/services/badge_counter_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/zev_rtc_service.dart';
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/utils/web_url_helper.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_logo.dart';
 import '../../chat/screens/chat_list_screen.dart';
@@ -181,6 +183,28 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     HapticFeedback.selectionClick();
     FocusScope.of(context).unfocus();
     setState(() => _currentIndex = index);
+    if (kIsWeb) {
+      switch (index) {
+        case 0:
+          setBrowserUrl('/');
+          break;
+        case 1:
+          setBrowserUrl('/explore');
+          break;
+        case 3:
+          setBrowserUrl('/reels');
+          break;
+        case 4:
+          setBrowserUrl(_myUsername.isNotEmpty ? '/@$_myUsername' : '/profile');
+          break;
+        case 5:
+          setBrowserUrl('/messages');
+          break;
+        case 6:
+          setBrowserUrl('/notifications');
+          break;
+      }
+    }
     if (index == 4 || _myAvatarUrl.isEmpty) {
       _loadUserProfile();
     }
