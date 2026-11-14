@@ -73,6 +73,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   late final Widget _profileTab;
   late final Widget _messagesTab;
   late final Widget _notificationsTab;
+  late final Widget _adsTab;
+  late final Widget _draftsTab;
 
   @override
   void initState() {
@@ -100,6 +102,8 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     _profileTab = const ProfileScreen();
     _messagesTab = const ChatListScreen();
     _notificationsTab = const NotificationsScreen();
+    _adsTab = const AdsManagerScreen();
+    _draftsTab = const DraftsScheduledScreen();
 
     // Listen to static notifier updates
     ZevMainLayout.userAvatarNotifier.addListener(_onAvatarNotifierChanged);
@@ -215,6 +219,18 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
         case 6:
           setBrowserUrl('/notifications');
           break;
+        case 7:
+          setBrowserUrl('/ads');
+          break;
+        case 8:
+          setBrowserUrl('/creator-insights');
+          break;
+        case 9:
+          setBrowserUrl('/drafts');
+          break;
+        case 10:
+          setBrowserUrl('/zev-blue');
+          break;
       }
     }
     if (index == 4 || _myAvatarUrl.isEmpty) {
@@ -251,6 +267,18 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
 
       // Tab 6: Notifications (Persistent Web & Tablet Shell)
       _notificationsTab,
+
+      // Tab 7: Advertise / Ads Manager
+      _adsTab,
+
+      // Tab 8: Creator Insights
+      CreatorInsightsScreen(userProfile: _myProfileMap),
+
+      // Tab 9: Drafts & Scheduled
+      _draftsTab,
+
+      // Tab 10: ZEV Blue Verification
+      ZevBlueVerificationScreen(userProfile: _myProfileMap),
     ];
 
     // ========================================================
@@ -514,55 +542,41 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     const SizedBox(height: 10),
 
                     // 4. Quick Access Hub (Advertise, Insights, Drafts, VIP Blue)
-                    _buildSidebarActionItem(
-                      icon: Icons.campaign_rounded,
+                    _buildSidebarNavItem(
+                      index: 7,
+                      icon: Icons.campaign_outlined,
+                      activeIcon: Icons.campaign_rounded,
                       label: "Advertise",
                       isExpanded: isExpanded,
                       isReels: isReels,
-                      onTap: () {
-                        AdsManagerScreen.open(context);
-                      },
                     ),
                     const SizedBox(height: 4),
-                    _buildSidebarActionItem(
-                      icon: Icons.insights_rounded,
+                    _buildSidebarNavItem(
+                      index: 8,
+                      icon: Icons.insights_outlined,
+                      activeIcon: Icons.insights_rounded,
                       label: "Creator Insights",
                       isExpanded: isExpanded,
                       isReels: isReels,
-                      onTap: () {
-                        CreatorInsightsScreen.open(
-                          context,
-                          userProfile: _myProfileMap,
-                        );
-                      },
                     ),
                     const SizedBox(height: 4),
-                    _buildSidebarActionItem(
-                      icon: Icons.schedule_send_rounded,
+                    _buildSidebarNavItem(
+                      index: 9,
+                      icon: Icons.schedule_send_outlined,
+                      activeIcon: Icons.schedule_send_rounded,
                       label: "Drafts & Scheduled",
                       isExpanded: isExpanded,
                       isReels: isReels,
-                      onTap: () {
-                        DraftsScheduledScreen.open(context);
-                      },
                     ),
                     const SizedBox(height: 4),
-                    _buildSidebarActionItem(
-                      icon: Icons.verified_rounded,
+                    _buildSidebarNavItem(
+                      index: 10,
+                      icon: Icons.verified_outlined,
+                      activeIcon: Icons.verified_rounded,
                       label: "ZEV Blue",
                       accentColor: ZevColors.primaryBlue,
                       isExpanded: isExpanded,
                       isReels: isReels,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ZevBlueVerificationScreen(
-                              userProfile: _myProfileMap,
-                            ),
-                          ),
-                        );
-                      },
                     ),
                   ],
                 ),
@@ -595,10 +609,11 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     required bool isExpanded,
     required bool isReels,
     int badgeCount = 0,
+    Color? accentColor,
   }) {
     final isSelected = _currentIndex == index;
-    final inactiveColor = isReels ? Colors.white60 : const Color(0xFF64748B);
-    final activeColor = isReels ? Colors.white : ZevColors.deepNavy;
+    final inactiveColor = accentColor ?? (isReels ? Colors.white60 : const Color(0xFF64748B));
+    final activeColor = accentColor ?? (isReels ? Colors.white : ZevColors.deepNavy);
 
     return Tooltip(
       message: isExpanded ? '' : label,
@@ -902,67 +917,6 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                         ],
                       ),
                     ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSidebarActionItem({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    required bool isExpanded,
-    required bool isReels,
-    Color? accentColor,
-  }) {
-    final inactiveColor = isReels ? Colors.white70 : const Color(0xFF64748B);
-    final color = accentColor ?? inactiveColor;
-
-    return Tooltip(
-      message: isExpanded ? '' : label,
-      preferBelow: false,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            HapticFeedback.lightImpact();
-            onTap();
-          },
-          hoverColor: (isReels ? Colors.white : ZevColors.primaryBlue)
-              .withValues(alpha: 0.06),
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: isExpanded ? 14 : 10,
-              vertical: 9,
-            ),
-            child: Row(
-              mainAxisAlignment: isExpanded
-                  ? MainAxisAlignment.start
-                  : MainAxisAlignment.center,
-              children: [
-                Icon(
-                  icon,
-                  size: 23,
-                  color: color,
-                ),
-                if (isExpanded) ...[
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w600,
-                        color: isReels ? Colors.white : ZevColors.deepNavy,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                  ),
                 ],
               ],
             ),

@@ -144,6 +144,14 @@ class _ZevSplashScreenState extends State<ZevSplashScreen>
               initialTabIndex = 4;
             } else if (path.contains('notifications')) {
               initialTabIndex = 6;
+            } else if (path.contains('ads') || path.contains('advertise')) {
+              initialTabIndex = 7;
+            } else if (path.contains('creator') || path.contains('insights')) {
+              initialTabIndex = 8;
+            } else if (path.contains('drafts') || path.contains('scheduled')) {
+              initialTabIndex = 9;
+            } else if (path.contains('blue') || path.contains('verification')) {
+              initialTabIndex = 10;
             }
           }
           targetScreen = ZevMainLayout(initialIndex: initialTabIndex);
