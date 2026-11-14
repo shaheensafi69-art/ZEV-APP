@@ -24,8 +24,6 @@ class GoogleAuthService {
     serverClientId: webClientId,
     scopes: const <String>[
       'email',
-      'profile',
-      'openid',
     ],
   );
 
