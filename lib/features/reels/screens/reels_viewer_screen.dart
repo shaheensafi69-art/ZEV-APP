@@ -648,6 +648,8 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen>
       );
     }
 
+    final isDesktop = MediaQuery.sizeOf(context).width >= 720;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -661,40 +663,133 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen>
             itemBuilder: (context, index) {
               final isPageActive = _canPlayVideos && index == _activePage;
 
+              Widget child;
               // Render luxury native ad unit every 4 reels
               if (_isAdPage(index)) {
-                return ZevNativeAdReelUnit(
+                child = ZevNativeAdReelUnit(
                   key: ValueKey('reel_ad_$index'),
                   isActive: isPageActive,
                   slotKey: 'reel_slot_$index',
                   onAdUnavailable: () => _handleAdPageUnavailable(index),
                 );
+              } else {
+                final reelIdx = _getReelIndex(index);
+                if (reelIdx < 0 || reelIdx >= _reels.length) {
+                  return const SizedBox.shrink();
+                }
+                final reel = _reels[reelIdx];
+
+                child = ReelPlayerItem(
+                  key: ValueKey(reel.id),
+                  reel: reel,
+                  isActive: isPageActive,
+                  isGlobalMuted: _isGlobalMuted,
+                  onToggleMute: _toggleGlobalMute,
+                  onHideOrMute: () {
+                    FeedAlgorithmService.instance.recordNegativeFeedback(
+                      reelId: reel.id,
+                      authorId: reel.userId,
+                    );
+                    _removeReelLocally(reel.id);
+                  },
+                  onReelDeleted: () => _removeReelLocally(reel.id),
+                );
               }
 
-              final reelIdx = _getReelIndex(index);
-              if (reelIdx < 0 || reelIdx >= _reels.length) {
-                return const SizedBox.shrink();
+              if (isDesktop) {
+                return Center(
+                  child: Container(
+                    width: 440,
+                    margin: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          blurRadius: 30,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: child,
+                  ),
+                );
               }
-              final reel = _reels[reelIdx];
 
-              return ReelPlayerItem(
-                key: ValueKey(reel.id),
-                reel: reel,
-                isActive: isPageActive,
-                isGlobalMuted: _isGlobalMuted,
-                onToggleMute: _toggleGlobalMute,
-                onHideOrMute: () {
-                  FeedAlgorithmService.instance.recordNegativeFeedback(
-                    reelId: reel.id,
-                    authorId: reel.userId,
-                  );
-                  _removeReelLocally(reel.id);
-                },
-                onReelDeleted: () => _removeReelLocally(reel.id),
-              );
+              return child;
             },
           ),
           _buildTopHeaderOverlay(),
+          if (isDesktop)
+            Positioned(
+              right: 28,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Previous Reel',
+                      icon: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.25),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.keyboard_arrow_up_rounded,
+                          color: Colors.white,
+                          size: 26,
+                        ),
+                      ),
+                      onPressed: () {
+                        if (_pageController.hasClients && _activePage > 0) {
+                          _pageController.previousPage(
+                            duration: const Duration(milliseconds: 320),
+                            curve: Curves.easeOutCubic,
+                          );
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    IconButton(
+                      tooltip: 'Next Reel',
+                      icon: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.25),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: Colors.white,
+                          size: 26,
+                        ),
+                      ),
+                      onPressed: () {
+                        if (_pageController.hasClients &&
+                            _activePage < _totalPageCount - 1) {
+                          _pageController.nextPage(
+                            duration: const Duration(milliseconds: 320),
+                            curve: Curves.easeOutCubic,
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );

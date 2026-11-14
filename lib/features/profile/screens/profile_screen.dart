@@ -2070,8 +2070,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     final isBioRtl = TextDirectionHelper.isRtl(bio);
 
     final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 720;
     final isCompact = screenWidth < 380;
-    final horizontalPadding = isCompact ? 12.0 : 16.0;
+    final horizontalPadding = isCompact ? 12.0 : (isDesktop ? 24.0 : 16.0);
 
     if (!_isMyProfile && _isBlockedView) {
       return Scaffold(
@@ -2252,21 +2253,26 @@ class _ProfileScreenState extends State<ProfileScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       body: SafeArea(
-        child: RefreshIndicator(
-          color: ZevColors.primaryBlue,
-          onRefresh: _loadAllProfileData,
-          child: NestedScrollView(
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics(),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: isDesktop ? 960 : double.infinity,
             ),
-            headerSliverBuilder: (context, innerBoxIsScrolled) {
-              return [
-                SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 1. Sleek Clearmorphic Top Bar
-                      _buildTopBar(username, isVerified, isCompact),
+            child: RefreshIndicator(
+              color: ZevColors.primaryBlue,
+              onRefresh: _loadAllProfileData,
+              child: NestedScrollView(
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+                headerSliverBuilder: (context, innerBoxIsScrolled) {
+                  return [
+                    SliverToBoxAdapter(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 1. Sleek Clearmorphic Top Bar
+                          _buildTopBar(username, isVerified, isCompact),
                       const SizedBox(height: 6),
 
                       // Owner Pending Follow Requests Notice Banner
@@ -2500,8 +2506,10 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
         ),
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 
   // ---------------------------------------------------------------------------
   // Sleek Clearmorphic Top Bar

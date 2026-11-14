@@ -677,6 +677,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isDesktop = screenWidth >= 720;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       body: SafeArea(
@@ -943,151 +946,158 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                     ),
                   ),
 
-                  // Heart / Activity Button with live synced numeric badge
-                  ValueListenableBuilder<int>(
-                    valueListenable:
-                        BadgeCounterService.instance.unreadNotificationsCount,
-                    builder: (context, count, _) {
-                      final hasUnread = count > 0;
-                      final badgeText = count > 99 ? '99+' : '$count';
-                      return Stack(
-                        clipBehavior: Clip.none,
-                        alignment: Alignment.center,
-                        children: [
-                          _buildClayAppbarButton(
-                            tooltip: "Notifications",
-                            onTap: () async {
-                              HapticFeedback.lightImpact();
-                              BadgeCounterService.instance
-                                  .markNotificationsReadOptimistic();
-                              if (widget.onOpenNotifications != null) {
-                                widget.onOpenNotifications!();
-                              } else {
-                                await NotificationsScreen.open(context);
-                                BadgeCounterService.instance.refreshCounts();
-                              }
-                            },
-                            child: const Icon(
-                              Icons.favorite_border_rounded,
-                              color: ZevColors.deepNavy,
-                              size: 21,
+                  if (!isDesktop) ...[
+                    // Heart / Activity Button with live synced numeric badge
+                    ValueListenableBuilder<int>(
+                      valueListenable:
+                          BadgeCounterService.instance.unreadNotificationsCount,
+                      builder: (context, count, _) {
+                        final hasUnread = count > 0;
+                        final badgeText = count > 99 ? '99+' : '$count';
+                        return Stack(
+                          clipBehavior: Clip.none,
+                          alignment: Alignment.center,
+                          children: [
+                            _buildClayAppbarButton(
+                              tooltip: "Notifications",
+                              onTap: () async {
+                                HapticFeedback.lightImpact();
+                                BadgeCounterService.instance
+                                    .markNotificationsReadOptimistic();
+                                if (widget.onOpenNotifications != null) {
+                                  widget.onOpenNotifications!();
+                                } else {
+                                  await NotificationsScreen.open(context);
+                                  BadgeCounterService.instance.refreshCounts();
+                                }
+                              },
+                              child: const Icon(
+                                Icons.favorite_border_rounded,
+                                color: ZevColors.deepNavy,
+                                size: 21,
+                              ),
                             ),
-                          ),
-                          if (hasUnread)
-                            Positioned(
-                              top: 2,
-                              right: 0,
-                              child: IgnorePointer(
-                                child: Container(
-                                  constraints: const BoxConstraints(
-                                    minWidth: 16,
-                                    minHeight: 16,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                    vertical: 1,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFF3040),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 1.5,
+                            if (hasUnread)
+                              Positioned(
+                                top: 2,
+                                right: 0,
+                                child: IgnorePointer(
+                                  child: Container(
+                                    constraints: const BoxConstraints(
+                                      minWidth: 16,
+                                      minHeight: 16,
                                     ),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      badgeText,
-                                      style: const TextStyle(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                      vertical: 1,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFF3040),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
                                         color: Colors.white,
-                                        fontSize: 9.5,
-                                        fontWeight: FontWeight.w800,
-                                        height: 1.1,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        badgeText,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w800,
+                                          height: 1.1,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                        ],
-                      );
-                    },
-                  ),
+                          ],
+                        );
+                      },
+                    ),
 
-                  // Direct Messages (Paper Plane / Chat) with live unread badge
-                  ValueListenableBuilder<int>(
-                    valueListenable:
-                        BadgeCounterService.instance.unreadMessagesCount,
-                    builder: (context, count, _) {
-                      final hasUnread = count > 0;
-                      final badgeText = count > 99 ? '99+' : '$count';
-                      return Stack(
-                        clipBehavior: Clip.none,
-                        alignment: Alignment.center,
-                        children: [
-                          _buildClayAppbarButton(
-                            tooltip: "Messages",
-                            onTap: () async {
-                              if (widget.onOpenMessages != null) {
-                                widget.onOpenMessages!();
-                              } else {
-                                await ChatListScreen.open(context);
-                                BadgeCounterService.instance.refreshCounts();
-                              }
-                            },
-                            child: const Icon(
-                              Icons.send_rounded,
-                              color: ZevColors.deepNavy,
-                              size: 19,
+                    // Direct Messages (Paper Plane / Chat) with live unread badge
+                    ValueListenableBuilder<int>(
+                      valueListenable:
+                          BadgeCounterService.instance.unreadMessagesCount,
+                      builder: (context, count, _) {
+                        final hasUnread = count > 0;
+                        final badgeText = count > 99 ? '99+' : '$count';
+                        return Stack(
+                          clipBehavior: Clip.none,
+                          alignment: Alignment.center,
+                          children: [
+                            _buildClayAppbarButton(
+                              tooltip: "Messages",
+                              onTap: () async {
+                                if (widget.onOpenMessages != null) {
+                                  widget.onOpenMessages!();
+                                } else {
+                                  await ChatListScreen.open(context);
+                                  BadgeCounterService.instance.refreshCounts();
+                                }
+                              },
+                              child: const Icon(
+                                Icons.send_rounded,
+                                color: ZevColors.deepNavy,
+                                size: 19,
+                              ),
                             ),
-                          ),
-                          if (hasUnread)
-                            Positioned(
-                              top: 2,
-                              right: 0,
-                              child: IgnorePointer(
-                                child: Container(
-                                  constraints: const BoxConstraints(
-                                    minWidth: 16,
-                                    minHeight: 16,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                    vertical: 1,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFF3040),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 1.5,
+                            if (hasUnread)
+                              Positioned(
+                                top: 2,
+                                right: 0,
+                                child: IgnorePointer(
+                                  child: Container(
+                                    constraints: const BoxConstraints(
+                                      minWidth: 16,
+                                      minHeight: 16,
                                     ),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      badgeText,
-                                      style: const TextStyle(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                      vertical: 1,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFF3040),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
                                         color: Colors.white,
-                                        fontSize: 9.5,
-                                        fontWeight: FontWeight.w800,
-                                        height: 1.1,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        badgeText,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w800,
+                                          height: 1.1,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                        ],
-                      );
-                    },
-                  ),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
                   const SizedBox(width: 8),
                 ],
               ),
 
               // 2. Stories Tray (Claymorphic Horizontal Carousel)
               SliverToBoxAdapter(
-                child: FeedStoriesTray(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: isDesktop ? 630 : double.infinity,
+                    ),
+                    child: FeedStoriesTray(
                   myAvatarUrl: _myAvatarUrl,
                   myActiveStory: _myActiveStory,
                   stories: _stories,
@@ -1112,6 +1122,8 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                   },
                 ),
               ),
+            ),
+          ),
 
               // 3. Posts Stream / Feed List
               if (_isLoading)
@@ -1171,8 +1183,12 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: isDesktop ? 630 : double.infinity,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                         decoration: BoxDecoration(
@@ -1314,6 +1330,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                       ),
                     ),
                   ),
+                ),
                 )
               else
                 SliverList(
@@ -1353,10 +1370,11 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                       final showNativeAd = (index + 1) % 3 == 0;
 
                       // Render "Suggested for you" carousel directly below the first post
+                      Widget itemWidget = card;
                       if (index == 0 &&
                           _suggestedUsers.isNotEmpty &&
                           !_dismissSuggestedCarousel) {
-                        return Column(
+                        itemWidget = Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             card,
@@ -1369,10 +1387,8 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                               ),
                           ],
                         );
-                      }
-
-                      if (showNativeAd) {
-                        return Column(
+                      } else if (showNativeAd) {
+                        itemWidget = Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             card,
@@ -1385,7 +1401,19 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                         );
                       }
 
-                      return card;
+                      if (isDesktop) {
+                        return Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 630),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: itemWidget,
+                            ),
+                          ),
+                        );
+                      }
+
+                      return itemWidget;
                     },
                     childCount: _posts.length,
                     addAutomaticKeepAlives: true,
@@ -1394,8 +1422,15 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                 ),
 
               if (_isLoadingMore)
-                const SliverToBoxAdapter(
-                  child: ZevFeedCardSkeleton(),
+                SliverToBoxAdapter(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: isDesktop ? 630 : double.infinity,
+                      ),
+                      child: const ZevFeedCardSkeleton(),
+                    ),
+                  ),
                 ),
 
               // Bottom Spacer to comfortably clear the floating navigation dock

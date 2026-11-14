@@ -5,19 +5,29 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/services/auth_helper.dart';
 import '../../../core/services/badge_counter_service.dart';
+import '../../../core/services/multi_account_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/zev_rtc_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/web_url_helper.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_logo.dart';
+import '../../ads/screens/ads_manager_screen.dart';
 import '../../chat/screens/chat_list_screen.dart';
 import '../../explore/screens/explore_screen.dart';
 import '../../feed/screens/create_post_screen.dart';
+import '../../feed/screens/drafts_scheduled_screen.dart';
 import '../../feed/screens/feed_viewer_screen.dart';
 import '../../notifications/screens/notifications_screen.dart';
+import '../../profile/screens/creator_insights_screen.dart';
+import '../../profile/screens/help_support_screen.dart';
+import '../../profile/screens/mfa_settings_screen.dart';
 import '../../profile/screens/profile_screen.dart';
+import '../../profile/screens/profile_settings_screen.dart';
+import '../../profile/screens/user_activity_screen.dart';
+import '../../profile/screens/zev_blue_verification_screen.dart';
 import '../../reels/screens/create_reel_screen.dart';
 import '../../reels/screens/reels_viewer_screen.dart';
 import '../../stories/screens/create_story_screen.dart';
@@ -54,6 +64,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   String _myAvatarUrl = '';
   String _myUsername = '';
   String _myFullName = '';
+  Map<String, dynamic> _myProfileMap = {};
   StreamSubscription<AuthState>? _authSubscription;
 
   // Persistent cached tab widgets to prevent unnecessary rebuilds
@@ -148,11 +159,12 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     try {
       final res = await supabase
           .from('profiles')
-          .select('avatar_url, username, first_name, last_name')
+          .select('id, avatar_url, username, first_name, last_name, bio, is_verified')
           .eq('id', user.id)
           .maybeSingle();
 
       if (res != null && mounted) {
+        _myProfileMap = Map<String, dynamic>.from(res);
         final avatar = (res['avatar_url'] ?? '').toString().trim();
         final username = (res['username'] ?? '').toString().trim();
         final first = (res['first_name'] ?? '').toString().trim();
@@ -489,13 +501,80 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
                     const SizedBox(height: 18),
                     // 3. Create Button
                     _buildSidebarCreateButton(isExpanded: isExpanded),
+                    const SizedBox(height: 14),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Divider(
+                        height: 1,
+                        color: isReels
+                            ? const Color(0xFF1E293B)
+                            : const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // 4. Quick Access Hub (Saved, Insights, Drafts, VIP Blue)
+                    _buildSidebarActionItem(
+                      icon: Icons.bookmark_outline_rounded,
+                      label: "Saved",
+                      isExpanded: isExpanded,
+                      isReels: isReels,
+                      onTap: () => _onTabTapped(4),
+                    ),
+                    const SizedBox(height: 4),
+                    _buildSidebarActionItem(
+                      icon: Icons.insights_rounded,
+                      label: "Creator Insights",
+                      isExpanded: isExpanded,
+                      isReels: isReels,
+                      onTap: () {
+                        CreatorInsightsScreen.open(
+                          context,
+                          userProfile: _myProfileMap,
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    _buildSidebarActionItem(
+                      icon: Icons.schedule_send_rounded,
+                      label: "Drafts & Scheduled",
+                      isExpanded: isExpanded,
+                      isReels: isReels,
+                      onTap: () {
+                        DraftsScheduledScreen.open(context);
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    _buildSidebarActionItem(
+                      icon: Icons.verified_rounded,
+                      label: "ZEV Blue",
+                      accentColor: ZevColors.primaryBlue,
+                      isExpanded: isExpanded,
+                      isReels: isReels,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ZevBlueVerificationScreen(
+                              userProfile: _myProfileMap,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
 
-              // 4. User Profile Tile at Bottom
+              // 5. User Profile Tile at Bottom
               _buildSidebarProfileItem(
                 index: 4,
+                isExpanded: isExpanded,
+                isReels: isReels,
+              ),
+              const SizedBox(height: 6),
+              // 6. More / Settings Menu (Instagram Web style)
+              _buildSidebarMoreButton(
                 isExpanded: isExpanded,
                 isReels: isReels,
               ),
@@ -826,6 +905,323 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSidebarActionItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    required bool isExpanded,
+    required bool isReels,
+    Color? accentColor,
+  }) {
+    final inactiveColor = isReels ? Colors.white70 : const Color(0xFF64748B);
+    final color = accentColor ?? inactiveColor;
+
+    return Tooltip(
+      message: isExpanded ? '' : label,
+      preferBelow: false,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onTap();
+          },
+          hoverColor: (isReels ? Colors.white : ZevColors.primaryBlue)
+              .withValues(alpha: 0.06),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: isExpanded ? 14 : 10,
+              vertical: 9,
+            ),
+            child: Row(
+              mainAxisAlignment: isExpanded
+                  ? MainAxisAlignment.start
+                  : MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 23,
+                  color: color,
+                ),
+                if (isExpanded) ...[
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                        color: isReels ? Colors.white : ZevColors.deepNavy,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSidebarMoreButton({
+    required bool isExpanded,
+    required bool isReels,
+  }) {
+    return Tooltip(
+      message: isExpanded ? '' : 'More Settings',
+      preferBelow: false,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _showSidebarMoreMenu(context, isReels: isReels),
+          hoverColor: (isReels ? Colors.white : ZevColors.primaryBlue)
+              .withValues(alpha: 0.08),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: isExpanded ? 14 : 10,
+              vertical: 10,
+            ),
+            child: Row(
+              mainAxisAlignment: isExpanded
+                  ? MainAxisAlignment.start
+                  : MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.menu_rounded,
+                  size: 26,
+                  color: isReels ? Colors.white : ZevColors.deepNavy,
+                ),
+                if (isExpanded) ...[
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      "More",
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: isReels ? Colors.white : ZevColors.deepNavy,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showSidebarMoreMenu(BuildContext context, {required bool isReels}) {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Align(
+          alignment: Alignment.bottomLeft,
+          child: Container(
+            width: 280,
+            margin: const EdgeInsets.only(left: 20, bottom: 28),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.16),
+                  blurRadius: 30,
+                  offset: const Offset(4, 10),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildMoreMenuItem(
+                      icon: Icons.settings_outlined,
+                      label: 'Settings & Privacy',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ProfileSettingsScreen(
+                              profile: _myProfileMap,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildMoreMenuItem(
+                      icon: Icons.history_rounded,
+                      label: 'Your Activity',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        UserActivityScreen.open(context, profile: _myProfileMap);
+                      },
+                    ),
+                    _buildMoreMenuItem(
+                      icon: Icons.campaign_outlined,
+                      label: 'Ads Manager',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        AdsManagerScreen.open(context);
+                      },
+                    ),
+                    _buildMoreMenuItem(
+                      icon: Icons.security_rounded,
+                      label: 'Security & 2FA',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        MfaSettingsScreen.open(context);
+                      },
+                    ),
+                    _buildMoreMenuItem(
+                      icon: Icons.switch_account_outlined,
+                      label: 'Switch Accounts',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        MultiAccountService.showAccountSwitcherSheet(context);
+                      },
+                    ),
+                    _buildMoreMenuItem(
+                      icon: Icons.help_outline_rounded,
+                      label: 'Help & Support',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        HelpSupportScreen.open(context);
+                      },
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: Divider(color: Color(0xFFE2E8F0), height: 1),
+                    ),
+                    _buildMoreMenuItem(
+                      icon: Icons.logout_rounded,
+                      label: 'Log Out',
+                      isDestructive: true,
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _showLogoutDialog(context);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMoreMenuItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool isDestructive = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: isDestructive
+                    ? const Color(0xFFEF4444)
+                    : const Color(0xFF334155),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: isDestructive ? FontWeight.w800 : FontWeight.w600,
+                    color: isDestructive
+                        ? const Color(0xFFEF4444)
+                        : const Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showLogoutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: const Text(
+          "Log Out of ZEV?",
+          style: TextStyle(
+            color: Color(0xFF0F172A),
+            fontWeight: FontWeight.w900,
+            fontSize: 18,
+          ),
+        ),
+        content: const Text(
+          "You will need to sign back in with your account credentials.",
+          style: TextStyle(color: Color(0xFF64748B), fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(
+                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await AuthHelper.logout(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            ),
+            child: const Text(
+              "Log Out",
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
       ),
     );
   }
