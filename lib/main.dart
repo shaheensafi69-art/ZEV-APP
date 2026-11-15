@@ -135,10 +135,7 @@ class _ZevAppState extends State<ZevApp> with WidgetsBindingObserver {
           child: Stack(
             children: [
               child ?? const SizedBox.shrink(),
-              const Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
+              const Positioned.fill(
                 child: ZevFloatingCallBanner(),
               ),
             ],

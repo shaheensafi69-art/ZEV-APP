@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 /// Categories for ZEV Calling System 2.0 camera filters and effects.
 enum ZevCallEffectCategory {
+  face('Fun Face', Icons.mood_rounded),
   beauty('Beauty', Icons.face_retouching_natural_rounded),
   lighting('Lighting', Icons.wb_sunny_rounded),
   background('Background', Icons.blur_on_rounded),
@@ -14,6 +15,21 @@ enum ZevCallEffectCategory {
   const ZevCallEffectCategory(this.label, this.icon);
 }
 
+/// Types of Funny Face Morphs and AR Overlays.
+enum ZevFaceOverlayType {
+  none,
+  dog,
+  monkey,
+  bigNose,
+  bigMouth,
+  alien,
+  tinyFace,
+  cat,
+  disguise,
+  crown,
+  sunglasses,
+}
+
 /// Advanced Video Effect Configuration for Agora RTC Camera Pipeline.
 /// Applied at the hardware capture layer so outgoing stream is processed
 /// without affecting other participants.
@@ -22,6 +38,7 @@ class ZevCallEffect {
   final String name;
   final ZevCallEffectCategory category;
   final IconData icon;
+  final ZevFaceOverlayType faceOverlayType;
   final BeautyOptions? agoraBeauty;
   final VirtualBackgroundSource? virtualBackground;
   final ColorEnhanceOptions? colorEnhance;
@@ -33,6 +50,7 @@ class ZevCallEffect {
     required this.name,
     required this.category,
     required this.icon,
+    this.faceOverlayType = ZevFaceOverlayType.none,
     this.agoraBeauty,
     this.virtualBackground,
     this.colorEnhance,
@@ -41,6 +59,7 @@ class ZevCallEffect {
   });
 
   bool get isNone => id == 'none';
+  bool get hasFaceOverlay => faceOverlayType != ZevFaceOverlayType.none;
 }
 
 /// Granular slider parameters for fine-tuning beauty and camera enhancements.
@@ -120,15 +139,125 @@ class ZevEffectsCatalog {
   static const ZevCallEffect none = ZevCallEffect(
     id: 'none',
     name: 'Normal',
-    category: ZevCallEffectCategory.beauty,
+    category: ZevCallEffectCategory.face,
     icon: Icons.not_interested_rounded,
+    faceOverlayType: ZevFaceOverlayType.none,
   );
 
   static const List<ZevCallEffect> all = [
     // ----------------------------------------------------
-    // BEAUTY CATEGORY
+    // FUN FACE & AR MORPHING CATEGORY (Snapchat / Instagram style)
     // ----------------------------------------------------
     none,
+    ZevCallEffect(
+      id: 'face_dog',
+      name: 'Puppy Dog',
+      category: ZevCallEffectCategory.face,
+      icon: Icons.pets_rounded,
+      faceOverlayType: ZevFaceOverlayType.dog,
+      agoraBeauty: BeautyOptions(
+        lighteningLevel: 0.50,
+        smoothnessLevel: 0.60,
+      ),
+    ),
+    ZevCallEffect(
+      id: 'face_monkey',
+      name: 'Crazy Monkey',
+      category: ZevCallEffectCategory.face,
+      icon: Icons.cruelty_free_rounded,
+      faceOverlayType: ZevFaceOverlayType.monkey,
+      agoraBeauty: BeautyOptions(
+        lighteningLevel: 0.40,
+        smoothnessLevel: 0.50,
+      ),
+    ),
+    ZevCallEffect(
+      id: 'face_big_nose',
+      name: 'Big Nose',
+      category: ZevCallEffectCategory.face,
+      icon: Icons.sentiment_very_satisfied_rounded,
+      faceOverlayType: ZevFaceOverlayType.bigNose,
+      agoraBeauty: BeautyOptions(
+        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastHigh,
+        lighteningLevel: 0.50,
+      ),
+    ),
+    ZevCallEffect(
+      id: 'face_big_mouth',
+      name: 'Big Mouth',
+      category: ZevCallEffectCategory.face,
+      icon: Icons.sentiment_satisfied_alt_rounded,
+      faceOverlayType: ZevFaceOverlayType.bigMouth,
+      agoraBeauty: BeautyOptions(
+        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastHigh,
+        lighteningLevel: 0.50,
+      ),
+    ),
+    ZevCallEffect(
+      id: 'face_alien',
+      name: 'Alien Eyes',
+      category: ZevCallEffectCategory.face,
+      icon: Icons.visibility_rounded,
+      faceOverlayType: ZevFaceOverlayType.alien,
+      matrixFilter: ColorFilter.matrix(<double>[
+        1.10, 0, 0, 0, 0,
+        0, 1.25, 0, 0, 10,
+        0, 0, 1.30, 0, 20,
+        0, 0, 0, 1, 0,
+      ]),
+    ),
+    ZevCallEffect(
+      id: 'face_tiny_face',
+      name: 'Tiny Face',
+      category: ZevCallEffectCategory.face,
+      icon: Icons.child_care_rounded,
+      faceOverlayType: ZevFaceOverlayType.tinyFace,
+    ),
+    ZevCallEffect(
+      id: 'face_cat',
+      name: 'Cute Kitty',
+      category: ZevCallEffectCategory.face,
+      icon: Icons.catching_pokemon_rounded,
+      faceOverlayType: ZevFaceOverlayType.cat,
+      agoraBeauty: BeautyOptions(
+        lighteningLevel: 0.60,
+        smoothnessLevel: 0.80,
+        rednessLevel: 0.35,
+      ),
+    ),
+    ZevCallEffect(
+      id: 'face_disguise',
+      name: 'Disguise',
+      category: ZevCallEffectCategory.face,
+      icon: Icons.face_retouching_natural_rounded,
+      faceOverlayType: ZevFaceOverlayType.disguise,
+    ),
+    ZevCallEffect(
+      id: 'face_crown',
+      name: 'King Crown',
+      category: ZevCallEffectCategory.face,
+      icon: Icons.emoji_events_rounded,
+      faceOverlayType: ZevFaceOverlayType.crown,
+      agoraBeauty: BeautyOptions(
+        lighteningLevel: 0.70,
+        smoothnessLevel: 0.70,
+      ),
+    ),
+    ZevCallEffect(
+      id: 'face_sunglasses',
+      name: 'Cool Shades',
+      category: ZevCallEffectCategory.face,
+      icon: Icons.remove_red_eye_rounded,
+      faceOverlayType: ZevFaceOverlayType.sunglasses,
+      colorEnhance: ColorEnhanceOptions(
+        strengthLevel: 0.8,
+        skinProtectLevel: 0.8,
+      ),
+    ),
+
+    // ----------------------------------------------------
+    // BEAUTY CATEGORY
+    // ----------------------------------------------------
     ZevCallEffect(
       id: 'beauty_natural',
       name: 'Natural',

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -8,6 +7,7 @@ import '../../features/calls/screens/call_screen.dart';
 import '../../main.dart';
 import '../config/app_config.dart';
 import 'api_client.dart';
+import 'zev_call_audio_service.dart';
 
 class ZevAgoraCredentials {
   final String appId;
@@ -163,11 +163,128 @@ class ZevRtcService {
   RtcEngine? _warmEngine;
   bool _isEngineInitializing = false;
 
-  // Persistent in-app minimized floating call bar state
+  // Persistent in-app minimized floating call bar & PiP state
   final ValueNotifier<ZevCallSession?> minimizedCallNotifier = ValueNotifier(null);
   Map<String, dynamic>? minimizedPeerProfile;
   int minimizedDurationSeconds = 0;
   bool isMinimizedMicMuted = false;
+
+  // Active call state retained during in-app minimization (PiP)
+  ZevCallSession? activeMinimizedSession;
+  RtcEngine? activeMinimizedEngine;
+  RtcEngineEventHandler? activeMinimizedHandler;
+  VideoViewController? activeLocalVideoController;
+  VideoViewController? activeRemoteVideoController;
+  int? activeRemoteUid;
+  bool isCallMinimized = false;
+  Map<String, dynamic>? activePeerProfile;
+  int activeDurationSeconds = 0;
+  bool isActiveMicMuted = false;
+  bool isActiveSpeakerOn = true;
+  bool isActiveCameraOff = false;
+
+  void minimizeActiveCall({
+    required ZevCallSession session,
+    required Map<String, dynamic> peerProfile,
+    required int durationSeconds,
+    required bool isMicMuted,
+    required bool isSpeakerOn,
+    required bool isCameraOff,
+    required RtcEngine engine,
+    required RtcEngineEventHandler handler,
+    VideoViewController? localVideoController,
+    VideoViewController? remoteVideoController,
+    int? remoteUid,
+  }) {
+    activeMinimizedSession = session;
+    activePeerProfile = peerProfile;
+    activeDurationSeconds = durationSeconds;
+    isActiveMicMuted = isMicMuted;
+    isActiveSpeakerOn = isSpeakerOn;
+    isActiveCameraOff = isCameraOff;
+    activeMinimizedEngine = engine;
+    activeMinimizedHandler = handler;
+    activeLocalVideoController = localVideoController;
+    activeRemoteVideoController = remoteVideoController;
+    activeRemoteUid = remoteUid;
+    isCallMinimized = true;
+
+    // Synchronize legacy variables
+    minimizedPeerProfile = peerProfile;
+    minimizedDurationSeconds = durationSeconds;
+    isMinimizedMicMuted = isMicMuted;
+    minimizedCallNotifier.value = session;
+  }
+
+  Future<void> endActiveCall() async {
+    final session = activeMinimizedSession ?? minimizedCallNotifier.value;
+    final engine = activeMinimizedEngine ?? _warmEngine;
+    final handler = activeMinimizedHandler;
+
+    // Reset state first to avoid racing callbacks
+    activeMinimizedSession = null;
+    activeMinimizedEngine = null;
+    activeMinimizedHandler = null;
+    activeLocalVideoController = null;
+    activeRemoteVideoController = null;
+    activeRemoteUid = null;
+    isCallMinimized = false;
+    minimizedCallNotifier.value = null;
+
+    if (session != null) {
+      clearActiveCall(session.id);
+      try {
+        await respondCall(callId: session.id, action: 'end');
+      } catch (_) {}
+    }
+
+    if (engine != null) {
+      try {
+        if (handler != null) engine.unregisterEventHandler(handler);
+      } catch (_) {}
+      try {
+        await engine.leaveChannel();
+      } catch (_) {}
+    }
+
+    unawaited(ZevCallAudioService.instance.stopAll());
+    unawaited(ZevCallAudioService.instance.playCallEndedTone());
+  }
+
+  void restoreActiveCall(BuildContext context) {
+    final session = activeMinimizedSession ?? minimizedCallNotifier.value;
+    if (session == null) return;
+
+    final nav = appNavigatorKey.currentState ?? Navigator.of(context, rootNavigator: true);
+    if (!nav.mounted) return;
+
+    final prof = activePeerProfile ?? minimizedPeerProfile ?? const <String, dynamic>{};
+    final uname = (prof['username'] ?? 'User').toString();
+    final full = '${prof['first_name'] ?? ''} ${prof['last_name'] ?? ''}'.trim();
+    final avatar = (prof['avatar_url'] ?? '').toString();
+    final verified = prof['is_verified'] == true;
+
+    final myId = _supabase.auth.currentUser?.id;
+    final peerId = session.callerId == myId ? session.calleeId : session.callerId;
+
+    nav.push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => CallScreen(
+          initialSession: session,
+          isOutgoing: false,
+          isVideo: session.isVideo,
+          peerId: peerId,
+          peerUsername: uname,
+          peerFullName: full,
+          peerAvatar: avatar,
+          isPeerVerified: verified,
+          conversationId: session.conversationId,
+          resumedFromMinimized: true,
+        ),
+      ),
+    );
+  }
 
   void setActiveCall(String? callId) {
     activeCallId = (callId != null && callId.trim().isNotEmpty)

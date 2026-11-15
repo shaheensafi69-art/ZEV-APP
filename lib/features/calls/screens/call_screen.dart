@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/foundation.dart';
@@ -14,6 +15,7 @@ import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../main.dart';
 import '../models/zev_call_effects.dart';
+import '../widgets/zev_ar_face_overlay.dart';
 
 /// Production-Grade ZEV Calling System 2.0 Screen.
 /// Supports 1-to-1 and Group Calls, instant WebRTC connection, draggable
@@ -29,6 +31,7 @@ class CallScreen extends StatefulWidget {
   final String peerAvatar;
   final bool isPeerVerified;
   final String? conversationId;
+  final bool resumedFromMinimized;
 
   const CallScreen({
     super.key,
@@ -41,6 +44,7 @@ class CallScreen extends StatefulWidget {
     this.peerAvatar = '',
     this.isPeerVerified = false,
     this.conversationId,
+    this.resumedFromMinimized = false,
   });
 
   static Future<void> startOutgoing(
@@ -137,13 +141,18 @@ class CallScreen extends StatefulWidget {
 
 class _RemoteParticipantState {
   final int uid;
-  bool videoEnabled = true;
+  bool videoEnabled;
   bool audioMuted = false;
   bool isSpeaking = false;
   VideoViewController? videoController;
   Map<String, dynamic>? profile;
+  String selectedEffectId = 'none';
 
-  _RemoteParticipantState({required this.uid});
+  _RemoteParticipantState({
+    required this.uid,
+    this.videoEnabled = true,
+    this.videoController,
+  });
 }
 
 class _CallScreenState extends State<CallScreen>
@@ -184,11 +193,13 @@ class _CallScreenState extends State<CallScreen>
   bool _engineJoined = false;
   bool _isClosing = false;
   bool _controlsVisible = true;
+  bool _isMinimized = false;
+  int? _dataStreamId;
 
   // AR Effects & Filter State
   bool _showEffectsTray = false;
   String _selectedEffectId = 'none';
-  ZevCallEffectCategory _selectedEffectCategory = ZevCallEffectCategory.beauty;
+  ZevCallEffectCategory _selectedEffectCategory = ZevCallEffectCategory.face;
   ZevBeautyTuning _beautyTuning = const ZevBeautyTuning();
 
   // Draggable PIP State (Snap-to-4-corners)
@@ -213,6 +224,41 @@ class _CallScreenState extends State<CallScreen>
       duration: const Duration(milliseconds: 320),
     );
 
+    if (widget.resumedFromMinimized) {
+      _session = widget.initialSession ?? ZevRtcService.instance.activeMinimizedSession;
+      _phase = 'accepted';
+      _statusLabel = 'Connected';
+      _engineJoined = true;
+      _elapsedSeconds = ZevRtcService.instance.activeDurationSeconds;
+      _isMicMuted = ZevRtcService.instance.isActiveMicMuted;
+      _isSpeakerOn = ZevRtcService.instance.isActiveSpeakerOn;
+      _isCameraOff = ZevRtcService.instance.isActiveCameraOff;
+      _isVideoActive = widget.isVideo && !_isCameraOff;
+      _engine = ZevRtcService.instance.activeMinimizedEngine;
+      _engineHandler = ZevRtcService.instance.activeMinimizedHandler;
+      _localVideoController = ZevRtcService.instance.activeLocalVideoController;
+
+      if (ZevRtcService.instance.activeRemoteUid != null) {
+        _primaryRemoteUid = ZevRtcService.instance.activeRemoteUid;
+        _remoteParticipants[_primaryRemoteUid!] = _RemoteParticipantState(
+          uid: _primaryRemoteUid!,
+          videoEnabled: true,
+          videoController: ZevRtcService.instance.activeRemoteVideoController,
+        );
+      }
+
+      ZevRtcService.instance.isCallMinimized = false;
+      ZevRtcService.instance.minimizedCallNotifier.value = null;
+
+      _startDurationTimer();
+      _resetControlsHideTimer();
+      if (_session != null) {
+        _subscribeCallSession(_session!.id);
+        _subscribeParticipants(_session!.id);
+      }
+      return;
+    }
+
     if (_session != null) {
       ZevRtcService.instance.setActiveCall(_session!.id);
       ZevRtcService.instance.minimizedPeerProfile = {
@@ -236,6 +282,12 @@ class _CallScreenState extends State<CallScreen>
     _controlsHideTimer?.cancel();
     _pulseCtrl.dispose();
     _pipSnapCtrl.dispose();
+
+    if (_isMinimized) {
+      // PRESERVE WEBRTC CALL! DO NOT TEARDOWN!
+      super.dispose();
+      return;
+    }
 
     final ch = _callChannel;
     _callChannel = null;
@@ -633,12 +685,11 @@ class _CallScreenState extends State<CallScreen>
           }
 
           if (_isVideoActive || widget.isVideo) {
-            part.videoController?.dispose();
-            part.videoController = VideoViewController.remote(
+            part.videoController ??= VideoViewController.remote(
               rtcEngine: engine,
               canvas: VideoCanvas(
                 uid: remoteUid,
-                renderMode: RenderModeType.renderModeHidden,
+                renderMode: RenderModeType.renderModeFit,
               ),
               connection: connection,
             );
@@ -719,12 +770,11 @@ class _CallScreenState extends State<CallScreen>
               () => _RemoteParticipantState(uid: remoteUid),
             );
             part.videoEnabled = true;
-            part.videoController?.dispose();
-            part.videoController = VideoViewController.remote(
+            part.videoController ??= VideoViewController.remote(
               rtcEngine: engine,
               canvas: VideoCanvas(
                 uid: remoteUid,
-                renderMode: RenderModeType.renderModeHidden,
+                renderMode: RenderModeType.renderModeFit,
               ),
               connection: connection,
             );
@@ -734,6 +784,29 @@ class _CallScreenState extends State<CallScreen>
             _remoteParticipants[remoteUid]?.videoEnabled = false;
           });
         }
+      },
+      onStreamMessage: (
+        RtcConnection connection,
+        int remoteUid,
+        int streamId,
+        Uint8List data,
+        int length,
+        int sentTs,
+      ) {
+        if (!mounted || remoteUid == 0) return;
+        try {
+          final str = utf8.decode(data);
+          final map = jsonDecode(str) as Map<String, dynamic>;
+          if (map['type'] == 'effect') {
+            final effectId = map['id']?.toString() ?? 'none';
+            setState(() {
+              final part = _remoteParticipants[remoteUid];
+              if (part != null) {
+                part.selectedEffectId = effectId;
+              }
+            });
+          }
+        } catch (_) {}
       },
     );
 
@@ -795,6 +868,12 @@ class _CallScreenState extends State<CallScreen>
         autoSubscribeVideo: _isVideoActive,
       ),
     );
+
+    try {
+      _dataStreamId = await engine.createDataStream(
+        const DataStreamConfig(syncWithAudio: false, ordered: false),
+      );
+    } catch (_) {}
   }
 
   Future<void> _acceptIncomingCall() async {
@@ -888,20 +967,57 @@ class _CallScreenState extends State<CallScreen>
     });
   }
 
-  /// Minimizes the call into a floating in-app mini banner without dropping WebRTC.
+  /// Minimizes the call into a floating in-app mini banner or PiP without dropping WebRTC.
   void _minimizeCall() {
     if (_phase != 'accepted' || _session == null) {
       unawaited(_hangupOrDecline());
       return;
     }
 
-    HapticFeedback.lightImpact();
-    ZevRtcService.instance.minimizedCallNotifier.value = _session;
-    ZevRtcService.instance.minimizedDurationSeconds = _elapsedSeconds;
-    ZevRtcService.instance.isMinimizedMicMuted = _isMicMuted;
+    final eng = _engine;
+    final handler = _engineHandler;
+    if (eng == null || handler == null) {
+      unawaited(_hangupOrDecline());
+      return;
+    }
 
-    if (mounted && Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
+    HapticFeedback.lightImpact();
+    _isMinimized = true;
+
+    VideoViewController? remoteCtrl;
+    int? remoteUid;
+    if (_remoteParticipants.isNotEmpty) {
+      final p = _remoteParticipants[_primaryRemoteUid] ??
+          _remoteParticipants.values.first;
+      remoteCtrl = p.videoController;
+      remoteUid = p.uid;
+    }
+
+    ZevRtcService.instance.minimizeActiveCall(
+      session: _session!,
+      peerProfile: {
+        'username': widget.peerUsername,
+        'first_name': widget.peerFullName,
+        'avatar_url': widget.peerAvatar,
+        'is_verified': widget.isPeerVerified,
+      },
+      durationSeconds: _elapsedSeconds,
+      isMicMuted: _isMicMuted,
+      isSpeakerOn: _isSpeakerOn,
+      isCameraOff: _isCameraOff,
+      engine: eng,
+      handler: handler,
+      localVideoController: _localVideoController,
+      remoteVideoController: remoteCtrl,
+      remoteUid: remoteUid,
+    );
+
+    if (mounted) {
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      } else {
+        Navigator.of(context).pushReplacementNamed('/messages');
+      }
     }
   }
 
@@ -1010,6 +1126,17 @@ class _CallScreenState extends State<CallScreen>
     } catch (_) {}
   }
 
+  void _broadcastEffect(String effectId) {
+    final eng = _engine;
+    final sid = _dataStreamId;
+    if (eng == null || sid == null) return;
+    try {
+      final payload = jsonEncode({'type': 'effect', 'id': effectId});
+      final bytes = Uint8List.fromList(utf8.encode(payload));
+      eng.sendStreamMessage(streamId: sid, data: bytes, length: bytes.length);
+    } catch (_) {}
+  }
+
   /// Applies video effect independently to outgoing camera track.
   Future<void> _applyEffect(ZevCallEffect effect) async {
     final eng = _engine;
@@ -1017,6 +1144,8 @@ class _CallScreenState extends State<CallScreen>
     setState(() {
       _selectedEffectId = effect.id;
     });
+
+    _broadcastEffect(effect.id);
 
     if (eng == null) return;
 
@@ -1350,8 +1479,22 @@ class _CallScreenState extends State<CallScreen>
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
-                child: Center(
-                  child: _buildVideoGridOrProfile(displayName: displayName),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Center(
+                      child: _buildVideoGridOrProfile(displayName: displayName),
+                    ),
+                    if (_isVideoActive &&
+                        !_isCameraOff &&
+                        _localVideoController != null &&
+                        _phase != 'ended')
+                      Positioned(
+                        right: 20,
+                        bottom: 20,
+                        child: _buildDesktopSelfPreview(),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -1361,6 +1504,71 @@ class _CallScreenState extends State<CallScreen>
 
             // Desktop Control Dock
             _buildControlDock(isWide: true),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Floating self-preview tile for desktop & web wide screens (Google Meet / Zoom style)
+  Widget _buildDesktopSelfPreview() {
+    final activeEffect = ZevEffectsCatalog.all.firstWhere(
+      (e) => e.id == _selectedEffectId,
+      orElse: () => ZevEffectsCatalog.none,
+    );
+
+    return Container(
+      width: 180,
+      height: 120,
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.3),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.55),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            AgoraVideoView(
+              key: const ValueKey('desktop_self_preview'),
+              controller: _localVideoController!,
+            ),
+            if (activeEffect.hasFaceOverlay)
+              Positioned.fill(
+                child: ZevArFaceOverlay(
+                  type: activeEffect.faceOverlayType,
+                ),
+              ),
+            Positioned(
+              left: 8,
+              bottom: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.65),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'You',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -1547,25 +1755,112 @@ class _CallScreenState extends State<CallScreen>
         (e) => e.id == _selectedEffectId,
         orElse: () => ZevEffectsCatalog.none,
       );
+      final remoteEffect = ZevEffectsCatalog.all.firstWhere(
+        (e) => e.id == remote.selectedEffectId,
+        orElse: () => ZevEffectsCatalog.none,
+      );
+
+      final screenSize = MediaQuery.sizeOf(context);
+      final isWide = screenSize.width >= 720 || (kIsWeb && screenSize.width >= 600);
+
+      Widget videoWidget = AgoraVideoView(
+        key: ValueKey('remote_${remote.uid}'),
+        controller: remote.videoController!,
+      );
+
+      if (activeEffect.matrixFilter != null) {
+        videoWidget = ColorFiltered(
+          colorFilter: activeEffect.matrixFilter!,
+          child: videoWidget,
+        );
+      }
 
       return Stack(
         fit: StackFit.expand,
         children: [
-          Container(
-            color: const Color(0xFF030712),
-            child: activeEffect.matrixFilter != null
-                ? ColorFiltered(
-                    colorFilter: activeEffect.matrixFilter!,
-                    child: AgoraVideoView(
-                      key: ValueKey('remote_${remote.uid}'),
-                      controller: remote.videoController!,
+          // 1. Ambient Blurred Backdrop for widescreen / web
+          if (isWide && widget.peerAvatar.isNotEmpty)
+            Positioned.fill(
+              child: ImageFiltered(
+                imageFilter: ui.ImageFilter.blur(sigmaX: 75, sigmaY: 75),
+                child: Transform.scale(
+                  scale: 1.4,
+                  child: ZevCachedImage(
+                    imageUrl: widget.peerAvatar,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            ),
+
+          // 2. Dark Scrim over backdrop
+          Positioned.fill(
+            child: Container(
+              color: isWide
+                  ? const Color(0xFF070B14).withValues(alpha: 0.85)
+                  : const Color(0xFF030712),
+            ),
+          ),
+
+          // 3. Main Video Stage: Center 9:16 aspect ratio on desktop/laptop, full display on mobile
+          Center(
+            child: isWide
+                ? Container(
+                    constraints: const BoxConstraints(
+                      maxWidth: 640,
+                      maxHeight: 880,
+                    ),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.14),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.65),
+                          blurRadius: 36,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(22),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          AspectRatio(
+                            aspectRatio: 9 / 16,
+                            child: videoWidget,
+                          ),
+                          if (remoteEffect.hasFaceOverlay)
+                            Positioned.fill(
+                              child: ZevArFaceOverlay(
+                                type: remoteEffect.faceOverlayType,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   )
-                : AgoraVideoView(
-                    key: ValueKey('remote_${remote.uid}'),
-                    controller: remote.videoController!,
+                : Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      videoWidget,
+                      if (remoteEffect.hasFaceOverlay)
+                        Positioned.fill(
+                          child: ZevArFaceOverlay(
+                            type: remoteEffect.faceOverlayType,
+                          ),
+                        ),
+                    ],
                   ),
           ),
+
           // Gradient Scrim for readable HUD & controls
           IgnorePointer(
             child: DecoratedBox(
@@ -1875,6 +2170,11 @@ class _CallScreenState extends State<CallScreen>
     final size = MediaQuery.sizeOf(context);
     final pad = MediaQuery.paddingOf(context);
 
+    final activeEffect = ZevEffectsCatalog.all.firstWhere(
+      (e) => e.id == _selectedEffectId,
+      orElse: () => ZevEffectsCatalog.none,
+    );
+
     return Positioned(
       left: _pipOffset.dx,
       top: _pipOffset.dy,
@@ -1914,11 +2214,18 @@ class _CallScreenState extends State<CallScreen>
             child: Stack(
               fit: StackFit.expand,
               children: [
-                if (!_isCameraOff && _localVideoController != null)
+                if (!_isCameraOff && _localVideoController != null) ...[
                   AgoraVideoView(
                     key: const ValueKey('local_self_preview'),
                     controller: _localVideoController!,
-                  )
+                  ),
+                  if (activeEffect.hasFaceOverlay)
+                    Positioned.fill(
+                      child: ZevArFaceOverlay(
+                        type: activeEffect.faceOverlayType,
+                      ),
+                    ),
+                ]
                 else
                   // Camera Off inside PIP
                   Container(
@@ -2003,91 +2310,103 @@ class _CallScreenState extends State<CallScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Category Bar
-              Row(
-                children: [
-                  _buildCategoryPill(
-                    'BEAUTY',
-                    ZevCallEffectCategory.beauty,
-                    Icons.face_retouching_natural_rounded,
-                  ),
-                  const SizedBox(width: 6),
-                  _buildCategoryPill(
-                    'LIGHT',
-                    ZevCallEffectCategory.lighting,
-                    Icons.wb_sunny_rounded,
-                  ),
-                  const SizedBox(width: 6),
-                  _buildCategoryPill(
-                    'BLUR',
-                    ZevCallEffectCategory.background,
-                    Icons.blur_on_rounded,
-                  ),
-                  const SizedBox(width: 6),
-                  _buildCategoryPill(
-                    'COLOR',
-                    ZevCallEffectCategory.color,
-                    Icons.palette_rounded,
-                  ),
-                  const SizedBox(width: 6),
-                  _buildCategoryPill(
-                    'SPECIAL',
-                    ZevCallEffectCategory.special,
-                    Icons.auto_awesome_rounded,
-                  ),
-                  const Spacer(),
-                  // Granular Sliders Tuning Button
-                  GestureDetector(
-                    onTap: _openBeautyTuningSheet,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF3B82F6).withValues(alpha: 0.25),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: const Color(0xFF3B82F6),
-                          width: 1.2,
+              // Category Bar (Horizontally scrollable to prevent any overflow)
+              SizedBox(
+                height: 38,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  children: [
+                    _buildCategoryPill(
+                      'FUN AR',
+                      ZevCallEffectCategory.face,
+                      Icons.mood_rounded,
+                    ),
+                    const SizedBox(width: 6),
+                    _buildCategoryPill(
+                      'BEAUTY',
+                      ZevCallEffectCategory.beauty,
+                      Icons.face_retouching_natural_rounded,
+                    ),
+                    const SizedBox(width: 6),
+                    _buildCategoryPill(
+                      'LIGHT',
+                      ZevCallEffectCategory.lighting,
+                      Icons.wb_sunny_rounded,
+                    ),
+                    const SizedBox(width: 6),
+                    _buildCategoryPill(
+                      'BLUR',
+                      ZevCallEffectCategory.background,
+                      Icons.blur_on_rounded,
+                    ),
+                    const SizedBox(width: 6),
+                    _buildCategoryPill(
+                      'COLOR',
+                      ZevCallEffectCategory.color,
+                      Icons.palette_rounded,
+                    ),
+                    const SizedBox(width: 6),
+                    _buildCategoryPill(
+                      'SPECIAL',
+                      ZevCallEffectCategory.special,
+                      Icons.auto_awesome_rounded,
+                    ),
+                    const SizedBox(width: 10),
+                    // Granular Sliders Tuning Button
+                    GestureDetector(
+                      onTap: _openBeautyTuningSheet,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3B82F6).withValues(alpha: 0.25),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: const Color(0xFF3B82F6),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.tune_rounded,
+                                size: 13, color: Color(0xFF60A5FA)),
+                            SizedBox(width: 4),
+                            Text(
+                              'Tune',
+                              style: TextStyle(
+                                color: Color(0xFF60A5FA),
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.tune_rounded,
-                              size: 13, color: Color(0xFF60A5FA)),
-                          SizedBox(width: 4),
-                          Text(
-                            'Tune',
-                            style: TextStyle(
-                              color: Color(0xFF60A5FA),
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
+                    ),
+                    const SizedBox(width: 8),
+                    // Close Tray
+                    GestureDetector(
+                      onTap: () => setState(() => _showEffectsTray = false),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close_rounded,
+                          size: 16,
+                          color: Colors.white70,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Close Tray
-                  GestureDetector(
-                    onTap: () => setState(() => _showEffectsTray = false),
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.close_rounded,
-                        size: 16,
-                        color: Colors.white70,
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 10),
 
@@ -2337,32 +2656,43 @@ class _CallScreenState extends State<CallScreen>
 
                         const SizedBox(height: 8),
 
-                        // 5. Background Blur Intensity Chips
-                        Row(
+                        // 5. Background Blur Intensity Chips (Smooth Scrollable)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(
-                              Icons.blur_on_rounded,
-                              size: 16,
-                              color: Color(0xFF60A5FA),
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              'Background Blur',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const Spacer(),
-                            Wrap(
-                              spacing: 6,
+                            const Row(
                               children: [
-                                _buildBlurChip('Off', 0, setSheetState),
-                                _buildBlurChip('Low', 1, setSheetState),
-                                _buildBlurChip('Med', 2, setSheetState),
-                                _buildBlurChip('High', 3, setSheetState),
+                                Icon(
+                                  Icons.blur_on_rounded,
+                                  size: 16,
+                                  color: Color(0xFF60A5FA),
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Background Blur',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                               ],
+                            ),
+                            const SizedBox(height: 8),
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              physics: const BouncingScrollPhysics(),
+                              child: Row(
+                                children: [
+                                  _buildBlurChip('Off', 0, setSheetState),
+                                  const SizedBox(width: 8),
+                                  _buildBlurChip('Low', 1, setSheetState),
+                                  const SizedBox(width: 8),
+                                  _buildBlurChip('Medium', 2, setSheetState),
+                                  const SizedBox(width: 8),
+                                  _buildBlurChip('High', 3, setSheetState),
+                                ],
+                              ),
                             ),
                           ],
                         ),
