@@ -97,3 +97,8 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics")
 }
 
+configurations.all {
+    exclude(group = "io.agora.rtc", module = "full-screen-sharing")
+}
+
+

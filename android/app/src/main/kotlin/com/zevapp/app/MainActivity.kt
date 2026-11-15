@@ -108,11 +108,12 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (isPipActive && isPipSupported) {
-            // Android 8.0 to Android 11 entry point (Android 12+ handles this automatically via setAutoEnterEnabled)
-            if (Build.VERSION.SDK_INT in Build.VERSION_CODES.O until Build.VERSION_CODES.S) {
-                enterPipMode(currentAspectX, currentAspectY)
-            }
+        if (isPipActive && isPipSupported && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                if (!isInPictureInPictureMode) {
+                    enterPipMode(currentAspectX, currentAspectY)
+                }
+            } catch (_: Exception) {}
         }
     }
 

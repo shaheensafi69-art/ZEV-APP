@@ -38,9 +38,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         options: DefaultFirebaseOptions.currentPlatform,
       );
     }
-    debugPrint(
-      'ZEV FCM Background notification: ${message.messageId} - ${message.notification?.title}',
-    );
+    await NotificationService.showBackgroundNotification(message);
   } catch (e) {
     debugPrint('ZEV FCM background message error: $e');
   }
@@ -62,6 +60,11 @@ class NotificationService {
   static const String androidChannelName = 'ZEV Activity & Messages';
   static const String androidChannelDescription =
       'Real-time messages, followers, likes, comments, and security alerts on ZEV.';
+
+  static const String androidCallsChannelId = 'zev_calls_channel';
+  static const String androidCallsChannelName = 'ZEV Calls & Rings';
+  static const String androidCallsChannelDescription =
+      'High-priority incoming voice and video call notifications.';
 
   final SupabaseClient supabase = Supabase.instance.client;
   final FlutterLocalNotificationsPlugin _localNotifications =
@@ -681,6 +684,74 @@ class NotificationService {
           playSound: true,
         ),
       );
+      await androidPlugin.createNotificationChannel(
+        const AndroidNotificationChannel(
+          androidCallsChannelId,
+          androidCallsChannelName,
+          description: androidCallsChannelDescription,
+          importance: Importance.max,
+          enableVibration: true,
+          playSound: true,
+          audioAttributesUsage: AudioAttributesUsage.voiceCommunication,
+        ),
+      );
+    }
+  }
+
+  /// Displays an immediate high-priority notification when the app is killed or running in background.
+  static Future<void> showBackgroundNotification(RemoteMessage message) async {
+    try {
+      final local = FlutterLocalNotificationsPlugin();
+      const androidSettings = AndroidInitializationSettings('@drawable/ic_notification');
+      await local.initialize(const InitializationSettings(android: androidSettings));
+
+      final data = message.data;
+      final type = (data['notification_type'] ?? data['type'] ?? 'general').toString();
+      final title = (message.notification?.title ?? data['title'] ?? 'ZEV').toString();
+      final body = (message.notification?.body ?? data['body'] ?? data['message'] ?? 'New notification on ZEV').toString();
+      final isCall = type.toLowerCase().contains('call');
+
+      AndroidBitmap<Object>? largeIconBitmap;
+      final avatarUrl = (data['avatar_url'] ?? data['sender_avatar'] ?? data['user_avatar'] ?? '').toString().trim();
+      if (avatarUrl.isNotEmpty && (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://'))) {
+        try {
+          final res = await http.get(Uri.parse(avatarUrl)).timeout(const Duration(seconds: 2));
+          if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+            largeIconBitmap = ByteArrayAndroidBitmap(res.bodyBytes);
+          }
+        } catch (_) {}
+      }
+
+      final channelId = isCall ? androidCallsChannelId : androidChannelId;
+      final channelName = isCall ? androidCallsChannelName : androidChannelName;
+      final channelDesc = isCall ? androidCallsChannelDescription : androidChannelDescription;
+
+      final androidDetails = AndroidNotificationDetails(
+        channelId,
+        channelName,
+        channelDescription: channelDesc,
+        importance: Importance.max,
+        priority: isCall ? Priority.max : Priority.high,
+        category: isCall ? AndroidNotificationCategory.call : AndroidNotificationCategory.message,
+        fullScreenIntent: isCall,
+        icon: '@drawable/ic_notification',
+        color: const Color(0xFF2563EB),
+        largeIcon: largeIconBitmap,
+        styleInformation: BigTextStyleInformation(body, contentTitle: title, summaryText: 'ZEV'),
+        subText: 'ZEV',
+        ticker: title,
+        enableVibration: true,
+      );
+
+      await local.show(
+        DateTime.now().millisecondsSinceEpoch.remainder(100000),
+        title,
+        body,
+        NotificationDetails(android: androidDetails),
+        payload: jsonEncode(data),
+      );
+    } catch (e) {
+      debugPrint('Background notification display error: $e');
     }
   }
 
@@ -724,8 +795,11 @@ class NotificationService {
         } catch (_) {}
       }
 
-      // Elegant fallback to official high-resolution ZEV app logo (crisp binary PNG in drawable)
-      largeIconBitmap ??= const DrawableResourceAndroidBitmap('@drawable/ic_zev_logo');
+      final type = (data['notification_type'] ?? data['type'] ?? 'general').toString().toLowerCase();
+      final isCall = type.contains('call');
+      final channelId = isCall ? androidCallsChannelId : androidChannelId;
+      final channelName = isCall ? androidCallsChannelName : androidChannelName;
+      final channelDesc = isCall ? androidCallsChannelDescription : androidChannelDescription;
 
       StyleInformation styleInfo;
       if (pictureBitmap != null) {
@@ -748,11 +822,13 @@ class NotificationService {
       }
 
       final androidDetails = AndroidNotificationDetails(
-        androidChannelId,
-        androidChannelName,
-        channelDescription: androidChannelDescription,
+        channelId,
+        channelName,
+        channelDescription: channelDesc,
         importance: Importance.max,
-        priority: Priority.high,
+        priority: isCall ? Priority.max : Priority.high,
+        category: isCall ? AndroidNotificationCategory.call : AndroidNotificationCategory.message,
+        fullScreenIntent: isCall,
         icon: '@drawable/ic_notification',
         color: const Color(0xFF2563EB),
         largeIcon: largeIconBitmap,

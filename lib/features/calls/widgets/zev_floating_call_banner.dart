@@ -93,25 +93,32 @@ class _ZevFloatingCallBannerState extends State<ZevFloatingCallBanner> {
             : '@${prof['username'] ?? 'User'}';
         final avatar = (prof['avatar_url'] ?? '').toString();
 
-        final hasRemoteVideo = session.isVideo &&
-            ZevRtcService.instance.activeRemoteVideoController != null;
-
-        // Render draggable Video PiP if video call with active remote stream
-        if (hasRemoteVideo) {
-          return _buildDraggableVideoPip(session, displayName);
+        // Render draggable Video PiP for all video calls
+        if (session.isVideo) {
+          return _buildDraggableVideoPip(session, displayName, avatar);
         }
 
-        // Otherwise render sleek top audio banner
-        return Align(
-          alignment: Alignment.topCenter,
-          child: _buildAudioTopBanner(session, displayName, avatar),
+        // Otherwise render sleek top audio banner for voice calls
+        return Stack(
+          children: [
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _buildAudioTopBanner(session, displayName, avatar),
+            ),
+          ],
         );
       },
     );
   }
 
   /// Draggable Floating Picture-in-Picture window for Video Calls
-  Widget _buildDraggableVideoPip(ZevCallSession session, String displayName) {
+  Widget _buildDraggableVideoPip(
+    ZevCallSession session,
+    String displayName,
+    String avatar,
+  ) {
     final screenSize = MediaQuery.sizeOf(context);
     final isDesktop = screenSize.width >= 720 || (kIsWeb && screenSize.width >= 600);
 
@@ -193,11 +200,40 @@ class _ZevFloatingCallBannerState extends State<ZevFloatingCallBanner> {
                       else
                         Container(
                           color: const Color(0xFF0A0F1D),
-                          child: const Center(
-                            child: Icon(
-                              Icons.videocam_off_rounded,
-                              color: Colors.white38,
-                              size: 28,
+                          padding: const EdgeInsets.all(12),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: const Color(0xFF10B981),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: ClipOval(
+                                    child: ZevCachedImage.avatar(
+                                      imageUrl: avatar,
+                                      size: 40,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  displayName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
