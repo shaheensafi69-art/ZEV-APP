@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -23,11 +22,27 @@ import '../../features/stories/screens/story_viewer_screen.dart';
 import '../../firebase_options.dart';
 import '../../main.dart';
 import '../theme/zev_theme.dart';
+import '../widgets/zev_cached_image.dart';
 import 'api_client.dart';
 import 'auth_helper.dart';
 import 'badge_counter_service.dart';
 import 'deep_link_service.dart';
+import 'zev_notification_channels.dart';
+import 'zev_notification_media_helper.dart';
 import 'zev_rtc_service.dart';
+
+/// Top-level background action handler for interactive Android/iOS notification actions.
+@pragma('vm:entry-point')
+Future<void> _notificationActionHandler(NotificationResponse response) async {
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+  } catch (_) {}
+  await NotificationService.handleNotificationAction(response);
+}
 
 /// Top-level background message handler required by Firebase Messaging.
 @pragma('vm:entry-point')
@@ -641,12 +656,101 @@ class NotificationService {
     const androidSettings = AndroidInitializationSettings(
       '@drawable/ic_notification',
     );
-    const darwinSettings = DarwinInitializationSettings(
+
+    final darwinCategories = <DarwinNotificationCategory>[
+      DarwinNotificationCategory(
+        'zev_category_message',
+        actions: <DarwinNotificationAction>[
+          DarwinNotificationAction.text(
+            'action_reply',
+            'Reply',
+            buttonTitle: 'Send',
+            placeholder: 'Type a message...',
+          ),
+          DarwinNotificationAction.plain(
+            'action_mark_read',
+            'Mark as Read',
+          ),
+        ],
+        options: <DarwinNotificationCategoryOption>{
+          DarwinNotificationCategoryOption.hiddenPreviewShowTitle,
+        },
+      ),
+      DarwinNotificationCategory(
+        'zev_category_call',
+        actions: <DarwinNotificationAction>[
+          DarwinNotificationAction.plain(
+            'action_accept_call',
+            'Accept',
+            options: <DarwinNotificationActionOption>{
+              DarwinNotificationActionOption.foreground,
+            },
+          ),
+          DarwinNotificationAction.plain(
+            'action_decline_call',
+            'Decline',
+            options: <DarwinNotificationActionOption>{
+              DarwinNotificationActionOption.destructive,
+            },
+          ),
+        ],
+      ),
+      DarwinNotificationCategory(
+        'zev_category_friend_request',
+        actions: <DarwinNotificationAction>[
+          DarwinNotificationAction.plain(
+            'action_accept_friend',
+            'Accept',
+          ),
+          DarwinNotificationAction.plain(
+            'action_decline_friend',
+            'Decline',
+            options: <DarwinNotificationActionOption>{
+              DarwinNotificationActionOption.destructive,
+            },
+          ),
+        ],
+      ),
+      DarwinNotificationCategory(
+        'zev_category_comment',
+        actions: <DarwinNotificationAction>[
+          DarwinNotificationAction.text(
+            'action_reply_comment',
+            'Reply',
+            buttonTitle: 'Post',
+            placeholder: 'Write a reply...',
+          ),
+          DarwinNotificationAction.plain(
+            'action_open_post',
+            'View',
+            options: <DarwinNotificationActionOption>{
+              DarwinNotificationActionOption.foreground,
+            },
+          ),
+        ],
+      ),
+      DarwinNotificationCategory(
+        'zev_category_social',
+        actions: <DarwinNotificationAction>[
+          DarwinNotificationAction.plain(
+            'action_view',
+            'View',
+            options: <DarwinNotificationActionOption>{
+              DarwinNotificationActionOption.foreground,
+            },
+          ),
+        ],
+      ),
+    ];
+
+    final darwinSettings = DarwinInitializationSettings(
       requestAlertPermission: false,
       requestBadgePermission: false,
       requestSoundPermission: false,
+      notificationCategories: darwinCategories,
     );
-    const initSettings = InitializationSettings(
+
+    final initSettings = InitializationSettings(
       android: androidSettings,
       iOS: darwinSettings,
     );
@@ -654,19 +758,9 @@ class NotificationService {
     await _localNotifications.initialize(
       initSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
-        final raw = response.payload;
-        if (raw == null || raw.isEmpty) return;
-        try {
-          final parsed = jsonDecode(raw);
-          if (parsed is Map) {
-            _dispatchOrQueueNotificationClick(
-              Map<String, dynamic>.from(parsed),
-            );
-          }
-        } catch (e) {
-          debugPrint('Local notification payload parse notice: $e');
-        }
+        handleNotificationAction(response);
       },
+      onDidReceiveBackgroundNotificationResponse: _notificationActionHandler,
     );
 
     final androidPlugin = _localNotifications
@@ -674,27 +768,151 @@ class NotificationService {
           AndroidFlutterLocalNotificationsPlugin
         >();
     if (androidPlugin != null) {
-      await androidPlugin.createNotificationChannel(
-        const AndroidNotificationChannel(
-          androidChannelId,
-          androidChannelName,
-          description: androidChannelDescription,
-          importance: Importance.max,
-          enableVibration: true,
-          playSound: true,
-        ),
-      );
-      await androidPlugin.createNotificationChannel(
-        const AndroidNotificationChannel(
-          androidCallsChannelId,
-          androidCallsChannelName,
-          description: androidCallsChannelDescription,
-          importance: Importance.max,
-          enableVibration: true,
-          playSound: true,
-          audioAttributesUsage: AudioAttributesUsage.voiceCommunication,
-        ),
-      );
+      for (final ch in ZevNotificationChannels.all) {
+        await androidPlugin.createNotificationChannel(ch.toAndroidChannel());
+      }
+    }
+  }
+
+  /// Interactive Notification Action handler for both foreground & background clicks.
+  static Future<void> handleNotificationAction(NotificationResponse response) async {
+    final actionId = response.actionId;
+    final rawPayload = response.payload;
+    if (rawPayload == null || rawPayload.isEmpty) return;
+
+    Map<String, dynamic> data = {};
+    try {
+      final parsed = jsonDecode(rawPayload);
+      if (parsed is Map) {
+        data = Map<String, dynamic>.from(parsed);
+      }
+    } catch (_) {
+      return;
+    }
+
+    if (actionId == null || actionId.isEmpty) {
+      _dispatchOrQueueNotificationClick(data);
+      return;
+    }
+
+    final supabase = Supabase.instance.client;
+    final currentUserId = supabase.auth.currentUser?.id;
+    final senderId = (data['sender_id'] ?? data['peer_id'] ?? data['user_id'] ?? '').toString().trim();
+    final convId = (data['conversation_id'] ?? '').toString().trim();
+
+    switch (actionId) {
+      case 'action_reply':
+        final text = response.input?.trim() ?? '';
+        if (text.isNotEmpty && currentUserId != null) {
+          try {
+            await supabase.from('direct_messages').insert({
+              'sender_id': currentUserId,
+              'receiver_id': senderId,
+              if (convId.isNotEmpty) 'conversation_id': convId,
+              'message_text': text,
+              'message_type': 'text',
+              'is_read': false,
+            });
+            await supabase
+                .from('direct_messages')
+                .update({'is_read': true})
+                .eq('sender_id', senderId)
+                .eq('receiver_id', currentUserId);
+            BadgeCounterService.instance.refreshCounts();
+          } catch (e) {
+            debugPrint('[NotificationService] reply send notice: $e');
+          }
+        }
+        break;
+
+      case 'action_reply_comment':
+        final text = response.input?.trim() ?? '';
+        final postId = (data['post_id'] ?? data['target_id'] ?? '').toString().trim();
+        if (text.isNotEmpty && currentUserId != null && postId.isNotEmpty) {
+          try {
+            await supabase.from('post_comments').insert({
+              'post_id': postId,
+              'user_id': currentUserId,
+              'comment_text': text,
+              if (data['comment_id'] != null) 'parent_comment_id': data['comment_id'],
+            });
+          } catch (e) {
+            debugPrint('[NotificationService] comment reply notice: $e');
+          }
+        }
+        break;
+
+      case 'action_mark_read':
+        if (currentUserId != null && senderId.isNotEmpty) {
+          try {
+            await supabase
+                .from('direct_messages')
+                .update({'is_read': true})
+                .eq('sender_id', senderId)
+                .eq('receiver_id', currentUserId);
+            BadgeCounterService.instance.refreshCounts();
+          } catch (_) {}
+        }
+        break;
+
+      case 'action_accept_call':
+        _dispatchOrQueueNotificationClick(data);
+        break;
+
+      case 'action_decline_call':
+        final callId = (data['call_id'] ?? data['channel_name'] ?? '').toString().trim();
+        if (callId.isNotEmpty) {
+          unawaited(
+            ZevRtcService.instance.respondCall(callId: callId, action: 'rejected'),
+          );
+        }
+        break;
+
+      case 'action_accept_friend':
+        final reqId = (data['request_id'] ?? '').toString().trim();
+        if (reqId.isNotEmpty) {
+          try {
+            await supabase
+                .from('user_follows')
+                .update({'status': 'accepted'})
+                .eq('id', reqId);
+          } catch (_) {}
+        } else if (currentUserId != null && senderId.isNotEmpty) {
+          try {
+            await supabase
+                .from('user_follows')
+                .update({'status': 'accepted'})
+                .eq('follower_id', senderId)
+                .eq('following_id', currentUserId);
+          } catch (_) {}
+        }
+        break;
+
+      case 'action_decline_friend':
+        final reqId = (data['request_id'] ?? '').toString().trim();
+        if (reqId.isNotEmpty) {
+          try {
+            await supabase
+                .from('user_follows')
+                .delete()
+                .eq('id', reqId);
+          } catch (_) {}
+        } else if (currentUserId != null && senderId.isNotEmpty) {
+          try {
+            await supabase
+                .from('user_follows')
+                .delete()
+                .eq('follower_id', senderId)
+                .eq('following_id', currentUserId);
+          } catch (_) {}
+        }
+        break;
+
+      case 'action_view_profile':
+      case 'action_open_post':
+      case 'action_view':
+        _dispatchOrQueueNotificationClick(data);
+        break;
     }
   }
 
@@ -705,50 +923,16 @@ class NotificationService {
       const androidSettings = AndroidInitializationSettings('@drawable/ic_notification');
       await local.initialize(const InitializationSettings(android: androidSettings));
 
-      final data = message.data;
-      final type = (data['notification_type'] ?? data['type'] ?? 'general').toString();
+      final data = Map<String, dynamic>.from(message.data);
       final title = (message.notification?.title ?? data['title'] ?? 'ZEV').toString();
       final body = (message.notification?.body ?? data['body'] ?? data['message'] ?? 'New notification on ZEV').toString();
-      final isCall = type.toLowerCase().contains('call');
 
-      AndroidBitmap<Object>? largeIconBitmap;
-      final avatarUrl = (data['avatar_url'] ?? data['sender_avatar'] ?? data['user_avatar'] ?? '').toString().trim();
-      if (avatarUrl.isNotEmpty && (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://'))) {
-        try {
-          final res = await http.get(Uri.parse(avatarUrl)).timeout(const Duration(seconds: 2));
-          if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
-            largeIconBitmap = ByteArrayAndroidBitmap(res.bodyBytes);
-          }
-        } catch (_) {}
-      }
-
-      final channelId = isCall ? androidCallsChannelId : androidChannelId;
-      final channelName = isCall ? androidCallsChannelName : androidChannelName;
-      final channelDesc = isCall ? androidCallsChannelDescription : androidChannelDescription;
-
-      final androidDetails = AndroidNotificationDetails(
-        channelId,
-        channelName,
-        channelDescription: channelDesc,
-        importance: Importance.max,
-        priority: isCall ? Priority.max : Priority.high,
-        category: isCall ? AndroidNotificationCategory.call : AndroidNotificationCategory.message,
-        fullScreenIntent: isCall,
-        icon: '@drawable/ic_notification',
-        color: const Color(0xFF2563EB),
-        largeIcon: largeIconBitmap,
-        styleInformation: BigTextStyleInformation(body, contentTitle: title, summaryText: 'ZEV'),
-        subText: 'ZEV',
-        ticker: title,
-        enableVibration: true,
-      );
-
-      await local.show(
-        DateTime.now().millisecondsSinceEpoch.remainder(100000),
-        title,
-        body,
-        NotificationDetails(android: androidDetails),
-        payload: jsonEncode(data),
+      await _renderNativeNotification(
+        localPlugin: local,
+        title: title,
+        body: body,
+        data: data,
+        vibrate: true,
       );
     } catch (e) {
       debugPrint('Background notification display error: $e');
@@ -761,9 +945,26 @@ class NotificationService {
     required Map<String, dynamic> data,
     bool vibrate = true,
   }) async {
+    await _renderNativeNotification(
+      localPlugin: _localNotifications,
+      title: title,
+      body: body,
+      data: data,
+      vibrate: vibrate,
+    );
+  }
+
+  /// Unified native renderer for both background isolates and foreground tray notifications.
+  static Future<void> _renderNativeNotification({
+    required FlutterLocalNotificationsPlugin localPlugin,
+    required String title,
+    required String body,
+    required Map<String, dynamic> data,
+    bool vibrate = true,
+  }) async {
     try {
-      AndroidBitmap<Object>? largeIconBitmap;
-      ByteArrayAndroidBitmap? pictureBitmap;
+      final rawType = (data['notification_type'] ?? data['type'] ?? 'general').toString();
+      final config = ZevNotificationChannels.resolve(rawType);
 
       final avatarUrl = (data['avatar_url'] ??
               data['sender_avatar'] ??
@@ -772,45 +973,110 @@ class NotificationService {
           .toString()
           .trim();
 
-      if (avatarUrl.isNotEmpty &&
-          (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://'))) {
-        try {
-          final res = await http.get(Uri.parse(avatarUrl)).timeout(const Duration(seconds: 2));
-          if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
-            largeIconBitmap = ByteArrayAndroidBitmap(res.bodyBytes);
-          }
-        } catch (_) {}
-      }
-
-      final mediaUrl = (data['image'] ?? data['image_url'] ?? data['media_url'] ?? '')
+      final mediaUrl = (data['image'] ??
+              data['image_url'] ??
+              data['media_url'] ??
+              data['thumbnail_url'] ??
+              '')
           .toString()
           .trim();
-      if (mediaUrl.isNotEmpty &&
-          (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://'))) {
-        try {
-          final res = await http.get(Uri.parse(mediaUrl)).timeout(const Duration(seconds: 3));
-          if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
-            pictureBitmap = ByteArrayAndroidBitmap(res.bodyBytes);
-          }
-        } catch (_) {}
+
+      final senderName = (data['sender_name'] ?? data['user_name'] ?? title).toString().trim();
+      final senderId = (data['sender_id'] ?? data['user_id'] ?? '').toString().trim();
+
+      // Parallel download circular avatar and media thumbnail using ZevNotificationMediaHelper
+      final avatarBytes = await ZevNotificationMediaHelper.getCircularAvatarBytes(avatarUrl);
+      final pictureBytes = await ZevNotificationMediaHelper.getMediaThumbnailBytes(mediaUrl);
+
+      ByteArrayAndroidBitmap? largeIconBitmap;
+      if (avatarBytes != null) {
+        largeIconBitmap = ByteArrayAndroidBitmap(avatarBytes);
       }
 
-      final type = (data['notification_type'] ?? data['type'] ?? 'general').toString().toLowerCase();
-      final isCall = type.contains('call');
-      final channelId = isCall ? androidCallsChannelId : androidChannelId;
-      final channelName = isCall ? androidCallsChannelName : androidChannelName;
-      final channelDesc = isCall ? androidCallsChannelDescription : androidChannelDescription;
-
       StyleInformation styleInfo;
-      if (pictureBitmap != null) {
+      List<AndroidNotificationAction> actions = [];
+
+      if (config.type == ZevNotificationCategoryType.messages ||
+          config.type == ZevNotificationCategoryType.groups) {
+        final isGroup = config.type == ZevNotificationCategoryType.groups;
+        final groupTitle = (data['group_name'] ??
+                data['conversation_title'] ??
+                'Group Chat')
+            .toString();
+
+        final person = Person(
+          name: senderName.isNotEmpty ? senderName : 'ZEV User',
+          key: senderId.isNotEmpty ? senderId : null,
+          icon: avatarBytes != null ? ByteArrayAndroidIcon(avatarBytes) : null,
+          bot: false,
+          important: true,
+        );
+
+        styleInfo = MessagingStyleInformation(
+          person,
+          conversationTitle: isGroup ? groupTitle : null,
+          groupConversation: isGroup,
+          messages: [
+            Message(
+              body,
+              DateTime.now(),
+              person,
+            ),
+          ],
+          htmlFormatContent: true,
+          htmlFormatTitle: true,
+        );
+
+        actions = [
+          const AndroidNotificationAction(
+            'action_reply',
+            'Reply',
+            icon: DrawableResourceAndroidBitmap('@drawable/ic_notif_message'),
+            inputs: [
+              AndroidNotificationActionInput(
+                label: 'Type a message...',
+              ),
+            ],
+            showsUserInterface: false,
+          ),
+          const AndroidNotificationAction(
+            'action_mark_read',
+            'Mark as Read',
+            cancelNotification: true,
+            showsUserInterface: false,
+          ),
+        ];
+      } else if (pictureBytes != null) {
+        final picBitmap = ByteArrayAndroidBitmap(pictureBytes);
         styleInfo = BigPictureStyleInformation(
-          pictureBitmap,
+          picBitmap,
           largeIcon: largeIconBitmap,
           contentTitle: title,
           summaryText: body,
           htmlFormatContent: true,
           htmlFormatContentTitle: true,
         );
+
+        if (config.type == ZevNotificationCategoryType.comments) {
+          actions = [
+            const AndroidNotificationAction(
+              'action_reply_comment',
+              'Reply',
+              icon: DrawableResourceAndroidBitmap('@drawable/ic_notif_comment'),
+              inputs: [
+                AndroidNotificationActionInput(
+                  label: 'Write a reply...',
+                ),
+              ],
+              showsUserInterface: false,
+            ),
+            const AndroidNotificationAction(
+              'action_open_post',
+              'View',
+              showsUserInterface: true,
+            ),
+          ];
+        }
       } else {
         styleInfo = BigTextStyleInformation(
           body,
@@ -821,36 +1087,101 @@ class NotificationService {
         );
       }
 
+      final isCall = config.type == ZevNotificationCategoryType.voiceCalls ||
+          config.type == ZevNotificationCategoryType.videoCalls;
+
+      if (isCall) {
+        actions = [
+          const AndroidNotificationAction(
+            'action_accept_call',
+            'Accept',
+            showsUserInterface: true,
+            cancelNotification: true,
+          ),
+          const AndroidNotificationAction(
+            'action_decline_call',
+            'Decline',
+            showsUserInterface: false,
+            cancelNotification: true,
+          ),
+        ];
+      } else if (config.type == ZevNotificationCategoryType.friendRequests) {
+        actions = [
+          const AndroidNotificationAction(
+            'action_accept_friend',
+            'Accept',
+            showsUserInterface: false,
+            cancelNotification: true,
+          ),
+          const AndroidNotificationAction(
+            'action_decline_friend',
+            'Decline',
+            showsUserInterface: false,
+            cancelNotification: true,
+          ),
+        ];
+      } else if (config.type == ZevNotificationCategoryType.followers) {
+        actions = [
+          const AndroidNotificationAction(
+            'action_view_profile',
+            'View Profile',
+            showsUserInterface: true,
+          ),
+        ];
+      }
+
       final androidDetails = AndroidNotificationDetails(
-        channelId,
-        channelName,
-        channelDescription: channelDesc,
-        importance: Importance.max,
-        priority: isCall ? Priority.max : Priority.high,
-        category: isCall ? AndroidNotificationCategory.call : AndroidNotificationCategory.message,
-        fullScreenIntent: isCall,
-        icon: '@drawable/ic_notification',
+        config.channelId,
+        config.channelName,
+        channelDescription: config.channelDescription,
+        importance: config.importance,
+        priority: config.priority,
+        category: config.androidCategory,
+        fullScreenIntent: config.fullScreenIntent,
+        ongoing: isCall,
+        autoCancel: !isCall,
+        icon: config.smallIcon,
         color: const Color(0xFF2563EB),
         largeIcon: largeIconBitmap,
         styleInformation: styleInfo,
+        actions: actions,
+        groupKey: config.groupKey,
         subText: 'ZEV',
         ticker: title,
         enableVibration: vibrate,
+        vibrationPattern: isCall
+            ? Int64List.fromList([0, 1000, 1000, 1000, 1000, 1000])
+            : null,
       );
-      const darwinDetails = DarwinNotificationDetails(
+
+      List<DarwinNotificationAttachment>? darwinAttachments;
+      final attachPath = await ZevNotificationMediaHelper.getAttachmentFilePath(
+        mediaUrl.isNotEmpty ? mediaUrl : avatarUrl,
+      );
+      if (attachPath != null) {
+        darwinAttachments = [DarwinNotificationAttachment(attachPath)];
+      }
+
+      final darwinDetails = DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
+        categoryIdentifier: config.darwinCategory,
+        attachments: darwinAttachments,
       );
-      await _localNotifications.show(
-        DateTime.now().millisecondsSinceEpoch.remainder(100000),
+
+      final notifId = data['notification_id']?.hashCode.remainder(100000).abs() ??
+          DateTime.now().millisecondsSinceEpoch.remainder(100000).abs();
+
+      await localPlugin.show(
+        notifId,
         title,
         body,
         NotificationDetails(android: androidDetails, iOS: darwinDetails),
         payload: jsonEncode(data),
       );
     } catch (e) {
-      debugPrint('Local tray notification notice: $e');
+      debugPrint('[NotificationService] _renderNativeNotification error: $e');
     }
   }
 
@@ -1155,6 +1486,25 @@ class NotificationService {
       HapticFeedback.mediumImpact();
     }
 
+    final rawType = (data['notification_type'] ?? data['type'] ?? 'general').toString().toLowerCase();
+    final avatarUrl = (data['avatar_url'] ?? data['sender_avatar'] ?? data['user_avatar'] ?? '').toString().trim();
+    final mediaUrl = (data['image'] ?? data['image_url'] ?? data['media_url'] ?? data['thumbnail_url'] ?? '').toString().trim();
+
+    final (badgeIcon, badgeColor, categoryLabel) = switch (true) {
+      _ when rawType == 'voice_call' => (Icons.phone_rounded, const Color(0xFF10B981), 'Voice Call'),
+      _ when rawType == 'video_call' => (Icons.videocam_rounded, const Color(0xFF8B5CF6), 'Video Call'),
+      _ when rawType == 'message' || rawType.contains('chat') || rawType == 'dm' => (Icons.chat_bubble_rounded, const Color(0xFF2563EB), 'Chat'),
+      _ when rawType.contains('group') => (Icons.group_rounded, const Color(0xFF0284C7), 'Group'),
+      _ when rawType.contains('like') => (Icons.favorite_rounded, const Color(0xFFEF4444), 'Liked your post'),
+      _ when rawType.contains('comment') || rawType.contains('reply') => (Icons.chat_bubble_outline_rounded, const Color(0xFF3B82F6), 'Commented'),
+      _ when rawType == 'friend_request' || rawType == 'follow_request' => (Icons.person_add_rounded, const Color(0xFFF59E0B), 'Friend Request'),
+      _ when rawType.contains('follow') => (Icons.person_add_alt_1_rounded, const Color(0xFF06B6D4), 'New Follower'),
+      _ when rawType.contains('story') => (Icons.motion_photos_on_rounded, const Color(0xFFEC4899), 'Story'),
+      _ when rawType.contains('share') => (Icons.share_rounded, const Color(0xFF6366F1), 'Shared'),
+      _ when rawType.contains('security') || rawType.contains('login') => (Icons.shield_rounded, const Color(0xFFDC2626), 'Security Alert'),
+      _ => (Icons.notifications_active_rounded, const Color(0xFF2563EB), 'Activity'),
+    };
+
     late OverlayEntry entry;
     entry = OverlayEntry(
       builder: (context) {
@@ -1177,8 +1527,7 @@ class NotificationService {
                 _bannerDismissTimer?.cancel();
               },
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.96),
                   borderRadius: BorderRadius.circular(20),
@@ -1201,29 +1550,55 @@ class NotificationService {
                 ),
                 child: Row(
                   children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        gradient: ZevColors.brandGradient,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: ZevColors.secondaryBlue.withValues(alpha: 0.28),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
+                    // Sender Avatar with Category Badge Overlay
+                    SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          avatarUrl.isNotEmpty
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(22),
+                                  child: ZevCachedImage(
+                                    imageUrl: avatarUrl,
+                                    width: 44,
+                                    height: 44,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    gradient: ZevColors.brandGradient,
+                                    borderRadius: BorderRadius.circular(22),
+                                  ),
+                                  child: const Center(
+                                    child: Text(
+                                      'Z',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                          Positioned(
+                            right: -2,
+                            bottom: -2,
+                            child: Container(
+                              padding: const EdgeInsets.all(3),
+                              decoration: BoxDecoration(
+                                color: badgeColor,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 1.5),
+                              ),
+                              child: Icon(badgeIcon, size: 10, color: Colors.white),
+                            ),
                           ),
                         ],
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'Z',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -1232,20 +1607,35 @@ class NotificationService {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w800,
-                              color: ZevColors.deepNavy,
-                            ),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: ZevColors.deepNavy,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                '• $categoryLabel',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: badgeColor,
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 2),
                           Text(
                             body,
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 12.5,
@@ -1256,15 +1646,28 @@ class NotificationService {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: ZevColors.primaryBlue,
-                        shape: BoxShape.circle,
+                    if (mediaUrl.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: ZevCachedImage(
+                          imageUrl: mediaUrl,
+                          width: 38,
+                          height: 38,
+                          fit: BoxFit.cover,
+                        ),
                       ),
-                    ),
+                    ] else ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: ZevColors.primaryBlue,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

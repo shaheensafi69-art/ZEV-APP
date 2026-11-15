@@ -45,6 +45,8 @@ class _NotificationSettingsScreenState
   bool _followsEnabled = true;
   bool _messagesEnabled = true;
   bool _liveEnabled = true;
+  bool _callsEnabled = true;
+  bool _securityEnabled = true;
   bool _marketingEnabled = false;
   bool _vibrationEnabled = true;
 
@@ -135,6 +137,8 @@ class _NotificationSettingsScreenState
           _storiesEnabled = prefs.getBool('pref_notif_stories') ?? true;
           _followsEnabled = prefs.getBool('pref_notif_followers') ?? true;
           _messagesEnabled = prefs.getBool('pref_notif_dms') ?? true;
+          _callsEnabled = prefs.getBool('pref_notif_calls') ?? true;
+          _securityEnabled = prefs.getBool('pref_notif_security') ?? true;
           _liveEnabled = prefs.getBool('pref_notif_live') ?? true;
           _marketingEnabled = prefs.getBool('pref_notif_marketing') ?? false;
           _vibrationEnabled = prefs.getBool('pref_notif_vibrate') ?? true;
@@ -207,6 +211,8 @@ class _NotificationSettingsScreenState
       await prefs.setBool('pref_notif_stories', _storiesEnabled);
       await prefs.setBool('pref_notif_followers', _followsEnabled);
       await prefs.setBool('pref_notif_dms', _messagesEnabled);
+      await prefs.setBool('pref_notif_calls', _callsEnabled);
+      await prefs.setBool('pref_notif_security', _securityEnabled);
       await prefs.setBool('pref_notif_live', _liveEnabled);
       await prefs.setBool('pref_notif_marketing', _marketingEnabled);
       await prefs.setBool('pref_notif_vibrate', _vibrationEnabled);
@@ -434,6 +440,20 @@ class _NotificationSettingsScreenState
                   ),
                   const SizedBox(height: 10),
                   _buildToggleCard(
+                    title: 'Voice & Video Calls',
+                    subtitle: 'Incoming audio and video call rings and alerts',
+                    icon: Icons.phone_in_talk_rounded,
+                    value: _callsEnabled,
+                    iconColor: const Color(0xFF10B981),
+                    onChanged: !masterActive
+                        ? null
+                        : (val) {
+                            setState(() => _callsEnabled = val);
+                            _saveToBackend('Call alerts');
+                          },
+                  ),
+                  const SizedBox(height: 10),
+                  _buildToggleCard(
                     title: 'Live Broadcasts',
                     subtitle: 'When accounts you follow start a live video',
                     icon: Icons.sensors_rounded,
@@ -459,6 +479,20 @@ class _NotificationSettingsScreenState
                         : (val) {
                             setState(() => _marketingEnabled = val);
                             _saveToBackend('Announcements');
+                          },
+                  ),
+                  const SizedBox(height: 10),
+                  _buildToggleCard(
+                    title: 'Account & Security Alerts',
+                    subtitle: 'New logins, password updates, and account security notices',
+                    icon: Icons.shield_rounded,
+                    value: _securityEnabled,
+                    iconColor: const Color(0xFFDC2626),
+                    onChanged: !masterActive
+                        ? null
+                        : (val) {
+                            setState(() => _securityEnabled = val);
+                            _saveToBackend('Security alerts');
                           },
                   ),
                   const SizedBox(height: 10),
