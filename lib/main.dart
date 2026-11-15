@@ -11,6 +11,7 @@ import 'core/services/deep_link_service.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/secure_local_storage.dart';
 import 'core/services/user_presence_service.dart';
+import 'core/services/zev_pip_service.dart';
 import 'core/services/zev_rtc_service.dart';
 import 'core/theme/zev_theme.dart';
 import 'core/utils/system_ui_helper.dart';
@@ -83,6 +84,7 @@ class _ZevAppState extends State<ZevApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     SystemUiHelper.enableFullScreen();
     UserPresenceService.instance.startPresenceHeartbeat();
+    ZevPipService.instance.init();
     unawaited(AppSessionTrackerService.instance.init());
     DeepLinkService.instance.init();
   }
@@ -113,7 +115,11 @@ class _ZevAppState extends State<ZevApp> with WidgetsBindingObserver {
         state == AppLifecycleState.detached ||
         state == AppLifecycleState.hidden) {
       NotificationService.isAppInForeground = false;
-      UserPresenceService.instance.updatePresence(isOnline: false);
+      final isCallActive = ZevRtcService.instance.activeCallId != null ||
+          ZevRtcService.instance.isCallMinimized;
+      if (!isCallActive) {
+        UserPresenceService.instance.updatePresence(isOnline: false);
+      }
       if (state != AppLifecycleState.inactive) {
         AppSessionTrackerService.instance.onAppPaused();
       }

@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../../core/services/zev_call_audio_service.dart';
+import '../../../core/services/zev_pip_service.dart';
 import '../../../core/services/zev_rtc_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_cached_image.dart';
@@ -199,7 +200,7 @@ class _CallScreenState extends State<CallScreen>
   // AR Effects & Filter State
   bool _showEffectsTray = false;
   String _selectedEffectId = 'none';
-  ZevCallEffectCategory _selectedEffectCategory = ZevCallEffectCategory.face;
+  ZevCallEffectCategory _selectedEffectCategory = ZevCallEffectCategory.animals;
   ZevBeautyTuning _beautyTuning = const ZevBeautyTuning();
 
   // Draggable PIP State (Snap-to-4-corners)
@@ -301,6 +302,10 @@ class _CallScreenState extends State<CallScreen>
       ZevRtcService.instance.clearActiveCall(_session!.id);
     }
 
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      unawaited(ZevPipService.instance.disableAutoPip());
+    }
+
     unawaited(ZevCallAudioService.instance.stopAll());
     unawaited(_teardownEngine());
     super.dispose();
@@ -357,14 +362,20 @@ class _CallScreenState extends State<CallScreen>
       return true;
     }
 
-    final micStatus = await Permission.microphone.request();
+    var micStatus = await Permission.microphone.status;
     if (!micStatus.isGranted) {
-      return false;
+      micStatus = await Permission.microphone.request();
+      if (!micStatus.isGranted) {
+        return false;
+      }
     }
     if (widget.isVideo || _isVideoActive) {
-      final camStatus = await Permission.camera.request();
+      var camStatus = await Permission.camera.status;
       if (!camStatus.isGranted) {
-        return false;
+        camStatus = await Permission.camera.request();
+        if (!camStatus.isGranted) {
+          return false;
+        }
       }
     }
     return true;
@@ -448,6 +459,9 @@ class _CallScreenState extends State<CallScreen>
         });
         if (!session.isAccepted) {
           unawaited(ZevCallAudioService.instance.startIncomingRingtone());
+          if (widget.isVideo || session.isVideo) {
+            unawaited(_prestartLocalPreview());
+          }
         }
         _subscribeCallSession(session.id);
         _subscribeParticipants(session.id);
@@ -682,6 +696,11 @@ class _CallScreenState extends State<CallScreen>
             _startDurationTimer();
             _resetControlsHideTimer();
             unawaited(ZevCallAudioService.instance.playCallConnectedTone());
+            if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+              unawaited(
+                ZevPipService.instance.enableAutoPip(aspectX: 9, aspectY: 16),
+              );
+            }
           }
 
           if (_isVideoActive || widget.isVideo) {
@@ -904,6 +923,11 @@ class _CallScreenState extends State<CallScreen>
       );
       if (!mounted) return;
       _applySessionUpdate(updated);
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        unawaited(
+          ZevPipService.instance.enableAutoPip(aspectX: 9, aspectY: 16),
+        );
+      }
       setState(() => _isActionInFlight = false);
     } catch (e) {
       if (mounted) {
@@ -1301,23 +1325,108 @@ class _CallScreenState extends State<CallScreen>
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final isWide = size.width >= 720 || (kIsWeb && size.width >= 600);
-
-    return PopScope(
-      canPop: _phase == 'ended',
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _phase != 'ended') {
-          if (_phase == 'accepted') {
-            _minimizeCall();
-          } else {
-            unawaited(_hangupOrDecline());
-          }
+    return ValueListenableBuilder<bool>(
+      valueListenable: ZevPipService.instance.isInPipMode,
+      builder: (context, inPip, _) {
+        if (inPip) {
+          return _buildNativePipBody();
         }
+
+        final size = MediaQuery.sizeOf(context);
+        final isWide = size.width >= 720 || (kIsWeb && size.width >= 600);
+
+        return PopScope(
+          canPop: _phase == 'ended',
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop && _phase != 'ended') {
+              if (_phase == 'accepted') {
+                _minimizeCall();
+              } else {
+                unawaited(_hangupOrDecline());
+              }
+            }
+          },
+          child: Scaffold(
+            backgroundColor: const Color(0xFF070B14),
+            body: isWide ? _buildWidescreenWebLayout() : _buildMobileLayout(),
+          ),
+        );
       },
-      child: Scaffold(
-        backgroundColor: const Color(0xFF070B14),
-        body: isWide ? _buildWidescreenWebLayout() : _buildMobileLayout(),
+    );
+  }
+
+  /// Stripped-down native Picture-in-Picture window for Android OS floating PiP mode.
+  Widget _buildNativePipBody() {
+    final activeParticipants = _remoteParticipants.values
+        .where((p) => p.videoController != null && p.videoEnabled)
+        .toList();
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 1. Primary Remote Feed or User Profile
+          if (activeParticipants.isNotEmpty)
+            Positioned.fill(
+              child: AgoraVideoView(
+                controller: activeParticipants.first.videoController!,
+              ),
+            )
+          else
+            Positioned.fill(
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(
+                      radius: 36,
+                      backgroundColor: ZevColors.primaryBlue,
+                      child: Text(
+                        widget.peerUsername.isNotEmpty
+                            ? widget.peerUsername[0].toUpperCase()
+                            : 'Z',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.peerFullName.isNotEmpty
+                          ? widget.peerFullName
+                          : '@${widget.peerUsername}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // 2. Mini self preview inset
+          if (_isVideoActive && !_isCameraOff && _localVideoController != null)
+            Positioned(
+              right: 8,
+              bottom: 8,
+              width: 54,
+              height: 80,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  color: Colors.black,
+                  child: AgoraVideoView(
+                    controller: _localVideoController!,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -2319,9 +2428,21 @@ class _CallScreenState extends State<CallScreen>
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   children: [
                     _buildCategoryPill(
-                      'FUN AR',
-                      ZevCallEffectCategory.face,
+                      'ANIMALS',
+                      ZevCallEffectCategory.animals,
+                      Icons.pets_rounded,
+                    ),
+                    const SizedBox(width: 6),
+                    _buildCategoryPill(
+                      'WARP',
+                      ZevCallEffectCategory.morphs,
                       Icons.mood_rounded,
+                    ),
+                    const SizedBox(width: 6),
+                    _buildCategoryPill(
+                      'PROPS',
+                      ZevCallEffectCategory.props,
+                      Icons.emoji_events_rounded,
                     ),
                     const SizedBox(width: 6),
                     _buildCategoryPill(
@@ -2346,12 +2467,6 @@ class _CallScreenState extends State<CallScreen>
                       'COLOR',
                       ZevCallEffectCategory.color,
                       Icons.palette_rounded,
-                    ),
-                    const SizedBox(width: 6),
-                    _buildCategoryPill(
-                      'SPECIAL',
-                      ZevCallEffectCategory.special,
-                      Icons.auto_awesome_rounded,
                     ),
                     const SizedBox(width: 10),
                     // Granular Sliders Tuning Button

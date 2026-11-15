@@ -1,38 +1,56 @@
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/material.dart';
 
-/// Categories for ZEV Calling System 2.0 camera filters and effects.
+/// Top-level categories for ZEV Calling System 2.0 camera filters and effects.
 enum ZevCallEffectCategory {
-  face('Fun Face', Icons.mood_rounded),
+  animals('Animals', Icons.pets_rounded),
+  morphs('Face Warp', Icons.mood_rounded),
+  props('Props', Icons.emoji_events_rounded),
   beauty('Beauty', Icons.face_retouching_natural_rounded),
   lighting('Lighting', Icons.wb_sunny_rounded),
-  background('Background', Icons.blur_on_rounded),
-  color('Color', Icons.palette_rounded),
-  special('Special', Icons.auto_awesome_rounded);
+  background('Blur', Icons.blur_on_rounded),
+  color('Color', Icons.palette_rounded);
 
   final String label;
   final IconData icon;
   const ZevCallEffectCategory(this.label, this.icon);
 }
 
-/// Types of Funny Face Morphs and AR Overlays.
+/// Types of Funny Face Morphs, Animal Filters and AR Overlays.
 enum ZevFaceOverlayType {
   none,
+  // Animals
   dog,
   monkey,
+  cat,
+  lion,
+  panda,
+  bunny,
+  fox,
+  bear,
+  piggy,
+  koala,
+  // Face Warps / Morphs
   bigNose,
   bigMouth,
+  chubbyFace,
   alien,
   tinyFace,
-  cat,
-  disguise,
+  fisheye,
+  longChin,
+  squareHead,
+  // Props & Accessories
   crown,
+  disguise,
   sunglasses,
+  pirate,
+  angel,
+  cyberpunk,
+  party,
+  wizard,
 }
 
 /// Advanced Video Effect Configuration for Agora RTC Camera Pipeline.
-/// Applied at the hardware capture layer so outgoing stream is processed
-/// without affecting other participants.
 class ZevCallEffect {
   final String id;
   final String name;
@@ -132,38 +150,39 @@ class ZevBeautyTuning {
   }
 }
 
-/// Catalog of production-grade effects for ZEV Calling System 2.0.
+/// Comprehensive Catalog of Production AR Filters & Effects for ZEV.
 class ZevEffectsCatalog {
   ZevEffectsCatalog._();
 
   static const ZevCallEffect none = ZevCallEffect(
     id: 'none',
     name: 'Normal',
-    category: ZevCallEffectCategory.face,
+    category: ZevCallEffectCategory.animals,
     icon: Icons.not_interested_rounded,
     faceOverlayType: ZevFaceOverlayType.none,
   );
 
   static const List<ZevCallEffect> all = [
-    // ----------------------------------------------------
-    // FUN FACE & AR MORPHING CATEGORY (Snapchat / Instagram style)
-    // ----------------------------------------------------
     none,
+
+    // ====================================================
+    // 1. ANIMALS CATEGORY
+    // ====================================================
     ZevCallEffect(
       id: 'face_dog',
       name: 'Puppy Dog',
-      category: ZevCallEffectCategory.face,
+      category: ZevCallEffectCategory.animals,
       icon: Icons.pets_rounded,
       faceOverlayType: ZevFaceOverlayType.dog,
       agoraBeauty: BeautyOptions(
-        lighteningLevel: 0.50,
-        smoothnessLevel: 0.60,
+        lighteningLevel: 0.45,
+        smoothnessLevel: 0.55,
       ),
     ),
     ZevCallEffect(
       id: 'face_monkey',
       name: 'Crazy Monkey',
-      category: ZevCallEffectCategory.face,
+      category: ZevCallEffectCategory.animals,
       icon: Icons.cruelty_free_rounded,
       faceOverlayType: ZevFaceOverlayType.monkey,
       agoraBeauty: BeautyOptions(
@@ -172,9 +191,90 @@ class ZevEffectsCatalog {
       ),
     ),
     ZevCallEffect(
+      id: 'face_cat',
+      name: 'Cute Kitty',
+      category: ZevCallEffectCategory.animals,
+      icon: Icons.catching_pokemon_rounded,
+      faceOverlayType: ZevFaceOverlayType.cat,
+      agoraBeauty: BeautyOptions(
+        lighteningLevel: 0.60,
+        smoothnessLevel: 0.75,
+        rednessLevel: 0.35,
+      ),
+    ),
+    ZevCallEffect(
+      id: 'face_lion',
+      name: 'King Lion',
+      category: ZevCallEffectCategory.animals,
+      icon: Icons.wb_sunny_rounded,
+      faceOverlayType: ZevFaceOverlayType.lion,
+      colorEnhance: ColorEnhanceOptions(
+        strengthLevel: 0.75,
+        skinProtectLevel: 0.8,
+      ),
+    ),
+    ZevCallEffect(
+      id: 'face_panda',
+      name: 'Panda Bear',
+      category: ZevCallEffectCategory.animals,
+      icon: Icons.favorite_rounded,
+      faceOverlayType: ZevFaceOverlayType.panda,
+      agoraBeauty: BeautyOptions(
+        lighteningLevel: 0.55,
+        smoothnessLevel: 0.65,
+      ),
+    ),
+    ZevCallEffect(
+      id: 'face_bunny',
+      name: 'Bunny Rabbit',
+      category: ZevCallEffectCategory.animals,
+      icon: Icons.cruelty_free_rounded,
+      faceOverlayType: ZevFaceOverlayType.bunny,
+      agoraBeauty: BeautyOptions(
+        lighteningLevel: 0.60,
+        smoothnessLevel: 0.80,
+      ),
+    ),
+    ZevCallEffect(
+      id: 'face_fox',
+      name: 'Cunning Fox',
+      category: ZevCallEffectCategory.animals,
+      icon: Icons.terrain_rounded,
+      faceOverlayType: ZevFaceOverlayType.fox,
+      colorEnhance: ColorEnhanceOptions(
+        strengthLevel: 0.8,
+        skinProtectLevel: 0.7,
+      ),
+    ),
+    ZevCallEffect(
+      id: 'face_bear',
+      name: 'Teddy Bear',
+      category: ZevCallEffectCategory.animals,
+      icon: Icons.child_care_rounded,
+      faceOverlayType: ZevFaceOverlayType.bear,
+    ),
+    ZevCallEffect(
+      id: 'face_piggy',
+      name: 'Funny Piggy',
+      category: ZevCallEffectCategory.animals,
+      icon: Icons.mood_rounded,
+      faceOverlayType: ZevFaceOverlayType.piggy,
+    ),
+    ZevCallEffect(
+      id: 'face_koala',
+      name: 'Fluffy Koala',
+      category: ZevCallEffectCategory.animals,
+      icon: Icons.face_rounded,
+      faceOverlayType: ZevFaceOverlayType.koala,
+    ),
+
+    // ====================================================
+    // 2. FACE WARPS & MORPHS
+    // ====================================================
+    ZevCallEffect(
       id: 'face_big_nose',
       name: 'Big Nose',
-      category: ZevCallEffectCategory.face,
+      category: ZevCallEffectCategory.morphs,
       icon: Icons.sentiment_very_satisfied_rounded,
       faceOverlayType: ZevFaceOverlayType.bigNose,
       agoraBeauty: BeautyOptions(
@@ -185,7 +285,7 @@ class ZevEffectsCatalog {
     ZevCallEffect(
       id: 'face_big_mouth',
       name: 'Big Mouth',
-      category: ZevCallEffectCategory.face,
+      category: ZevCallEffectCategory.morphs,
       icon: Icons.sentiment_satisfied_alt_rounded,
       faceOverlayType: ZevFaceOverlayType.bigMouth,
       agoraBeauty: BeautyOptions(
@@ -194,9 +294,21 @@ class ZevEffectsCatalog {
       ),
     ),
     ZevCallEffect(
+      id: 'face_chubby',
+      name: 'Chubby Face',
+      category: ZevCallEffectCategory.morphs,
+      icon: Icons.face_retouching_natural_rounded,
+      faceOverlayType: ZevFaceOverlayType.chubbyFace,
+      agoraBeauty: BeautyOptions(
+        lighteningLevel: 0.55,
+        smoothnessLevel: 0.70,
+        rednessLevel: 0.40,
+      ),
+    ),
+    ZevCallEffect(
       id: 'face_alien',
       name: 'Alien Eyes',
-      category: ZevCallEffectCategory.face,
+      category: ZevCallEffectCategory.morphs,
       icon: Icons.visibility_rounded,
       faceOverlayType: ZevFaceOverlayType.alien,
       matrixFilter: ColorFilter.matrix(<double>[
@@ -209,44 +321,61 @@ class ZevEffectsCatalog {
     ZevCallEffect(
       id: 'face_tiny_face',
       name: 'Tiny Face',
-      category: ZevCallEffectCategory.face,
+      category: ZevCallEffectCategory.morphs,
       icon: Icons.child_care_rounded,
       faceOverlayType: ZevFaceOverlayType.tinyFace,
     ),
     ZevCallEffect(
-      id: 'face_cat',
-      name: 'Cute Kitty',
-      category: ZevCallEffectCategory.face,
-      icon: Icons.catching_pokemon_rounded,
-      faceOverlayType: ZevFaceOverlayType.cat,
+      id: 'face_fisheye',
+      name: 'Fish Eye',
+      category: ZevCallEffectCategory.morphs,
+      icon: Icons.lens_rounded,
+      faceOverlayType: ZevFaceOverlayType.fisheye,
+      colorEnhance: ColorEnhanceOptions(
+        strengthLevel: 0.85,
+        skinProtectLevel: 0.8,
+      ),
+    ),
+    ZevCallEffect(
+      id: 'face_long_chin',
+      name: 'Long Chin',
+      category: ZevCallEffectCategory.morphs,
+      icon: Icons.south_rounded,
+      faceOverlayType: ZevFaceOverlayType.longChin,
+    ),
+    ZevCallEffect(
+      id: 'face_square',
+      name: 'Block Head',
+      category: ZevCallEffectCategory.morphs,
+      icon: Icons.crop_square_rounded,
+      faceOverlayType: ZevFaceOverlayType.squareHead,
+    ),
+
+    // ====================================================
+    // 3. PROPS & ACCESSORIES
+    // ====================================================
+    ZevCallEffect(
+      id: 'face_crown',
+      name: 'King Crown',
+      category: ZevCallEffectCategory.props,
+      icon: Icons.emoji_events_rounded,
+      faceOverlayType: ZevFaceOverlayType.crown,
       agoraBeauty: BeautyOptions(
-        lighteningLevel: 0.60,
-        smoothnessLevel: 0.80,
-        rednessLevel: 0.35,
+        lighteningLevel: 0.65,
+        smoothnessLevel: 0.65,
       ),
     ),
     ZevCallEffect(
       id: 'face_disguise',
-      name: 'Disguise',
-      category: ZevCallEffectCategory.face,
-      icon: Icons.face_retouching_natural_rounded,
+      name: 'Detective',
+      category: ZevCallEffectCategory.props,
+      icon: Icons.face_rounded,
       faceOverlayType: ZevFaceOverlayType.disguise,
-    ),
-    ZevCallEffect(
-      id: 'face_crown',
-      name: 'King Crown',
-      category: ZevCallEffectCategory.face,
-      icon: Icons.emoji_events_rounded,
-      faceOverlayType: ZevFaceOverlayType.crown,
-      agoraBeauty: BeautyOptions(
-        lighteningLevel: 0.70,
-        smoothnessLevel: 0.70,
-      ),
     ),
     ZevCallEffect(
       id: 'face_sunglasses',
       name: 'Cool Shades',
-      category: ZevCallEffectCategory.face,
+      category: ZevCallEffectCategory.props,
       icon: Icons.remove_red_eye_rounded,
       faceOverlayType: ZevFaceOverlayType.sunglasses,
       colorEnhance: ColorEnhanceOptions(
@@ -254,159 +383,151 @@ class ZevEffectsCatalog {
         skinProtectLevel: 0.8,
       ),
     ),
-
-    // ----------------------------------------------------
-    // BEAUTY CATEGORY
-    // ----------------------------------------------------
     ZevCallEffect(
-      id: 'beauty_natural',
-      name: 'Natural',
-      category: ZevCallEffectCategory.beauty,
-      icon: Icons.face_rounded,
-      agoraBeauty: BeautyOptions(
-        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastNormal,
-        lighteningLevel: 0.40,
-        smoothnessLevel: 0.55,
-        rednessLevel: 0.20,
-        sharpnessLevel: 0.30,
-      ),
+      id: 'face_pirate',
+      name: 'Pirate Captain',
+      category: ZevCallEffectCategory.props,
+      icon: Icons.sailing_rounded,
+      faceOverlayType: ZevFaceOverlayType.pirate,
     ),
     ZevCallEffect(
-      id: 'beauty_smooth',
-      name: 'Smooth',
-      category: ZevCallEffectCategory.beauty,
-      icon: Icons.auto_fix_high_rounded,
-      agoraBeauty: BeautyOptions(
-        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastNormal,
-        lighteningLevel: 0.55,
-        smoothnessLevel: 0.85,
-        rednessLevel: 0.30,
-        sharpnessLevel: 0.45,
-      ),
-    ),
-    ZevCallEffect(
-      id: 'beauty_soft_portrait',
-      name: 'Portrait',
-      category: ZevCallEffectCategory.beauty,
-      icon: Icons.portrait_rounded,
-      agoraBeauty: BeautyOptions(
-        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastNormal,
-        lighteningLevel: 0.60,
-        smoothnessLevel: 0.70,
-        rednessLevel: 0.35,
-        sharpnessLevel: 0.50,
-      ),
-    ),
-    ZevCallEffect(
-      id: 'beauty_bright',
-      name: 'Brighten',
-      category: ZevCallEffectCategory.beauty,
+      id: 'face_angel',
+      name: 'Angel Halo',
+      category: ZevCallEffectCategory.props,
       icon: Icons.brightness_high_rounded,
+      faceOverlayType: ZevFaceOverlayType.angel,
       agoraBeauty: BeautyOptions(
-        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastHigh,
-        lighteningLevel: 0.85,
-        smoothnessLevel: 0.60,
-        rednessLevel: 0.20,
-        sharpnessLevel: 0.40,
-      ),
-    ),
-    ZevCallEffect(
-      id: 'beauty_glam',
-      name: 'Glam',
-      category: ZevCallEffectCategory.beauty,
-      icon: Icons.auto_awesome_rounded,
-      agoraBeauty: BeautyOptions(
-        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastHigh,
         lighteningLevel: 0.70,
-        smoothnessLevel: 0.90,
-        rednessLevel: 0.50,
-        sharpnessLevel: 0.55,
+        smoothnessLevel: 0.80,
       ),
     ),
     ZevCallEffect(
-      id: 'beauty_studio',
-      name: 'Studio',
-      category: ZevCallEffectCategory.beauty,
-      icon: Icons.camera_indoor_rounded,
-      agoraBeauty: BeautyOptions(
-        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastNormal,
-        lighteningLevel: 0.75,
-        smoothnessLevel: 0.75,
-        rednessLevel: 0.30,
-        sharpnessLevel: 0.60,
-      ),
-    ),
-
-    // ----------------------------------------------------
-    // LIGHTING CATEGORY
-    // ----------------------------------------------------
-    ZevCallEffect(
-      id: 'light_studio',
-      name: 'Studio Light',
-      category: ZevCallEffectCategory.lighting,
-      icon: Icons.light_mode_rounded,
-      agoraBeauty: BeautyOptions(
-        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastHigh,
-        lighteningLevel: 0.85,
-        smoothnessLevel: 0.50,
-        sharpnessLevel: 0.50,
-      ),
-      lowlightEnhance: LowlightEnhanceOptions(
-        level: LowLightEnhanceLevel.lowLightEnhanceLevelFast,
-        mode: LowLightEnhanceMode.lowLightEnhanceAuto,
-      ),
-    ),
-    ZevCallEffect(
-      id: 'light_ring',
-      name: 'Ring Light',
-      category: ZevCallEffectCategory.lighting,
-      icon: Icons.panorama_fish_eye_rounded,
-      agoraBeauty: BeautyOptions(
-        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastNormal,
-        lighteningLevel: 0.90,
-        smoothnessLevel: 0.65,
-        rednessLevel: 0.25,
-      ),
-    ),
-    ZevCallEffect(
-      id: 'light_warm',
-      name: 'Warm Light',
-      category: ZevCallEffectCategory.lighting,
-      icon: Icons.wb_incandescent_rounded,
-      agoraBeauty: BeautyOptions(
-        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastNormal,
-        lighteningLevel: 0.65,
-        smoothnessLevel: 0.55,
-        rednessLevel: 0.45,
-      ),
+      id: 'face_cyberpunk',
+      name: 'Cyber Neon',
+      category: ZevCallEffectCategory.props,
+      icon: Icons.blur_linear_rounded,
+      faceOverlayType: ZevFaceOverlayType.cyberpunk,
       matrixFilter: ColorFilter.matrix(<double>[
-        1.10, 0, 0, 0, 10,
-        0, 1.02, 0, 0, 5,
-        0, 0, 0.90, 0, -10,
+        1.15, 0, 0, 0, 10,
+        0, 1.30, 0, 0, 20,
+        0, 0, 1.45, 0, 30,
         0, 0, 0, 1, 0,
       ]),
     ),
     ZevCallEffect(
-      id: 'light_lowlight_boost',
-      name: 'Low Light',
-      category: ZevCallEffectCategory.lighting,
-      icon: Icons.nightlight_round,
-      lowlightEnhance: LowlightEnhanceOptions(
-        level: LowLightEnhanceLevel.lowLightEnhanceLevelHighQuality,
-        mode: LowLightEnhanceMode.lowLightEnhanceManual,
+      id: 'face_party',
+      name: 'Celebration',
+      category: ZevCallEffectCategory.props,
+      icon: Icons.celebration_rounded,
+      faceOverlayType: ZevFaceOverlayType.party,
+    ),
+    ZevCallEffect(
+      id: 'face_wizard',
+      name: 'Wizard Hat',
+      category: ZevCallEffectCategory.props,
+      icon: Icons.auto_awesome_rounded,
+      faceOverlayType: ZevFaceOverlayType.wizard,
+    ),
+
+    // ====================================================
+    // 4. BEAUTY CATEGORY
+    // ====================================================
+    ZevCallEffect(
+      id: 'beauty_natural',
+      name: 'Natural',
+      category: ZevCallEffectCategory.beauty,
+      icon: Icons.face_retouching_natural_rounded,
+      agoraBeauty: BeautyOptions(
+        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastNormal,
+        lighteningLevel: 0.40,
+        smoothnessLevel: 0.45,
+        rednessLevel: 0.20,
+        sharpnessLevel: 0.25,
       ),
+    ),
+    ZevCallEffect(
+      id: 'beauty_smooth',
+      name: 'Silk Smooth',
+      category: ZevCallEffectCategory.beauty,
+      icon: Icons.spa_rounded,
+      agoraBeauty: BeautyOptions(
+        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastNormal,
+        lighteningLevel: 0.50,
+        smoothnessLevel: 0.80,
+        rednessLevel: 0.25,
+        sharpnessLevel: 0.15,
+      ),
+    ),
+    ZevCallEffect(
+      id: 'beauty_porcelain',
+      name: 'Clean Skin',
+      category: ZevCallEffectCategory.beauty,
+      icon: Icons.clean_hands_rounded,
       agoraBeauty: BeautyOptions(
         lighteningContrastLevel: LighteningContrastLevel.lighteningContrastHigh,
         lighteningLevel: 0.70,
-        smoothnessLevel: 0.40,
+        smoothnessLevel: 0.85,
+        rednessLevel: 0.15,
+        sharpnessLevel: 0.35,
+      ),
+    ),
+    ZevCallEffect(
+      id: 'beauty_rosy',
+      name: 'Rosy Glow',
+      category: ZevCallEffectCategory.beauty,
+      icon: Icons.favorite_rounded,
+      agoraBeauty: BeautyOptions(
+        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastNormal,
+        lighteningLevel: 0.55,
+        smoothnessLevel: 0.65,
+        rednessLevel: 0.55,
+        sharpnessLevel: 0.25,
       ),
     ),
 
-    // ----------------------------------------------------
-    // BACKGROUND VIRTUALIZATION CATEGORY
-    // ----------------------------------------------------
+    // ====================================================
+    // 5. LIGHTING CATEGORY
+    // ====================================================
     ZevCallEffect(
-      id: 'bg_blur_soft',
+      id: 'light_studio',
+      name: 'Studio Light',
+      category: ZevCallEffectCategory.lighting,
+      icon: Icons.wb_sunny_rounded,
+      lowlightEnhance: LowlightEnhanceOptions(
+        mode: LowLightEnhanceMode.lowLightEnhanceAuto,
+        level: LowLightEnhanceLevel.lowLightEnhanceLevelHighQuality,
+      ),
+    ),
+    ZevCallEffect(
+      id: 'light_sunset',
+      name: 'Sunset Bronze',
+      category: ZevCallEffectCategory.lighting,
+      icon: Icons.wb_twilight_rounded,
+      matrixFilter: ColorFilter.matrix(<double>[
+        1.25, 0, 0, 0, 20,
+        0, 1.05, 0, 0, 10,
+        0, 0, 0.85, 0, -10,
+        0, 0, 0, 1, 0,
+      ]),
+    ),
+    ZevCallEffect(
+      id: 'light_cyber',
+      name: 'Cyber Blue',
+      category: ZevCallEffectCategory.lighting,
+      icon: Icons.fluorescent_rounded,
+      matrixFilter: ColorFilter.matrix(<double>[
+        0.85, 0, 0, 0, -10,
+        0, 1.15, 0, 0, 10,
+        0, 0, 1.35, 0, 25,
+        0, 0, 0, 1, 0,
+      ]),
+    ),
+
+    // ====================================================
+    // 6. BACKGROUND BLUR CATEGORY
+    // ====================================================
+    ZevCallEffect(
+      id: 'bg_blur_low',
       name: 'Soft Blur',
       category: ZevCallEffectCategory.background,
       icon: Icons.blur_linear_rounded,
@@ -416,82 +537,38 @@ class ZevEffectsCatalog {
       ),
     ),
     ZevCallEffect(
-      id: 'bg_blur_medium',
-      name: 'Deep Blur',
+      id: 'bg_blur_med',
+      name: 'Portrait Blur',
       category: ZevCallEffectCategory.background,
-      icon: Icons.blur_circular_rounded,
+      icon: Icons.blur_on_rounded,
       virtualBackground: VirtualBackgroundSource(
         backgroundSourceType: BackgroundSourceType.backgroundBlur,
         blurDegree: BackgroundBlurDegree.blurDegreeMedium,
       ),
     ),
     ZevCallEffect(
-      id: 'bg_blur_heavy',
-      name: 'Max Blur',
+      id: 'bg_blur_high',
+      name: 'Heavy Blur',
       category: ZevCallEffectCategory.background,
-      icon: Icons.blur_on_rounded,
+      icon: Icons.blur_circular_rounded,
       virtualBackground: VirtualBackgroundSource(
         backgroundSourceType: BackgroundSourceType.backgroundBlur,
         blurDegree: BackgroundBlurDegree.blurDegreeHigh,
       ),
     ),
-    ZevCallEffect(
-      id: 'bg_studio_dark',
-      name: 'Dark Studio',
-      category: ZevCallEffectCategory.background,
-      icon: Icons.lens_rounded,
-      virtualBackground: VirtualBackgroundSource(
-        backgroundSourceType: BackgroundSourceType.backgroundColor,
-        color: 0xFF0B0F19,
-      ),
-    ),
 
-    // ----------------------------------------------------
-    // COLOR & CINEMATIC CATEGORY
-    // ----------------------------------------------------
+    // ====================================================
+    // 7. COLOR & CINEMA CATEGORY
+    // ====================================================
     ZevCallEffect(
-      id: 'color_sunset',
-      name: 'Sunset',
+      id: 'color_cinema',
+      name: 'Cinema Film',
       category: ZevCallEffectCategory.color,
-      icon: Icons.wb_twilight_rounded,
+      icon: Icons.movie_rounded,
       colorEnhance: ColorEnhanceOptions(
-        strengthLevel: 0.8,
-        skinProtectLevel: 0.7,
+        strengthLevel: 0.80,
+        skinProtectLevel: 0.85,
       ),
-      matrixFilter: ColorFilter.matrix(<double>[
-        1.15, 0, 0, 0, 15,
-        0, 1.00, 0, 0, 2,
-        0, 0, 0.82, 0, -12,
-        0, 0, 0, 1, 0,
-      ]),
-    ),
-    ZevCallEffect(
-      id: 'color_cinematic',
-      name: 'Cinema',
-      category: ZevCallEffectCategory.color,
-      icon: Icons.movie_filter_rounded,
-      colorEnhance: ColorEnhanceOptions(
-        strengthLevel: 0.9,
-        skinProtectLevel: 0.8,
-      ),
-      matrixFilter: ColorFilter.matrix(<double>[
-        1.12, 0, 0, 0, 8,
-        0, 1.08, 0, 0, 8,
-        0, 0, 1.20, 0, 14,
-        0, 0, 0, 1, 0,
-      ]),
-    ),
-    ZevCallEffect(
-      id: 'color_golden',
-      name: 'Golden',
-      category: ZevCallEffectCategory.color,
-      icon: Icons.flare_rounded,
-      matrixFilter: ColorFilter.matrix(<double>[
-        1.18, 0, 0, 0, 20,
-        0, 1.05, 0, 0, 10,
-        0, 0, 0.75, 0, -18,
-        0, 0, 0, 1, 0,
-      ]),
     ),
     ZevCallEffect(
       id: 'color_noir',
@@ -499,56 +576,31 @@ class ZevEffectsCatalog {
       category: ZevCallEffectCategory.color,
       icon: Icons.filter_b_and_w_rounded,
       matrixFilter: ColorFilter.matrix(<double>[
-        0.2126, 0.7152, 0.0722, 0, 0,
-        0.2126, 0.7152, 0.0722, 0, 0,
-        0.2126, 0.7152, 0.0722, 0, 0,
-        0, 0, 0, 1, 0,
+        0.299, 0.587, 0.114, 0, 0,
+        0.299, 0.587, 0.114, 0, 0,
+        0.299, 0.587, 0.114, 0, 0,
+        0,     0,     0,     1, 0,
       ]),
     ),
     ZevCallEffect(
-      id: 'color_cyber',
-      name: 'Cyber Neon',
+      id: 'color_vintage',
+      name: 'Vintage 90s',
       category: ZevCallEffectCategory.color,
-      icon: Icons.electric_bolt_rounded,
+      icon: Icons.camera_alt_rounded,
       matrixFilter: ColorFilter.matrix(<double>[
-        1.25, 0, 0.15, 0, 12,
-        0, 1.05, 0, 0, 0,
-        0.15, 0, 1.35, 0, 24,
-        0, 0, 0, 1, 0,
-      ]),
-    ),
-
-    // ----------------------------------------------------
-    // SPECIAL EFFECTS CATEGORY
-    // ----------------------------------------------------
-    ZevCallEffect(
-      id: 'special_glow',
-      name: 'Dreamy Glow',
-      category: ZevCallEffectCategory.special,
-      icon: Icons.shutter_speed_rounded,
-      agoraBeauty: BeautyOptions(
-        lighteningContrastLevel: LighteningContrastLevel.lighteningContrastHigh,
-        lighteningLevel: 0.85,
-        smoothnessLevel: 0.90,
-        rednessLevel: 0.40,
-        sharpnessLevel: 0.30,
-      ),
-    ),
-    ZevCallEffect(
-      id: 'special_vintage',
-      name: 'Vintage 35mm',
-      category: ZevCallEffectCategory.special,
-      icon: Icons.camera_roll_rounded,
-      matrixFilter: ColorFilter.matrix(<double>[
-        0.393, 0.769, 0.189, 0, 0,
-        0.349, 0.686, 0.168, 0, 0,
-        0.272, 0.534, 0.131, 0, 0,
+        1.10, 0.05, 0, 0, 15,
+        0, 1.05, 0.05, 0, 10,
+        0, 0.05, 0.90, 0, -5,
         0, 0, 0, 1, 0,
       ]),
     ),
   ];
 
-  static List<ZevCallEffect> byCategory(ZevCallEffectCategory category) {
-    return all.where((e) => e.isNone || e.category == category).toList();
+  static List<ZevCallEffect> byCategory(ZevCallEffectCategory cat) {
+    return all.where((e) => e.category == cat || e.id == 'none').toList();
+  }
+
+  static ZevCallEffect findById(String id) {
+    return all.firstWhere((e) => e.id == id, orElse: () => none);
   }
 }
