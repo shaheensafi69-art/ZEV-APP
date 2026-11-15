@@ -215,3 +215,4 @@ $$;
 GRANT SELECT, INSERT, UPDATE ON public.call_participants TO authenticated;
 GRANT EXECUTE ON FUNCTION public.invite_call_participant(uuid, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.update_participant_call_status(uuid, text) TO authenticated;
+
