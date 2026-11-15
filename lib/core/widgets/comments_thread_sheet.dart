@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../services/notification_service.dart';
 import '../services/social_graph_service.dart';
+import '../services/zev_realtime_sync_service.dart';
 import '../theme/zev_theme.dart';
 import '../utils/rich_text_helper.dart';
 import '../utils/text_direction_helper.dart';
@@ -112,6 +113,7 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
 
   // Expanded reply threads
   final Set<String> _expandedThreadIds = {};
+  StreamSubscription<ZevPostCommentUpdate>? _commentSub;
 
   String get _commentsTable =>
       widget.targetType == 'reel' ? 'reel_comments' : 'discussion_comments';
@@ -125,10 +127,16 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
     super.initState();
     _ownerId = widget.targetAuthorId;
     _initData();
+    _commentSub = ZevRealtimeSyncService.instance.onCommentUpdate.listen((event) {
+      if (event.postId == widget.targetId && mounted) {
+        unawaited(_fetchComments(silent: true));
+      }
+    });
   }
 
   @override
   void dispose() {
+    _commentSub?.cancel();
     _commentCtrl.dispose();
     _inputFocus.dispose();
     _scrollCtrl.dispose();
@@ -177,8 +185,11 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
     } catch (_) {}
   }
 
-  Future<void> _fetchComments() async {
+  Future<void> _fetchComments({bool silent = false}) async {
     final currentUserId = _supabase.auth.currentUser?.id;
+    if (!silent && mounted) {
+      setState(() => _isLoading = true);
+    }
     try {
       final results = await Future.wait<dynamic>([
         SocialGraphService.instance.fetchSafetyFilters(),

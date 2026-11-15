@@ -392,3 +392,4 @@ END $$;
 
 -- 7. Execute immediately to mark all currently expired campaigns as completed
 SELECT public.auto_complete_expired_ad_campaigns();
+

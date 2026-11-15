@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/content_deletion_service.dart';
 import '../../../core/services/multi_account_service.dart';
 import '../../../core/services/social_graph_service.dart';
+import '../../../core/services/zev_realtime_sync_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
 import '../../feed/models/feed_post_item.dart';
@@ -135,15 +136,32 @@ class _ProfileScreenState extends State<ProfileScreen>
     return true;
   }
 
+  StreamSubscription<ZevFollowUpdate>? _followSub;
+  StreamSubscription<ZevPostLifecycleUpdate>? _postSub;
+
   @override
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: _isMyProfile ? 4 : 3, vsync: this);
     _loadAllProfileData();
+
+    _followSub = ZevRealtimeSyncService.instance.onFollowUpdate.listen((event) {
+      if ((event.followingId == _targetUserId || event.followerId == _targetUserId) && mounted) {
+        unawaited(_fetchFollowCounts());
+      }
+    });
+
+    _postSub = ZevRealtimeSyncService.instance.onPostUpdate.listen((event) {
+      if (event.authorId == _targetUserId && mounted) {
+        unawaited(_fetchPosts());
+      }
+    });
   }
 
   @override
   void dispose() {
+    _followSub?.cancel();
+    _postSub?.cancel();
     _tabCtrl.dispose();
     super.dispose();
   }

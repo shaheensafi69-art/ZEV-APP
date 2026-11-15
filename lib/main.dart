@@ -12,6 +12,7 @@ import 'core/services/notification_service.dart';
 import 'core/services/secure_local_storage.dart';
 import 'core/services/user_presence_service.dart';
 import 'core/services/zev_pip_service.dart';
+import 'core/services/zev_realtime_sync_service.dart';
 import 'core/services/zev_rtc_service.dart';
 import 'core/theme/zev_theme.dart';
 import 'core/utils/system_ui_helper.dart';
@@ -85,6 +86,7 @@ class _ZevAppState extends State<ZevApp> with WidgetsBindingObserver {
     SystemUiHelper.enableFullScreen();
     UserPresenceService.instance.startPresenceHeartbeat();
     ZevPipService.instance.init();
+    ZevRealtimeSyncService.instance.init();
     unawaited(AppSessionTrackerService.instance.init());
     DeepLinkService.instance.init();
   }
@@ -108,6 +110,10 @@ class _ZevAppState extends State<ZevApp> with WidgetsBindingObserver {
       unawaited(AuthHelper.syncCurrentUserFcmTokenIfLoggedIn());
       NotificationService().startRealtimeNotifications();
       ZevRtcService.instance.startIncomingCallListener();
+      final currentUid = Supabase.instance.client.auth.currentUser?.id;
+      if (currentUid != null && currentUid.isNotEmpty) {
+        ZevRealtimeSyncService.instance.startSync(currentUid);
+      }
       UserPresenceService.instance.updatePresence(isOnline: true);
       AppSessionTrackerService.instance.onAppResumed();
     } else if (state == AppLifecycleState.paused ||

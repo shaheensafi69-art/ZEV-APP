@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,6 +7,7 @@ import '../../../core/services/badge_counter_service.dart';
 import '../../../core/services/feed_algorithm_service.dart';
 import '../../../core/services/social_graph_service.dart';
 import '../../../core/services/zev_ads_service.dart';
+import '../../../core/services/zev_realtime_sync_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_native_ad_card.dart';
@@ -61,12 +63,36 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
   bool _dismissSuggestedCarousel = false;
   String _myAvatarUrl = '';
 
+  StreamSubscription<void>? _storySub;
+  StreamSubscription<void>? _liveSub;
+  StreamSubscription<ZevPostLifecycleUpdate>? _postSub;
+
   @override
   void initState() {
     super.initState();
     _loadMyProfile();
     _fetchFeedData();
     BadgeCounterService.instance.startListening();
+
+    _storySub = ZevRealtimeSyncService.instance.onStoryUpdate.listen((_) {
+      if (mounted) unawaited(_fetchStories());
+    });
+    _liveSub = ZevRealtimeSyncService.instance.onLiveStreamUpdate.listen((_) {
+      if (mounted) unawaited(_fetchStories());
+    });
+    _postSub = ZevRealtimeSyncService.instance.onPostUpdate.listen((event) {
+      if (mounted && (event.action == 'delete' || event.authorId == supabase.auth.currentUser?.id)) {
+        unawaited(_fetchPosts());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _storySub?.cancel();
+    _liveSub?.cancel();
+    _postSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadMyProfile() async {

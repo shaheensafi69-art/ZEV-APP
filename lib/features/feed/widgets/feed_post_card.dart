@@ -8,6 +8,7 @@ import '../../../core/services/content_deletion_service.dart';
 import '../../../core/services/feed_algorithm_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/social_graph_service.dart';
+import '../../../core/services/zev_realtime_sync_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/rich_text_helper.dart';
 import '../../../core/utils/text_direction_helper.dart';
@@ -67,6 +68,10 @@ class _FeedPostCardState extends State<FeedPostCard>
   late final Animation<double> _heartOpacityAnim;
   bool _showFloatingHeart = false;
 
+  StreamSubscription<ZevPostLikeUpdate>? _likeSub;
+  StreamSubscription<ZevPostCommentUpdate>? _commentSub;
+  StreamSubscription<ZevFollowUpdate>? _followSub;
+
   @override
   void initState() {
     super.initState();
@@ -120,13 +125,19 @@ class _FeedPostCardState extends State<FeedPostCard>
         if (mounted) setState(() => _showFloatingHeart = false);
       }
     });
+
+    _setupRealtimeSync();
   }
 
   @override
   void didUpdateWidget(FeedPostCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.post != oldWidget.post) {
+      final idChanged = widget.post.id != oldWidget.post.id;
       _post = widget.post;
+      if (idChanged) {
+        _setupRealtimeSync();
+      }
       final mediaLen = _post.effectiveMediaUrls.length;
       if (mediaLen <= 1) {
         _currentSlide = 0;
@@ -163,8 +174,61 @@ class _FeedPostCardState extends State<FeedPostCard>
     }
   }
 
+  void _setupRealtimeSync() {
+    _likeSub?.cancel();
+    _commentSub?.cancel();
+    _followSub?.cancel();
+
+    _likeSub = ZevRealtimeSyncService.instance.onLikeUpdate.listen((event) {
+      if (event.postId == _post.id && mounted) {
+        final currentUid = supabase.auth.currentUser?.id;
+        setState(() {
+          if (event.isLiked) {
+            _likesCount++;
+            if (currentUid != null && event.userId == currentUid) {
+              _isLiked = true;
+            }
+          } else {
+            if (_likesCount > 0) _likesCount--;
+            if (currentUid != null && event.userId == currentUid) {
+              _isLiked = false;
+            }
+          }
+        });
+      }
+    });
+
+    _commentSub = ZevRealtimeSyncService.instance.onCommentUpdate.listen((event) {
+      if (event.postId == _post.id && mounted) {
+        setState(() {
+          if (event.isAdded) {
+            _commentsCount++;
+          } else {
+            if (_commentsCount > 0) _commentsCount--;
+          }
+        });
+        widget.onCommentsUpdated?.call();
+      }
+    });
+
+    _followSub = ZevRealtimeSyncService.instance.onFollowUpdate.listen((event) {
+      final currentUid = supabase.auth.currentUser?.id;
+      if (currentUid != null &&
+          event.followerId == currentUid &&
+          event.followingId == _post.authorId &&
+          mounted) {
+        setState(() {
+          _isFollowing = event.isFollowing;
+        });
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _likeSub?.cancel();
+    _commentSub?.cancel();
+    _followSub?.cancel();
     _mediaPageCtrl.dispose();
     _heartAnimCtrl.dispose();
     super.dispose();
