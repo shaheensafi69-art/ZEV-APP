@@ -1,19 +1,45 @@
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/material.dart';
 
-/// Top-level categories for ZEV Calling System 2.0 camera filters and effects.
+/// Top-level Mode: Beauty & Lighting vs AR Face Effects
+enum ZevFilterMode {
+  beauty('Beauty & Lighting', Icons.auto_awesome_rounded),
+  effects('AR Face Effects', Icons.face_rounded);
+
+  final String label;
+  final IconData icon;
+  const ZevFilterMode(this.label, this.icon);
+}
+
+/// Categories for ZEV Calling System 2.0 camera filters and effects.
 enum ZevCallEffectCategory {
+  // Effects mode
   animals('Animals', Icons.pets_rounded),
   morphs('Face Warp', Icons.mood_rounded),
   props('Props', Icons.emoji_events_rounded),
-  beauty('Beauty', Icons.face_retouching_natural_rounded),
+  // Beauty mode
   lighting('Lighting', Icons.wb_sunny_rounded),
-  background('Blur', Icons.blur_on_rounded),
-  color('Color', Icons.palette_rounded);
+  beauty('Skin Tuning', Icons.face_retouching_natural_rounded),
+  color('Color Tone', Icons.palette_rounded),
+  background('Blur', Icons.blur_on_rounded);
 
   final String label;
   final IconData icon;
   const ZevCallEffectCategory(this.label, this.icon);
+
+  ZevFilterMode get filterMode {
+    switch (this) {
+      case ZevCallEffectCategory.animals:
+      case ZevCallEffectCategory.morphs:
+      case ZevCallEffectCategory.props:
+        return ZevFilterMode.effects;
+      case ZevCallEffectCategory.lighting:
+      case ZevCallEffectCategory.beauty:
+      case ZevCallEffectCategory.color:
+      case ZevCallEffectCategory.background:
+        return ZevFilterMode.beauty;
+    }
+  }
 }
 
 /// Types of Funny Face Morphs, Animal Filters and AR Overlays.

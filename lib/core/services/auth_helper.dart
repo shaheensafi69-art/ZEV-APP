@@ -105,31 +105,13 @@ class AuthHelper {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('zev_fmc_token_$userId'); // clean legacy pref key
 
-      final cacheKey = 'zev_last_fcm_token_$userId';
-      final lastSavedToken = prefs.getString(cacheKey);
-      if (lastSavedToken == token && explicitToken == null && !forceSync) {
-        // Touch device heartbeat timestamp cleanly without full duplicate writes
-        try {
-          final deviceId = await MfaService.instance.getOrCreateDeviceId();
-          await Supabase.instance.client
-              .from('user_devices')
-              .update({
-                'is_active': true,
-                'app_version': '1.0.0+9',
-                'last_seen_at': DateTime.now().toUtc().toIso8601String(),
-              })
-              .match({'user_id': userId, 'device_id': deviceId});
-        } catch (_) {}
-        return;
-      }
-
       final supabase = Supabase.instance.client;
       final deviceId = await MfaService.instance.getOrCreateDeviceId();
       final deviceName = await MfaService.instance.getDeviceName();
       final platform = kIsWeb ? 'web' : defaultTargetPlatform.name.toLowerCase();
       final nowIso = DateTime.now().toUtc().toIso8601String();
 
-      // 1. Primary multi-device registration (`user_devices`)
+      // 1. Primary multi-device registration (`user_devices`) - ALWAYS guarantee is_active: true
       bool syncedAtLeastOne = false;
       try {
         await supabase.from('user_devices').upsert({
@@ -138,7 +120,7 @@ class AuthHelper {
           'fcm_token': token,
           'platform': platform,
           'device_name': deviceName,
-          'app_version': '1.0.0+9',
+          'app_version': '1.0.0+12',
           'is_active': true,
           'last_seen_at': nowIso,
           'token_updated_at': nowIso,
@@ -178,7 +160,7 @@ class AuthHelper {
 
       // 4. Cache locally only if registration succeeded
       if (syncedAtLeastOne) {
-        await prefs.setString(cacheKey, token);
+        await prefs.setString('zev_last_fcm_token_$userId', token);
       }
       debugPrint(
         'ZEV FCM token registered cleanly for user $userId (device=$deviceId)',

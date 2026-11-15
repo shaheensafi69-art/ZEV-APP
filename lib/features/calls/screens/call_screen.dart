@@ -200,8 +200,14 @@ class _CallScreenState extends State<CallScreen>
   // AR Effects & Filter State
   bool _showEffectsTray = false;
   String _selectedEffectId = 'none';
+  ZevFilterMode _selectedFilterMode = ZevFilterMode.effects;
   ZevCallEffectCategory _selectedEffectCategory = ZevCallEffectCategory.animals;
   ZevBeautyTuning _beautyTuning = const ZevBeautyTuning();
+
+  // Real-time Face Tracking Sensor State (Single & Multi-Face)
+  List<Rectangle> _detectedFaces = [];
+  int _detectedFacesCount = 0;
+  Size? _cameraImageSize;
 
   // Draggable PIP State (Snap-to-4-corners)
   Offset _pipOffset = const Offset(20, 80);
@@ -493,6 +499,9 @@ class _CallScreenState extends State<CallScreen>
       final engine = await ZevRtcService.instance.getOrInitializeEngine();
       await engine.enableVideo();
       await engine.startPreview();
+      try {
+        await engine.enableFaceDetection(true);
+      } catch (_) {}
       if (mounted) {
         setState(() {
           _localVideoController = VideoViewController(
@@ -827,6 +836,25 @@ class _CallScreenState extends State<CallScreen>
           }
         } catch (_) {}
       },
+      onFacePositionChanged: (
+        int imageWidth,
+        int imageHeight,
+        List<Rectangle> vecRectangle,
+        List<int> vecDistance,
+        int numFaces,
+      ) {
+        if (!mounted) return;
+        setState(() {
+          _detectedFacesCount = numFaces;
+          if (numFaces > 0 && vecRectangle.isNotEmpty) {
+            _detectedFaces = vecRectangle;
+            _cameraImageSize =
+                Size(imageWidth.toDouble(), imageHeight.toDouble());
+          } else {
+            _detectedFaces = [];
+          }
+        });
+      },
     );
 
     engine.registerEventHandler(handler);
@@ -845,6 +873,9 @@ class _CallScreenState extends State<CallScreen>
 
     if (_isVideoActive) {
       await engine.enableVideo();
+      try {
+        await engine.enableFaceDetection(true);
+      } catch (_) {}
       try {
         await engine.setVideoEncoderConfiguration(
           const VideoEncoderConfiguration(
@@ -1657,6 +1688,9 @@ class _CallScreenState extends State<CallScreen>
               Positioned.fill(
                 child: ZevArFaceOverlay(
                   type: activeEffect.faceOverlayType,
+                  detectedFaces: _detectedFaces,
+                  cameraImageSize: _cameraImageSize,
+                  isFrontCamera: _isFrontCamera,
                 ),
               ),
             Positioned(
@@ -2332,6 +2366,9 @@ class _CallScreenState extends State<CallScreen>
                     Positioned.fill(
                       child: ZevArFaceOverlay(
                         type: activeEffect.faceOverlayType,
+                        detectedFaces: _detectedFaces,
+                        cameraImageSize: _cameraImageSize,
+                        isFrontCamera: _isFrontCamera,
                       ),
                     ),
                 ]
@@ -2390,7 +2427,7 @@ class _CallScreenState extends State<CallScreen>
     );
   }
 
-  /// AR Face & Camera Effects Tray Carousel
+  /// AR Face & Camera Effects Tray Carousel with Two-Tier Architecture (Beauty vs Effects)
   Widget _buildArEffectsTray() {
     final currentCatEffects =
         ZevEffectsCatalog.byCategory(_selectedEffectCategory);
@@ -2401,9 +2438,9 @@ class _CallScreenState extends State<CallScreen>
         filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
           decoration: BoxDecoration(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.92),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.94),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: Colors.white.withValues(alpha: 0.16),
@@ -2419,82 +2456,191 @@ class _CallScreenState extends State<CallScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Category Bar (Horizontally scrollable to prevent any overflow)
+              // 1. TOP SEGMENTED BAR: [ 💄 BEAUTY & TONES ] vs [ 🎭 AR FACE EFFECTS ]
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _buildTopModeButton(
+                              label: 'BEAUTY & TONES',
+                              icon: Icons.auto_awesome_rounded,
+                              mode: ZevFilterMode.beauty,
+                              fallbackCategory: ZevCallEffectCategory.lighting,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: _buildTopModeButton(
+                              label: 'AR FACE EFFECTS',
+                              icon: Icons.face_rounded,
+                              mode: ZevFilterMode.effects,
+                              fallbackCategory: ZevCallEffectCategory.animals,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  // Close Tray Button
+                  GestureDetector(
+                    onTap: () => setState(() => _showEffectsTray = false),
+                    child: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close_rounded,
+                        size: 16,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // 2. SUB-CATEGORIES BAR (Dynamic based on Beauty vs Effects Mode)
               SizedBox(
-                height: 38,
+                height: 36,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
                   children: [
-                    _buildCategoryPill(
-                      'ANIMALS',
-                      ZevCallEffectCategory.animals,
-                      Icons.pets_rounded,
-                    ),
-                    const SizedBox(width: 6),
-                    _buildCategoryPill(
-                      'WARP',
-                      ZevCallEffectCategory.morphs,
-                      Icons.mood_rounded,
-                    ),
-                    const SizedBox(width: 6),
-                    _buildCategoryPill(
-                      'PROPS',
-                      ZevCallEffectCategory.props,
-                      Icons.emoji_events_rounded,
-                    ),
-                    const SizedBox(width: 6),
-                    _buildCategoryPill(
-                      'BEAUTY',
-                      ZevCallEffectCategory.beauty,
-                      Icons.face_retouching_natural_rounded,
-                    ),
-                    const SizedBox(width: 6),
-                    _buildCategoryPill(
-                      'LIGHT',
-                      ZevCallEffectCategory.lighting,
-                      Icons.wb_sunny_rounded,
-                    ),
-                    const SizedBox(width: 6),
-                    _buildCategoryPill(
-                      'BLUR',
-                      ZevCallEffectCategory.background,
-                      Icons.blur_on_rounded,
-                    ),
-                    const SizedBox(width: 6),
-                    _buildCategoryPill(
-                      'COLOR',
-                      ZevCallEffectCategory.color,
-                      Icons.palette_rounded,
-                    ),
-                    const SizedBox(width: 10),
-                    // Granular Sliders Tuning Button
-                    GestureDetector(
-                      onTap: _openBeautyTuningSheet,
-                      child: Container(
+                    if (_selectedFilterMode == ZevFilterMode.beauty) ...[
+                      _buildCategoryPill(
+                        'LIGHTING',
+                        ZevCallEffectCategory.lighting,
+                        Icons.wb_sunny_rounded,
+                      ),
+                      const SizedBox(width: 6),
+                      _buildCategoryPill(
+                        'SKIN',
+                        ZevCallEffectCategory.beauty,
+                        Icons.face_retouching_natural_rounded,
+                      ),
+                      const SizedBox(width: 6),
+                      _buildCategoryPill(
+                        'COLOR',
+                        ZevCallEffectCategory.color,
+                        Icons.palette_rounded,
+                      ),
+                      const SizedBox(width: 6),
+                      _buildCategoryPill(
+                        'BLUR',
+                        ZevCallEffectCategory.background,
+                        Icons.blur_on_rounded,
+                      ),
+                      const SizedBox(width: 10),
+                      // Granular Sliders Tuning Button
+                      GestureDetector(
+                        onTap: _openBeautyTuningSheet,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                                const Color(0xFF3B82F6).withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: const Color(0xFF3B82F6),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.tune_rounded,
+                                  size: 13, color: Color(0xFF60A5FA)),
+                              SizedBox(width: 4),
+                              Text(
+                                'Tune',
+                                style: TextStyle(
+                                  color: Color(0xFF60A5FA),
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      _buildCategoryPill(
+                        'ANIMALS',
+                        ZevCallEffectCategory.animals,
+                        Icons.pets_rounded,
+                      ),
+                      const SizedBox(width: 6),
+                      _buildCategoryPill(
+                        'WARP',
+                        ZevCallEffectCategory.morphs,
+                        Icons.mood_rounded,
+                      ),
+                      const SizedBox(width: 6),
+                      _buildCategoryPill(
+                        'PROPS',
+                        ZevCallEffectCategory.props,
+                        Icons.emoji_events_rounded,
+                      ),
+                      const SizedBox(width: 10),
+                      // Live Face Tracking Sensor Status Pill
+                      Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 10,
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF3B82F6).withValues(alpha: 0.25),
+                          color: _detectedFacesCount > 0
+                              ? const Color(0xFF10B981).withValues(alpha: 0.20)
+                              : Colors.white.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(999),
                           border: Border.all(
-                            color: const Color(0xFF3B82F6),
-                            width: 1.2,
+                            color: _detectedFacesCount > 0
+                                ? const Color(0xFF10B981)
+                                : Colors.white24,
+                            width: 1,
                           ),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.tune_rounded,
-                                size: 13, color: Color(0xFF60A5FA)),
-                            SizedBox(width: 4),
+                            Icon(
+                              _detectedFacesCount > 0
+                                  ? Icons.face_retouching_natural_rounded
+                                  : Icons.face_rounded,
+                              size: 13,
+                              color: _detectedFacesCount > 0
+                                  ? const Color(0xFF34D399)
+                                  : Colors.white60,
+                            ),
+                            const SizedBox(width: 5),
                             Text(
-                              'Tune',
+                              _detectedFacesCount == 0
+                                  ? 'Detecting face...'
+                                  : _detectedFacesCount == 1
+                                      ? '1 Face Locked'
+                                      : '$_detectedFacesCount Faces Locked',
                               style: TextStyle(
-                                color: Color(0xFF60A5FA),
+                                color: _detectedFacesCount > 0
+                                    ? const Color(0xFF34D399)
+                                    : Colors.white70,
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -2502,30 +2648,13 @@ class _CallScreenState extends State<CallScreen>
                           ],
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Close Tray
-                    GestureDetector(
-                      onTap: () => setState(() => _showEffectsTray = false),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.12),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.close_rounded,
-                          size: 16,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    ),
+                    ],
                   ],
                 ),
               ),
               const SizedBox(height: 10),
 
-              // Effects Carousel
+              // 3. Effects Carousel
               SizedBox(
                 height: 78,
                 child: ListView.separated(
@@ -2589,6 +2718,63 @@ class _CallScreenState extends State<CallScreen>
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopModeButton({
+    required String label,
+    required IconData icon,
+    required ZevFilterMode mode,
+    required ZevCallEffectCategory fallbackCategory,
+  }) {
+    final isSelected = _selectedFilterMode == mode;
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() {
+          _selectedFilterMode = mode;
+          if (_selectedEffectCategory.filterMode != mode) {
+            _selectedEffectCategory = fallbackCategory;
+          }
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
+          borderRadius: BorderRadius.circular(11),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF2563EB).withValues(alpha: 0.4),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: isSelected ? Colors.white : Colors.white60,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.white70,
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
         ),
       ),
     );

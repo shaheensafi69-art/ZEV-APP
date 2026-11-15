@@ -1,16 +1,24 @@
 import 'dart:math' as math;
+import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/material.dart';
 import '../models/zev_call_effects.dart';
 
 /// Real-time AR Face Filter & Morph Overlay Engine for ZEV.
-/// Renders high-fidelity, physics-animated facial features, animal filters,
+/// Supports native hardware single-face and multi-face tracking (Snapchat / Instagram style),
+/// rendering high-fidelity, physics-animated facial features, animal filters,
 /// comedy morphs, and interactive props at 60 FPS.
 class ZevArFaceOverlay extends StatefulWidget {
   final ZevFaceOverlayType type;
+  final List<Rectangle>? detectedFaces;
+  final Size? cameraImageSize;
+  final bool isFrontCamera;
 
   const ZevArFaceOverlay({
     super.key,
     required this.type,
+    this.detectedFaces,
+    this.cameraImageSize,
+    this.isFrontCamera = true,
   });
 
   @override
@@ -50,6 +58,9 @@ class _ZevArFaceOverlayState extends State<ZevArFaceOverlay>
             painter: _ZevArFacePainter(
               type: widget.type,
               progress: _animCtrl.value,
+              detectedFaces: widget.detectedFaces,
+              cameraImageSize: widget.cameraImageSize,
+              isFrontCamera: widget.isFrontCamera,
             ),
             size: Size.infinite,
           );
@@ -62,21 +73,66 @@ class _ZevArFaceOverlayState extends State<ZevArFaceOverlay>
 class _ZevArFacePainter extends CustomPainter {
   final ZevFaceOverlayType type;
   final double progress;
+  final List<Rectangle>? detectedFaces;
+  final Size? cameraImageSize;
+  final bool isFrontCamera;
 
   _ZevArFacePainter({
     required this.type,
     required this.progress,
+    this.detectedFaces,
+    this.cameraImageSize,
+    this.isFrontCamera = true,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.width <= 0 || size.height <= 0) return;
 
-    final cx = size.width / 2;
-    final cy = size.height * 0.42; // Center of head in typical camera view
-    final fw = size.width * 0.65;
-    final fh = size.height * 0.45;
+    final faces = detectedFaces;
+    final imgSize = cameraImageSize;
 
+    if (faces != null &&
+        faces.isNotEmpty &&
+        imgSize != null &&
+        imgSize.width > 0 &&
+        imgSize.height > 0) {
+      // Loop over ALL detected faces (Supports 1, 2, or more faces simultaneously!)
+      for (final face in faces) {
+        final rawX = face.x?.toDouble() ?? 0.0;
+        final rawY = face.y?.toDouble() ?? 0.0;
+        final rawW = (face.width?.toDouble() ?? 100.0).clamp(40.0, imgSize.width);
+        final rawH = (face.height?.toDouble() ?? 120.0).clamp(50.0, imgSize.height);
+
+        final scaleX = size.width / imgSize.width;
+        final scaleY = size.height / imgSize.height;
+        final scale = math.max(scaleX, scaleY);
+
+        final offsetX = (size.width - imgSize.width * scale) / 2;
+        final offsetY = (size.height - imgSize.height * scale) / 2;
+
+        double cx = offsetX + (rawX + rawW / 2) * scale;
+        final cy = offsetY + (rawY + rawH / 2) * scale;
+        final fw = rawW * scale * 1.18;
+        final fh = rawH * scale * 1.18;
+
+        if (isFrontCamera) {
+          cx = size.width - cx;
+        }
+
+        _paintForFace(canvas, cx, cy, fw, fh);
+      }
+    } else {
+      // Smooth fallback when no face detected or camera sensor warming up
+      final cx = size.width / 2;
+      final cy = size.height * 0.42;
+      final fw = size.width * 0.65;
+      final fh = size.height * 0.45;
+      _paintForFace(canvas, cx, cy, fw, fh);
+    }
+  }
+
+  void _paintForFace(Canvas canvas, double cx, double cy, double fw, double fh) {
     switch (type) {
       // ANIMALS
       case ZevFaceOverlayType.dog:
