@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 
 /// Categories for ZEV Calling System 2.0 Beauty, Lighting & Camera Studio.
 enum ZevCallEffectCategory {
+  snapchatTrending('Trending', Icons.local_fire_department_rounded),
+  snapchatFunny('Funny & AR', Icons.sentiment_very_satisfied_rounded),
+  snapchatAnimals('Cute Animals', Icons.pets_rounded),
   lighting('Lighting', Icons.wb_sunny_rounded),
   beauty('Skin Tuning', Icons.face_retouching_natural_rounded),
   color('Color Tone', Icons.palette_rounded),
@@ -19,6 +22,8 @@ class ZevCallEffect {
   final String name;
   final ZevCallEffectCategory category;
   final IconData icon;
+  final String? snapchatLensType;
+  final String? emoji;
   final BeautyOptions? agoraBeauty;
   final VirtualBackgroundSource? virtualBackground;
   final ColorEnhanceOptions? colorEnhance;
@@ -30,6 +35,8 @@ class ZevCallEffect {
     required this.name,
     required this.category,
     required this.icon,
+    this.snapchatLensType,
+    this.emoji,
     this.agoraBeauty,
     this.virtualBackground,
     this.colorEnhance,
@@ -123,6 +130,130 @@ class ZevEffectsCatalog {
 
   static const List<ZevCallEffect> all = [
     none,
+
+    // ====================================================
+    // SNAPCHAT CREATIVE LIBRARY - TRENDING LENSES
+    // ====================================================
+    ZevCallEffect(
+      id: 'snap_anime',
+      name: 'Anime Eyes',
+      category: ZevCallEffectCategory.snapchatTrending,
+      icon: Icons.auto_awesome_rounded,
+      snapchatLensType: 'anime',
+      emoji: '✨',
+    ),
+    ZevCallEffect(
+      id: 'snap_cyberpunk',
+      name: 'Cyber HUD',
+      category: ZevCallEffectCategory.snapchatTrending,
+      icon: Icons.smart_toy_rounded,
+      snapchatLensType: 'cyberpunk',
+      emoji: '🤖',
+    ),
+    ZevCallEffect(
+      id: 'snap_devil',
+      name: 'Neon Horns',
+      category: ZevCallEffectCategory.snapchatTrending,
+      icon: Icons.local_fire_department_rounded,
+      snapchatLensType: 'devil_angel',
+      emoji: '😈',
+    ),
+    ZevCallEffect(
+      id: 'snap_vhs',
+      name: 'Retro VHS',
+      category: ZevCallEffectCategory.snapchatTrending,
+      icon: Icons.videocam_rounded,
+      snapchatLensType: 'vhs',
+      emoji: '📼',
+    ),
+
+    // ====================================================
+    // SNAPCHAT CREATIVE LIBRARY - FUNNY & DISTORT
+    // ====================================================
+    ZevCallEffect(
+      id: 'snap_big_mouth',
+      name: 'Big Mouth',
+      category: ZevCallEffectCategory.snapchatFunny,
+      icon: Icons.sentiment_very_satisfied_rounded,
+      snapchatLensType: 'big_mouth',
+      emoji: '🤪',
+    ),
+    ZevCallEffect(
+      id: 'snap_giant_nose',
+      name: 'Giant Nose',
+      category: ZevCallEffectCategory.snapchatFunny,
+      icon: Icons.sentiment_very_satisfied_rounded,
+      snapchatLensType: 'giant_nose',
+      emoji: '👃',
+    ),
+    ZevCallEffect(
+      id: 'snap_alien',
+      name: 'Cosmic Alien',
+      category: ZevCallEffectCategory.snapchatFunny,
+      icon: Icons.rocket_launch_rounded,
+      snapchatLensType: 'alien',
+      emoji: '👽',
+    ),
+    ZevCallEffect(
+      id: 'snap_crying',
+      name: 'Sad Crying',
+      category: ZevCallEffectCategory.snapchatFunny,
+      icon: Icons.mood_bad_rounded,
+      snapchatLensType: 'crying',
+      emoji: '😭',
+    ),
+
+    // ====================================================
+    // SNAPCHAT CREATIVE LIBRARY - CUTE ANIMALS
+    // ====================================================
+    ZevCallEffect(
+      id: 'snap_dog',
+      name: 'Dog Ears',
+      category: ZevCallEffectCategory.snapchatAnimals,
+      icon: Icons.pets_rounded,
+      snapchatLensType: 'dog',
+      emoji: '🐶',
+    ),
+    ZevCallEffect(
+      id: 'snap_monkey',
+      name: 'Cheeky Ape',
+      category: ZevCallEffectCategory.snapchatAnimals,
+      icon: Icons.pets_rounded,
+      snapchatLensType: 'monkey',
+      emoji: '🐵',
+    ),
+    ZevCallEffect(
+      id: 'snap_cat',
+      name: 'Pink Kitty',
+      category: ZevCallEffectCategory.snapchatAnimals,
+      icon: Icons.pets_rounded,
+      snapchatLensType: 'cat',
+      emoji: '🐱',
+    ),
+    ZevCallEffect(
+      id: 'snap_bunny',
+      name: 'Cute Bunny',
+      category: ZevCallEffectCategory.snapchatAnimals,
+      icon: Icons.cruelty_free_rounded,
+      snapchatLensType: 'bunny',
+      emoji: '🐰',
+    ),
+    ZevCallEffect(
+      id: 'snap_panda',
+      name: 'Fluffy Panda',
+      category: ZevCallEffectCategory.snapchatAnimals,
+      icon: Icons.pets_rounded,
+      snapchatLensType: 'panda',
+      emoji: '🐼',
+    ),
+    ZevCallEffect(
+      id: 'snap_deer',
+      name: 'Bambi Fawn',
+      category: ZevCallEffectCategory.snapchatAnimals,
+      icon: Icons.forest_rounded,
+      snapchatLensType: 'deer',
+      emoji: '🦌',
+    ),
 
     // ====================================================
     // 1. LIGHTING CATEGORY (Studio & AI Lowlight)

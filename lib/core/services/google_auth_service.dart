@@ -21,9 +21,12 @@ class GoogleAuthService {
   static final SupabaseClient _supabase = Supabase.instance.client;
 
   static final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId: kIsWeb ? webClientId : null,
     serverClientId: webClientId,
     scopes: const <String>[
       'email',
+      'profile',
+      'openid',
     ],
   );
 
@@ -48,7 +51,12 @@ class GoogleAuthService {
         return null;
       }
 
-      // 3. Obtain authentication credentials (ID Token & Access Token)
+      // 3. Clear auth cache on mobile to prevent stale tokens
+      try {
+        await googleAccount.clearAuthCache();
+      } catch (_) {}
+
+      // 4. Obtain authentication credentials (ID Token & Access Token)
       final GoogleSignInAuthentication googleAuth =
           await googleAccount.authentication;
 
@@ -56,10 +64,10 @@ class GoogleAuthService {
       final String? accessToken = googleAuth.accessToken;
 
       if (idToken == null || idToken.isEmpty) {
-        throw 'Unable to obtain Google ID Token from Google Play Services.';
+        throw 'Unable to obtain Google ID Token from Google Play Services. Please ensure your Google account is active and Play Services is updated.';
       }
 
-      // 4. Authenticate directly with Supabase via native ID Token
+      // 5. Authenticate directly with Supabase via native ID Token (NO external browser)
       final AuthResponse authResponse = await _supabase.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
@@ -96,29 +104,12 @@ class GoogleAuthService {
       return authResponse;
     } catch (e) {
       debugPrint('[GoogleAuthService] Native Google Sign-In error: $e');
-
-      // Seamless Fallback: If native Google Play Services is still propagating or
-      // encounters a local device cache issue, seamlessly invoke Supabase OAuth flow
-      // so the user is never blocked by a technical error dialog.
-      try {
-        debugPrint('[GoogleAuthService] Engaging seamless in-app Google OAuth fallback...');
-        final bool launched = await _supabase.auth.signInWithOAuth(
-          OAuthProvider.google,
-          redirectTo: kIsWeb ? null : 'zev://auth/callback',
-          authScreenLaunchMode: kIsWeb
-              ? LaunchMode.platformDefault
-              : LaunchMode.externalApplication,
-        );
-        if (!launched) {
-          onCancel?.call();
-        }
-        return null;
-      } catch (fallbackError) {
-        debugPrint('[GoogleAuthService] OAuth fallback also failed: $fallbackError');
-        final errorStr = e.toString().replaceFirst('Exception: ', '');
-        onError?.call(errorStr);
-        return null;
-      }
+      final errorStr = e
+          .toString()
+          .replaceFirst('Exception: ', '')
+          .replaceFirst('AuthException: ', '');
+      onError?.call(errorStr);
+      return null;
     }
   }
 

@@ -35,7 +35,7 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
     setState(() => _isLoading = true);
 
     try {
-      await GoogleAuthService.signInWithGoogle(
+      final res = await GoogleAuthService.signInWithGoogle(
         onCancel: () {
           if (mounted) setState(() => _isLoading = false);
         },
@@ -48,7 +48,9 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
       );
       if (mounted) {
         setState(() => _isLoading = false);
-        widget.onSuccess?.call();
+        if (res != null && (res.user != null || res.session != null)) {
+          widget.onSuccess?.call();
+        }
       }
     } catch (e) {
       if (mounted) {

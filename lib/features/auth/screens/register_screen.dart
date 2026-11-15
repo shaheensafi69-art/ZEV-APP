@@ -925,6 +925,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         // 1-Tap Fast-Track Google Sign-Up (Native In-App, ChatGPT & Gemini Grade)
         GoogleSignInButton(
           text: "Sign up with Google",
+          onSuccess: () {
+            final user = Supabase.instance.client.auth.currentUser;
+            if (user != null && mounted) {
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const ZevMainLayout()),
+                (route) => false,
+              );
+            }
+          },
           onError: (msg) {
             setState(() => _errorMsg = msg);
           },

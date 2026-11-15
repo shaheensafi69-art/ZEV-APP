@@ -16,6 +16,7 @@ import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../main.dart';
 import '../models/zev_call_effects.dart';
+import '../widgets/zev_snapchat_lens_overlay.dart';
 
 /// Production-Grade ZEV Calling System 2.0 Screen.
 /// Supports 1-to-1 and Group Calls, instant WebRTC connection, draggable
@@ -1955,7 +1956,17 @@ class _CallScreenState extends State<CallScreen>
                         children: [
                           AspectRatio(
                             aspectRatio: 9 / 16,
-                            child: videoWidget,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                videoWidget,
+                                if (activeEffect.snapchatLensType != null)
+                                  ZevSnapchatLensOverlay(
+                                    lensType: activeEffect.snapchatLensType!,
+                                    isSmall: false,
+                                  ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
@@ -1965,6 +1976,11 @@ class _CallScreenState extends State<CallScreen>
                     fit: StackFit.expand,
                     children: [
                       videoWidget,
+                      if (activeEffect.snapchatLensType != null)
+                        ZevSnapchatLensOverlay(
+                          lensType: activeEffect.snapchatLensType!,
+                          isSmall: false,
+                        ),
                     ],
                   ),
           ),
@@ -2322,6 +2338,18 @@ class _CallScreenState extends State<CallScreen>
                     key: const ValueKey('local_self_preview'),
                     controller: _localVideoController!,
                   ),
+                  Builder(
+                    builder: (context) {
+                      final myEffect = ZevEffectsCatalog.findById(_selectedEffectId);
+                      if (myEffect.snapchatLensType != null) {
+                        return ZevSnapchatLensOverlay(
+                          lensType: myEffect.snapchatLensType!,
+                          isSmall: true,
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
                 ]
                 else
                   // Camera Off inside PIP
@@ -2425,7 +2453,7 @@ class _CallScreenState extends State<CallScreen>
                         Icon(Icons.auto_awesome_rounded, size: 14, color: Color(0xFF60A5FA)),
                         SizedBox(width: 6),
                         Text(
-                          'BEAUTY & LIGHTING STUDIO',
+                          'SNAPCHAT LENSES & BEAUTY STUDIO',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 11.5,
@@ -2488,7 +2516,7 @@ class _CallScreenState extends State<CallScreen>
               ),
               const SizedBox(height: 10),
 
-              // 2. CATEGORIES BAR (LIGHTING, SKIN, COLOR, BLUR)
+              // 2. CATEGORIES BAR (TRENDING, FUNNY & AR, ANIMALS, LIGHTING, SKIN, COLOR, BLUR)
               SizedBox(
                 height: 36,
                 child: ListView(
@@ -2496,6 +2524,24 @@ class _CallScreenState extends State<CallScreen>
                   physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 2),
                   children: [
+                    _buildCategoryPill(
+                      'TRENDING',
+                      ZevCallEffectCategory.snapchatTrending,
+                      Icons.local_fire_department_rounded,
+                    ),
+                    const SizedBox(width: 6),
+                    _buildCategoryPill(
+                      'FUNNY & AR',
+                      ZevCallEffectCategory.snapchatFunny,
+                      Icons.sentiment_very_satisfied_rounded,
+                    ),
+                    const SizedBox(width: 6),
+                    _buildCategoryPill(
+                      'ANIMALS',
+                      ZevCallEffectCategory.snapchatAnimals,
+                      Icons.pets_rounded,
+                    ),
+                    const SizedBox(width: 6),
                     _buildCategoryPill(
                       'LIGHTING',
                       ZevCallEffectCategory.lighting,
@@ -2563,11 +2609,18 @@ class _CallScreenState extends State<CallScreen>
                                 width: isSelected ? 2.5 : 1.2,
                               ),
                             ),
-                            child: Icon(
-                              item.icon,
-                              size: 22,
-                              color: Colors.white,
-                            ),
+                            child: item.emoji != null
+                                ? Center(
+                                    child: Text(
+                                      item.emoji!,
+                                      style: const TextStyle(fontSize: 24),
+                                    ),
+                                  )
+                                : Icon(
+                                    item.icon,
+                                    size: 22,
+                                    color: Colors.white,
+                                  ),
                           ),
                           const SizedBox(height: 4),
                           Text(
