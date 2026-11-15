@@ -81,6 +81,16 @@ class AuthHelper {
         final messaging = FirebaseMessaging.instance;
         final vapidKey = AppConfig.firebaseVapidKey;
 
+        // If forceSync is true, delete existing token first to purge any stale/mismatched tokens
+        if (forceSync) {
+          try {
+            await messaging.deleteToken();
+            debugPrint('[ZEV-FCM] Refreshed FCM token via deleteToken()');
+          } catch (delErr) {
+            debugPrint('[ZEV-FCM] deleteToken notice: $delErr');
+          }
+        }
+
         // Retry up to 3 times with progressive backoff to allow Google Play Services to warm up
         for (int attempt = 1; attempt <= 3; attempt++) {
           try {
