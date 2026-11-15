@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/calls/screens/call_screen.dart';
 import '../../main.dart';
+import '../config/app_config.dart';
 import 'api_client.dart';
 
 class ZevAgoraCredentials {
@@ -47,6 +49,9 @@ class ZevCallSession {
   final String status;
   final String agoraChannel;
   final int durationSeconds;
+  final bool isGroup;
+  final String? title;
+  final int maxParticipants;
   final DateTime? startedAt;
   final DateTime? answeredAt;
   final DateTime? endedAt;
@@ -60,6 +65,9 @@ class ZevCallSession {
     required this.status,
     required this.agoraChannel,
     this.durationSeconds = 0,
+    this.isGroup = false,
+    this.title,
+    this.maxParticipants = 8,
     this.startedAt,
     this.answeredAt,
     this.endedAt,
@@ -80,6 +88,9 @@ class ZevCallSession {
       status: (map['status'] ?? 'ringing').toString(),
       agoraChannel: (map['agora_channel'] ?? '').toString(),
       durationSeconds: (map['duration_seconds'] as num?)?.toInt() ?? 0,
+      isGroup: map['is_group'] == true,
+      title: map['title']?.toString(),
+      maxParticipants: (map['max_participants'] as num?)?.toInt() ?? 8,
       startedAt: DateTime.tryParse((map['started_at'] ?? '').toString()),
       answeredAt: DateTime.tryParse((map['answered_at'] ?? '').toString()),
       endedAt: DateTime.tryParse((map['ended_at'] ?? '').toString()),
@@ -87,8 +98,53 @@ class ZevCallSession {
   }
 }
 
+class ZevCallParticipant {
+  final String id;
+  final String callSessionId;
+  final String userId;
+  final String role;
+  final String status;
+  final DateTime? joinedAt;
+  final DateTime? leftAt;
+  final Map<String, dynamic> profile;
+
+  const ZevCallParticipant({
+    required this.id,
+    required this.callSessionId,
+    required this.userId,
+    required this.role,
+    required this.status,
+    this.joinedAt,
+    this.leftAt,
+    this.profile = const {},
+  });
+
+  bool get isJoined => status == 'joined';
+  bool get isRinging => status == 'ringing';
+  bool get isHost => role == 'host';
+
+  factory ZevCallParticipant.fromMap(
+    Map<String, dynamic> map, {
+    Map<String, dynamic>? profile,
+  }) {
+    return ZevCallParticipant(
+      id: (map['id'] ?? '').toString(),
+      callSessionId: (map['call_session_id'] ?? '').toString(),
+      userId: (map['user_id'] ?? '').toString(),
+      role: (map['role'] ?? 'participant').toString(),
+      status: (map['status'] ?? 'invited').toString(),
+      joinedAt: DateTime.tryParse((map['joined_at'] ?? '').toString()),
+      leftAt: DateTime.tryParse((map['left_at'] ?? '').toString()),
+      profile: profile ??
+          (map['profiles'] is Map
+              ? Map<String, dynamic>.from(map['profiles'])
+              : const {}),
+    );
+  }
+}
+
 /// Client-side signaling, global incoming-call listener & Agora RTC token service
-/// for ZEV Voice Calls, Video Calls, and Interactive Live Broadcasting.
+/// for ZEV Voice Calls, Video Calls, Group Calls, and Interactive Live Broadcasting.
 class ZevRtcService {
   ZevRtcService._();
   static final ZevRtcService instance = ZevRtcService._();
@@ -100,6 +156,19 @@ class ZevRtcService {
   String? activeCallId;
   final Set<String> _handledCallIds = {};
 
+  // Token cache to eliminate RTC connection latency
+  final Map<String, ZevAgoraCredentials> _tokenCache = {};
+
+  // Pre-warmed Agora RTC Engine instance
+  RtcEngine? _warmEngine;
+  bool _isEngineInitializing = false;
+
+  // Persistent in-app minimized floating call bar state
+  final ValueNotifier<ZevCallSession?> minimizedCallNotifier = ValueNotifier(null);
+  Map<String, dynamic>? minimizedPeerProfile;
+  int minimizedDurationSeconds = 0;
+  bool isMinimizedMicMuted = false;
+
   void setActiveCall(String? callId) {
     activeCallId = (callId != null && callId.trim().isNotEmpty)
         ? callId.trim()
@@ -109,6 +178,52 @@ class ZevRtcService {
   void clearActiveCall(String callId) {
     if (activeCallId == callId) {
       activeCallId = null;
+    }
+  }
+
+  /// Obtains or initializes the pre-warmed Agora RTC Engine.
+  /// Eliminates the 1.5s cold-start initialization delay during call pickup.
+  Future<RtcEngine> getOrInitializeEngine({String? appId}) async {
+    if (_warmEngine != null) {
+      return _warmEngine!;
+    }
+    if (_isEngineInitializing) {
+      while (_isEngineInitializing) {
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
+      if (_warmEngine != null) return _warmEngine!;
+    }
+
+    _isEngineInitializing = true;
+    try {
+      final resolvedAppId = (appId != null && appId.isNotEmpty)
+          ? appId
+          : AppConfig.agoraAppId;
+      final engine = createAgoraRtcEngine();
+      await engine.initialize(
+        RtcEngineContext(
+          appId: resolvedAppId,
+          channelProfile: ChannelProfileType.channelProfileCommunication,
+          audioScenario: AudioScenarioType.audioScenarioDefault,
+        ),
+      );
+      _warmEngine = engine;
+      return engine;
+    } finally {
+      _isEngineInitializing = false;
+    }
+  }
+
+  Future<void> releaseWarmEngine() async {
+    final eng = _warmEngine;
+    _warmEngine = null;
+    if (eng != null) {
+      try {
+        await eng.leaveChannel();
+      } catch (_) {}
+      try {
+        await eng.release();
+      } catch (_) {}
     }
   }
 
@@ -206,12 +321,28 @@ class ZevRtcService {
       return;
     }
 
+    // Pre-warm Agora engine and pre-fetch token immediately in background!
+    // This allows near-instant connection when receiver taps Accept!
+    unawaited(
+      fetchCallToken(callSessionId: session.id)
+          .then<void>((_) {})
+          .catchError((_) {}),
+    );
+    unawaited(
+      getOrInitializeEngine()
+          .then<void>((_) {})
+          .catchError((_) {}),
+    );
+
     // If user is already busy on another active call, signal busy cleanly.
     if (activeCallId != null && activeCallId != session.id) {
       _handledCallIds.add(session.id);
       unawaited(
-        respondCall(callId: session.id, action: 'busy', reason: 'busy_on_other_call')
-            .catchError((_) => session),
+        respondCall(
+          callId: session.id,
+          action: 'busy',
+          reason: 'busy_on_other_call',
+        ).catchError((_) => session),
       );
       return;
     }
@@ -284,26 +415,45 @@ class ZevRtcService {
     return ZevAgoraCredentials.fromJson(json);
   }
 
-  /// Requests a short-lived Agora RTC token for a 1-to-1 Voice or Video call.
-  Future<ZevAgoraCredentials> fetchCallToken({required String callSessionId}) async {
+  /// Requests a short-lived Agora RTC token for a 1-to-1 or group call.
+  /// Automatically caches tokens to prevent redundant network handshakes.
+  Future<ZevAgoraCredentials> fetchCallToken({
+    required String callSessionId,
+  }) async {
+    final cleanId = callSessionId.trim();
+    if (_tokenCache.containsKey(cleanId)) {
+      final cached = _tokenCache[cleanId]!;
+      if (cached.expiresAt == null ||
+          cached.expiresAt!.isAfter(
+            DateTime.now().add(const Duration(minutes: 5)),
+          )) {
+        return cached;
+      }
+      _tokenCache.remove(cleanId);
+    }
+
     final json = await ApiClient.instance.post(
       '/api/v1/agora/token',
       data: {
         'mode': 'call',
-        'callSessionId': callSessionId,
+        'callSessionId': cleanId,
       },
       requireAuth: true,
     );
-    return ZevAgoraCredentials.fromJson(json);
+    final creds = ZevAgoraCredentials.fromJson(json);
+    _tokenCache[cleanId] = creds;
+    return creds;
   }
 
   /// Creates a ringing `call_sessions` row via Supabase RPC and dispatches
-  /// an incoming-call FCM push notification to wake the callee when offline/backgrounded.
+  /// an incoming-call FCM push notification.
   Future<ZevCallSession> initiateCall({
     required String calleeId,
     required String callType,
     required String callerDisplayName,
     String? conversationId,
+    bool isGroup = false,
+    String? title,
   }) async {
     final res = await _supabase.rpc(
       'initiate_call_session',
@@ -354,5 +504,85 @@ class ZevRtcService {
       },
     );
     return ZevCallSession.fromMap(Map<String, dynamic>.from(res as Map));
+  }
+
+  /// Invites a new participant to an active call (converting to a group call).
+  Future<ZevCallParticipant?> inviteParticipant({
+    required String callId,
+    required String userId,
+    String? inviterDisplayName,
+  }) async {
+    try {
+      final res = await _supabase.rpc(
+        'invite_call_participant',
+        params: {
+          'p_call_id': callId,
+          'p_user_id': userId,
+        },
+      );
+      final participant = ZevCallParticipant.fromMap(
+        Map<String, dynamic>.from(res as Map),
+      );
+
+      unawaited(
+        ApiClient.instance.post(
+          '/api/v1/push/send',
+          data: {
+            'recipientUserId': userId,
+            'title': 'Group Call Invitation',
+            'body': '${inviterDisplayName ?? "A friend"} invited you to join a call',
+            'notificationType': 'group_call',
+            'deepLink': '/call/$callId',
+          },
+          requireAuth: true,
+        ).catchError((_) => <String, dynamic>{}),
+      );
+
+      return participant;
+    } catch (e) {
+      debugPrint('[ZevRtcService] inviteParticipant error: $e');
+      return null;
+    }
+  }
+
+  /// Updates current user's participant status in a group call.
+  Future<void> updateParticipantStatus({
+    required String callId,
+    required String status,
+  }) async {
+    try {
+      await _supabase.rpc(
+        'update_participant_call_status',
+        params: {
+          'p_call_id': callId,
+          'p_status': status,
+        },
+      );
+    } catch (e) {
+      debugPrint('[ZevRtcService] updateParticipantStatus error: $e');
+    }
+  }
+
+  /// Fetches all active participants for a call session.
+  Future<List<ZevCallParticipant>> fetchParticipants(
+    String callSessionId,
+  ) async {
+    try {
+      final res = await _supabase
+          .from('call_participants')
+          .select('*, profiles:user_id(id, username, first_name, last_name, avatar_url, is_verified)')
+          .eq('call_session_id', callSessionId);
+      final list = (res as List).whereType<Map>().toList();
+      return list.map((m) {
+        final raw = Map<String, dynamic>.from(m);
+        final prof = raw['profiles'] is Map
+            ? Map<String, dynamic>.from(raw['profiles'])
+            : null;
+        return ZevCallParticipant.fromMap(raw, profile: prof);
+      }).toList();
+    } catch (e) {
+      debugPrint('[ZevRtcService] fetchParticipants error: $e');
+      return [];
+    }
   }
 }

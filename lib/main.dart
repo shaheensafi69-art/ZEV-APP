@@ -14,6 +14,7 @@ import 'core/services/user_presence_service.dart';
 import 'core/services/zev_rtc_service.dart';
 import 'core/theme/zev_theme.dart';
 import 'core/utils/system_ui_helper.dart';
+import 'features/calls/widgets/zev_floating_call_banner.dart';
 import 'features/splash/screens/zev_splash_screen.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
@@ -131,7 +132,17 @@ class _ZevAppState extends State<ZevApp> with WidgetsBindingObserver {
       builder: (context, child) {
         return Directionality(
           textDirection: TextDirection.ltr,
-          child: child ?? const SizedBox.shrink(),
+          child: Stack(
+            children: [
+              child ?? const SizedBox.shrink(),
+              const Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: ZevFloatingCallBanner(),
+              ),
+            ],
+          ),
         );
       },
       home: widget.home,

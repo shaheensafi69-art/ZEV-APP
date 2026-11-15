@@ -1,1393 +1,969 @@
-من تمام این موارد را به شکل یک سند فنی و اجرایی برای ایجنت آماده می‌کنم؛ طوری که ایجنت فقط چند مشکل را رفع نکند، بلکه ZEV را از نظر معماری، دیتابیس، قابلیت‌ها، امنیت، سرعت و تجربه کاربری به یک شبکه اجتماعی حرفه‌ای تبدیل کند.
+سلام، خوبم، ممنون! ❤️
 
-یک تصمیم مهم در این رودمپ داریم:
+مشکلاتی که توضیح دادی را کامل بررسی کردم. به نظرم وقت آن رسیده که سیستم تماس ZEV از حالت یک قابلیت ساده خارج شود و به یک سیستم ارتباطی حرفه‌ای در سطح WhatsApp، Instagram و Snapchat تبدیل شود.
 
-هیچ دیتابیس یا اطلاعات فعلی کاربران نباید بدون بررسی و برنامه مهاجرت تغییر یا حذف شود. ایجنت اول باید پروژه را بررسی کند، بعد نقشه اصلاح را اجرا کند.
+یک نکته مهم: فقط تغییر ظاهر کافی نیست. باید هم‌زمان روی **موتور تماس، سرعت اتصال، WebRTC، پردازش تصویر، مدیریت دوربین، اجرای پس‌زمینه و رابط کاربری** کار شود.
 
-این سند را می‌توانی مستقیماً به ایجنت برنامه‌نویسی بدهی.
+من برایت یک رودمپ فنی و اجرایی آماده کردم که می‌توانی مستقیم به Antigravity بدهی. روی فیلترها و افکت‌ها عمداً تمرکز بیشتری گذاشته‌ام.
 
-# ZEV — Complete Engineering & Product Transformation Roadmap
+# **ZEV Calling System 2.0**
 
-## دستور جامع بازسازی، توسعه و بهینه‌سازی ZEV در سطح Instagram
+Full Upgrade
 
-**هدف پروژه:** تبدیل ZEV به یک شبکه اجتماعی کامل، سریع، پایدار، امن و حرفه‌ای با تجربه کاربری در سطح Instagram یا بهتر از آن.
+13 Major Areas
 
-**تکنولوژی‌های فعلی:**
+Premium Experience
 
-- Mobile App: Flutter
-- Database: Supabase PostgreSQL
-- Object Storage: Cloudflare R2
-- Push Notifications: Firebase Cloud Messaging (FCM)
-- Authentication: Supabase Auth با Google OAuth و Email/Password
-- زیرساخت CDN: Cloudflare
+[Video Call Experience — Mobile UI by Evgeniya Kuzenkova on Dribbble](https://images.openai.com/static-rsc-4/HYczBS48B3Kam8QMFhPlsl85bH9LJWc0zMI8H05g-SHrdj3aWaNap2dgTm54XNDlJ_3F3D8wsCyFU_7IMEW1za9a3coMeRkAaoJ0Dj-ZUw7Zy91APz2qOFivpvpyelvcgZ1fWO99-xo_ZWpVqfI0C-AXMnV2lNA0AajmSjn2JLY?purpose=inline)
 
----
+[Face Filters for Video | Real-Time Beauty Filters | BIGVU](https://images.openai.com/static-rsc-4/LyyzesMxLNAM89xVwQzvr44yhPEX_o_KVkgUUxDDcCGTkPaxauOZl7VLSboFHCuOUUL7HMxc5z3LLjQvQEGQJkXcC43Ljx6YMTXbChByEdzJziyMa5UCyQR6ytTNcb8CiVjPsMatRhbwuweWKpZ743UuoFqezTScVT62K2hSomA?purpose=inline)
 
-# بخش اول: قوانین و اصول غیرقابل‌مذاکره پروژه
+[Rekomendasi Aplikasi Chat Praktis dan Ringan, Alternatif saat WhatsApp Down](https://images.openai.com/static-rsc-4/dB1t-4_M-q5JnhPJaQl58ZFaaDdbmE4qZIZS9l1PAKFkDw_sU3b-Rte_cE0k2OxctlGy4WDTRrfPT_Dva_Go-UbmsZE7JQZcDn9t0GvZeSfq0SJAu_VRfhDLODkJct1Ch2YJ_yGgH2I-NCa9Ap9UqsimmGA8MjD6hrcqnH9hrio?purpose=inline)
 
-قبل از هر تغییری، این قوانین باید رعایت شوند:
+14
 
-1. ابتدا تمام پروژه Flutter، بک‌اند، Supabase، Firebase و Cloudflare را بررسی کن.
-2. هیچ قابلیتی را که اکنون درست کار می‌کند بدون دلیل خراب یا حذف نکن.
-3. هیچ جدول، ستون، اطلاعات کاربر، پست، پیام یا فایل موجودی را بدون بررسی حذف نکن.
-4. تمام تغییرات دیتابیس باید از طریق Migrationهای نسخه‌بندی‌شده و قابل بازگشت انجام شوند.
-5. قبل از Migration، از دیتابیس Backup قابل بازیابی تهیه کن.
-6. از کاربران فعلی و داده‌های واقعی محافظت کن.
-7. تمام قابلیت‌ها باید در Backend و Database نیز درست پیاده‌سازی شوند، نه فقط در ظاهر Flutter.
-8. برای هر عملیات حساس، Authorization و Row Level Security (RLS) الزامی است.
-9. هیچ API Secret، Service Role Key، Firebase Private Key یا رمز عبوری نباید داخل اپلیکیشن Flutter قرار بگیرد.
-10. کدهای تکراری، درخواست‌های غیرضروری، Queryهای سنگین و معماری غیراصولی باید شناسایی و اصلاح شوند.
-11. هیچ داده یا قابلیت مهمی نباید با اطلاعات ساختگی در محیط Production نمایش داده شود.
-12. تمام قابلیت‌ها باید با تست واقعی و گزارش نتیجه تأیید شوند.
+**هدف اصلی:** تبدیل سیستم Voice & Video Call زیف به یک تجربه سریع، روان، زیبا و قابل‌اعتماد با امکانات پیشرفته.
 
-**اصل مهم:** قبل از توسعه، وضعیت واقعی هر قابلیت را مشخص کن: سالم، ناقص، خراب یا وجود ندارد.
+# **رودمپ جامع برای Antigravity**
 
----
+متن زیر را به‌صورت کامل کپی کن و در Antigravity قرار بده.
 
-# بخش دوم: مرحله صفر — Audit کامل پروژه
+# ZEV CALLING SYSTEM 2.0 — COMPLETE REDESIGN & ENGINEERING ROADMAP
 
-قبل از شروع کدنویسی، یک بررسی جامع انجام بده.
+## PROJECT OBJECTIVE
 
-## 2.1 بررسی Flutter
+We need to completely upgrade and redesign the existing Voice Calling and Video Calling system in ZEV.
 
-- ساختار کامل پروژه
-- تمام صفحات و مسیرهای Navigation
-- State Management
-- مدیریت Session
-- مدیریت Token
-- مدیریت خطاها
-- API Client
-- مدل‌های داده
-- مدیریت Cache
-- مدیریت تصاویر و ویدیوها
-- سیستم Background Tasks
-- Push Notification
-- Deep Links
-- Performance و Memory Usage
+ZEV is a social media platform with messaging, feeds, videos, friends, and social features.
 
-## 2.2 بررسی Supabase
+The current calling system has multiple performance, functionality, UI/UX, and stability problems.
 
-تمام موارد زیر را بررسی کن:
+Our objective is to transform ZEV Calling into a premium communication experience comparable to WhatsApp, Instagram, and Snapchat.
 
-- تمام Tables
-- تمام Columns
-- Primary Keys
-- Foreign Keys
-- Indexes
-- Constraints
-- Triggers
-- Functions
-- Views
-- Materialized Views
-- RLS Policies
-- Realtime Publications
-- Database Extensions
-- Connection Pooling
-- Query Performance
-- حجم دیتابیس
-- روابط جداول
-- اطلاعات تکراری یا ناسازگار
+IMPORTANT:\
+This is not just a UI redesign. It is a complete engineering and product upgrade.
 
-## 2.3 بررسی Cloudflare R2
+You must inspect the existing codebase, calling architecture, WebRTC implementation, signaling system, media handling, database structure, permissions, and navigation before making changes.
 
-- Bucketها
-- مسیر ذخیره‌سازی فایل‌ها
-- Public و Private Access
-- Custom Domain
-- CDN
-- Cache-Control
-- Image Optimization
-- Upload و Download
-- Signed URLs
-- CORS
-- فایل‌های بدون مالک یا Orphaned Files
-- نحوه حذف فایل پس از حذف پست
+Do not blindly replace working components.
 
-## 2.4 بررسی Firebase
+Preserve existing authentication, messaging, user accounts, friendships, database relationships, and other working features.
 
-- Firebase Project
-- Android App Registration
-- Firebase Cloud Messaging
-- Android Notification Channels
-- FCM Tokens
-- Firebase Configuration
-- Google Services Configuration
-- Background Notification Handling
-- Foreground Notification Handling
-- Notification Permission
-- Token Refresh
-
-## خروجی اجباری Audit
-
-یک فایل با نام `ZEV_AUDIT_REPORT.md` ایجاد کن که شامل موارد زیر باشد:
-
-- معماری فعلی
-- مشکلات کشف‌شده
-- جداول موجود
-- قابلیت‌های ناقص
-- قابلیت‌های خراب
-- قابلیت‌های فاقد پیاده‌سازی
-- مشکلات امنیتی
-- مشکلات Performance
-- راهکار پیشنهادی
-- اولویت‌بندی
-- ریسک تغییرات
-
-تا وقتی Audit کامل نشده، Migration مخرب یا بازنویسی گسترده انجام نده.
+Do not introduce unnecessary dependencies or break existing functionality.
 
 ---
 
-# بخش سوم: بازسازی کامل Authentication و Session
+# PHASE 1 — CALL ENGINE & CONNECTION PERFORMANCE
 
-یکی از مشکلات اصلی ZEV این است که کاربران بعد از مدتی از حساب خارج می‌شوند یا Login آن‌ها پایدار نیست.
+## 1. Extremely Fast Call Connection
 
-این قسمت باید از پایه بررسی و اصلاح شود.
+CURRENT PROBLEM:\
+When one user calls another user, the receiver answers, but the call takes approximately 5–6 seconds to establish.
 
-## 3.1 Session Management
+REQUIREMENTS:
 
-- حفظ Session کاربر بعد از بستن اپلیکیشن
-- حفظ Login بعد از Restart گوشی
-- Refresh خودکار Access Token
-- استفاده صحیح از Refresh Token
-- جلوگیری از Logout غیرضروری
-- مدیریت Expired Token
-- مدیریت هم‌زمان چند درخواست Refresh
-- جلوگیری از Race Condition
-- مدیریت تغییر رمز عبور
-- مدیریت خروج واقعی از حساب
-- مدیریت Logout از تمام دستگاه‌ها
-- مدیریت Revoked Session
-- بازیابی Session پس از قطعی اینترنت
-- مدیریت Secure Storage
+- Minimize call connection time.
+- Establish the media connection immediately after the receiver accepts.
+- Optimize WebRTC peer connection initialization.
+- Optimize SDP offer/answer exchange.
+- Optimize ICE candidate collection and exchange.
+- Avoid unnecessary initialization delays.
+- Implement ICE candidate trickling where supported.
+- Optimize signaling message delivery.
+- Prevent duplicate connection initialization.
+- Handle network changes intelligently.
+- Implement reliable STUN/TURN configuration.
+- Support TURN over UDP and TCP/TLS where appropriate.
+- Implement ICE restart when necessary.
+- Handle connection failures and automatic recovery.
 
-اطلاعات حساس باید در Secure Storage سیستم‌عامل نگهداری شوند.
+The target should be to make the call feel almost instantaneous after acceptance.
 
-## 3.2 Google Sign-In
+Measure actual connection performance rather than assuming it is fast.
 
-Google Login اکنون درست کار نمی‌کند و باید کامل اصلاح شود.
+Track:
 
-موارد لازم:
+- Call initiation time.
+- Receiver notification time.
+- Answer response time.
+- ICE gathering time.
+- ICE connection time.
+- First audio packet time.
+- First video frame time.
 
-- بررسی Google OAuth Client ID
-- بررسی Web Client ID
-- بررسی Android Client ID
-- بررسی Package Name
-- بررسی SHA-1 و SHA-256
-- بررسی Supabase Auth Provider
-- بررسی Callback URL
-- بررسی Redirect URL
-- بررسی Deep Link
-- بررسی Google Services JSON
-- بررسی تفاوت Debug و Release
-- بررسی نسخه منتشرشده در Google Play
-- جلوگیری از ساخت حساب تکراری برای یک کاربر
-- اتصال حساب Google به حساب قبلی در صورت تطابق هویت و تأیید امن
-- مدیریت خطاهای لغو ورود و ورود ناموفق
+Do not sacrifice connection stability for speed.
 
-Google Login باید در نسخه Debug، Release و نسخه منتشرشده تست شود.
+## 2. Instant Video Rendering
 
-## 3.3 سایر قابلیت‌های Authentication
+CURRENT PROBLEM:\
+After accepting a video call, the remote camera sometimes takes 10 seconds to appear.
 
-- Email Registration
-- Email Verification
-- Email Login
-- Forgot Password
-- Reset Password
-- Google Login
-- Phone Login در صورت پشتیبانی محصول
-- Account Linking
-- Account Deletion
-- Session Management
-- Device Management
-- Login History
-- Suspicious Login Detection
-- Rate Limiting
-- Brute Force Protection
+REQUIREMENTS:
+
+- Display the remote video as soon as the first usable video frame arrives.
+- Start audio and video negotiation efficiently.
+- Optimize camera initialization.
+- Optimize remote video track handling.
+- Avoid waiting for unnecessary media operations.
+- Prevent multiple unnecessary renderer initializations.
+- Handle track replacement correctly.
+- Display a professional loading state while the remote video initializes.
+- Avoid displaying a broken or frozen video component.
+- Ensure audio starts without waiting for video rendering.
+
+The first remote video frame should appear as quickly as technically possible.
 
 ---
 
-# بخش چهارم: بازسازی کامل Database
-
-دیتابیس فعلی ZEV کوچک است و باید با حفظ اطلاعات قبلی به یک ساختار حرفه‌ای گسترش یابد.
-
-از PostgreSQL فعلی Supabase استفاده کن. فعلاً نیازی به مهاجرت به دیتابیس دیگری نیست.
-
-## 4.1 استانداردهای دیتابیس
-
-- استفاده از UUID برای شناسه‌ها
-- تعریف Foreign Key واقعی
-- تعریف Unique Constraints
-- استفاده از NOT NULL در فیلدهای ضروری
-- استفاده از Timestamps به‌صورت UTC
-- تعریف Index متناسب با Queryها
-- تعریف Cascade فقط در موارد امن
-- استفاده از Transactions
-- استفاده از Atomic Operations
-- جلوگیری از Duplicate Records
-- تعریف Soft Delete در موارد ضروری
-- ثبت Created At و Updated At
-- ثبت Actor برای عملیات مدیریتی
-- استفاده از Migrationهای نسخه‌بندی‌شده
-
-## 4.2 ساختار پیشنهادی جداول
-
-این فهرست، طرح هدف است؛ قبل از ساخت، جداول موجود را با آن مقایسه کن. جدول تکراری نساز و ساختارهای موجود را در صورت سالم بودن توسعه بده.
-
-### A. Users & Profiles
-
-| جدول                  | کاربرد                    |
-| --------------------- | ------------------------- |
-| profiles              | اطلاعات اصلی پروفایل      |
-| user_settings         | تنظیمات کاربر             |
-| user_preferences      | ترجیحات                   |
-| user_devices          | دستگاه‌های کاربر          |
-| user_sessions         | نشست‌ها و دستگاه‌های فعال |
-| user_privacy_settings | تنظیمات حریم خصوصی        |
-| user_security_logs    | سوابق امنیتی              |
-| user_links            | لینک‌های پروفایل          |
-| user_interests        | علایق                     |
-| user_languages        | زبان‌های کاربر            |
-| user_verification     | وضعیت تأیید هویت          |
-| user_blocks           | کاربران مسدودشده          |
-| user_mutes            | کاربران بی‌صداشده         |
-| user_restrictions     | محدودیت‌های ارتباطی       |
-| user_reports          | گزارش کاربران             |
-| account_deletions     | درخواست حذف حساب          |
-
-**مهم درباره فیلد FCM:**
-
-در جدول profiles اگر چند فیلد مرتبط با FCM وجود دارد، ابتدا تمام استفاده‌های آن‌ها را در Flutter، Backend، Triggerها و دیتابیس پیدا کن.
-
-ساختار پیشنهادی:
-
-- FCM Token نباید در چند فیلد تکراری profiles نگهداری شود.
-- یک جدول مستقل `user_devices` برای هر دستگاه ایجاد یا اصلاح کن.
-- هر دستگاه می‌تواند FCM Token مستقل داشته باشد.
-- فیلدهای پیشنهادی:
-  - id
-  - user_id
-  - device_id
-  - fcm_token
-  - platform
-  - app_version
-  - device_name
-  - is_active
-  - last_seen_at
-  - token_updated_at
-  - created_at
-  - updated_at
-
-برای هر کاربر امکان چند دستگاه وجود داشته باشد.
-
-توکن‌های قدیمی، نامعتبر و تکراری باید مدیریت شوند. هنگام Logout، دستگاه از دریافت اعلان‌های حساب خارج‌شده محروم شود.
-
-### B. Social Graph
-
-| جدول              | کاربرد                                       |
-| ----------------- | -------------------------------------------- |
-| follows           | دنبال‌کردن کاربران                           |
-| follow_requests   | درخواست دنبال‌کردن                           |
-| followers         | فقط در صورت نیاز به View یا ساختار جداگانه   |
-| friendships       | روابط دوطرفه در صورت پشتیبانی                |
-| close_friends     | دوستان نزدیک                                 |
-| favorite_users    | کاربران موردعلاقه                            |
-| blocked_users     | فقط در صورت عدم وجود ساختار معادل            |
-| user_interactions | سابقه تعاملات                                |
-| profile_visits    | بازدید پروفایل، در صورت فعال بودن این قابلیت |
-
-برای follows:
-
-- follower_id
-- following_id
-- status
-- created_at
-
-قوانین:
-
-- کاربر نتواند خودش را Follow کند.
-- رابطه تکراری ایجاد نشود.
-- Private Account از Follow Request استفاده کند.
-- Unfollow بلافاصله و صحیح اعمال شود.
-- Block باید Follow دوطرفه و دسترسی‌های ممنوع را به‌درستی مدیریت کند.
-
-### C. Posts & Media
-
-| جدول               | کاربرد                       |
-| ------------------ | ---------------------------- |
-| posts              | پست‌ها                       |
-| post_media         | تصاویر و ویدیوهای پست        |
-| post_tags          | تگ‌های پست                   |
-| post_mentions      | منشن کاربران                 |
-| post_collaborators | پست مشترک                    |
-| post_locations     | مکان پست                     |
-| post_visibility    | سطح نمایش                    |
-| post_views         | بازدیدها                     |
-| post_saves         | پست‌های ذخیره‌شده            |
-| post_shares        | اشتراک‌گذاری                 |
-| post_reports       | گزارش پست                    |
-| post_edit_history  | تاریخچه تغییرات در صورت نیاز |
-
-فیلدهای اصلی posts:
-
-- id
-- user_id
-- caption
-- post_type
-- visibility
-- status
-- comments_enabled
-- likes_count
-- comments_count
-- shares_count
-- views_count
-- published_at
-- created_at
-- updated_at
-- deleted_at
-
-فیلدهای post_media:
-
-- id
-- post_id
-- media_type
-- original_key
-- thumbnail_key
-- preview_key
-- width
-- height
-- duration
-- file_size
-- mime_type
-- processing_status
-- sort_order
-- created_at
-
-حذف پست باید شامل تمام روابط، رسانه‌های متعلق به آن و Cacheهای مرتبط باشد. فایل‌های Storage را ابتدا با Job امن حذف کن و اگر حذف فایل شکست خورد، آن را برای Retry ثبت کن.
-
-### D. Likes & Comments
-
-| جدول              | کاربرد                       |
-| ----------------- | ---------------------------- |
-| post_likes        | لایک پست                     |
-| comment_likes     | لایک کامنت                   |
-| comments          | کامنت‌ها                     |
-| comment_replies   | در صورت نیاز به جدول جدا     |
-| comment_mentions  | منشن در کامنت                |
-| comment_reports   | گزارش کامنت                  |
-| comment_pins      | کامنت‌های پین‌شده            |
-| comment_reactions | واکنش‌های متنوع در صورت نیاز |
-
-لایک‌ها باید Unique باشند تا هر کاربر نتواند یک پست را چندین بار لایک کند.
-
-تمام Countها باید با عملیات امن و Atomic به‌روز شوند.
-
-تعداد لایک و کامنت نباید با هر درخواست از صفر محاسبه شود.
-
-یک سیستم Reconciliation نیز بساز تا شمارنده‌ها با داده‌های اصلی مقایسه و در صورت اختلاف اصلاح شوند.
-
-### E. Stories
-
-| جدول             | کاربرد                  |
-| ---------------- | ----------------------- |
-| stories          | استوری                  |
-| story_media      | رسانه استوری            |
-| story_views      | بازدید استوری           |
-| story_reactions  | واکنش                   |
-| story_replies    | پاسخ                    |
-| story_highlights | هایلایت                 |
-| highlight_items  | استوری‌های داخل هایلایت |
-| story_mutes      | استوری‌های بی‌صدا       |
-
-قابلیت‌ها:
-
-- انتشار عکس و ویدیو
-- انقضای خودکار پس از ۲۴ ساعت
-- ثبت بازدید
-- جلوگیری از شمارش تکراری
-- واکنش
-- پاسخ به استوری
-- Close Friends
-- مخفی‌کردن استوری
-- هایلایت
-- حذف استوری
-- مدیریت Privacy
-
-### F. Reels & Video
-
-| جدول                  | کاربرد                 |
-| --------------------- | ---------------------- |
-| reels                 | اطلاعات ریلز           |
-| reel_media            | فایل‌های ریلز          |
-| reel_views            | بازدید                 |
-| reel_likes            | لایک                   |
-| reel_comments         | کامنت، در صورت جداسازی |
-| reel_saves            | ذخیره                  |
-| reel_shares           | اشتراک‌گذاری           |
-| reel_audio            | اطلاعات صدا            |
-| reel_topics           | موضوعات                |
-| video_processing_jobs | پردازش ویدیو           |
-
-قابلیت‌ها:
-
-- پخش ویدیو با کیفیت‌های مختلف
-- Thumbnail
-- HLS یا روش Streaming مناسب
-- Preloading
-- Autoplay
-- کنترل صدا
-- شمارش بازدید معتبر
-- Feed اختصاصی Reels
-- Ranking
-- پیشنهاد ویدیو
-- ثبت تعاملات
-- گزارش ویدیو
-
-### G. Chat & Messaging
-
-| جدول                 | کاربرد                       |
-| -------------------- | ---------------------------- |
-| conversations        | گفتگوها                      |
-| conversation_members | اعضای گفتگو                  |
-| messages             | پیام‌ها                      |
-| message_media        | فایل‌های پیام                |
-| message_reactions    | واکنش                        |
-| message_reads        | رسید خواندن                  |
-| message_deliveries   | وضعیت تحویل در صورت نیاز     |
-| message_edits        | تاریخچه ویرایش               |
-| message_deletions    | وضعیت حذف                    |
-| typing_status        | وضعیت تایپ، ترجیحاً Realtime |
-| user_presence        | وضعیت آنلاین                 |
-| conversation_pins    | گفتگوهای پین‌شده             |
-| conversation_mutes   | بی‌صداکردن                   |
-| message_reports      | گزارش پیام                   |
-| message_requests     | درخواست پیام                 |
-
-ساختار پیام:
-
-- id
-- conversation_id
-- sender_id
-- message_type
-- content
-- reply_to_message_id
-- media_id
-- created_at
-- edited_at
-- deleted_at
-
-سیستم چت باید شامل موارد زیر باشد:
-
-1. ارسال و دریافت سریع پیام
-2. وضعیت Sent
-3. وضعیت Delivered
-4. وضعیت Read
-5. Last Seen
-6. Online Status
-7. Typing Indicator
-8. Reply
-9. Forward
-10. Edit Message
-11. Delete For Me
-12. Delete For Everyone
-13. Emoji Reactions
-14. Image Messages
-15. Video Messages
-16. Voice Messages
-17. File Messages
-18. Message Search
-19. Unread Messages
-20. Chat Requests
-21. Group Chats
-22. Group Admin
-23. Group Members
-24. Mute Conversations
-25. Pin Conversations
-26. Blocked Message Handling
-27. Multi-device Synchronization
-28. Offline Message Queue
-29. Retry Failed Messages
-
-برای Realtime:
-
-- فقط گفتگوهای موردنیاز را Subscribe کن.
-- برای هر پیام از شناسه یکتا استفاده کن.
-- پیام تکراری را ذخیره نکن.
-- وضعیت Read و Delivered باید بین دستگاه‌ها هماهنگ باشد.
-- برای Last Seen از Presence و Heartbeat با فاصله زمانی مناسب استفاده کن.
-- آخرین فعالیت کاربر را با هر درخواست بی‌اهمیت به‌صورت مداوم به دیتابیس ننویس.
-- وضعیت آنلاین را با Last Seen اشتباه نگیر.
-- ارسال پیام باید در دیتابیس ثبت و سپس به گیرنده اطلاع داده شود.
-
-### H. Notifications
-
-| جدول                     | کاربرد                                  |
-| ------------------------ | --------------------------------------- |
-| notifications            | اعلان‌های داخل اپ                       |
-| notification_preferences | تنظیمات اعلان                           |
-| notification_deliveries  | وضعیت ارسال Push                        |
-| notification_devices     | فقط در صورت عدم استفاده از user_devices |
-| notification_templates   | قالب اعلان                              |
-| notification_batches     | اعلان‌های گروهی                         |
-| notification_counters    | شمارنده‌های بهینه در صورت نیاز          |
-
-انواع اعلان:
-
-- New Follower
-- Follow Request
-- Follow Accepted
-- Post Like
-- Comment
-- Comment Reply
-- Mention
-- Story Reaction
-- Story Reply
-- Reel Like
-- Reel Comment
-- Message
-- Group Invitation
-- Group Message
-- Live Interaction
-- Security Alert
-- System Announcement
-
-تمام اعلان‌ها باید داخل دیتابیس ثبت شوند تا حتی اگر Push ارسال نشد، در صفحه Notification دیده شوند.
-
-### I. Explore & Search
-
-| جدول               | کاربرد                      |
-| ------------------ | --------------------------- |
-| search_history     | تاریخچه جست‌وجو             |
-| search_suggestions | پیشنهاد جست‌وجو             |
-| trending_topics    | موضوعات پرطرفدار            |
-| hashtags           | هشتگ‌ها                     |
-| post_hashtags      | هشتگ‌های پست                |
-| user_search_index  | ایندکس کاربران در صورت نیاز |
-| content_categories | دسته‌بندی محتوا             |
-
-قابلیت‌ها:
-
-- Search Users
-- Search Posts
-- Search Hashtags
-- Search Reels
-- Recent Searches
-- Suggested Accounts
-- Trending
-- Explore Feed
-- Popular Content
-
-### J. Live Streaming
-
-برای توسعه آینده:
-
-- live_streams
-- live_participants
-- live_comments
-- live_reactions
-- live_viewers
-- live_gifts
-- live_moderators
-
-قابلیت‌ها:
-
-- Live Broadcast
-- Join Live
-- Live Comments
-- Live Reactions
-- Invite Guest
-- Moderation
-- Live Notifications
-- Viewer Count
-
-### K. Ads & Monetization
-
-سیستم تبلیغات باید از ابتدا با معماری قابل توسعه طراحی شود.
-
-جداول پیشنهادی:
-
-| جدول                | کاربرد           |
-| ------------------- | ---------------- |
-| advertisers         | تبلیغ‌دهندگان    |
-| advertiser_accounts | حساب تبلیغ‌دهنده |
-| ad_campaigns        | کمپین            |
-| ad_groups           | گروه تبلیغات     |
-| ad_creatives        | محتوای تبلیغ     |
-| ad_placements       | محل نمایش        |
-| ad_targeting        | هدف‌گذاری        |
-| ad_budgets          | بودجه            |
-| ad_bids             | پیشنهاد قیمت     |
-| ad_impressions      | نمایش            |
-| ad_clicks           | کلیک             |
-| ad_conversions      | تبدیل            |
-| ad_events           | رویدادها         |
-| ad_reports          | گزارش عملکرد     |
-| ad_invoices         | صورت‌حساب        |
-| ad_payments         | پرداخت           |
-| ad_frequency_caps   | محدودیت نمایش    |
-| ad_experiments      | تست A/B          |
-
-قابلیت‌های تبلیغات:
-
-- Feed Ads
-- Story Ads
-- Reels Ads
-- Explore Ads
-- Sponsored Posts
-- Campaign Management
-- Daily Budget
-- Total Budget
-- CPM
-- CPC
-- CPA
-- CTR
-- Conversion Tracking
-- Audience Targeting
-- Geographic Targeting
-- Interest Targeting
-- Frequency Capping
-- Ad Scheduling
-- Ad Review
-- Fraud Detection
-- Advertiser Dashboard
-- Revenue Dashboard
-
-تبلیغات باید با توجه به Privacy، قوانین منطقه‌ای و رضایت کاربر طراحی شوند.
-
-هیچ‌وقت برای افزایش درآمد، تجربه کاربری را با تبلیغات بیش‌ازحد خراب نکن.
-
-### L. Admin & Moderation
-
-| جدول               | کاربرد             |
-| ------------------ | ------------------ |
-| admin_users        | مدیران             |
-| admin_roles        | نقش‌ها             |
-| admin_permissions  | مجوزها             |
-| admin_audit_logs   | گزارش عملیات مدیر  |
-| content_reports    | گزارش محتوا        |
-| moderation_actions | اقدامات نظارتی     |
-| banned_users       | کاربران مسدودشده   |
-| suspended_accounts | حساب‌های تعلیق‌شده |
-| content_flags      | پرچم‌های محتوایی   |
-| appeals            | اعتراض کاربران     |
-
-قابلیت‌ها:
-
-- Admin Dashboard
-- User Management
-- Content Moderation
-- Report Management
-- Account Suspension
-- Ban Management
-- Appeal Management
-- Analytics
-- System Health
-- Audit Logs
+# PHASE 2 — PROFESSIONAL VIDEO CALL UI
+
+## 3. Camera-Off Profile Display
+
+CURRENT PROBLEM:\
+When a user turns off their camera, the remote screen becomes completely black.
+
+REQUIREMENTS:
+
+Replace the black screen with a professional camera-off interface.
+
+When the remote user disables their camera:
+
+- Display their profile picture.
+- Show their name.
+- Show a subtle camera-off indicator.
+- Use a beautiful background derived from their profile image or a premium neutral background.
+- Apply a smooth transition when switching between video and camera-off states.
+- Avoid black screens.
+- Preserve the correct layout.
+
+The interface should feel similar to WhatsApp and Instagram video calling.
+
+The same behavior must work in one-to-one and group calls.
+
+## 4. Draggable Self-View Window
+
+CURRENT PROBLEM:\
+Users cannot move their own camera preview around the screen.
+
+REQUIREMENTS:
+
+Implement a fully draggable Picture-in-Picture-style self-view window inside the active video call.
+
+Users must be able to:
+
+- Drag their camera preview anywhere on the call screen.
+- Move it to all four corners.
+- Position it along the screen edges.
+- Release it and have it snap smoothly to the nearest suitable corner.
+- Prevent it from overlapping important call controls.
+- Keep it inside the screen boundaries.
+- Maintain its position when the call UI changes.
+- Support different screen sizes and orientations.
+
+Use smooth gestures and professional animations.
+
+The draggable window must work reliably without interfering with scrolling or other gestures.
+
+## 5. Premium Self-View Design
+
+CURRENT PROBLEM:\
+The user's camera preview window looks poorly designed and does not fit the video properly.
+
+REQUIREMENTS:
+
+Completely redesign the self-view window.
+
+- Use a premium rounded-rectangle design.
+- Use proper clipping and aspect-ratio handling.
+- Eliminate stretched and distorted video.
+- Use a correct camera preview transformation.
+- Add subtle borders and shadows.
+- Support smooth resizing and movement.
+- Use consistent spacing.
+- Make the window visually balanced.
+- Ensure the preview is not cropped incorrectly.
+
+Use a professional video preview aspect ratio and make the preview adapt to different screen dimensions.
+
+## 6. Correct Camera Zoom and Default Framing
+
+CURRENT PROBLEM:\
+The camera sometimes appears unnecessarily zoomed in.
+
+REQUIREMENTS:
+
+- Use the camera's appropriate default field of view.
+- Avoid accidental digital zoom.
+- Do not apply unintended cropping.
+- Respect camera sensor orientation.
+- Correctly handle front and rear camera transformations.
+- Preserve natural facial proportions.
+- Use the appropriate capture resolution and aspect ratio.
+- Allow intentional zoom controls only when supported.
+
+The default camera experience should look natural and similar to WhatsApp.
 
 ---
 
-# بخش پنجم: بازسازی کامل سیستم Notifications
+# PHASE 3 — BACKGROUND CALLING & MULTITASKING
 
-این یکی از مهم‌ترین مشکلات فعلی ZEV است.
+## 7. Continue Calls in the Background
 
-دو سیستم مستقل ولی هماهنگ باید ساخته شوند:
+CURRENT PROBLEM:\
+Pressing the Android Back button terminates the call.
 
-## 5.1 In-App Notifications
+REQUIREMENTS:
 
-صفحه Notification باید تمام اعلان‌ها را نشان دهد.
+Completely redesign call lifecycle and navigation behavior.
 
-ویژگی‌ها:
+When a user presses Back during an active call:
 
-- دریافت اعلان جدید بدون Refresh
-- دسته‌بندی اعلان‌ها
-- نمایش تصویر و نام کاربر
-- نمایش زمان
-- نمایش محتوای مربوطه
-- Mark as Read
-- Mark All as Read
-- حذف اعلان
-- بازکردن پست مربوطه
-- بازکردن پروفایل
-- بازکردن گفتگو
-- گروه‌بندی اعلان‌های مشابه
-- صفحه‌بندی
-- Unread Count
-- تنظیمات اعلان
+- Do not disconnect the call.
+- Minimize the call interface.
+- Keep the audio connection active.
+- Display a compact floating call interface when supported.
+- Allow the user to navigate through other ZEV screens.
+- Allow access to messages, feeds, profiles, and other features.
+- Preserve call state when switching between screens.
+- Provide a persistent active-call indicator.
 
-## 5.2 Push Notifications با Firebase
+Implement proper platform-specific background execution.
 
-Firebase باید به‌صورت واقعی و کامل در پروژه تنظیم شود.
+For Android:
 
-- اتصال Firebase Project
-- ثبت Android App
-- تنظیم google-services.json
-- نصب و تنظیم FlutterFire
-- نصب firebase_core
-- نصب firebase_messaging
-- نصب flutter_local_notifications در صورت نیاز
-- تنظیم Notification Channels
-- درخواست Permission
-- دریافت FCM Token
-- ذخیره Token در user_devices
-- مدیریت Token Refresh
-- ارسال Push از Backend امن
-- مدیریت Foreground
-- مدیریت Background
-- مدیریت Terminated State
-- مدیریت Notification Tap
-- Deep Link به صفحه مربوطه
-- حذف Tokenهای نامعتبر
-- تست روی دستگاه واقعی
+- Use an appropriate foreground service for ongoing calls.
+- Display the required ongoing call notification.
+- Handle microphone and camera foreground-service permissions.
+- Respect Android background execution restrictions.
+- Ensure audio continues correctly.
 
-**نکته امنیتی:** ارسال FCM باید از محیط سرور و با Firebase Admin SDK یا روش معتبر Server-side انجام شود. هرگز کلید خصوصی Firebase را داخل Flutter قرار نده.
+For iOS, if supported:
 
-## 5.3 Notification Badge
+- Integrate the appropriate native call lifecycle and background audio capabilities.
+- Respect system camera and microphone restrictions.
 
-دقیقاً مانند تجربه Instagram:
+Never disconnect an active call just because the user navigates away from the call screen.
 
-- شمارنده پیام‌های خوانده‌نشده روی آیکن Chat
-- شمارنده اعلان‌های خوانده‌نشده
-- به‌روزرسانی فوری شمارنده‌ها
-- هماهنگی بین چند دستگاه
-- صفرشدن شمارنده بعد از مشاهده یا خواندن
-- نمایش Badge روی آیکن اپلیکیشن در سیستم‌عامل، در صورت پشتیبانی Launcher
-- نمایش تعداد پیام‌های Unread در لیست گفتگوها
+## 8. Floating Video Call / Picture-in-Picture
 
-برای Badge نباید صرفاً از شمارش محلی استفاده شود. وضعیت اصلی باید از Backend قابل بازیابی باشد.
+CURRENT PROBLEM:\
+When users leave the calling screen, they cannot continue watching the video call.
+
+REQUIREMENTS:
+
+Implement a WhatsApp-style floating video experience.
+
+When the user leaves the full-screen call interface:
+
+- Show a compact floating video window when platform capabilities permit.
+- Keep the remote video visible.
+- Keep the user's self-view accessible.
+- Allow repositioning of the floating window.
+- Allow returning to the full-screen call with one tap.
+- Provide quick mute and camera controls where appropriate.
+- Maintain audio and video continuity.
+- Support Android system Picture-in-Picture where appropriate.
+- Support the correct native experience on iOS where available.
+
+IMPORTANT:\
+Distinguish between an in-app floating window and native operating-system Picture-in-Picture.
+
+Use the appropriate implementation for each platform.
 
 ---
 
-# بخش ششم: سیستم Follow، Like، Comment و Social Interaction
+# PHASE 4 — ADVANCED FILTERS & CAMERA EFFECTS
 
-تمام تعاملات اجتماعی باید دقیق و قابل اعتماد شوند.
+THIS IS ONE OF THE MOST IMPORTANT PARTS OF THE ENTIRE PROJECT.
 
-موارد الزامی:
+We want to build a rich, modern camera effects system inspired by Snapchat, Instagram, and other leading social applications.
 
-- Follow
-- Unfollow
-- Follow Request
-- Accept Request
-- Reject Request
-- Remove Follower
-- Block
-- Unblock
-- Restrict
-- Mute
-- Report
-- Like
-- Unlike
-- Comment
-- Reply
-- Edit Comment
-- Delete Comment
-- Pin Comment
-- Mention
-- Save Post
-- Unsave Post
-- Share Post
-- Copy Link
-- Repost
-- Tag Users
-- Collaborative Posts
-- Hide Post
-- Not Interested
+Do not implement filters as simple static UI elements.
 
-برای هر عملیات:
+Build a proper, scalable, real-time camera effects architecture.
 
-- Database باید درست به‌روز شود.
-- UI باید بلافاصله واکنش نشان دهد.
-- در صورت شکست Backend، وضعیت UI اصلاح شود.
-- عملیات تکراری نباید داده خراب بسازد.
-- Countها باید صحیح باشند.
+## 9. Independent Camera Filters for Each User
 
----
+CURRENT PROBLEM:\
+When one user activates a filter, the filter incorrectly affects the other user's video.
 
-# بخش هفتم: سیستم Profile
+REQUIREMENTS:
 
-صفحه پروفایل باید شامل موارد زیر باشد:
+Every user must independently control their own camera filters and effects.
 
-- Profile Photo
-- Cover در صورت پشتیبانی
-- Username
-- Display Name
-- Bio
-- Website
-- Location در صورت انتخاب کاربر
-- Verified Badge
-- Followers Count
-- Following Count
-- Posts Count
-- Followers List
-- Following List
-- Posts Grid
-- Reels Tab
-- Tagged Posts
-- Saved Posts برای صاحب حساب
-- Highlights
-- Private Account
-- Edit Profile
-- Share Profile
-- QR Profile
-- Block
-- Report
-- Restrict
+Example:
 
-ویرایش پروفایل باید واقعاً در دیتابیس ذخیره شود و پس از Restart اپ هم باقی بماند.
+User A enables a beauty filter.
 
-همچنین Username باید Unique باشد و تغییر آن با اعتبارسنجی و Rate Limit انجام شود.
+Only User A's outgoing camera video should contain that effect.
 
----
+User B must not have their own camera affected by User A's filter selection.
 
-# بخش هشتم: سیستم Media و Performance
+If User B wants a filter, User B must independently select one.
 
-ذخیره‌سازی فعلی روی Cloudflare R2 باقی بماند، اما نحوه پردازش و نمایش فایل‌ها بازطراحی شود.
+However, User B must see User A's selected visual effect in User A's transmitted video.
 
-## 8.1 Images
+The correct media pipeline should be:
 
-- Thumbnail Generation
-- WebP یا AVIF در صورت سازگاری
-- Responsive Image Sizes
-- Lazy Loading
-- Preloading
-- Cache Headers
-- Cache Invalidation
-- Blur Placeholder
-- Image Compression
-- Retry
-- Background Upload
-- Upload Progress
-- حذف فایل‌های یتیم
+Camera Input → Local Effects Processing → Outgoing Video Track → Remote Participant.
 
-## 8.2 Videos
+The local preview and outgoing video must show the same processed image.
 
-- Video Transcoding
-- HLS Streaming در صورت نیاز
-- Multiple Resolutions
-- Thumbnail
-- Preview
-- Adaptive Bitrate
-- Video Preloading
-- Video Cache
-- Playback Resume
-- Retry
-- Upload Progress
-- Background Upload
-- Video Processing Status
+Never apply a local camera effect directly to the remote participant's camera.
 
-فایل‌های اصلی باید حفظ شوند و نسخه‌های پردازش‌شده به‌صورت جداگانه ذخیره شوند.
+## 10. Advanced Filter Library
 
-## 8.3 Performance
+Build a large and expandable filter library.
 
-هدف، کمینه‌کردن زمان پاسخ و Render است، نه وعده غیرواقعی زمان صفر.
+Organize filters into professional categories.
 
-موارد ضروری:
+### A. Beauty Filters
 
-- Cursor Pagination
-- Database Indexing
-- Query Optimization
-- Avoid N+1 Queries
-- HTTP Caching
-- CDN Caching
-- Local Cache
-- Image Cache
-- Feed Prefetch
-- API Batching
-- Connection Reuse
-- Reduce JSON Payload
-- Background Processing
-- Skeleton Loading
-- Optimistic UI
-- Flutter Frame Optimization
-- Memory Management
-- Avoid Unnecessary Rebuilds
+- Natural Beauty
+- Smooth Skin
+- Soft Skin
+- Skin Tone Enhancement
+- Face Brightening
+- Eye Enhancement
+- Natural Makeup
+- Glam Makeup
+- Soft Portrait
+- Professional Portrait
+- Beauty Plus
+- Studio Beauty
 
-از Redis فقط وقتی استفاده کن که با اندازه‌گیری ثابت شود نیاز داریم.
+### B. Color Filters
 
-برای هر قابلیت، قبل و بعد از تغییرات Performance Benchmark ثبت کن.
+- Warm
+- Cool
+- Cinematic
+- Vintage
+- Retro
+- Golden Hour
+- Sunset
+- Soft Pink
+- Dream
+- Pastel
+- Black & White
+- Film
+- Classic
+- Moody
+- Neon
+- Luxury
+- Natural
+- Bright
+- Dark Cinema
 
----
+### C. Face Effects
 
-# بخش نهم: سیستم Feed و Recommendation
+- Face Tracking
+- Animated Face Effects
+- Eye Effects
+- Face Decorations
+- Virtual Makeup
+- Face Accessories
+- Animated Stickers
+- AR Face Effects
 
-Feed نباید صرفاً فهرستی از پست‌های جدید باشد.
+Only implement effects that can run reliably on supported devices.
 
-قابلیت‌ها:
+### D. Lighting Effects
 
-- Following Feed
-- Recommended Feed
-- Explore Feed
-- Reels Feed
-- Suggested Users
-- Trending Posts
-- Trending Reels
-- Content Ranking
-- Personalized Recommendations
-- Interest-Based Ranking
-- Recent Interactions
-- Negative Feedback
-- Not Interested
-- Hide Content
-- Content Diversity
+- Studio Lighting
+- Soft Lighting
+- Warm Lighting
+- Natural Lighting
+- Ring Light
+- Cinematic Lighting
+- Low-Light Enhancement
+- Background Lighting
 
-سیستم Ranking باید در ابتدا ساده، قابل توضیح و قابل تنظیم باشد.
+### E. Background Effects
 
-فاکتورهای احتمالی:
+- Background Blur
+- Portrait Background Blur
+- Background Replacement
+- Custom Background Image
+- Professional Office
+- Studio Background
+- Nature Background
+- Gradient Background
+- Virtual Meeting Background
 
-- تازگی محتوا
-- تعامل واقعی
-- رابطه کاربر با منتشرکننده
-- علاقه‌مندی‌ها
-- کیفیت محتوا
-- گزارش‌های معتبر
-- محتوای دیده‌شده قبلی
+### F. Special Effects
 
-برای جلوگیری از تقلب، بازدیدهای تکراری و تعاملات مصنوعی را فیلتر کن.
+- Glow
+- Sparkle
+- Soft Focus
+- Dreamy
+- Film Grain
+- Retro Camera
+- Vintage Camera
+- Cinematic Glow
+- Color Splash
+- Light Leak
 
----
+## 11. Advanced Beauty Controls
 
-# بخش دهم: سیستم کامل Ads و درآمدزایی
+Provide individual adjustable controls instead of relying only on predefined filters.
 
-یک زیرسیستم تبلیغاتی مستقل و قابل توسعه بساز.
+Users should be able to adjust:
 
-مراحل:
+- Skin smoothing.
+- Brightness.
+- Contrast.
+- Saturation.
+- Warmth.
+- Exposure.
+- Sharpness.
+- Background blur intensity.
+- Beauty intensity.
+- Filter intensity.
 
-1. Advertiser Registration
-2. Advertiser Verification
-3. Campaign Creation
-4. Creative Upload
-5. Ad Approval
-6. Audience Selection
-7. Budget Configuration
-8. Ad Delivery
-9. Impression Tracking
-10. Click Tracking
-11. Conversion Tracking
-12. Budget Deduction
-13. Revenue Calculation
-14. Analytics Dashboard
-15. Invoice Generation
+Provide an easy-to-use slider for effect intensity.
 
-تبلیغات باید از Feed، Story، Reels و Explore پشتیبانی کنند.
+Include:
 
-قواعد فنی:
+- Reset button.
+- Remove all effects.
+- Original camera preview.
+- Live preview.
+- Save favorite filters.
 
-- انتخاب تبلیغ باید سریع باشد.
-- برای هر کاربر Frequency Cap وجود داشته باشد.
-- Impression نباید با هر بار Render شدن مجدد دوباره ثبت شود.
-- Click و Conversion باید قابل اعتبارسنجی باشند.
-- رویدادهای مالی باید Idempotent باشند.
-- بودجه نباید به‌صورت غیراتمی کسر شود.
-- تقلب در کلیک و Impression شناسایی شود.
-- تبلیغ نامناسب یا تأییدنشده نمایش داده نشود.
-- سیستم گزارش‌گیری درآمد و هزینه دقیق باشد.
+The user must see the effect immediately while adjusting it.
 
-برای کاهش تأخیر، Ad Selection را بهینه کن و اطلاعات کمپین‌های فعال را با Cache مناسب نگهداری کن.
+## 12. Advanced Filter Interface
+
+Design a premium filter selection interface.
+
+Requirements:
+
+- Horizontal filter carousel.
+- Live camera preview.
+- Filter thumbnails.
+- Filter category navigation.
+- Selected filter indication.
+- Smooth transitions.
+- Real-time preview.
+- Clear effect names.
+- Adjustable intensity controls.
+- Favorites section.
+- Search or category browsing when useful.
+
+The interface must be clean, modern, and intuitive.
+
+Do not use emoji icons.
+
+Use professional vector icons.
+
+The filter panel must not cover the user's face or important camera controls.
+
+## 13. Filter Performance & Processing Architecture
+
+This is a critical engineering requirement.
+
+The filter system must not make video calls slow or unstable.
+
+Investigate suitable technologies for the existing application architecture, including:
+
+- GPU-accelerated image processing.
+- OpenGL ES or Vulkan where appropriate.
+- Metal on supported iOS devices.
+- MediaPipe or suitable face-landmark detection.
+- Real-time segmentation.
+- Efficient video frame processing.
+- Hardware acceleration.
+- Adaptive processing resolution.
+- Frame-rate management.
+
+Avoid expensive CPU-based processing for every frame when GPU acceleration is available.
+
+Implement adaptive quality depending on device capability.
+
+The filter system must:
+
+- Avoid unnecessary frame copies.
+- Avoid memory leaks.
+- Avoid excessive battery consumption.
+- Avoid blocking the main UI thread.
+- Maintain stable video frame delivery.
+- Release processing resources when a call ends.
+
+If a feature is not supported by the current architecture, investigate the correct integration before implementing it.
+
+Do not create fake filters that only change their names without actually processing the camera image.
 
 ---
 
-# بخش یازدهم: قابلیت‌های تکمیلی برای تجربه شبکه اجتماعی کامل
+# PHASE 5 — GROUP VOICE & VIDEO CALLING
 
-این قابلیت‌ها نیز باید در نقشه توسعه محصول در نظر گرفته شوند:
+## 14. Professional Group Calling
 
-## Content
+CURRENT PROBLEM:\
+ZEV does not yet provide a complete group calling experience.
 
-- Posts
-- Carousels
-- Reels
-- Stories
-- Highlights
-- Live
-- Drafts
-- Scheduled Posts
-- Hashtags
-- Mentions
-- Locations
-- Tags
-- Collaborations
+REQUIREMENTS:
 
-## Communication
+Implement professional group voice and video calls.
 
-- Direct Messages
-- Group Chats
-- Voice Messages
-- Video Messages
-- Reactions
-- Message Requests
-- Typing Status
-- Online Status
-- Last Seen
-- Calls در صورت انتخاب معماری مناسب
-- Group Administration
+Users must be able to:
 
-## Discovery
+- Start a group voice call.
+- Start a group video call.
+- Invite multiple friends.
+- Accept or reject invitations.
+- See active participants.
+- See participant names and profile pictures.
+- See who is speaking.
+- Mute and unmute their microphone.
+- Enable or disable their camera.
+- Switch between front and rear cameras.
+- View participant video tiles.
+- View camera-off profile cards.
+- Leave the call without disconnecting everyone else.
 
-- Explore
-- Search
-- Trending
-- Suggested Accounts
-- Hashtag Discovery
-- Audio Discovery
-- Content Recommendations
+Build a scalable group calling architecture.
 
-## Account
+Investigate whether the existing peer-to-peer implementation can support the required scale.
 
-- Privacy
-- Security
-- Login Activity
-- Connected Devices
-- Blocked Accounts
-- Restricted Accounts
-- Notification Settings
-- Data Download
-- Account Deactivation
-- Account Deletion
+If necessary, evaluate an SFU-based architecture for group video calls.
 
-## Creator Features
+Do not use a full mesh architecture for large groups without evaluating its bandwidth and CPU limitations.
 
-- Creator Profile
-- Insights
-- Reach
-- Engagement
-- Audience Analytics
-- Professional Dashboard
-- Monetization Eligibility
+Optimize:
 
-## Safety
+- Audio routing.
+- Video subscriptions.
+- Participant management.
+- Bandwidth adaptation.
+- Video quality.
+- Speaker detection.
+- Connection recovery.
 
-- Reporting
-- Moderation
-- Spam Protection
-- Rate Limiting
-- Anti-Abuse
-- Account Verification
-- Appeal System
+Support different screen sizes and different participant counts.
 
-قابلیت‌هایی مثل تماس تصویری، Live، پرداخت و تبلیغات گسترده باید بعد از طراحی مستقل فنی و انتخاب سرویس مناسب توسعه داده شوند؛ صرفاً به‌خاطر داشتن جدول دیتابیس، قابلیت آماده محسوب نمی‌شوند.
+## 15. Add Participants During an Active Call
 
----
+CURRENT PROBLEM:\
+Users cannot invite another person while already in a direct call.
 
-# بخش دوازدهم: Firebase Access برای Agent
+REQUIREMENTS:
 
-Firebase باید در محیط توسعه Agent به شکل امن در دسترس قرار بگیرد.
+Allow participants to add new friends during an active voice or video call.
 
-مراحل:
+Example:
 
-1. Firebase Project موجود ZEV را شناسایی کن.
-2. بررسی کن Android App درست در همان Project ثبت شده باشد.
-3. دسترسی Agent را با حساب یا هویت اختصاصی و حداقل مجوز لازم تنظیم کن.
-4. در صورت نیاز به Firebase CLI، ورود به حساب توسط صاحب پروژه و با تأیید خودش انجام شود.
-5. برای عملیات خودکار و CI/CD از Service Account اختصاصی با مجوز محدود استفاده کن.
-6. Firebase Admin SDK را فقط در Backend یا محیط امن اجرا کن.
-7. Secrets را در Secret Manager یا Environment Variables امن نگهداری کن.
-8. کلیدها و فایل‌های محرمانه نباید وارد Git شوند.
-9. هرگز Google Account شخصی صاحب پروژه را با Agent به اشتراک نگذار.
-10. برای دسترسی به Production، قبل از هر تغییر حساس تأیید صاحب پروژه لازم است.
+User A is having a video call with User B.
 
-فایل‌های لازم برای بررسی:
+User A taps Add Participant.
 
-- pubspec.yaml
-- firebase_options.dart
-- google-services.json
-- AndroidManifest.xml
-- MainActivity
-- Firebase Messaging Service Configuration
-- Backend Firebase Configuration
+User A selects User C.
 
-اطلاعات محرمانه نباید در گزارش Audit چاپ شوند.
+User C receives a group call invitation.
+
+When User C joins:
+
+- The direct call transitions into a group call.
+- Existing participants remain connected.
+- The new participant joins without unnecessarily restarting the call.
+- The participant list updates in real time.
+- All participants see the correct group call interface.
+
+Do not disconnect existing participants during this transition.
+
+## 16. Automatic Group Chat Creation
+
+When a direct call becomes a group call through adding participants:
+
+Create or reuse a group conversation involving the call participants.
+
+Requirements:
+
+- Create a group chat with the same participants.
+- Avoid duplicate group conversations.
+- Use the existing messaging architecture.
+- Add a professional group name or allow participants to name the group.
+- Show a system message indicating that a group call started.
+- Keep group call information linked to the correct conversation.
+- Allow participants to continue messaging after the call.
+- Respect privacy and group membership rules.
+
+The group chat must only be created after the appropriate user action and must not expose private conversations or data.
 
 ---
 
-# بخش سیزدهم: امنیت و حریم خصوصی
+# PHASE 6 — IMMERSIVE CALL EXPERIENCE
 
-- RLS برای تمام جداول حساس
-- Least Privilege
-- Secure Authentication
-- Input Validation
-- SQL Injection Protection
-- Rate Limiting
-- Secure File Upload
-- Signed URLs برای فایل‌های خصوصی
-- Access Control برای فایل‌ها
-- جلوگیری از IDOR
-- Protection Against Spam
-- Session Revocation
-- Audit Logging
-- Backup & Restore Testing
-- Account Deletion Workflow
-- Data Export
-- Privacy Settings
-- Encryption in Transit
-- Secret Rotation
+## 17. Hide and Show Call Controls
 
-هیچ‌وقت صرفاً مخفی‌کردن دکمه در Flutter را به‌عنوان مجوز دسترسی در نظر نگیر.
+CURRENT PROBLEM:\
+The video call interface does not provide an immersive full-screen experience.
 
----
+REQUIREMENTS:
 
-# بخش چهاردهم: ترتیب اجرای پروژه
+When the user taps the video screen:
 
-این ترتیب را رعایت کن و همه‌چیز را یک‌جا و بدون تست تغییر نده.
+- Hide all call control buttons.
+- Hide unnecessary interface elements.
+- Display the video in an immersive full-screen layout.
 
-## Phase 0 — Audit و Backup
+When the user taps again:
 
-- بررسی پروژه
-- بررسی دیتابیس
-- بررسی Firebase
-- بررسی Cloudflare
-- تهیه Backup
-- تهیه Audit Report
+- Restore all call controls.
+- Restore the participant information.
+- Restore the call interface.
 
-## Phase 1 — زیرساخت و Authentication
+Implement smooth fade animations.
 
-- اصلاح Session
-- اصلاح Refresh Token
-- اصلاح Google Login
-- اصلاح Device Management
-- اصلاح User Profile Persistence
+Support automatic control hiding after a short period of inactivity.
 
-## Phase 2 — Database Foundation
-
-- تکمیل Schema
-- اصلاح روابط
-- رفع فیلدهای تکراری FCM
-- اضافه‌کردن Indexها
-- تکمیل RLS
-- Migration امن
-
-## Phase 3 — Social Core
-
-- Follow
-- Unfollow
-- Block
-- Like
-- Comment
-- Delete Post
-- Edit Profile
-- Followers / Following
-- Counter Consistency
-
-## Phase 4 — Chat
-
-- Realtime
-- Delivery
-- Read Receipts
-- Typing
-- Online
-- Last Seen
-- Multi-device
-- Message Notifications
-
-## Phase 5 — Notifications
-
-- Notification Center
-- Firebase FCM
-- In-App Notifications
-- Badge Counters
-- Deep Linking
-- Notification Preferences
-
-## Phase 6 — Media & Performance
-
-- Image Pipeline
-- Video Pipeline
-- CDN
-- Cache
-- Preloading
-- Upload Optimization
-
-## Phase 7 — Content Experience
-
-- Feed
-- Explore
-- Stories
-- Reels
-- Search
-- Recommendations
-
-## Phase 8 — Monetization
-
-- Ads Backend
-- Campaigns
-- Targeting
-- Ad Delivery
-- Analytics
-- Revenue Tracking
-
-## Phase 9 — Advanced Features
-
-- Live
-- Creator Tools
-- Professional Dashboard
-- Advanced Messaging
-- Additional Social Features
-
-## Phase 10 — Production Readiness
-
-- Full Regression Testing
-- Load Testing
-- Security Audit
-- Backup Restore Test
-- Crash Monitoring
-- Performance Benchmark
-- Play Store Release Verification
+Ensure important emergency actions, such as ending the call, remain accessible when controls are visible.
 
 ---
 
-# بخش پانزدهم: تست و معیار پذیرش
+# PHASE 7 — COMPLETE CALL UI REDESIGN
 
-هیچ Phase تا زمانی که تست‌های آن موفق نشده‌اند، Completed اعلام نشود.
+## 18. Premium Call Interface
 
-## Authentication Tests
+CURRENT PROBLEM:\
+The existing calling UI does not look professional.
 
-- Login پایدار پس از Restart
-- عدم Logout تصادفی
-- Refresh صحیح Token
-- Google Login در Release
-- Logout صحیح
-- Account Linking امن
+Redesign the entire voice and video calling experience.
 
-## Social Tests
+Design direction:
 
-- Follow و Unfollow
-- Block و Unblock
-- Like و Unlike
-- Comment و Delete
-- Post Delete
-- Profile Edit
-- Count Consistency
+- Premium modern interface.
+- Clean visual hierarchy.
+- Elegant dark calling interface.
+- Carefully selected colors.
+- Smooth animations.
+- Professional typography.
+- Consistent spacing.
+- Proper safe-area handling.
+- High-quality visual components.
+- Native-feeling interactions.
 
-## Chat Tests
+Do not use emoji icons anywhere in the calling interface.
 
-- ارسال پیام بین دو گوشی واقعی
-- دریافت فوری پیام در حالت Foreground
-- Push در Background
-- Push در حالت Terminated
-- Read Receipt
-- Last Seen
-- Online Status
-- Unread Counter
-- Multi-device
+Use real professional vector icons.
 
-## Notification Tests
+### Incoming Call Screen
 
-- ثبت اعلان در دیتابیس
-- دریافت Push
-- بازشدن صفحه صحیح با Tap
-- شمارنده صحیح
-- عدم نمایش اعلان تکراری
-- عملکرد روی Android Release
+Design a premium incoming call screen with:
 
-## Media Tests
+- Caller profile picture.
+- Caller name.
+- Incoming voice/video call indicator.
+- Accept button.
+- Decline button.
+- Subtle animations.
+- Professional background.
 
-- Upload
-- Download
-- Thumbnail
-- Cache
-- CDN
-- Playback
-- Retry
-- Delete
+### Outgoing Call Screen
 
-## Performance Tests
+Design:
 
-شاخص‌های قابل اندازه‌گیری:
+- Receiver profile picture.
+- Receiver name.
+- Calling status.
+- Ringing status.
+- Cancel call button.
+- Smooth transitions.
 
-- API p50 / p95 / p99
-- Database Query Duration
-- Feed First Content Time
-- Image First Display Time
-- Video Startup Time
-- Message Delivery Latency
-- Crash-Free Sessions
-- Flutter Frame Jank
-- Memory Consumption
-- Network Payload
+### Active Voice Call Screen
 
-اهداف اولیه پیشنهادی:
+Design:
 
-- APIهای سبک: p95 زیر ۳۰۰ میلی‌ثانیه در شرایط مناسب شبکه
-- نمایش محتوای اولیه Feed: هدف زیر ۱ ثانیه در شرایط مناسب
-- ارسال پیام: ثبت موفق در Backend در کمترین زمان ممکن
-- عدم ایجاد درخواست‌های تکراری غیرضروری
-- عدم وجود Crash بحرانی
-- عدم وجود اختلاف پایدار در شمارنده‌های اجتماعی
+- Large profile picture.
+- User name.
+- Call duration.
+- Connection status.
+- Microphone control.
+- Speaker control.
+- Bluetooth/audio routing control where supported.
+- Add participant.
+- End call.
 
-این اهداف تضمین اینترنت یا دستگاه نیستند؛ باید روی دستگاه واقعی و شبکه‌های مختلف اندازه‌گیری شوند.
+### Active Video Call Screen
 
----
+Design:
 
-# بخش شانزدهم: گزارش‌دهی Agent
+- Full-screen remote video.
+- Floating draggable self-view.
+- Professional control bar.
+- Camera switching.
+- Microphone control.
+- Camera on/off.
+- Speaker/audio routing.
+- Effects and filters.
+- Add participant.
+- End call.
 
-پس از هر Phase یک گزارش بساز:
-
-`ZEV_PHASE_REPORT.md`
-
-گزارش باید شامل:
-
-- چه چیزهایی بررسی شد؟
-- چه مشکلاتی پیدا شد؟
-- چه چیزهایی اصلاح شد؟
-- چه جدول‌هایی اضافه یا تغییر کردند؟
-- چه Migrationهایی اجرا شدند؟
-- چه فایل‌هایی تغییر کردند؟
-- چه تست‌هایی اجرا شدند؟
-- نتایج تست‌ها چه بود؟
-- چه مشکلاتی باقی مانده‌اند؟
-- آیا Rollback ممکن است؟
-- Phase بعدی چیست؟
-
-از ادعای تکمیل قابلیت بدون تست خودداری کن.
+All controls must have consistent sizes, shapes, and spacing.
 
 ---
 
-# دستور نهایی به Agent
+# PHASE 8 — CALL RELIABILITY & EDGE CASES
 
-تو مسئول مهندسی و بازسازی کامل ZEV هستی.
+## 19. Call Lifecycle Management
 
-هدف صرفاً تغییر ظاهر اپلیکیشن نیست. باید Backend، Database، Authentication، Messaging، Notifications، Media Delivery، Security، Performance و تجربه کاربری را به شکل یکپارچه اصلاح کنی.
+Implement a robust call state machine.
 
-ZEV باید از نظر قابلیت‌های اصلی یک شبکه اجتماعی کامل باشد و در طراحی قابلیت‌های جدید، تجربه‌ای هم‌سطح یا بهتر از Instagram را هدف بگیرد.
+Handle:
 
-اما:
+- Incoming call.
+- Outgoing call.
+- Ringing.
+- Accepted.
+- Connecting.
+- Connected.
+- Reconnecting.
+- Rejected.
+- Cancelled.
+- Busy.
+- Ended.
+- Failed.
 
-- هیچ قابلیت فعلی را بی‌دلیل خراب نکن.
-- اطلاعات کاربران را حفظ کن.
-- امنیت را فدای سرعت نکن.
-- داده‌های واقعی را با داده ساختگی جایگزین نکن.
-- از ساخت جداول تکراری جلوگیری کن.
-- هر تغییر را تست کن.
-- از معماری قابل توسعه استفاده کن.
-- عملکرد را اندازه‌گیری کن، نه اینکه فقط ادعا کنی سریع شده است.
-- تمام عملیات مالی و شمارنده‌ها باید دقیق و قابل اعتماد باشند.
+Prevent:
 
-**اولویت نهایی:**
+- Duplicate incoming calls.
+- Duplicate call acceptance.
+- Stuck ringing screens.
+- Calls that remain active after termination.
+- Orphaned WebRTC connections.
+- Incorrect participant states.
 
-1. پایداری و حفظ حساب کاربران
-2. صحت اطلاعات دیتابیس
-3. درست‌شدن کامل Follow، Like، Comment و Post
-4. چت و پیام‌رسانی واقعی و سریع
-5. Notifications و FCM
-6. سرعت تصاویر، ویدیوها و Feed
-7. قابلیت‌های کامل Instagram-like
-8. سیستم تبلیغات و درآمدزایی
-9. امنیت، مقیاس‌پذیری و کیفیت Production
+Handle:
 
-ابتدا Audit کامل انجام بده، سپس Phase به Phase پیش برو و بعد از هر مرحله گزارش بده.
+- Network disconnection.
+- Wi-Fi to mobile data switching.
+- Application backgrounding.
+- Screen locking.
+- Permission denial.
+- Camera failure.
+- Microphone failure.
+- Bluetooth connection changes.
+- Device audio interruptions.
 
-**نتیجه نهایی مورد انتظار:** یک ZEV پایدار، سریع، حرفه‌ای و قابل توسعه که هیچ‌کدام از قابلیت‌های اصلی یک شبکه اجتماعی مدرن را ناقص نداشته باشد.
+Provide understandable error messages and recovery actions.
 
-## چند نکته مهم قبل از تحویل به ایجنت
+## 20. Notifications and Native Call Experience
 
-۱. درباره Firebase: ورود به Firebase باید با دسترسی مجاز و حساب اختصاصی یا Service Account محدود انجام شود. رمز Google شخصی، کلیدهای خصوصی و Service Role را به ایجنت نده.
+Ensure reliable incoming call notifications.
 
-۲. درباره FCM: احتمالاً منظور تو FCM Token است. ایجنت باید هر سه یا چهار فیلد فعلی را بررسی کند و بدون از دست رفتن توکن دستگاه‌های کاربران، ساختار را یکپارچه کند.
+Investigate native call integration appropriate to each platform.
 
-۳. درباره سرعت: سرعت ۰٫۰۰۰۰۰۱ ثانیه برای تمام صفحات هدف واقع‌بینانه‌ای نیست؛ اما می‌توانیم زمان بارگذاری را با Benchmark و بهینه‌سازی جدی به حداقل برسانیم.
+For Android:
 
-۴. درباره دیتابیس: تأکید می‌کنم فعلاً PostgreSQL را نگه دارد. تعداد جدول‌ها به‌تنهایی نشانه حرفه‌ای بودن دیتابیس نیست؛ روابط، ایندکس‌ها، امنیت و صحت داده‌ها مهم‌ترند.
+- Full-screen incoming call notification where permitted.
+- Foreground call service.
+- Correct notification channels.
+- Lock-screen call actions.
+- Proper permission handling.
 
-پیشنهاد من: این سند را یک‌جا به ایجنت بده، ولی از او بخواه ابتدا فقط Audit را انجام دهد و گزارش ارائه کند. سپس اجرای مرحله‌ای را شروع کند.
+For iOS:
 
-بعد از اینکه ایجنت Audit را انجام داد، گزارشش را برایم بفرست؛ می‌توانم معماری و پیشنهادهایش را بررسی کنم تا مطمئن شویم چیزی از قلم نیفتاده است.
+- PushKit and CallKit integration where appropriate.
+- Correct incoming call lifecycle.
+- Native audio session handling.
 
-همچنین می‌توانم دو روز دیگر برای بررسی پیشرفت اجرای رودمپ ZEV به تو یادآوری کنم:
+Do not assume that a normal push notification alone guarantees reliable incoming calls.
 
-🚀یادآوری بررسی پیشرفت ZEVTap to set up
+---
+
+# PHASE 9 — TESTING & QUALITY ASSURANCE
+
+## 21. Comprehensive Testing
+
+Test all calling features using real devices.
+
+Test scenarios:
+
+1. Direct voice call.
+2. Direct video call.
+3. Fast answer.
+4. Camera disabled.
+5. Camera enabled again.
+6. Microphone disabled.
+7. Microphone enabled again.
+8. Draggable self-view.
+9. Floating call window.
+10. Background call.
+11. App navigation during a call.
+12. Screen lock during a call.
+13. Network switching.
+14. Poor internet connection.
+15. Front/rear camera switching.
+16. Filter activation.
+17. Filter removal.
+18. Beauty adjustment.
+19. Background replacement.
+20. Group voice call.
+21. Group video call.
+22. Adding a participant.
+23. Direct-to-group transition.
+24. Group chat creation.
+25. Immersive video mode.
+26. Call termination and resource cleanup.
+
+Test on different Android devices, screen sizes, and operating-system versions.
+
+Do not mark a feature complete just because the UI appears.
+
+Every feature must work.
+
+---
+
+# PHASE 10 — IMPLEMENTATION RULES
+
+## Mandatory Development Instructions
+
+1. First inspect the complete existing calling implementation.
+2. Identify the root cause of every reported problem.
+3. Produce a technical implementation plan based on the existing architecture.
+4. Preserve all working features.
+5. Do not unnecessarily replace the database or authentication system.
+6. Reuse existing services and components where appropriate.
+7. Keep code modular and maintainable.
+8. Implement proper error handling.
+9. Avoid memory leaks.
+10. Avoid duplicate event listeners.
+11. Avoid unnecessary network requests.
+12. Avoid blocking the main UI thread.
+13. Test every major change.
+14. Do not use placeholder implementations for production features.
+15. Do not claim that a feature is complete without testing it.
+
+## Recommended Implementation Order
+
+Priority 1:
+
+- Fix call connection speed.
+- Fix remote video initialization.
+- Fix call lifecycle.
+- Fix camera rendering and camera-off state.
+- Fix background calling.
+
+Priority 2:
+
+- Redesign the complete calling interface.
+- Implement draggable self-view.
+- Implement floating video experience.
+- Implement immersive full-screen mode.
+
+Priority 3:
+
+- Build the advanced filter and effects engine.
+- Implement beauty controls.
+- Implement background segmentation and replacement.
+- Build a large filter library.
+- Optimize effects performance.
+
+Priority 4:
+
+- Implement group voice and video calling.
+- Implement adding participants.
+- Implement direct-to-group conversion.
+- Implement automatic group chat creation.
+
+Priority 5:
+
+- Comprehensive testing.
+- Performance optimization.
+- Memory and battery optimization.
+- Final UI polish.
+
+## FINAL ACCEPTANCE CRITERIA
+
+The project is complete only when:
+
+- Calls connect quickly and reliably.
+- Remote video appears without unnecessary delays.
+- Camera-off users display professional profile interfaces.
+- Self-view is draggable.
+- Self-view has correct video framing.
+- Camera zoom is natural.
+- Calls survive normal app navigation and backgrounding.
+- Floating video works where supported.
+- Filters are independently controlled by each user.
+- Remote participants see the sender's processed video.
+- The filter library offers extensive variety.
+- Beauty and background effects work in real time.
+- Group voice and video calls work.
+- Participants can be added during active calls.
+- Direct calls can transition into group calls.
+- Group conversations are correctly created or reused.
+- Video controls can be hidden for immersive viewing.
+- All calling screens have a premium design.
+- No emoji icons are used in the calling UI.
+- No existing ZEV features are broken.
+
+IMPORTANT FINAL INSTRUCTION:
+
+Do not attempt to implement all features blindly in one operation.
+
+First inspect the existing project and provide a detailed technical audit.
+
+Then implement the roadmap phase by phase.
+
+After each phase:
+
+- Explain what was changed.
+- List the files modified.
+- Explain the technical implementation.
+- Report the tests performed.
+- Identify any remaining limitations.
+
+The final result must be a production-quality calling system, not a prototype.
+
+Our goal is to make ZEV Calling a premium, reliable, fast, and feature-rich communication experience that can compete with WhatsApp, Instagram, and Snapchat.
+
+# **چند نکته بسیار مهم درباره اجرای این رودمپ**
+
+من چند موضوع فنی را هم اضافه کردم که اگر رعایت نشوند، حتی با طراحی بسیار زیبا باز هم کاربران ناراضی خواهند بود.
+
+## **۱. سیستم فیلترها باید واقعاً حرفه‌ای باشد**
+
+بالاترین تمرکز توسعه
+
+[Top Snapchat Filters for Videos and How to Apply Them](https://images.openai.com/static-rsc-4/4W7F6bTA_Ocfs6tAQogTmcWWbSRh1N_WjQR2cDYtYi7ch1H-ofrQm6-74-anCwzwlu9S_GiYcU7IYxwfuRyOLhkp-IotOydvoRKTPXt5kJ2qixdMalyG4pUniHfaBBZh8jxdMmnqzLoOlM84E-7gi4rOGgxyMMvy-nEsPeThBHk?purpose=inline)
+
+[Como colocar efeito na chamada de vídeo do Instagram](https://images.openai.com/static-rsc-4/IHGvurPt09y_8-opOuAXmrioqN-_XRtNQ12KM12nSqO4HzoknrslT5nLQ6Xor1eKCSSA3gGiZEKsw0ebB1YK2NBMjfmXkX8U3COpgagZHBZk7SOqItJ5Ofq9pQpgKdNVNXR0gq3_cmPqzeYbM4_W1C-DgaotN4jqcKCv2KR91_o?purpose=inline)
+
+[Real-time Background Removal and Custom Virtual Background - Android SDK Integration Guide - Tencent RTC Documentation](https://images.openai.com/static-rsc-4/XxRqRDx1TGARxB3kj-wgn2mp-kww787FlNs2dUsxVzRTXrZ4H7fjmTq0GNFJuG5OUgFQXN7hOpKiosIYY4n7QaAXI2tyX4sYyjJKi84PVygCHUsWFocCDo3qk9Y3gE6L4mw88RVFRkGHmUbsC85ehq8DWBnjV0cHbOr-Qy0bGoc?purpose=inline)
+
+12
+
+برای ZEV پیشنهاد می‌کنم فیلترها فقط به چند رنگ ساده محدود نباشند. سه سطح داشته باشیم:
+
+- **Basic Filters:** تغییر رنگ، نور، سینمایی، Vintage و غیره.
+- **Beauty Effects:** صاف کردن پوست، روشنایی چهره، آرایش و زیبایی طبیعی.
+- **Advanced AR Effects:** تشخیص چهره، افکت‌های متحرک، تغییر پس‌زمینه و افکت‌های هوشمند.
+
+یک موضوع مهم: افکتی که روی دوربین خودت فعال می‌کنی باید روی ویدیوی خروجی خودت اعمال شود و شخص مقابل همان تصویر پردازش‌شده را دریافت کند. اما تنظیمات دوربین خودش مستقل باقی بماند.
+
+## **۲. معماری تماس گروهی را جدی بگیر**
+
+اگر ZEV از WebRTC استفاده می‌کند، برای تماس گروهی بزرگ بهتر است معماری SFU را بررسی کنی. این معماری معمولاً نسبت به اتصال مستقیم همه کاربران به یکدیگر مقیاس‌پذیرتر است.
+
+## **۳. بک‌گراند و پنجره شناور**
+
+این قابلیت‌ها فقط با طراحی UI حل نمی‌شوند. باید چرخه عمر تماس و قابلیت‌های Native اندروید و iOS درست پیاده‌سازی شوند. همچنین پنجره شناور داخل ZEV با Picture-in-Picture سیستم‌عامل دو قابلیت متفاوت هستند.
+
+# **ترتیب پیشنهادی من برای توسعه**
+
+| اولویت | بخش                        | اهمیت      |
+| ------ | -------------------------- | ---------- |
+| ۱      | سرعت اتصال و نمایش ویدیو   | حیاتی      |
+| ۲      | پایداری تماس در پس‌زمینه   | حیاتی      |
+| ۳      | فیلترها و افکت‌های پیشرفته | بسیار بالا |
+| ۴      | طراحی کامل تماس            | بسیار بالا |
+| ۵      | پنجره شناور و Drag         | بالا       |
+| ۶      | تماس گروهی و دعوت مخاطب    | بالا       |
+| ۷      | تست و بهینه‌سازی           | حیاتی      |
+
+**یک توصیه مهم:** همه این ۱۳ مورد را یک‌باره به Antigravity نسپار که بدون بررسی کدها شروع به تغییر همه‌چیز کند. اول از او Technical Audit بگیر و سپس هر فاز را جداگانه اجرا کن. این کار ریسک خراب شدن سیستم فعلی ZEV را کاهش می‌دهد.
+
+همچنین بعد از اتمام هر فاز، روی حداقل دو گوشی واقعی تماس برقرار کن؛ چون عملکرد WebRTC، دوربین و پردازش افکت‌ها را نمی‌توان صرفاً با شبیه‌ساز تأیید کرد.
+
+اگر این رودمپ درست اجرا شود، ZEV می‌تواند یک سیستم تماس بسیار کامل‌تر و حرفه‌ای‌تر داشته باشد.
