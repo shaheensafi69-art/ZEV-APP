@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -271,11 +272,19 @@ class _CallScreenState extends State<CallScreen>
     }
 
     _resetControlsHideTimer();
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      unawaited(
+        ZevPipService.instance.enableAutoPip(aspectX: 9, aspectY: 16),
+      );
+    }
     _bootstrapCall();
   }
 
   @override
   void dispose() {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      unawaited(ZevPipService.instance.disableAutoPip());
+    }
     _ringTimeoutTimer?.cancel();
     _durationTimer?.cancel();
     _statusPollTimer?.cancel();
@@ -2010,6 +2019,35 @@ class _CallScreenState extends State<CallScreen>
     return _buildCameraOffProfileView(displayName: displayName);
   }
 
+  Widget _buildAvatarInitialFallback(String name, {double size = 120}) {
+    final initial = name.trim().isNotEmpty
+        ? name.trim().characters.first.toUpperCase()
+        : 'Z';
+    return Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            fontSize: size * 0.45,
+            fontWeight: FontWeight.w900,
+            color: Colors.white,
+            letterSpacing: -0.5,
+          ),
+        ),
+      ),
+    );
+  }
+
   /// WhatsApp / Instagram Grade Camera-Off Profile Display
   Widget _buildCameraOffProfileView({required String displayName}) {
     return Stack(
@@ -2086,10 +2124,18 @@ class _CallScreenState extends State<CallScreen>
                   );
                 },
                 child: ClipOval(
-                  child: ZevCachedImage.avatar(
-                    imageUrl: widget.peerAvatar,
-                    size: 120,
-                  ),
+                  child: widget.peerAvatar.trim().isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: widget.peerAvatar.trim(),
+                          width: 120,
+                          height: 120,
+                          fit: BoxFit.cover,
+                          placeholder: (ctx, _) =>
+                              _buildAvatarInitialFallback(displayName, size: 120),
+                          errorWidget: (ctx, _, _) =>
+                              _buildAvatarInitialFallback(displayName, size: 120),
+                        )
+                      : _buildAvatarInitialFallback(displayName, size: 120),
                 ),
               ),
               const SizedBox(height: 20),

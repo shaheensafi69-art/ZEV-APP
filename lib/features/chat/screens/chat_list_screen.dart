@@ -80,6 +80,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   RealtimeChannel? _inboxChannel;
   Timer? _realtimeDebounce;
   Timer? _searchDebounce;
+  Timer? _webInboxTimer;
   final Map<String, String> _peerActions = {};
   final Map<String, Timer> _peerActionTimers = {};
 
@@ -93,6 +94,12 @@ class _ChatListScreenState extends State<ChatListScreen> {
     _loadCurrentUserProfile();
     _fetchInbox(isBackgroundUpdate: _conversations.isNotEmpty);
     _subscribeToInboxRealtime();
+
+    if (kIsWeb) {
+      _webInboxTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+        if (mounted) _fetchInbox(isBackgroundUpdate: true);
+      });
+    }
   }
 
   void _extractInitialWebTarget() {
@@ -274,6 +281,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     _searchCtrl.dispose();
     _realtimeDebounce?.cancel();
     _searchDebounce?.cancel();
+    _webInboxTimer?.cancel();
     for (final t in _peerActionTimers.values) {
       t.cancel();
     }

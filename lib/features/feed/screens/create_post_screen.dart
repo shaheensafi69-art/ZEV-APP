@@ -112,10 +112,42 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     "#community",
   ];
 
+  List<_TrendingHashtagItem> _trendingHashtags = [];
+
+  Future<void> _loadTrendingHashtags() async {
+    try {
+      final res = await supabase
+          .from('hashtags')
+          .select('tag, posts_count, reels_count')
+          .order('posts_count', ascending: false)
+          .limit(30);
+
+      final list = <_TrendingHashtagItem>[];
+      for (final row in (res as List)) {
+        final m = row as Map<String, dynamic>;
+        final rawTag = (m['tag'] ?? '').toString().trim();
+        if (rawTag.isEmpty) continue;
+        final clean = rawTag.startsWith('#') ? rawTag : '#$rawTag';
+        final posts = (m['posts_count'] as num?)?.toInt() ?? 0;
+        final reels = (m['reels_count'] as num?)?.toInt() ?? 0;
+        list.add(_TrendingHashtagItem(tag: clean, count: posts + reels));
+      }
+
+      if (mounted && list.isNotEmpty) {
+        setState(() {
+          _trendingHashtags = list;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading trending hashtags: $e');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _loadUserProfile();
+    _loadTrendingHashtags();
     _contentCtrl.addListener(() => setState(() {}));
     _titleCtrl.addListener(() => setState(() {}));
     _locationCtrl.addListener(() => setState(() {}));
@@ -1592,23 +1624,30 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           ],
           const SizedBox(height: 12),
 
-          // Quick Hashtags Strip
+          // Quick Hashtags Strip (Live Dynamic Suggestions with Counts)
           SizedBox(
-            height: 32,
+            height: 34,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              itemCount: _quickTags.length,
+              itemCount: _trendingHashtags.isNotEmpty
+                  ? _trendingHashtags.length
+                  : _quickTags.length,
               separatorBuilder: (context, index) => const SizedBox(width: 8),
               itemBuilder: (context, i) {
-                final tag = _quickTags[i];
+                final tagItem = _trendingHashtags.isNotEmpty
+                    ? _trendingHashtags[i]
+                    : _TrendingHashtagItem(tag: _quickTags[i], count: 0);
                 return GestureDetector(
-                  onTap: () => _insertHashtag(tag),
+                  onTap: () => _insertHashtag(tagItem.tag),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white, width: 1.2),
+                      border: Border.all(
+                        color: const Color(0xFFE2E8F0),
+                        width: 1.0,
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: const Color(0xFF0F172A).withValues(alpha: 0.04),
@@ -1617,13 +1656,39 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         ),
                       ],
                     ),
-                    child: Text(
-                      tag,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF0284C7),
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          tagItem.tag,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF0284C7),
+                          ),
+                        ),
+                        if (tagItem.count > 0) ...[
+                          const SizedBox(width: 5),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '${tagItem.count}',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 );
@@ -2589,4 +2654,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       ),
     );
   }
+}
+
+class _TrendingHashtagItem {
+  final String tag;
+  final int count;
+  const _TrendingHashtagItem({required this.tag, required this.count});
 }

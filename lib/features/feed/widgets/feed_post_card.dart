@@ -247,6 +247,16 @@ class _FeedPostCardState extends State<FeedPostCard>
     return _post.categoryTag;
   }
 
+  String _getCleanCaption() {
+    String text = _post.content.trim();
+    if (text.isEmpty) {
+      text = _post.title.trim();
+    }
+    // Strip leading [Category] tag e.g. "[Explore] " or "[Technology]"
+    text = text.replaceFirst(RegExp(r'^\[[^\]]+\]\s*'), '').trim();
+    return text;
+  }
+
   void _triggerDoubleTapLike() {
     HapticFeedback.mediumImpact();
     setState(() => _showFloatingHeart = true);
@@ -1574,13 +1584,13 @@ class _FeedPostCardState extends State<FeedPostCard>
           ),
 
           // 4. Post Title & Caption Block with Smart Dynamic RTL/LTR
-          if (!post.isGradientTextPost &&
-              (post.title.isNotEmpty || post.content.isNotEmpty)) () {
-            final isContentRtl = TextDirectionHelper.isRtl(
-              post.content.isNotEmpty ? post.content : post.title,
-            );
+          if (!post.isGradientTextPost) () {
+            final cleanCaption = _getCleanCaption();
+            if (cleanCaption.isEmpty) return const SizedBox.shrink();
+
+            final isContentRtl = TextDirectionHelper.isRtl(cleanCaption);
             return Padding(
-              padding: const EdgeInsets.only(left: 14, right: 14, top: 2),
+              padding: const EdgeInsets.only(left: 14, right: 14, top: 4),
               child: SizedBox(
                 width: double.infinity,
                 child: Column(
@@ -1589,9 +1599,7 @@ class _FeedPostCardState extends State<FeedPostCard>
                       : CrossAxisAlignment.start,
                   children: [
                     ZevRichText(
-                      text: post.content.isNotEmpty
-                          ? post.content
-                          : post.title,
+                      text: cleanCaption,
                       textDirection: isContentRtl
                           ? TextDirection.rtl
                           : TextDirection.ltr,
@@ -1615,18 +1623,9 @@ class _FeedPostCardState extends State<FeedPostCard>
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                        if (post.title.isNotEmpty &&
-                            post.content.isNotEmpty &&
-                            !post.title.startsWith('['))
-                          TextSpan(
-                            text: "${post.title} — ",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
                       ],
                     ),
-                    if (!_isExpanded && (post.content.length > 70))
+                    if (!_isExpanded && (cleanCaption.length > 70))
                       GestureDetector(
                         onTap: () => setState(() => _isExpanded = true),
                         child: const Padding(

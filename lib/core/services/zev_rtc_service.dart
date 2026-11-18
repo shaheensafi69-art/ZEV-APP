@@ -584,16 +584,25 @@ class ZevRtcService {
       Map<String, dynamic>.from(res as Map),
     );
 
+    final myUserId = _supabase.auth.currentUser?.id;
+    final callTypeLabel = session.isVideo ? 'Video Call' : 'Voice Call';
     unawaited(
       ApiClient.instance
           .post(
             '/api/v1/push/send',
             data: {
               'recipientUserId': calleeId,
-              'title': session.isVideo ? 'Incoming Video Call' : 'Incoming Voice Call',
-              'body': '$callerDisplayName is calling you on ZEV',
+              'senderId': myUserId,
+              'title': '$callerDisplayName • $callTypeLabel',
+              'body': 'Incoming $callTypeLabel on ZEV',
               'notificationType': session.isVideo ? 'video_call' : 'voice_call',
               'deepLink': '/call/${session.id}',
+              'data': {
+                'call_id': session.id,
+                'caller_name': callerDisplayName,
+                'call_type': session.isVideo ? 'video' : 'voice',
+                'sender_id': myUserId ?? '',
+              },
             },
             requireAuth: true,
           )
@@ -641,15 +650,22 @@ class ZevRtcService {
         Map<String, dynamic>.from(res as Map),
       );
 
+      final myUserId = _supabase.auth.currentUser?.id;
+      final inviterName = inviterDisplayName ?? 'A friend';
       unawaited(
         ApiClient.instance.post(
           '/api/v1/push/send',
           data: {
             'recipientUserId': userId,
-            'title': 'Group Call Invitation',
-            'body': '${inviterDisplayName ?? "A friend"} invited you to join a call',
+            'senderId': myUserId,
+            'title': '$inviterName • Group Call',
+            'body': 'Invited you to join a live call on ZEV',
             'notificationType': 'group_call',
             'deepLink': '/call/$callId',
+            'data': {
+              'call_id': callId,
+              'sender_id': myUserId ?? '',
+            },
           },
           requireAuth: true,
         ).catchError((_) => <String, dynamic>{}),

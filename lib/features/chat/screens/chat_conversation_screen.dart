@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -202,6 +203,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
   RealtimeChannel? _chatChannel;
   Timer? _statusTimer;
+  Timer? _webSyncTimer;
   StreamSubscription<DirectMessageModel>? _incomingMessageSub;
 
   @override
@@ -274,6 +276,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     _scrollCtrl.dispose();
     _chatChannel?.unsubscribe();
     _statusTimer?.cancel();
+    _webSyncTimer?.cancel();
     _recordingTimer?.cancel();
     _typingClearTimer?.cancel();
     _recordingActionClearTimer?.cancel();
@@ -341,6 +344,56 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         if (mounted) _fetchPeerStatus();
       });
     }
+
+    if (kIsWeb) {
+      _webSyncTimer?.cancel();
+      _webSyncTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+        if (mounted && _conversationId.isNotEmpty) {
+          _fetchLatestMessagesSilently();
+        }
+      });
+    }
+  }
+
+  Future<void> _fetchLatestMessagesSilently() async {
+    if (_conversationId.isEmpty || !mounted) return;
+    try {
+      final latestTimestamp = _messages.isNotEmpty
+          ? _messages.first.createdAt.toUtc().toIso8601String()
+          : null;
+
+      var filterBuilder = _supabase
+          .from('direct_messages')
+          .select('*')
+          .eq('conversation_id', _conversationId)
+          .filter('deleted_at', 'is', 'null');
+
+      if (latestTimestamp != null) {
+        filterBuilder = filterBuilder.gt('created_at', latestTimestamp);
+      }
+
+      final res = await filterBuilder
+          .order('created_at', ascending: false)
+          .limit(15);
+      if (!mounted || res.isEmpty) return;
+
+      final myId = _supabase.auth.currentUser?.id;
+      final newItems = <DirectMessageModel>[];
+      for (final r in res) {
+        final m = DirectMessageModel.fromMap(Map<String, dynamic>.from(r));
+        if (myId != null && m.isDeletedForUser(myId)) continue;
+        if (!_messages.any((x) => x.id == m.id)) {
+          newItems.add(m);
+        }
+      }
+
+      if (newItems.isNotEmpty && mounted) {
+        setState(() {
+          _messages.insertAll(0, newItems);
+        });
+        _markIncomingMessagesAsRead();
+      }
+    } catch (_) {}
   }
 
   Future<void> _fetchGroupDetails() async {
@@ -534,7 +587,16 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         },
       );
 
-      _chatChannel = ch..subscribe();
+      _chatChannel = ch
+        ..subscribe((status, [error]) {
+          if (status == RealtimeSubscribeStatus.timedOut ||
+              status == RealtimeSubscribeStatus.channelError) {
+            debugPrint('[Chat] Realtime channel $status, re-subscribing...');
+            Future.delayed(const Duration(seconds: 2), () {
+              if (mounted) _subscribeToLiveChat();
+            });
+          }
+        });
     } catch (e) {
       debugPrint('[ChatConversationScreen] Realtime notice: $e');
     }

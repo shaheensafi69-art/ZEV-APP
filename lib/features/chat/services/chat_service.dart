@@ -1386,22 +1386,34 @@ class ChatService {
       String senderName = 'New Message';
       final cachedMyProf = ChatCacheService.instance.getCachedProfile(myId);
       if (cachedMyProf != null) {
-        final uname = (cachedMyProf['username'] ?? '').toString();
-        if (uname.isNotEmpty) senderName = '@$uname';
+        final fn = (cachedMyProf['first_name'] ?? '').toString().trim();
+        final ln = (cachedMyProf['last_name'] ?? '').toString().trim();
+        final fullName = [fn, ln].where((s) => s.isNotEmpty).join(' ');
+        final uname = (cachedMyProf['username'] ?? '').toString().trim();
+        if (fullName.isNotEmpty) {
+          senderName = fullName;
+        } else if (uname.isNotEmpty) {
+          senderName = '@$uname';
+        }
       }
+
+      final directTitle = '$senderName • New message';
+      final groupTitle = '$senderName • Group chat';
 
       if (!isGroup && peerId.isNotEmpty) {
         final res = await ApiClient.instance.post(
           '/api/v1/push/send',
           data: {
             'recipientUserId': peerId,
-            'title': senderName,
+            'senderId': myId,
+            'title': directTitle,
             'body': bodyText,
             'notificationType': 'message',
             'deepLink': '/chat/$myId',
             'data': {
               'type': 'chat',
               'sender_id': myId,
+              'sender_name': senderName,
               'conversation_id': conversationId,
             },
           },
@@ -1425,13 +1437,15 @@ class ChatService {
                   '/api/v1/push/send',
                   data: {
                     'recipientUserId': uid,
-                    'title': senderName,
+                    'senderId': myId,
+                    'title': groupTitle,
                     'body': bodyText,
                     'notificationType': 'message',
                     'deepLink': '/chat/conv:$conversationId',
                     'data': {
                       'type': 'chat',
                       'sender_id': myId,
+                      'sender_name': senderName,
                       'conversation_id': conversationId,
                     },
                   },

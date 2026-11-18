@@ -20,8 +20,14 @@ class AppConfig {
 
   static const String apiBaseUrl = String.fromEnvironment(
     'ZEV_API_BASE_URL',
-    defaultValue: 'https://www.zevapp.com',
+    defaultValue: 'https://web.zevapp.com',
   );
+
+  static String get effectiveApiBaseUrl {
+    const envUrl = String.fromEnvironment('ZEV_API_BASE_URL');
+    if (envUrl.isNotEmpty) return envUrl;
+    return 'https://web.zevapp.com';
+  }
 
   static const String r2PublicDomain = String.fromEnvironment(
     'CLOUDFLARE_R2_PUBLIC_DOMAIN',

@@ -15,6 +15,7 @@ import '../../../core/widgets/zev_skeleton.dart';
 import '../models/feed_post_item.dart';
 import '../widgets/feed_post_card.dart';
 import '../widgets/feed_stories_tray.dart';
+import '../widgets/feed_desktop_right_sidebar.dart';
 import '../../stories/screens/create_story_screen.dart';
 import '../../stories/screens/story_viewer_screen.dart';
 import '../../profile/screens/profile_screen.dart';
@@ -62,6 +63,9 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
   final Set<String> _requestedSuggestedIds = {};
   bool _dismissSuggestedCarousel = false;
   String _myAvatarUrl = '';
+  String _myUsername = '';
+  String _myFullName = '';
+  bool _isMyVerified = false;
 
   StreamSubscription<void>? _storySub;
   StreamSubscription<void>? _liveSub;
@@ -101,12 +105,20 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
     try {
       final res = await supabase
           .from('profiles')
-          .select('avatar_url')
+          .select('avatar_url, username, first_name, last_name, is_verified')
           .eq('id', user.id)
           .maybeSingle();
 
       if (res != null && mounted) {
-        setState(() => _myAvatarUrl = res['avatar_url'] ?? '');
+        final full = [res['first_name'], res['last_name']]
+            .where((s) => s != null && s.toString().trim().isNotEmpty)
+            .join(' ');
+        setState(() {
+          _myAvatarUrl = res['avatar_url'] ?? '';
+          _myUsername = res['username'] ?? '';
+          _myFullName = full.isNotEmpty ? full : (res['username'] ?? 'You');
+          _isMyVerified = res['is_verified'] == true;
+        });
       }
     } catch (_) {}
   }
@@ -705,34 +717,32 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isDesktop = screenWidth >= 720;
+    final isWideDesktop = screenWidth >= 1080;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
-      body: SafeArea(
-        child: RefreshIndicator(
-          color: ZevColors.primaryBlue,
-          onRefresh: () {
-            ZevAdsService.instance.clearSlotCache();
-            return _fetchFeedData();
-          },
-          child: NotificationListener<ScrollNotification>(
-            onNotification: (notification) {
-              if (!_isLoading &&
-                  !_isLoadingMore &&
-                  _hasMorePosts &&
-                  notification.metrics.pixels >=
-                      notification.metrics.maxScrollExtent - 600) {
-                _loadMorePosts();
-              }
-              return false;
-            },
-            child: CustomScrollView(
-              // ignore: deprecated_member_use
-              cacheExtent: 1200.0,
-              physics: const AlwaysScrollableScrollPhysics(
-                parent: BouncingScrollPhysics(),
-              ),
-              slivers: [
+    final feedBody = RefreshIndicator(
+      color: ZevColors.primaryBlue,
+      onRefresh: () {
+        ZevAdsService.instance.clearSlotCache();
+        return _fetchFeedData();
+      },
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (!_isLoading &&
+              !_isLoadingMore &&
+              _hasMorePosts &&
+              notification.metrics.pixels >=
+                  notification.metrics.maxScrollExtent - 600) {
+            _loadMorePosts();
+          }
+          return false;
+        },
+        child: CustomScrollView(
+          // ignore: deprecated_member_use
+          cacheExtent: 1200.0,
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          slivers: [
               // 1. Next-Gen Claymorphic Top Navigation Bar
               SliverAppBar(
                 floating: true,
@@ -1464,8 +1474,37 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
             ],
           ),
         ),
+      );
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF1F5F9),
+      body: SafeArea(
+        child: isWideDesktop
+            ? Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 630),
+                      child: feedBody,
+                    ),
+                    const SizedBox(width: 32),
+                    SizedBox(
+                      width: 330,
+                      child: FeedDesktopRightSidebar(
+                        myAvatarUrl: _myAvatarUrl,
+                        myUsername: _myUsername,
+                        myFullName: _myFullName,
+                        isMyVerified: _isMyVerified,
+                        suggestedUsers: _suggestedUsers,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : feedBody,
       ),
-    ),
-  );
+    );
   }
 }
