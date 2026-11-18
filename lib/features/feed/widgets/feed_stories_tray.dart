@@ -212,15 +212,16 @@ class _FeedStoriesTrayState extends State<FeedStoriesTray>
     }
   }
 
-  bool get _hasAdMobSlot =>
-      !kIsWeb && AdmobService.instance.isInitialized && _sponsoredAd == null;
+  bool get _hasAdMobSlot => !kIsWeb && AdmobService.instance.isInitialized;
 
   @override
   Widget build(BuildContext context) {
     // Total count:
-    // 1 (My Story) + Live Rooms + Sponsored Ad (0 or 1) + AdMob Slot (0 or 1) + Friend Stories
+    // 1 (My Story) + Live Rooms + Sponsored Campaign (0 or 1) + AdMob Slot (0 or 1) + Friend Stories
     final liveCount = _liveRooms.length;
-    final adCount = _sponsoredAd != null ? 1 : (_hasAdMobSlot ? 1 : 0);
+    final hasSponsored = _sponsoredAd != null;
+    final hasAdMob = _hasAdMobSlot;
+    final adCount = (hasSponsored ? 1 : 0) + (hasAdMob ? 1 : 0);
     final totalCount = 1 + liveCount + adCount + widget.stories.length;
 
     return Container(
@@ -266,13 +267,15 @@ class _FeedStoriesTrayState extends State<FeedStoriesTray>
 
           final afterLiveIndex = index - 1 - liveCount;
 
-          // Next: Sponsored Ad or AdMob slot
-          if (adCount > 0 && afterLiveIndex == 0) {
-            if (_sponsoredAd != null) {
-              return _buildSponsoredStoryItem(context, _sponsoredAd!);
-            } else if (_hasAdMobSlot) {
-              return _buildAdMobStoryItem(context);
-            }
+          // Next: Sponsored Campaign
+          if (hasSponsored && afterLiveIndex == 0) {
+            return _buildSponsoredStoryItem(context, _sponsoredAd!);
+          }
+
+          // Next: AdMob Slot
+          final adMobOffset = hasSponsored ? 1 : 0;
+          if (hasAdMob && afterLiveIndex == adMobOffset) {
+            return _buildAdMobStoryItem(context);
           }
 
           // Remaining: Friend stories
@@ -796,76 +799,11 @@ class _FeedStoriesTrayState extends State<FeedStoriesTray>
 
   void _openAdMobStoryModal(BuildContext context) {
     HapticFeedback.lightImpact();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        margin: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E293B),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        'Sponsored',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Featured Partner',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                        color: ZevColors.deepNavy,
-                      ),
-                    ),
-                  ],
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close_rounded),
-                  onPressed: () => Navigator.pop(ctx),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            const SizedBox(
-              height: 340,
-              child: ZevNativeAdStoryUnit(
-                slotKey: 'stories_tray_partner_sheet',
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => const _FullScreenStoryAdViewer(
+          slotKey: 'stories_tray_partner_sheet',
+          brandTitle: 'Sponsored Partner',
         ),
       ),
     );
@@ -977,6 +915,136 @@ class _FeedStoriesTrayState extends State<FeedStoriesTray>
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FullScreenStoryAdViewer extends StatefulWidget {
+  final String slotKey;
+  final String brandTitle;
+
+  const _FullScreenStoryAdViewer({
+    required this.slotKey,
+    required this.brandTitle,
+  });
+
+  @override
+  State<_FullScreenStoryAdViewer> createState() =>
+      _FullScreenStoryAdViewerState();
+}
+
+class _FullScreenStoryAdViewerState extends State<_FullScreenStoryAdViewer>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _progressCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _progressCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 8),
+    )..forward().then((_) {
+        if (mounted) Navigator.of(context).pop();
+      });
+  }
+
+  @override
+  void dispose() {
+    _progressCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(
+              child: ZevNativeAdStoryUnit(
+                slotKey: widget.slotKey,
+              ),
+            ),
+            Positioned(
+              top: 8,
+              left: 12,
+              right: 12,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedBuilder(
+                    animation: _progressCtrl,
+                    builder: (context, _) {
+                      return ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          value: _progressCtrl.value,
+                          backgroundColor: Colors.white24,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                          minHeight: 3,
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E293B),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.white38, width: 0.8),
+                        ),
+                        child: const Text(
+                          'Sponsored',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        widget.brandTitle,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black54,
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
         ),

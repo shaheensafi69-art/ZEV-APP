@@ -118,7 +118,11 @@ class ZevCachedImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (imageUrl.isEmpty) {
-      return _buildFallback();
+      final fallbackWidget = errorWidget ?? placeholder ?? _buildFallback();
+      if (borderRadius != null && fallbackWidget == _buildFallback()) {
+        return ClipRRect(borderRadius: borderRadius!, child: fallbackWidget);
+      }
+      return fallbackWidget;
     }
 
     Widget image = CachedNetworkImage(
@@ -151,7 +155,10 @@ class ZevCachedImage extends StatelessWidget {
     return Container(
       width: width,
       height: height,
-      color: const Color(0xFFF1F5F9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: borderRadius,
+      ),
       child: const Center(
         child: Icon(
           Icons.image_outlined,

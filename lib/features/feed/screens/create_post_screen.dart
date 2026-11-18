@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/services/content_safety_service.dart';
 import '../../../core/services/social_graph_service.dart';
+import '../../../core/theme/zev_post_gradients.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
 import '../../../core/widgets/zev_cached_image.dart';
@@ -69,6 +70,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
   final List<File> _selectedImages = [];
   int _currentSlideIndex = 0;
+  ZevPostGradientPreset? _selectedGradient =
+      ZevPostGradientPreset.presets.first;
 
   final List<FeedPostUserTag> _collaborators = [];
   final List<FeedPostUserTag> _taggedUsers = [];
@@ -821,10 +824,16 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             'student_id': user.id,
             'title': formattedTitle,
             'content': content,
-            'image_url': uploadedUrls.isNotEmpty ? uploadedUrls.first : '',
+            'image_url': uploadedUrls.isNotEmpty
+                ? uploadedUrls.first
+                : (_selectedGradient != null
+                    ? 'gradient:${_selectedGradient!.key}'
+                    : ''),
             'post_type': uploadedUrls.length > 1
                 ? 'carousel'
-                : (uploadedUrls.isNotEmpty ? 'image' : 'text'),
+                : (uploadedUrls.isNotEmpty
+                    ? 'image'
+                    : (_selectedGradient != null ? 'gradient' : 'text')),
             'location': location.isEmpty ? null : location,
             'collaborator_ids': _collaborators.map((c) => c.id).toList(),
             'tagged_user_ids': _taggedUsers.map((t) => t.id).toList(),
@@ -1365,49 +1374,222 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           ),
           const SizedBox(height: 12),
 
-          // Caption Field
-          Container(
-            constraints: const BoxConstraints(minHeight: 130),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.white, width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-                const BoxShadow(
-                  color: Colors.white,
-                  blurRadius: 4,
-                  offset: Offset(0, -1),
-                ),
-              ],
-            ),
-            child: TextField(
-              controller: _contentCtrl,
-              maxLines: null,
-              minLines: 5,
-              textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
-              style: const TextStyle(
-                fontSize: 14.5,
-                color: ZevColors.deepNavy,
-                height: 1.4,
+          // Caption / Facebook-style Gradient Field
+          if (_selectedImages.isEmpty && _selectedGradient != null) ...[
+            Container(
+              constraints: const BoxConstraints(minHeight: 220),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              decoration: BoxDecoration(
+                gradient: _selectedGradient!.toGradient(),
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: [
+                  BoxShadow(
+                    color: _selectedGradient!.colors.first
+                        .withValues(alpha: 0.35),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
-              decoration: const InputDecoration(
-                hintText:
-                    "What's on your mind? Share thoughts, insights, or tutorials with the ZEV community...",
-                hintStyle: TextStyle(
-                  fontSize: 14,
-                  color: ZevColors.textMuted,
+              child: Center(
+                child: TextField(
+                  controller: _contentCtrl,
+                  maxLines: null,
+                  minLines: 3,
+                  textAlign: TextAlign.center,
+                  textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1.35,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black26,
+                        blurRadius: 6,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  decoration: const InputDecoration(
+                    hintText: "What's on your mind?",
+                    hintStyle: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white70,
+                    ),
+                    border: InputBorder.none,
+                    isDense: true,
+                  ),
                 ),
-                border: InputBorder.none,
-                isDense: true,
               ),
             ),
-          ),
+            const SizedBox(height: 10),
+            // Facebook-style Swatches Strip
+            SizedBox(
+              height: 40,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: ZevPostGradientPreset.presets.length + 1,
+                separatorBuilder: (context, index) => const SizedBox(width: 8),
+                itemBuilder: (context, i) {
+                  if (i == 0) {
+                    final isPlain = _selectedGradient == null;
+                    return GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _selectedGradient = null);
+                      },
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
+                          border: Border.all(
+                            color: isPlain
+                                ? ZevColors.primaryBlue
+                                : const Color(0xFFCBD5E1),
+                            width: isPlain ? 2.5 : 1.2,
+                          ),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.format_color_reset_rounded,
+                            size: 16,
+                            color: ZevColors.textMuted,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  final preset = ZevPostGradientPreset.presets[i - 1];
+                  final isSelected = _selectedGradient?.key == preset.key;
+                  return GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _selectedGradient = preset);
+                    },
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: preset.toGradient(),
+                        border: Border.all(
+                          color:
+                              isSelected ? Colors.white : Colors.transparent,
+                          width: 2.5,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: preset.colors.first
+                                      .withValues(alpha: 0.5),
+                                  blurRadius: 8,
+                                  spreadRadius: 1,
+                                ),
+                              ]
+                            : null,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ] else ...[
+            Container(
+              constraints: const BoxConstraints(minHeight: 130),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                  const BoxShadow(
+                    color: Colors.white,
+                    blurRadius: 4,
+                    offset: Offset(0, -1),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _contentCtrl,
+                maxLines: null,
+                minLines: 5,
+                textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  color: ZevColors.deepNavy,
+                  height: 1.4,
+                ),
+                decoration: const InputDecoration(
+                  hintText:
+                      "What's on your mind? Share thoughts, insights, or tutorials with the ZEV community...",
+                  hintStyle: TextStyle(
+                    fontSize: 14,
+                    color: ZevColors.textMuted,
+                  ),
+                  border: InputBorder.none,
+                  isDense: true,
+                ),
+              ),
+            ),
+            if (_selectedImages.isEmpty) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 40,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: ZevPostGradientPreset.presets.length + 1,
+                  separatorBuilder: (context, index) => const SizedBox(width: 8),
+                  itemBuilder: (context, i) {
+                    if (i == 0) {
+                      return Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
+                          border: Border.all(
+                            color: ZevColors.primaryBlue,
+                            width: 2.5,
+                          ),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.format_color_reset_rounded,
+                            size: 16,
+                            color: ZevColors.primaryBlue,
+                          ),
+                        ),
+                      );
+                    }
+                    final preset = ZevPostGradientPreset.presets[i - 1];
+                    return GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _selectedGradient = preset);
+                      },
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: preset.toGradient(),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ],
           const SizedBox(height: 12),
 
           // Quick Hashtags Strip

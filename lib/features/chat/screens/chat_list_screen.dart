@@ -12,6 +12,7 @@ import '../../../core/utils/time_ago.dart';
 import '../../../core/utils/web_url_helper.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../models/chat_conversation_item.dart';
+import '../models/direct_message_model.dart';
 import '../services/chat_cache_service.dart';
 import '../services/chat_service.dart';
 import '../widgets/chat_modals.dart';
@@ -79,6 +80,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
   RealtimeChannel? _inboxChannel;
   Timer? _realtimeDebounce;
   Timer? _searchDebounce;
+  final Map<String, String> _peerActions = {};
+  final Map<String, Timer> _peerActionTimers = {};
 
   static const List<String> _tabs = ['Primary', 'Groups', 'Requests'];
 
@@ -271,6 +274,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
     _searchCtrl.dispose();
     _realtimeDebounce?.cancel();
     _searchDebounce?.cancel();
+    for (final t in _peerActionTimers.values) {
+      t.cancel();
+    }
+    _peerActionTimers.clear();
     _inboxChannel?.unsubscribe();
     super.dispose();
   }
@@ -330,7 +337,52 @@ class _ChatListScreenState extends State<ChatListScreen> {
               column: 'receiver_id',
               value: myId,
             ),
-            callback: (_) => _scheduleInboxRefresh(),
+            callback: (payload) {
+              _scheduleInboxRefresh();
+              if (payload.eventType == PostgresChangeEvent.insert &&
+                  payload.newRecord.isNotEmpty) {
+                try {
+                  final msg = DirectMessageModel.fromMap(
+                    Map<String, dynamic>.from(payload.newRecord),
+                  );
+                  ChatService.instance.notifyIncomingMessage(msg);
+                } catch (e) {
+                  debugPrint('[InboxRealtime] Message parse notice: $e');
+                }
+              }
+            },
+          )
+          .onBroadcast(
+            event: 'peer_action',
+            callback: (raw) {
+              final inner = raw['payload'] is Map
+                  ? Map<String, dynamic>.from(raw['payload'] as Map)
+                  : raw;
+              final senderId = inner['user_id']?.toString() ?? '';
+              final action = inner['action']?.toString() ?? '';
+              if (senderId.isEmpty || senderId == myId) return;
+
+              if (!mounted) return;
+              setState(() {
+                if (action == 'idle') {
+                  _peerActions.remove(senderId);
+                } else {
+                  _peerActions[senderId] = action;
+                }
+              });
+
+              _peerActionTimers[senderId]?.cancel();
+              if (action != 'idle') {
+                _peerActionTimers[senderId] = Timer(
+                  const Duration(milliseconds: 4000),
+                  () {
+                    if (mounted) {
+                      setState(() => _peerActions.remove(senderId));
+                    }
+                  },
+                );
+              }
+            },
           )
           .onPostgresChanges(
             event: PostgresChangeEvent.all,
@@ -2240,39 +2292,81 @@ class _ChatListScreenState extends State<ChatListScreen> {
                             ],
                           ),
                           const SizedBox(height: 3.5),
-                          Row(
-                            children: [
-                              if (item.isLastMessageMine) ...[
-                                _buildStatusTick(item.deliveryStatus),
-                                const SizedBox(width: 4),
-                              ],
-                              if (previewIcon != null) ...[
-                                Icon(
-                                  previewIcon,
-                                  size: 14,
-                                  color: hasUnread
-                                      ? ZevColors.primaryBlue
-                                      : ZevColors.textMuted,
-                                ),
-                                const SizedBox(width: 4),
-                              ],
-                              Expanded(
-                                child: Text(
-                                  '$senderPrefix$previewText',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: hasUnread
-                                        ? FontWeight.w800
-                                        : FontWeight.w500,
-                                    color: hasUnread
-                                        ? ZevColors.deepNavy
-                                        : ZevColors.textSecondary,
+                          Builder(
+                            builder: (context) {
+                              final peerAction = _peerActions[item.peerId] ??
+                                  _peerActions[item.conversationId];
+                              if (peerAction == 'typing') {
+                                return const Row(
+                                  children: [
+                                    Text(
+                                      'typing...',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: ZevColors.primaryBlue,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }
+                              if (peerAction == 'recording_audio') {
+                                return const Row(
+                                  children: [
+                                    Icon(
+                                      Icons.mic_rounded,
+                                      size: 14,
+                                      color: Color(0xFFE11D48),
+                                    ),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'recording audio...',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFFE11D48),
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }
+                              return Row(
+                                children: [
+                                  if (item.isLastMessageMine) ...[
+                                    _buildStatusTick(item.deliveryStatus),
+                                    const SizedBox(width: 4),
+                                  ],
+                                  if (previewIcon != null) ...[
+                                    Icon(
+                                      previewIcon,
+                                      size: 14,
+                                      color: hasUnread
+                                          ? ZevColors.primaryBlue
+                                          : ZevColors.textMuted,
+                                    ),
+                                    const SizedBox(width: 4),
+                                  ],
+                                  Expanded(
+                                    child: Text(
+                                      '$senderPrefix$previewText',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: hasUnread
+                                            ? FontWeight.w800
+                                            : FontWeight.w500,
+                                        color: hasUnread
+                                            ? ZevColors.deepNavy
+                                            : ZevColors.textSecondary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
+                                ],
+                              );
+                            },
                           ),
                         ],
                       ),

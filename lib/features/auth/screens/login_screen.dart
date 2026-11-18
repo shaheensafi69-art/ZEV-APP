@@ -18,6 +18,7 @@ import '../../../core/widgets/zev_text_field.dart';
 import '../../main_navigation/screens/zev_main_layout.dart';
 import '../widgets/mfa_challenge_sheet.dart';
 import 'account_standing_screen.dart';
+import 'email_verification_screen.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 
@@ -288,6 +289,29 @@ class _LoginScreenState extends State<LoginScreen>
     } on AuthException catch (e) {
       HapticFeedback.heavyImpact();
       final lower = e.message.toLowerCase();
+      final isUnconfirmed = lower.contains('email not confirmed') ||
+          lower.contains('unconfirmed') ||
+          (lower.contains('not confirmed') && lower.contains('email'));
+
+      if (isUnconfirmed && mounted) {
+        setState(() => _isLoading = false);
+        // Automatically resend 8-digit OTP & transition to verification screen
+        try {
+          unawaited(
+            supabase.auth.resend(
+              type: OtpType.signup,
+              email: email,
+            ).then((_) => null, onError: (_) => null),
+          );
+        } catch (_) {}
+        EmailVerificationScreen.open(
+          context,
+          email: email,
+          password: password,
+        );
+        return;
+      }
+
       setState(() {
         _isLoading = false;
         _errorMsg = lower.contains('banned')

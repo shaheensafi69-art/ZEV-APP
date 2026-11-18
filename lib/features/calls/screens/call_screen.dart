@@ -2085,9 +2085,11 @@ class _CallScreenState extends State<CallScreen>
                     child: child,
                   );
                 },
-                child: ZevCachedImage.avatar(
-                  imageUrl: widget.peerAvatar,
-                  size: 120,
+                child: ClipOval(
+                  child: ZevCachedImage.avatar(
+                    imageUrl: widget.peerAvatar,
+                    size: 120,
+                  ),
                 ),
               ),
               const SizedBox(height: 20),

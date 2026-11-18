@@ -137,7 +137,7 @@ class FeedPostItem {
       final valid = sorted.where((m) => m.mediaUrl.trim().isNotEmpty).toList();
       if (valid.isNotEmpty) return valid;
     }
-    if (imageUrl.trim().isNotEmpty) {
+    if (imageUrl.trim().isNotEmpty && !imageUrl.startsWith('gradient:')) {
       return [
         FeedPostMediaItem(
           id: '${id}_legacy',
@@ -147,6 +147,18 @@ class FeedPostItem {
       ];
     }
     return const [];
+  }
+
+  bool get isGradientTextPost {
+    return mediaItems.isEmpty &&
+        (imageUrl.isEmpty || imageUrl.startsWith('gradient:'));
+  }
+
+  String? get gradientKey {
+    if (imageUrl.startsWith('gradient:')) {
+      return imageUrl.replaceFirst('gradient:', '').trim();
+    }
+    return null;
   }
 
   /// Returns ordered carousel URLs (`mediaItems` sorted by `sortOrder`),

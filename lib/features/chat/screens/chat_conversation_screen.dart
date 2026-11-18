@@ -194,12 +194,15 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   bool _isPeerOnline = false;
   String _peerStatusText = '';
   bool _peerIsTyping = false;
+  bool _peerIsRecordingAudio = false;
   String _typingUsername = '';
   DateTime? _lastTypingSentAt;
   Timer? _typingClearTimer;
+  Timer? _recordingActionClearTimer;
 
   RealtimeChannel? _chatChannel;
   Timer? _statusTimer;
+  StreamSubscription<DirectMessageModel>? _incomingMessageSub;
 
   @override
   void initState() {
@@ -216,6 +219,39 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       NotificationService.activeChatPeerId = widget.peerId.trim();
     }
 
+    final myId = ChatService.instance.currentUserId;
+    _incomingMessageSub = ChatService.instance.onIncomingMessage.listen((msg) {
+      if (!mounted) return;
+      final msgConvId = msg.conversationId ?? '';
+      final matchesConv =
+          _conversationId.isNotEmpty && msgConvId == _conversationId;
+      final matchesPeer = widget.peerId.isNotEmpty &&
+          (msg.senderId == widget.peerId || msg.receiverId == widget.peerId);
+
+      if (matchesConv || matchesPeer) {
+        if (_conversationId.isEmpty && msgConvId.isNotEmpty) {
+          _conversationId = msgConvId;
+          NotificationService.activeChatConversationId = _conversationId;
+        }
+        final existingIdx = _messages.indexWhere((m) => m.id == msg.id);
+        if (existingIdx == -1) {
+          HapticFeedback.lightImpact();
+          setState(() {
+            _messages.insert(0, msg);
+            if (msg.senderId != myId) {
+              _peerIsTyping = false;
+              _peerIsRecordingAudio = false;
+            }
+          });
+          ChatCacheService.instance.addMessage(_conversationId, msg);
+          _scrollToBottom();
+          if (msg.senderId != myId) {
+            _markIncomingMessagesAsRead();
+          }
+        }
+      }
+    });
+
     _loadFromCacheFirst();
     _scrollCtrl.addListener(_onScrollPagination);
     _bootstrapConversation();
@@ -223,6 +259,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
   @override
   void dispose() {
+    _incomingMessageSub?.cancel();
     if (_conversationId.isNotEmpty &&
         NotificationService.activeChatConversationId == _conversationId) {
       NotificationService.activeChatConversationId = null;
@@ -239,6 +276,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     _statusTimer?.cancel();
     _recordingTimer?.cancel();
     _typingClearTimer?.cancel();
+    _recordingActionClearTimer?.cancel();
     _searchDebounce?.cancel();
     _audioRecorder.dispose();
     super.dispose();
@@ -285,6 +323,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       }
     }
 
+    _subscribeToLiveChat();
+
     await Future.wait([
       _fetchMessages(),
       if (_isGroup && _conversationId.isNotEmpty) _fetchGroupDetails(),
@@ -294,7 +334,6 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
     await _markIncomingMessagesAsRead();
     await _flushPendingOutbox();
-    _subscribeToLiveChat();
 
     if (!_isGroup && widget.peerId.isNotEmpty) {
       _statusTimer?.cancel();
@@ -440,6 +479,38 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       }
 
       ch = ch.onBroadcast(
+        event: 'peer_action',
+        callback: (raw) {
+          final inner = raw['payload'] is Map
+              ? Map<String, dynamic>.from(raw['payload'] as Map)
+              : raw;
+          final sender = inner['user_id']?.toString() ?? '';
+          if (sender.isEmpty || sender == myId) return;
+          final action = inner['action']?.toString() ?? '';
+          final uname = inner['username']?.toString() ?? '';
+          if (!mounted) return;
+
+          _typingClearTimer?.cancel();
+          _recordingActionClearTimer?.cancel();
+
+          setState(() {
+            _peerIsTyping = action == 'typing';
+            _peerIsRecordingAudio = action == 'recording_audio';
+            if (action == 'typing') _typingUsername = uname;
+          });
+
+          if (action == 'typing') {
+            _typingClearTimer = Timer(const Duration(milliseconds: 3500), () {
+              if (mounted) setState(() => _peerIsTyping = false);
+            });
+          } else if (action == 'recording_audio') {
+            _recordingActionClearTimer =
+                Timer(const Duration(milliseconds: 4500), () {
+              if (mounted) setState(() => _peerIsRecordingAudio = false);
+            });
+          }
+        },
+      ).onBroadcast(
         event: 'typing',
         callback: (raw) {
           final inner = raw['payload'] is Map
@@ -469,9 +540,50 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     }
   }
 
+  void _broadcastPeerAction(String action) {
+    final myId = ChatService.instance.currentUserId;
+    if (myId == null || _conversationId.isEmpty) return;
+    final myProfile = ChatCacheService.instance.getCachedProfile(myId);
+    final myName = myProfile?['username']?.toString() ?? '';
+
+    final payload = {
+      'user_id': myId,
+      'username': myName,
+      'conversation_id': _conversationId,
+      'action': action,
+      'is_typing': action == 'typing',
+    };
+
+    if (_chatChannel != null) {
+      unawaited(
+        _chatChannel!.sendBroadcastMessage(
+          event: 'peer_action',
+          payload: payload,
+        ),
+      );
+      unawaited(
+        _chatChannel!.sendBroadcastMessage(
+          event: 'typing',
+          payload: payload,
+        ),
+      );
+    }
+
+    if (widget.peerId.isNotEmpty) {
+      try {
+        unawaited(
+          _supabase.channel('inbox:${widget.peerId}').sendBroadcastMessage(
+            event: 'peer_action',
+            payload: payload,
+          ),
+        );
+      } catch (_) {}
+    }
+  }
+
   void _broadcastTyping(bool isTyping) {
     final myId = ChatService.instance.currentUserId;
-    if (myId == null || _chatChannel == null || _conversationId.isEmpty) {
+    if (myId == null || _conversationId.isEmpty) {
       return;
     }
     final now = DateTime.now();
@@ -481,19 +593,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       return;
     }
     _lastTypingSentAt = now;
-    final myProfile = ChatCacheService.instance.getCachedProfile(myId);
-    final myName = myProfile?['username']?.toString() ?? '';
-
-    unawaited(
-      _chatChannel!.sendBroadcastMessage(
-        event: 'typing',
-        payload: {
-          'user_id': myId,
-          'username': myName,
-          'is_typing': isTyping,
-        },
-      ),
-    );
+    _broadcastPeerAction(isTyping ? 'typing' : 'idle');
   }
 
   void _handleRealtimeMessageEvent(PostgresChangePayload payload) {
@@ -505,12 +605,21 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
       final msg = DirectMessageModel.fromMap(rec);
       if (msg.isDeletedForUser(myId)) return;
 
+      final matchesConv =
+          _conversationId.isNotEmpty && msg.conversationId == _conversationId;
+      final matchesPeer = widget.peerId.isNotEmpty &&
+          (msg.senderId == widget.peerId || msg.receiverId == widget.peerId);
+      if (!matchesConv && !matchesPeer) return;
+
       final existingIdx = _messages.indexWhere((m) => m.id == msg.id);
       if (existingIdx == -1) {
         HapticFeedback.lightImpact();
         setState(() {
           _messages.insert(0, msg);
-          if (msg.senderId != myId) _peerIsTyping = false;
+          if (msg.senderId != myId) {
+            _peerIsTyping = false;
+            _peerIsRecordingAudio = false;
+          }
         });
         ChatCacheService.instance.addMessage(_conversationId, msg);
         _scrollToBottom();
@@ -923,6 +1032,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         _recordingDuration = Duration.zero;
       });
 
+      _broadcastPeerAction('recording_audio');
+
       _recordingTimer?.cancel();
       _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (mounted) {
@@ -950,6 +1061,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         _isRecording = false;
         _recordingDuration = Duration.zero;
       });
+      _broadcastPeerAction('idle');
+      _broadcastPeerAction('idle');
     }
   }
 
@@ -965,6 +1078,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         _isRecording = false;
         _recordingDuration = Duration.zero;
       });
+      _broadcastPeerAction('idle');
 
       if (path == null || recordedSeconds < 1) {
         if (path != null) {
@@ -1521,13 +1635,17 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         : (widget.peerFullName.isNotEmpty
             ? widget.peerFullName
             : '@${widget.peerUsername}');
-    final subtitleText = _peerIsTyping
+    final subtitleText = _peerIsRecordingAudio
         ? (_isGroup && _typingUsername.isNotEmpty
-            ? '@$_typingUsername is typing...'
-            : 'typing...')
-        : (_isGroup
-            ? '${_groupDetails?.members.length ?? 2} members'
-            : _peerStatusText);
+            ? '@$_typingUsername is recording audio...'
+            : 'recording audio...')
+        : (_peerIsTyping
+            ? (_isGroup && _typingUsername.isNotEmpty
+                ? '@$_typingUsername is typing...'
+                : 'typing...')
+            : (_isGroup
+                ? '${_groupDetails?.members.length ?? 2} members'
+                : _peerStatusText));
 
     final avatar = _isGroup ? _groupAvatar : widget.peerAvatar;
 
@@ -1641,9 +1759,11 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: (_peerIsTyping || _isPeerOnline)
-                            ? ZevColors.successGreen
-                            : ZevColors.textMuted,
+                        color: _peerIsRecordingAudio
+                            ? const Color(0xFFE11D48)
+                            : ((_peerIsTyping || _isPeerOnline)
+                                ? ZevColors.successGreen
+                                : ZevColors.textMuted),
                       ),
                     ),
                 ],

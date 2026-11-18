@@ -9,6 +9,7 @@ import '../../../core/services/feed_algorithm_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/social_graph_service.dart';
 import '../../../core/services/zev_realtime_sync_service.dart';
+import '../../../core/theme/zev_post_gradients.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/rich_text_helper.dart';
 import '../../../core/utils/text_direction_helper.dart';
@@ -1149,8 +1150,100 @@ class _FeedPostCardState extends State<FeedPostCard>
             ),
           ),
 
-          // 2. Media Box (Single or Multi-Slide Carousel + Tap to Fullscreen)
-          if (mediaUrls.isNotEmpty)
+          // 2. Facebook-style Gradient Canvas for Text Posts OR Media Box
+          if (post.isGradientTextPost)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: GestureDetector(
+                  onTap: _openComments,
+                  onDoubleTap: _triggerDoubleTapLike,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        constraints: const BoxConstraints(
+                          minHeight: 220,
+                          maxHeight: 340,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 28,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: ZevPostGradientPreset.resolve(
+                            post.gradientKey,
+                            seed: post.id.hashCode,
+                          ).toGradient(),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Center(
+                          child: Text(
+                            post.content.isNotEmpty ? post.content : post.title,
+                            textAlign: TextAlign.center,
+                            textDirection: TextDirectionHelper.isRtl(
+                              post.content.isNotEmpty
+                                  ? post.content
+                                  : post.title,
+                            )
+                                ? TextDirection.rtl
+                                : TextDirection.ltr,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              height: 1.35,
+                              letterSpacing: -0.3,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black38,
+                                  blurRadius: 8,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Floating Heart Pop
+                      if (_showFloatingHeart)
+                        AnimatedBuilder(
+                          animation: _heartAnimCtrl,
+                          builder: (context, _) {
+                            return Opacity(
+                              opacity: _heartOpacityAnim.value,
+                              child: Transform.scale(
+                                scale: _heartScaleAnim.value,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.redAccent
+                                            .withValues(alpha: 0.5),
+                                        blurRadius: 36,
+                                        spreadRadius: 8,
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.favorite_rounded,
+                                    size: 100,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else if (mediaUrls.isNotEmpty)
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1481,7 +1574,8 @@ class _FeedPostCardState extends State<FeedPostCard>
           ),
 
           // 4. Post Title & Caption Block with Smart Dynamic RTL/LTR
-          if (post.title.isNotEmpty || post.content.isNotEmpty) () {
+          if (!post.isGradientTextPost &&
+              (post.title.isNotEmpty || post.content.isNotEmpty)) () {
             final isContentRtl = TextDirectionHelper.isRtl(
               post.content.isNotEmpty ? post.content : post.title,
             );

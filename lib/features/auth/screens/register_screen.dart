@@ -54,6 +54,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoading = false;
   bool _isSuccess = false;
   String? _errorMsg;
+  String? _existingAccountEmail;
 
   // Step 1 Controllers
   File? _avatarFile;
@@ -386,9 +387,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() {
       _isLoading = true;
       _errorMsg = null;
+      _existingAccountEmail = null;
     });
 
     try {
+      // Check if email already registered in profiles
+      try {
+        final existingProf = await supabase
+            .from('profiles')
+            .select('id, username')
+            .eq('email', email)
+            .maybeSingle();
+
+        if (existingProf != null) {
+          HapticFeedback.heavyImpact();
+          setState(() {
+            _isLoading = false;
+            _existingAccountEmail = email;
+            _errorMsg = "An account with this email already exists. Please log in.";
+          });
+          return;
+        }
+      } catch (_) {
+        // Fallback to Supabase auth check
+      }
+
       // 1. Supabase Auth SignUp with metadata
       final authResponse = await supabase.auth.signUp(
         email: email,
@@ -404,6 +427,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final userId = user?.id;
       if (userId == null) {
         throw "Failed to create user session. Please try again.";
+      }
+
+      // Detect duplicate email if Supabase returns empty identities
+      final userIdentities = user!.identities;
+      if (userIdentities == null || userIdentities.isEmpty) {
+        HapticFeedback.heavyImpact();
+        setState(() {
+          _isLoading = false;
+          _existingAccountEmail = email;
+          _errorMsg = "An account with this email already exists. Please log in.";
+        });
+        return;
       }
 
       _pendingUserId = userId;
@@ -830,24 +865,98 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       color: const Color(0xFFFCA5A5),
                                     ),
                                   ),
-                                  child: Row(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      const Icon(
-                                        Icons.error_outline_rounded,
-                                        size: 19,
-                                        color: Color(0xFFDC2626),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
-                                          _errorMsg!,
-                                          style: const TextStyle(
-                                            color: Color(0xFF991B1B),
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
+                                      Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.error_outline_rounded,
+                                            size: 19,
+                                            color: Color(0xFFDC2626),
                                           ),
-                                        ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              _errorMsg!,
+                                              style: const TextStyle(
+                                                color: Color(0xFF991B1B),
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
+                                      if (_existingAccountEmail != null) ...[
+                                        const SizedBox(height: 12),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: ElevatedButton.icon(
+                                                onPressed: () {
+                                                  HapticFeedback.lightImpact();
+                                                  Navigator.pushReplacement(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder: (_) => const LoginScreen(),
+                                                    ),
+                                                  );
+                                                },
+                                                icon: const Icon(Icons.login_rounded, size: 16),
+                                                label: const Text("Log In Now"),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: ZevColors.primaryBlue,
+                                                  foregroundColor: Colors.white,
+                                                  elevation: 0,
+                                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(10),
+                                                  ),
+                                                  textStyle: const TextStyle(
+                                                    fontSize: 12.5,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: OutlinedButton.icon(
+                                                onPressed: () async {
+                                                  HapticFeedback.lightImpact();
+                                                  try {
+                                                    await supabase.auth.resend(
+                                                      type: OtpType.signup,
+                                                      email: _existingAccountEmail!,
+                                                    );
+                                                  } catch (_) {}
+                                                  setState(() {
+                                                    _errorMsg = null;
+                                                    _step = 4;
+                                                  });
+                                                  _startResendTimer();
+                                                  _startEmailLinkListener();
+                                                },
+                                                icon: const Icon(Icons.mark_email_read_rounded, size: 16),
+                                                label: const Text("Verify Email"),
+                                                style: OutlinedButton.styleFrom(
+                                                  foregroundColor: ZevColors.primaryBlue,
+                                                  side: const BorderSide(color: ZevColors.primaryBlue),
+                                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(10),
+                                                  ),
+                                                  textStyle: const TextStyle(
+                                                    fontSize: 12.5,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ),

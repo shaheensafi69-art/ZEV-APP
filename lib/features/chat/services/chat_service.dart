@@ -107,6 +107,17 @@ class ChatService {
   SupabaseClient get _supabase => Supabase.instance.client;
   String? get currentUserId => _supabase.auth.currentUser?.id;
 
+  final _incomingMessageController =
+      StreamController<DirectMessageModel>.broadcast();
+  Stream<DirectMessageModel> get onIncomingMessage =>
+      _incomingMessageController.stream;
+
+  void notifyIncomingMessage(DirectMessageModel message) {
+    if (!_incomingMessageController.isClosed) {
+      _incomingMessageController.add(message);
+    }
+  }
+
   // ===========================================================================
   // INBOX, CONVERSATIONS, PINS, MUTES, REQUESTS & NOTES
   // ===========================================================================
