@@ -842,9 +842,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         });
       }
 
-      final formattedTitle = title.startsWith('[')
-          ? title
-          : "[$_selectedCategory] ${title.isNotEmpty ? title : (content.length > 30 ? content.substring(0, 30) : content)}";
+      final formattedTitle = title.trim().isNotEmpty
+          ? title.trim()
+          : (content.trim().isNotEmpty
+              ? (content.trim().length > 60 ? content.trim().substring(0, 60) : content.trim())
+              : '');
 
       final nowUtc = DateTime.now().toUtc();
       final effectiveCreatedAt =
@@ -896,6 +898,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           });
         }
         await supabase.from('post_media').insert(mediaRows);
+      }
+
+      if (insertedPostId != null && insertedPostId.isNotEmpty && !asDraft) {
+        unawaited(_syncPostHashtags(insertedPostId, '$title $content'));
       }
 
       HapticFeedback.lightImpact();
@@ -958,6 +964,54 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           ),
         ),
       );
+  }
+
+  Future<void> _syncPostHashtags(String postId, String text) async {
+    try {
+      final matches = RegExp(r'#([A-Za-z0-9_]+)').allMatches(text);
+      final rawTags = matches
+          .map((m) => m.group(1)!.trim())
+          .where((t) => t.isNotEmpty)
+          .toSet();
+      if (rawTags.isEmpty) return;
+
+      for (final raw in rawTags) {
+        final cleanTag = raw.toLowerCase();
+        final existing = await supabase
+            .from('hashtags')
+            .select('id, posts_count')
+            .ilike('tag', cleanTag)
+            .maybeSingle();
+
+        String tagId;
+        if (existing != null) {
+          tagId = existing['id'].toString();
+          final currentCount = (existing['posts_count'] as num?)?.toInt() ?? 0;
+          await supabase.from('hashtags').update({
+            'posts_count': currentCount + 1,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          }).eq('id', tagId);
+        } else {
+          final insertedTag = await supabase
+              .from('hashtags')
+              .insert({
+                'tag': raw,
+                'posts_count': 1,
+                'reels_count': 0,
+              })
+              .select('id')
+              .single();
+          tagId = insertedTag['id'].toString();
+        }
+
+        await supabase.from('post_hashtags').insert({
+          'post_id': postId,
+          'hashtag_id': tagId,
+        });
+      }
+    } catch (e) {
+      debugPrint('[CreatePostScreen] _syncPostHashtags notice: $e');
+    }
   }
 
   String _formatScheduleLabel(DateTime dt) {
@@ -2498,9 +2552,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       authorFullName: _authorFullName,
       authorAvatar: _authorAvatar,
       isVerified: _isVerified,
-      title: title.startsWith('[')
-          ? title
-          : "[$_selectedCategory] ${title.isNotEmpty ? title : (content.length > 30 ? content.substring(0, 30) : content)}",
+      title: title.trim().isNotEmpty
+          ? title.trim()
+          : (content.trim().isNotEmpty
+              ? (content.trim().length > 60 ? content.trim().substring(0, 60) : content.trim())
+              : ''),
       content: content.isNotEmpty
           ? content
           : "Your caption text will appear here with dynamic RTL/LTR support.",

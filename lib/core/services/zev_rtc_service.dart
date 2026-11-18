@@ -321,7 +321,7 @@ class ZevRtcService {
         RtcEngineContext(
           appId: resolvedAppId,
           channelProfile: ChannelProfileType.channelProfileCommunication,
-          audioScenario: AudioScenarioType.audioScenarioDefault,
+          audioScenario: AudioScenarioType.audioScenarioGameStreaming,
         ),
       );
       _warmEngine = engine;

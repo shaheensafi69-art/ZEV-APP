@@ -53,7 +53,18 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         options: DefaultFirebaseOptions.currentPlatform,
       );
     }
-    await NotificationService.showBackgroundNotification(message);
+    final rawType = (message.data['notification_type'] ??
+            message.data['type'] ??
+            'general')
+        .toString();
+    final isCall = rawType == 'voice_call' || rawType == 'video_call';
+
+    // If message already has notification payload, Android OS displays it natively.
+    // Suppress local notification to prevent duplicate notification cards in system tray,
+    // except for urgent incoming calls requiring full-screen intent.
+    if (message.notification == null || isCall) {
+      await NotificationService.showBackgroundNotification(message);
+    }
   } catch (e) {
     debugPrint('ZEV FCM background message error: $e');
   }

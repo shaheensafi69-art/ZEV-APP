@@ -270,6 +270,8 @@ class ZevAdsService {
   ZevAdsService._();
   static final ZevAdsService instance = ZevAdsService._();
 
+  final _supabase = Supabase.instance.client;
+
   final Map<String, ZevSponsoredAd?> _slotAdCache = <String, ZevSponsoredAd?>{};
   final Map<String, Set<String>> _servedCampaignIdsByPlacement =
       <String, Set<String>>{};
@@ -527,7 +529,21 @@ class ZevAdsService {
   }
 
   Future<ZevAdsDashboardData> fetchAdvertiserDashboard() async {
-    final res = await ApiClient.instance.get('/api/v1/ads/campaigns');
+    Map<String, dynamic> res;
+    try {
+      res = await ApiClient.instance.get('/api/v1/ads/campaigns');
+    } catch (e) {
+      debugPrint('[ZevAdsService] API /api/v1/ads/campaigns notice ($e), trying direct RPC fallback.');
+      try {
+        final rpcRes = await _supabase.rpc('get_my_advertiser_dashboard');
+        res = (rpcRes is Map)
+            ? Map<String, dynamic>.from(rpcRes)
+            : <String, dynamic>{};
+      } catch (rpcErr) {
+        debugPrint('[ZevAdsService] RPC fallback failed: $rpcErr');
+        rethrow;
+      }
+    }
 
     ZevAdvertiserProfile? adv;
     if (res['advertiser'] is Map) {

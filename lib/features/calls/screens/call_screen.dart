@@ -168,6 +168,7 @@ class _CallScreenState extends State<CallScreen>
 
   // Remote participants map for 1-to-1 & Group Calling
   final Map<int, _RemoteParticipantState> _remoteParticipants = {};
+  final ValueNotifier<Set<int>> _speakingUidsNotifier = ValueNotifier<Set<int>>({});
   int? _primaryRemoteUid;
 
   RealtimeChannel? _callChannel;
@@ -292,6 +293,7 @@ class _CallScreenState extends State<CallScreen>
     _controlsHideTimer?.cancel();
     _pulseCtrl.dispose();
     _pipSnapCtrl.dispose();
+    _speakingUidsNotifier.dispose();
 
     if (_isMinimized) {
       // PRESERVE WEBRTC CALL! DO NOT TEARDOWN!
@@ -501,10 +503,32 @@ class _CallScreenState extends State<CallScreen>
     try {
       final engine = await ZevRtcService.instance.getOrInitializeEngine();
       await engine.enableVideo();
-      await engine.startPreview();
       try {
-        await engine.enableFaceDetection(true);
+        final videoConfig = kIsWeb
+            ? const VideoEncoderConfiguration(
+                dimensions: VideoDimensions(width: 1280, height: 720),
+                frameRate: 30,
+                bitrate: 1800,
+                minBitrate: 350,
+                orientationMode: OrientationMode.orientationModeAdaptive,
+                degradationPreference: DegradationPreference.maintainFramerate,
+              )
+            : const VideoEncoderConfiguration(
+                dimensions: VideoDimensions(width: 720, height: 1280),
+                frameRate: 30,
+                bitrate: 1500,
+                minBitrate: 300,
+                orientationMode: OrientationMode.orientationModeAdaptive,
+                degradationPreference: DegradationPreference.maintainFramerate,
+              );
+        await engine.setVideoEncoderConfiguration(videoConfig);
       } catch (_) {}
+      await engine.startPreview();
+      if (!kIsWeb) {
+        try {
+          await engine.enableFaceDetection(true);
+        } catch (_) {}
+      }
       if (mounted) {
         setState(() {
           _localVideoController = VideoViewController(
@@ -720,7 +744,7 @@ class _CallScreenState extends State<CallScreen>
               rtcEngine: engine,
               canvas: VideoCanvas(
                 uid: remoteUid,
-                renderMode: RenderModeType.renderModeFit,
+                renderMode: RenderModeType.renderModeHidden,
               ),
               connection: connection,
             );
@@ -771,16 +795,26 @@ class _CallScreenState extends State<CallScreen>
         int speakerNumber,
       ) {
         if (!mounted) return;
+        final current = Set<int>.from(_speakingUidsNotifier.value);
+        bool changed = false;
         for (final spk in speakers) {
           final uid = spk.uid ?? 0;
-          if (uid > 0 && _remoteParticipants.containsKey(uid)) {
+          if (uid > 0) {
             final isSpeaking = (spk.volume ?? 0) > 15;
-            if (_remoteParticipants[uid]!.isSpeaking != isSpeaking) {
-              setState(() {
-                _remoteParticipants[uid]!.isSpeaking = isSpeaking;
-              });
+            if (isSpeaking && !current.contains(uid)) {
+              current.add(uid);
+              changed = true;
+            } else if (!isSpeaking && current.contains(uid)) {
+              current.remove(uid);
+              changed = true;
+            }
+            if (_remoteParticipants.containsKey(uid)) {
+              _remoteParticipants[uid]!.isSpeaking = isSpeaking;
             }
           }
+        }
+        if (changed) {
+          _speakingUidsNotifier.value = current;
         }
       },
       onRemoteVideoStateChanged: (
@@ -805,7 +839,7 @@ class _CallScreenState extends State<CallScreen>
               rtcEngine: engine,
               canvas: VideoCanvas(
                 uid: remoteUid,
-                renderMode: RenderModeType.renderModeFit,
+                renderMode: RenderModeType.renderModeHidden,
               ),
               connection: connection,
             );
@@ -847,28 +881,52 @@ class _CallScreenState extends State<CallScreen>
 
     await engine.enableAudio();
     try {
+      await engine.setAudioProfile(
+        profile: AudioProfileType.audioProfileSpeechStandard,
+        scenario: AudioScenarioType.audioScenarioGameStreaming,
+      );
+    } catch (_) {}
+    try {
+      await engine.enableDualStreamMode(enabled: true);
+    } catch (_) {}
+
+    try {
       await engine.enableAudioVolumeIndication(
         interval: 250,
         smooth: 3,
         reportVad: true,
       );
-      await engine.setEnableSpeakerphone(_isSpeakerOn);
+      if (!kIsWeb) {
+        await engine.setEnableSpeakerphone(_isSpeakerOn);
+      }
     } catch (_) {}
 
     if (_isVideoActive) {
       await engine.enableVideo();
+      if (!kIsWeb) {
+        try {
+          await engine.enableFaceDetection(true);
+        } catch (_) {}
+      }
       try {
-        await engine.enableFaceDetection(true);
-      } catch (_) {}
-      try {
-        await engine.setVideoEncoderConfiguration(
-          const VideoEncoderConfiguration(
-            dimensions: VideoDimensions(width: 720, height: 1280),
-            frameRate: 30,
-            bitrate: 1500,
-            orientationMode: OrientationMode.orientationModeAdaptive,
-          ),
-        );
+        final videoConfig = kIsWeb
+            ? const VideoEncoderConfiguration(
+                dimensions: VideoDimensions(width: 1280, height: 720),
+                frameRate: 30,
+                bitrate: 1800,
+                minBitrate: 350,
+                orientationMode: OrientationMode.orientationModeAdaptive,
+                degradationPreference: DegradationPreference.maintainFramerate,
+              )
+            : const VideoEncoderConfiguration(
+                dimensions: VideoDimensions(width: 720, height: 1280),
+                frameRate: 30,
+                bitrate: 1500,
+                minBitrate: 300,
+                orientationMode: OrientationMode.orientationModeAdaptive,
+                degradationPreference: DegradationPreference.maintainFramerate,
+              );
+        await engine.setVideoEncoderConfiguration(videoConfig);
       } catch (_) {}
       try {
         await engine.startPreview();
@@ -1909,15 +1967,16 @@ class _CallScreenState extends State<CallScreen>
         fit: StackFit.expand,
         children: [
           // 1. Ambient Blurred Backdrop for widescreen / web
-          if (isWide && widget.peerAvatar.isNotEmpty)
+          if (isWide && widget.peerAvatar.trim().isNotEmpty)
             Positioned.fill(
               child: ImageFiltered(
                 imageFilter: ui.ImageFilter.blur(sigmaX: 75, sigmaY: 75),
                 child: Transform.scale(
                   scale: 1.4,
-                  child: ZevCachedImage(
-                    imageUrl: widget.peerAvatar,
+                  child: CachedNetworkImage(
+                    imageUrl: widget.peerAvatar.trim(),
                     fit: BoxFit.cover,
+                    errorWidget: (context, url, error) => const SizedBox.shrink(),
                   ),
                 ),
               ),
@@ -2026,13 +2085,20 @@ class _CallScreenState extends State<CallScreen>
     return Container(
       width: size,
       height: size,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2563EB), Color(0xFF1D4ED8), Color(0xFF0F172A)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2563EB).withValues(alpha: 0.35),
+            blurRadius: 18,
+            spreadRadius: 2,
+          ),
+        ],
       ),
       child: Center(
         child: Text(
@@ -2053,16 +2119,33 @@ class _CallScreenState extends State<CallScreen>
     return Stack(
       fit: StackFit.expand,
       children: [
-        // 1. Ambient Blurred Avatar Backdrop
-        if (widget.peerAvatar.isNotEmpty)
+        // 1. Ambient Blurred Avatar Backdrop or Radial Glow
+        if (widget.peerAvatar.trim().isNotEmpty)
           Positioned.fill(
             child: ImageFiltered(
               imageFilter: ui.ImageFilter.blur(sigmaX: 60, sigmaY: 60),
               child: Transform.scale(
                 scale: 1.35,
-                child: ZevCachedImage(
-                  imageUrl: widget.peerAvatar,
+                child: CachedNetworkImage(
+                  imageUrl: widget.peerAvatar.trim(),
                   fit: BoxFit.cover,
+                  errorWidget: (context, url, error) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          )
+        else
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.center,
+                  radius: 0.85,
+                  colors: [
+                    Color(0x332563EB),
+                    Color(0x111E3A8A),
+                    Color(0x00000000),
+                  ],
                 ),
               ),
             ),
@@ -3524,15 +3607,32 @@ class _CallScreenState extends State<CallScreen>
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (widget.peerAvatar.isNotEmpty)
+        if (widget.peerAvatar.trim().isNotEmpty)
           Positioned.fill(
             child: ImageFiltered(
               imageFilter: ui.ImageFilter.blur(sigmaX: 55, sigmaY: 55),
               child: Transform.scale(
                 scale: 1.35,
-                child: ZevCachedImage(
-                  imageUrl: widget.peerAvatar,
+                child: CachedNetworkImage(
+                  imageUrl: widget.peerAvatar.trim(),
                   fit: BoxFit.cover,
+                  errorWidget: (context, url, error) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          )
+        else
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.center,
+                  radius: 0.85,
+                  colors: [
+                    Color(0x332563EB),
+                    Color(0x111E3A8A),
+                    Color(0x00000000),
+                  ],
                 ),
               ),
             ),
@@ -3663,10 +3763,18 @@ class _CallScreenState extends State<CallScreen>
                             ],
                           ),
                           child: ClipOval(
-                            child: ZevCachedImage.avatar(
-                              imageUrl: widget.peerAvatar,
-                              size: 124,
-                            ),
+                            child: widget.peerAvatar.trim().isNotEmpty
+                                ? CachedNetworkImage(
+                                    imageUrl: widget.peerAvatar.trim(),
+                                    width: 124,
+                                    height: 124,
+                                    fit: BoxFit.cover,
+                                    placeholder: (ctx, _) =>
+                                        _buildAvatarInitialFallback(displayName, size: 124),
+                                    errorWidget: (ctx, _, _) =>
+                                        _buildAvatarInitialFallback(displayName, size: 124),
+                                  )
+                                : _buildAvatarInitialFallback(displayName, size: 124),
                           ),
                         ),
                       ],

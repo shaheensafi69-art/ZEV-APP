@@ -252,8 +252,15 @@ class _FeedPostCardState extends State<FeedPostCard>
     if (text.isEmpty) {
       text = _post.title.trim();
     }
-    // Strip leading [Category] tag e.g. "[Explore] " or "[Technology]"
-    text = text.replaceFirst(RegExp(r'^\[[^\]]+\]\s*'), '').trim();
+    // Strip all bracket tags e.g. "[Explore] " or "[Technology]"
+    text = text.replaceAll(RegExp(r'\[[^\]]+\]'), '').trim();
+    // If the remaining text matches category name, subtitle, or is empty, return empty
+    final category = _post.categoryTag.trim().toLowerCase();
+    final subtitle = _getCategorySubtitle().trim().toLowerCase();
+    final textLower = text.toLowerCase();
+    if (text.isEmpty || textLower == category || textLower == subtitle) {
+      return '';
+    }
     return text;
   }
 
