@@ -424,6 +424,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
         RtcEngineContext(
           appId: resolvedAppId,
           channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
+          audioScenario: AudioScenarioType.audioScenarioGameStreaming,
         ),
       );
 
@@ -507,17 +508,44 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
 
       await engine.enableVideo();
       await engine.enableAudio();
-      await engine.setClientRole(role: hostRole);
+      try {
+        await engine.setAudioProfile(
+          profile: AudioProfileType.audioProfileMusicStandard,
+          scenario: AudioScenarioType.audioScenarioGameStreaming,
+        );
+      } catch (_) {}
+      try {
+        await engine.enableDualStreamMode(enabled: true);
+      } catch (_) {}
+
+      await engine.setClientRole(
+        role: hostRole,
+        options: const ClientRoleOptions(
+          audienceLatencyLevel:
+              AudienceLatencyLevelType.audienceLatencyLevelUltraLowLatency,
+        ),
+      );
 
       if (hostRole == ClientRoleType.clientRoleBroadcaster) {
         try {
-          await engine.setVideoEncoderConfiguration(
-            const VideoEncoderConfiguration(
-              dimensions: VideoDimensions(width: 720, height: 1280),
-              frameRate: 24,
-              bitrate: 1500,
-            ),
-          );
+          final videoConfig = kIsWeb
+              ? const VideoEncoderConfiguration(
+                  dimensions: VideoDimensions(width: 1280, height: 720),
+                  frameRate: 30,
+                  bitrate: 1800,
+                  minBitrate: 350,
+                  orientationMode: OrientationMode.orientationModeAdaptive,
+                  degradationPreference: DegradationPreference.maintainFramerate,
+                )
+              : const VideoEncoderConfiguration(
+                  dimensions: VideoDimensions(width: 720, height: 1280),
+                  frameRate: 30,
+                  bitrate: 1700,
+                  minBitrate: 300,
+                  orientationMode: OrientationMode.orientationModeAdaptive,
+                  degradationPreference: DegradationPreference.maintainFramerate,
+                );
+          await engine.setVideoEncoderConfiguration(videoConfig);
         } catch (_) {}
         try {
           await engine.startPreview();

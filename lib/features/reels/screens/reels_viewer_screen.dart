@@ -1,11 +1,16 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/feed_algorithm_service.dart';
+import '../../../core/services/social_graph_service.dart';
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/comments_thread_sheet.dart';
+import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_native_ad_reel_unit.dart';
+import '../../profile/screens/profile_screen.dart';
 import '../models/reel_item.dart';
 import '../services/reel_video_cache_manager.dart';
 import '../widgets/reel_player_item.dart';
@@ -664,8 +669,11 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen>
               final isPageActive = _canPlayVideos && index == _activePage;
 
               Widget child;
+              final isAd = _isAdPage(index);
+              ReelItem? activeReel;
+
               // Render luxury native ad unit every 4 reels
-              if (_isAdPage(index)) {
+              if (isAd) {
                 child = ZevNativeAdReelUnit(
                   key: ValueKey('reel_ad_$index'),
                   isActive: isPageActive,
@@ -678,6 +686,7 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen>
                   return const SizedBox.shrink();
                 }
                 final reel = _reels[reelIdx];
+                activeReel = reel;
 
                 child = ReelPlayerItem(
                   key: ValueKey(reel.id),
@@ -697,22 +706,49 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen>
               }
 
               if (isDesktop) {
+                final screenWidth = MediaQuery.sizeOf(context).width;
+                final screenHeight = MediaQuery.sizeOf(context).height;
+                final cardHeight = math.min(screenHeight - 32.0, 840.0);
+                final double sidebarWidth = (screenWidth < 1140) ? 340.0 : 400.0;
+
                 return Center(
                   child: Container(
-                    width: 440,
+                    height: cardHeight,
                     margin: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          blurRadius: 30,
-                          offset: const Offset(0, 10),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Left 9:16 Video Player Card
+                        Container(
+                          width: 440,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.white.withValues(alpha: 0.1),
+                                blurRadius: 30,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: child,
+                        ),
+                        const SizedBox(width: 16),
+                        // Right Interactive Comments & Info Card
+                        SizedBox(
+                          width: sidebarWidth,
+                          child: isAd || activeReel == null
+                              ? _buildDesktopAdSidebar()
+                              : DesktopReelSidebar(
+                                  key: ValueKey('sidebar_${activeReel.id}'),
+                                  reel: activeReel,
+                                ),
                         ),
                       ],
                     ),
-                    clipBehavior: Clip.antiAlias,
-                    child: child,
                   ),
                 );
               }
@@ -790,6 +826,369 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen>
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopAdSidebar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF141721),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.12),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 30,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: ZevColors.primaryBlue.withValues(alpha: 0.15),
+            ),
+            child: const Icon(
+              Icons.campaign_rounded,
+              size: 44,
+              color: ZevColors.primaryBlue,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Sponsored Content',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Discover featured promotions and services curated for the ZEV community.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white60,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class DesktopReelSidebar extends StatefulWidget {
+  final ReelItem reel;
+
+  const DesktopReelSidebar({
+    super.key,
+    required this.reel,
+  });
+
+  @override
+  State<DesktopReelSidebar> createState() => _DesktopReelSidebarState();
+}
+
+class _DesktopReelSidebarState extends State<DesktopReelSidebar> {
+  final _supabase = Supabase.instance.client;
+  bool _isFollowing = false;
+  bool _followRequested = false;
+  bool _isFollowLoading = false;
+  bool _isCaptionExpanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isFollowing = widget.reel.isAuthorFollowed;
+  }
+
+  @override
+  void didUpdateWidget(DesktopReelSidebar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.reel.id != widget.reel.id) {
+      _isFollowing = widget.reel.isAuthorFollowed;
+      _followRequested = false;
+      _isFollowLoading = false;
+      _isCaptionExpanded = false;
+    }
+  }
+
+  Future<void> _toggleFollow() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in to follow creators.')),
+      );
+      return;
+    }
+    if (_isFollowLoading) return;
+
+    HapticFeedback.lightImpact();
+    setState(() => _isFollowLoading = true);
+
+    final status = await SocialGraphService.instance.toggleFollow(
+      widget.reel.userId,
+    );
+    if (!mounted) return;
+    setState(() {
+      _isFollowLoading = false;
+      switch (status) {
+        case FollowToggleStatus.following:
+          _isFollowing = true;
+          _followRequested = false;
+          break;
+        case FollowToggleStatus.requested:
+          _isFollowing = false;
+          _followRequested = true;
+          break;
+        case FollowToggleStatus.unfollowed:
+        case FollowToggleStatus.cancelled:
+        case FollowToggleStatus.blocked:
+        case FollowToggleStatus.error:
+          _isFollowing = false;
+          _followRequested = false;
+          break;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentUserId = _supabase.auth.currentUser?.id;
+    final isMe = currentUserId != null && currentUserId == widget.reel.userId;
+    final captionText = widget.reel.description.isNotEmpty
+        ? widget.reel.description
+        : widget.reel.title;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF141721),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.12),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 30,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 1. Author Header + Follow Button
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => ProfileScreen.open(
+                        context,
+                        userId: widget.reel.userId,
+                      ),
+                      child: widget.reel.authorAvatar.isNotEmpty
+                          ? ZevCachedImage.avatar(
+                              imageUrl: widget.reel.authorAvatar,
+                              size: 40,
+                            )
+                          : Container(
+                              width: 40,
+                              height: 40,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0xFF22283A),
+                              ),
+                              child: const Icon(
+                                Icons.person_rounded,
+                                size: 22,
+                                color: Colors.white70,
+                              ),
+                            ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => ProfileScreen.open(
+                          context,
+                          userId: widget.reel.userId,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    '@${widget.reel.authorUsername}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                      letterSpacing: -0.2,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if (widget.reel.isVerified) ...[
+                                  const SizedBox(width: 4),
+                                  const Icon(
+                                    Icons.verified_rounded,
+                                    color: ZevColors.primaryBlue,
+                                    size: 14,
+                                  ),
+                                ],
+                              ],
+                            ),
+                            if (widget.reel.authorFullName.isNotEmpty)
+                              Text(
+                                widget.reel.authorFullName,
+                                style: const TextStyle(
+                                  color: Colors.white60,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (!isMe) ...[
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: _isFollowLoading ? null : _toggleFollow,
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _isFollowing
+                                ? Colors.white.withValues(alpha: 0.12)
+                                : ZevColors.primaryBlue,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: _isFollowing
+                                  ? Colors.white.withValues(alpha: 0.2)
+                                  : Colors.transparent,
+                            ),
+                          ),
+                          child: _isFollowLoading
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1.5,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  _isFollowing
+                                      ? 'Following'
+                                      : _followRequested
+                                          ? 'Requested'
+                                          : 'Follow',
+                                  style: TextStyle(
+                                    color: _isFollowing
+                                        ? Colors.white
+                                        : ZevColors.deepNavy,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                // Caption / Description
+                if (captionText.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  GestureDetector(
+                    onTap: () => setState(
+                      () => _isCaptionExpanded = !_isCaptionExpanded,
+                    ),
+                    child: Text(
+                      captionText,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        height: 1.35,
+                      ),
+                      maxLines: _isCaptionExpanded ? 8 : 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+                // Music info
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.music_note_rounded,
+                      size: 13,
+                      color: ZevColors.secondaryBlue,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        'Original audio • @${widget.reel.authorUsername}',
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Container(
+            height: 1,
+            color: Colors.white.withValues(alpha: 0.08),
+          ),
+          // 2. Interactive Real-Time Comments Section
+          Expanded(
+            child: CommentsThreadSheet(
+              targetType: 'reel',
+              targetId: widget.reel.id,
+              targetAuthorUsername: widget.reel.authorUsername,
+              targetAuthorId: widget.reel.userId,
+              isEmbedded: true,
+              isDarkTheme: true,
+              customBorderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(20),
+              ),
+            ),
+          ),
         ],
       ),
     );

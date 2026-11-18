@@ -10,6 +10,10 @@ class ReelCommentsSheet extends StatelessWidget {
   final String? reelAuthorId;
   final VoidCallback? onCommentAdded;
   final VoidCallback? onCommentDeleted;
+  final bool isEmbedded;
+  final bool isDarkTheme;
+  final BorderRadius? customBorderRadius;
+  final double? customHeight;
 
   const ReelCommentsSheet({
     super.key,
@@ -18,6 +22,10 @@ class ReelCommentsSheet extends StatelessWidget {
     this.reelAuthorId,
     this.onCommentAdded,
     this.onCommentDeleted,
+    this.isEmbedded = false,
+    this.isDarkTheme = false,
+    this.customBorderRadius,
+    this.customHeight,
   });
 
   static Future<void> show(
@@ -51,6 +59,10 @@ class ReelCommentsSheet extends StatelessWidget {
       targetAuthorId: reelAuthorId,
       onCommentAdded: onCommentAdded,
       onCommentDeleted: onCommentDeleted,
+      isEmbedded: isEmbedded,
+      isDarkTheme: isDarkTheme,
+      customBorderRadius: customBorderRadius,
+      customHeight: customHeight,
     );
   }
 }

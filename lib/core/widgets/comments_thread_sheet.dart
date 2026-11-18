@@ -77,6 +77,10 @@ class CommentsThreadSheet extends StatefulWidget {
   final String? targetAuthorId;
   final VoidCallback? onCommentAdded;
   final VoidCallback? onCommentDeleted;
+  final bool isEmbedded;
+  final bool isDarkTheme;
+  final BorderRadius? customBorderRadius;
+  final double? customHeight;
 
   const CommentsThreadSheet({
     super.key,
@@ -86,6 +90,10 @@ class CommentsThreadSheet extends StatefulWidget {
     this.targetAuthorId,
     this.onCommentAdded,
     this.onCommentDeleted,
+    this.isEmbedded = false,
+    this.isDarkTheme = false,
+    this.customBorderRadius,
+    this.customHeight,
   });
 
   @override
@@ -827,66 +835,105 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
       return a.createdAt.compareTo(b.createdAt);
     });
 
+    final isDark = widget.isDarkTheme;
+
     return Container(
-      height: mediaQuery.size.height * 0.76,
-      padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
+      height: widget.isEmbedded
+          ? widget.customHeight
+          : mediaQuery.size.height * 0.76,
+      padding: EdgeInsets.only(
+        bottom: widget.isEmbedded ? 0 : mediaQuery.viewInsets.bottom,
+      ),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        color: isDark ? const Color(0xFF141721) : const Color(0xFFF1F5F9),
+        borderRadius: widget.customBorderRadius ??
+            (widget.isEmbedded
+                ? BorderRadius.circular(20)
+                : const BorderRadius.vertical(top: Radius.circular(32))),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.95),
-          width: 1.8,
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.12)
+              : Colors.white.withValues(alpha: 0.95),
+          width: isDark ? 1.2 : 1.8,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.12),
-            blurRadius: 30,
-            offset: const Offset(0, -6),
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.35)
+                : const Color(0xFF0F172A).withValues(alpha: 0.12),
+            blurRadius: isDark ? 20 : 30,
+            offset: Offset(0, isDark ? 4 : -6),
           ),
         ],
       ),
       child: Column(
         children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 44,
-            height: 5,
-            decoration: BoxDecoration(
-              color: const Color(0xFFCBD5E1),
-              borderRadius: BorderRadius.circular(3),
+          if (!widget.isEmbedded) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: 44,
+              height: 5,
+              decoration: BoxDecoration(
+                color: const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(3),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 12),
+          ] else ...[
+            const SizedBox(height: 12),
+          ],
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const SizedBox(width: 28),
+                if (!widget.isEmbedded)
+                  const SizedBox(width: 28)
+                else
+                  Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    size: 18,
+                    color: isDark ? Colors.white70 : ZevColors.textMuted,
+                  ),
                 Text(
                   _allComments.isEmpty
                       ? 'Comments'
                       : 'Comments (${_allComments.length})',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16.5,
                     fontWeight: FontWeight.w900,
-                    color: ZevColors.deepNavy,
+                    color: isDark ? Colors.white : ZevColors.deepNavy,
                     letterSpacing: -0.3,
                   ),
                 ),
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: const Icon(
-                    Icons.close_rounded,
-                    size: 22,
-                    color: ZevColors.textMuted,
+                if (!widget.isEmbedded)
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 22,
+                      color: ZevColors.textMuted,
+                    ),
+                  )
+                else
+                  GestureDetector(
+                    onTap: () => unawaited(_fetchComments(silent: true)),
+                    child: Icon(
+                      Icons.refresh_rounded,
+                      size: 20,
+                      color: isDark ? Colors.white70 : ZevColors.textMuted,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
           const SizedBox(height: 10),
-          Container(height: 1, color: Colors.white),
+          Container(
+            height: 1,
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.white,
+          ),
 
           // Comments Thread List
           Expanded(
@@ -905,23 +952,25 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
                             Icon(
                               Icons.chat_bubble_outline_rounded,
                               size: 46,
-                              color: ZevColors.textMuted.withValues(alpha: 0.5),
+                              color: isDark
+                                  ? Colors.white30
+                                  : ZevColors.textMuted.withValues(alpha: 0.5),
                             ),
                             const SizedBox(height: 12),
-                            const Text(
+                            Text(
                               'No comments yet',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
-                                color: ZevColors.deepNavy,
+                                color: isDark ? Colors.white : ZevColors.deepNavy,
                               ),
                             ),
                             const SizedBox(height: 4),
-                            const Text(
+                            Text(
                               'Start the conversation.',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: ZevColors.textSecondary,
+                                color: isDark ? Colors.white60 : ZevColors.textSecondary,
                               ),
                             ),
                           ],
@@ -1004,9 +1053,16 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: ZevColors.primaryBlue.withValues(alpha: 0.1),
-                border: const Border(
-                  top: BorderSide(color: Colors.white, width: 1.2),
+                color: isDark
+                    ? ZevColors.primaryBlue.withValues(alpha: 0.18)
+                    : ZevColors.primaryBlue.withValues(alpha: 0.1),
+                border: Border(
+                  top: BorderSide(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : Colors.white,
+                    width: 1.2,
+                  ),
                 ),
               ),
               child: Row(
@@ -1024,19 +1080,19 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
                       _editingComment != null
                           ? 'Editing comment'
                           : 'Replying to @$_replyToUsername',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,
-                        color: ZevColors.deepNavy,
+                        color: isDark ? Colors.white : ZevColors.deepNavy,
                       ),
                     ),
                   ),
                   GestureDetector(
                     onTap: _cancelReplyOrEdit,
-                    child: const Icon(
+                    child: Icon(
                       Icons.close_rounded,
                       size: 18,
-                      color: ZevColors.textMuted,
+                      color: isDark ? Colors.white60 : ZevColors.textMuted,
                     ),
                   ),
                 ],
@@ -1047,14 +1103,22 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(22),
+              color: isDark ? const Color(0xFF141721) : Colors.white,
+              borderRadius: BorderRadius.vertical(
+                top: const Radius.circular(22),
+                bottom: Radius.circular(widget.isEmbedded ? 20 : 0),
               ),
-              border: Border.all(color: Colors.white, width: 1.5),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.1)
+                    : Colors.white,
+                width: 1.5,
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                  color: isDark
+                      ? Colors.black.withValues(alpha: 0.3)
+                      : const Color(0xFF0F172A).withValues(alpha: 0.05),
                   blurRadius: 12,
                   offset: const Offset(0, -3),
                 ),
@@ -1067,9 +1131,16 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
+                      color: isDark
+                          ? const Color(0xFF1E2230)
+                          : const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white, width: 1.5),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Colors.white,
+                        width: 1.5,
+                      ),
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     child: TextField(
@@ -1077,9 +1148,9 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
                       focusNode: _inputFocus,
                       minLines: 1,
                       maxLines: 3,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13.5,
-                        color: ZevColors.deepNavy,
+                        color: isDark ? Colors.white : ZevColors.deepNavy,
                       ),
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _submitInput(),
@@ -1089,9 +1160,9 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
                             : _replyToUsername != null
                                 ? 'Reply to @$_replyToUsername...'
                                 : 'Add a comment for @${widget.targetAuthorUsername}...',
-                        hintStyle: const TextStyle(
+                        hintStyle: TextStyle(
                           fontSize: 13,
-                          color: ZevColors.textMuted,
+                          color: isDark ? Colors.white38 : ZevColors.textMuted,
                         ),
                         border: InputBorder.none,
                         isDense: true,
@@ -1172,6 +1243,7 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
   }
 
   Widget _buildCommentCard(_CommentItem c, {required bool isReply}) {
+    final isDark = widget.isDarkTheme;
     final isRtl = TextDirectionHelper.isRtl(c.text);
     final timeStr = TimeAgo.format(c.createdAt);
     final avatarSize = isReply ? 26.0 : 34.0;
@@ -1185,17 +1257,23 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
           vertical: isReply ? 8 : 10,
         ),
         decoration: BoxDecoration(
-          color: c.isPinned ? const Color(0xFFF0FAFF) : Colors.white,
+          color: isDark
+              ? (c.isPinned ? const Color(0xFF1E293B) : const Color(0xFF1A1F2C))
+              : (c.isPinned ? const Color(0xFFF0FAFF) : Colors.white),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: c.isPinned
                 ? ZevColors.primaryBlue.withValues(alpha: 0.45)
-                : Colors.white,
+                : (isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.white),
             width: 1.2,
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+              color: isDark
+                  ? Colors.black.withValues(alpha: 0.25)
+                  : const Color(0xFF0F172A).withValues(alpha: 0.03),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -1257,7 +1335,7 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
                                   style: TextStyle(
                                     fontSize: isReply ? 12.5 : 13,
                                     fontWeight: FontWeight.w800,
-                                    color: ZevColors.deepNavy,
+                                    color: isDark ? Colors.white : ZevColors.deepNavy,
                                   ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -1300,9 +1378,9 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
                       const SizedBox(width: 6),
                       Text(
                         c.editedAt != null ? '$timeStr • edited' : timeStr,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
-                          color: ZevColors.textMuted,
+                          color: isDark ? Colors.white38 : ZevColors.textMuted,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -1318,7 +1396,9 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
                       textAlign: isRtl ? TextAlign.right : TextAlign.left,
                       style: TextStyle(
                         fontSize: isReply ? 12.8 : 13.5,
-                        color: ZevColors.deepNavy,
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.95)
+                            : ZevColors.deepNavy,
                         height: 1.35,
                       ),
                     ),
@@ -1328,22 +1408,22 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
                     children: [
                       GestureDetector(
                         onTap: () => _startReply(c),
-                        child: const Text(
+                        child: Text(
                           'Reply',
                           style: TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w700,
-                            color: ZevColors.textMuted,
+                            color: isDark ? Colors.white60 : ZevColors.textMuted,
                           ),
                         ),
                       ),
                       const SizedBox(width: 14),
                       GestureDetector(
                         onTap: () => _showCommentActions(c),
-                        child: const Icon(
+                        child: Icon(
                           Icons.more_horiz_rounded,
                           size: 16,
-                          color: ZevColors.textMuted,
+                          color: isDark ? Colors.white60 : ZevColors.textMuted,
                         ),
                       ),
                     ],
@@ -1366,7 +1446,7 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
                       size: 17,
                       color: c.isLikedByMe
                           ? Colors.redAccent
-                          : ZevColors.textMuted,
+                          : (isDark ? Colors.white38 : ZevColors.textMuted),
                     ),
                     if (c.likesCount > 0) ...[
                       const SizedBox(height: 2),
@@ -1377,7 +1457,7 @@ class _CommentsThreadSheetState extends State<CommentsThreadSheet> {
                           fontWeight: FontWeight.w700,
                           color: c.isLikedByMe
                               ? Colors.redAccent
-                              : ZevColors.textMuted,
+                              : (isDark ? Colors.white38 : ZevColors.textMuted),
                         ),
                       ),
                     ],
