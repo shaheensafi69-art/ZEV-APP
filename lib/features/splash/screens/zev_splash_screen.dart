@@ -8,7 +8,10 @@ import '../../../core/services/auth_session_manager.dart';
 import '../../../core/services/deep_link_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../main.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../auth/screens/account_standing_screen.dart';
+import '../../auth/screens/email_verification_screen.dart';
+import '../../auth/screens/google_profile_completion_screen.dart';
 import '../../auth/screens/welcome_screen.dart';
 import '../../main_navigation/screens/zev_main_layout.dart';
 
@@ -124,52 +127,86 @@ class _ZevSplashScreenState extends State<ZevSplashScreen>
         final standing = await AuthSessionManager.instance.checkAccountStanding(
           session.user.id,
         );
-        if (standing.isAllowed) {
-          int initialTabIndex = 0;
-          if (kIsWeb) {
-            final path = Uri.base.path.toLowerCase();
-            final query = Uri.base.queryParameters;
-            if (path.contains('messages') ||
-                path.contains('chat') ||
-                path.contains('direct') ||
-                query.containsKey('id') ||
-                query.containsKey('conv') ||
-                query.containsKey('user')) {
-              initialTabIndex = 5;
-            } else if (path.contains('explore') || path.contains('search')) {
-              initialTabIndex = 1;
-            } else if (path.contains('reels')) {
-              initialTabIndex = 3;
-            } else if (path.contains('profile') || path.contains('@')) {
-              initialTabIndex = 4;
-            } else if (path.contains('notifications')) {
-              initialTabIndex = 6;
-            } else if (path.contains('ads') || path.contains('advertise')) {
-              initialTabIndex = 7;
-            } else if (path.contains('creator') || path.contains('insights')) {
-              initialTabIndex = 8;
-            } else if (path.contains('drafts') || path.contains('scheduled')) {
-              initialTabIndex = 9;
-            } else if (path.contains('blue') || path.contains('verification')) {
-              initialTabIndex = 10;
-            } else if (path.contains('settings') || path.contains('privacy')) {
-              initialTabIndex = 11;
-            } else if (path.contains('activity') || path.contains('history')) {
-              initialTabIndex = 12;
-            } else if (path.contains('security') || path.contains('2fa') || path.contains('mfa')) {
-              initialTabIndex = 13;
-            } else if (path.contains('help') || path.contains('support')) {
-              initialTabIndex = 14;
-            }
-          }
-          targetScreen = ZevMainLayout(initialIndex: initialTabIndex);
-          unawaited(AuthHelper.syncZevFcmToken(session.user.id));
-        } else if (standing.status == AccountStandingStatus.banned) {
+        if (standing.status == AccountStandingStatus.banned) {
           targetScreen = AccountStandingScreen(standing: standing);
-        } else {
+        } else if (standing.status == AccountStandingStatus.deactivated) {
           standingNotice = standing.reason ??
               'This account is suspended or deactivated.';
           await AuthSessionManager.instance.signOutCurrentDevice();
+        } else {
+          // 1. Verify email confirmation for email-based accounts
+          final provider = (session.user.appMetadata['provider'] ?? 'email')
+              .toString()
+              .toLowerCase();
+          if (provider == 'email' && session.user.emailConfirmedAt == null) {
+            targetScreen = EmailVerificationScreen(
+              email: session.user.email ?? '',
+            );
+          } else {
+            // 2. Check profile completeness (DOB, username, account_status)
+            final prof = await Supabase.instance.client
+                .from('profiles')
+                .select('id, username, date_of_birth, account_status')
+                .eq('id', session.user.id)
+                .maybeSingle();
+
+            final username = (prof?['username'] ?? '').toString().trim();
+            final dob = (prof?['date_of_birth'] ?? '').toString().trim();
+            final status = (prof?['account_status'] ?? '').toString().trim().toLowerCase();
+
+            final bool isProfileIncomplete = prof == null ||
+                username.isEmpty ||
+                dob.isEmpty ||
+                username.startsWith('user_') ||
+                status == 'pending_profile';
+
+            if (isProfileIncomplete) {
+              targetScreen = GoogleProfileCompletionScreen(
+                user: session.user,
+                existingProfile: prof,
+              );
+            } else {
+              int initialTabIndex = 0;
+              if (kIsWeb) {
+                final path = Uri.base.path.toLowerCase();
+                final query = Uri.base.queryParameters;
+                if (path.contains('messages') ||
+                    path.contains('chat') ||
+                    path.contains('direct') ||
+                    query.containsKey('id') ||
+                    query.containsKey('conv') ||
+                    query.containsKey('user')) {
+                  initialTabIndex = 5;
+                } else if (path.contains('explore') || path.contains('search')) {
+                  initialTabIndex = 1;
+                } else if (path.contains('reels')) {
+                  initialTabIndex = 3;
+                } else if (path.contains('profile') || path.contains('@')) {
+                  initialTabIndex = 4;
+                } else if (path.contains('notifications')) {
+                  initialTabIndex = 6;
+                } else if (path.contains('ads') || path.contains('advertise')) {
+                  initialTabIndex = 7;
+                } else if (path.contains('creator') || path.contains('insights')) {
+                  initialTabIndex = 8;
+                } else if (path.contains('drafts') || path.contains('scheduled')) {
+                  initialTabIndex = 9;
+                } else if (path.contains('blue') || path.contains('verification')) {
+                  initialTabIndex = 10;
+                } else if (path.contains('settings') || path.contains('privacy')) {
+                  initialTabIndex = 11;
+                } else if (path.contains('activity') || path.contains('history')) {
+                  initialTabIndex = 12;
+                } else if (path.contains('security') || path.contains('2fa') || path.contains('mfa')) {
+                  initialTabIndex = 13;
+                } else if (path.contains('help') || path.contains('support')) {
+                  initialTabIndex = 14;
+                }
+              }
+              targetScreen = ZevMainLayout(initialIndex: initialTabIndex);
+              unawaited(AuthHelper.syncZevFcmToken(session.user.id));
+            }
+          }
         }
       }
     } catch (e) {

@@ -1035,13 +1035,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         GoogleSignInButton(
           text: "Sign up with Google",
           onSuccess: () {
-            final user = Supabase.instance.client.auth.currentUser;
-            if (user != null && mounted) {
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const ZevMainLayout()),
-                (route) => false,
-              );
-            }
+            // Routing handled cleanly by GoogleAuthService / PostAuthService
           },
           onError: (msg) {
             setState(() => _errorMsg = msg);

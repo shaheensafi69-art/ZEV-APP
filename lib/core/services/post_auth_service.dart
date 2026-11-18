@@ -7,7 +7,6 @@ import '../../features/auth/screens/google_profile_completion_screen.dart';
 import '../../features/auth/screens/welcome_screen.dart';
 import '../../features/main_navigation/screens/zev_main_layout.dart';
 import '../../main.dart';
-import '../theme/zev_theme.dart';
 import 'auth_helper.dart';
 import 'auth_session_manager.dart';
 import 'multi_account_service.dart';
@@ -56,7 +55,7 @@ class PostAuthService {
         );
         return;
       }
-      if (!standing.isAllowed) {
+      if (standing.status == AccountStandingStatus.deactivated) {
         await AuthSessionManager.instance.signOutCurrentDevice();
         nav.pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const WelcomeScreen()),
@@ -94,11 +93,13 @@ class PostAuthService {
 
         final username = res?['username']?.toString().trim() ?? '';
         final dob = res?['date_of_birth']?.toString().trim() ?? '';
+        final status = (res?['account_status'] ?? '').toString().trim().toLowerCase();
 
         final bool isProfileIncomplete = res == null ||
             username.isEmpty ||
             dob.isEmpty ||
-            username.startsWith('user_');
+            username.startsWith('user_') ||
+            status == 'pending_profile';
 
         if (isProfileIncomplete) {
           nav.pushAndRemoveUntil(
@@ -131,30 +132,14 @@ class PostAuthService {
             );
           } catch (_) {}
 
-          appNavigatorKey.currentState?.pushAndRemoveUntil(
+          nav.pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => const ZevMainLayout()),
             (route) => false,
           );
         }
       } catch (e) {
         debugPrint('Post-Auth verification notice: $e');
-        final ctx = appNavigatorKey.currentContext;
-        if (ctx != null && ctx.mounted) {
-          ScaffoldMessenger.of(ctx).showSnackBar(
-            SnackBar(
-              backgroundColor: ZevColors.deepNavy,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              content: const Text(
-                'Please finish setting up your ZEV profile.',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          );
-        }
-        appNavigatorKey.currentState?.pushAndRemoveUntil(
+        nav.pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (_) => GoogleProfileCompletionScreen(user: user),
           ),

@@ -2,13 +2,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/apple_sign_in_button.dart';
 import '../../../core/widgets/google_sign_in_button.dart';
 import '../../../core/widgets/zev_logo.dart';
-import '../../main_navigation/screens/zev_main_layout.dart';
 import 'login_screen.dart';
 
 /// Flagship Serene Welcome & Onboarding Screen for ZEV.
@@ -297,16 +295,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                           GoogleSignInButton(
                             text: "Continue with Google",
                             onSuccess: () {
-                              final user =
-                                  Supabase.instance.client.auth.currentUser;
-                              if (user != null && mounted) {
-                                Navigator.of(context).pushAndRemoveUntil(
-                                  MaterialPageRoute(
-                                    builder: (_) => const ZevMainLayout(),
-                                  ),
-                                  (route) => false,
-                                );
-                              }
+                              // Routing handled cleanly by GoogleAuthService / PostAuthService
                             },
                             onError: (msg) {
                               ScaffoldMessenger.of(context).showSnackBar(
