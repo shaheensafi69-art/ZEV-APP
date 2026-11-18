@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/services/social_graph_service.dart';
 import '../../../core/theme/zev_theme.dart';
@@ -417,26 +418,26 @@ class _FeedDesktopRightSidebarState extends State<FeedDesktopRightSidebar> {
             const SizedBox(height: 20),
           ],
 
-          // 4. Clean Footer Links
+          // 4. Clean Footer Links (Connected to official ZEV web pages)
           Wrap(
             spacing: 8,
             runSpacing: 4,
             children: const [
-              _FooterLink(text: 'About'),
+              _FooterLink(text: 'About', url: 'https://zevapp.com/about'),
               _FooterDot(),
-              _FooterLink(text: 'Help'),
+              _FooterLink(text: 'Help', url: 'https://zevapp.com/support'),
               _FooterDot(),
-              _FooterLink(text: 'Press'),
+              _FooterLink(text: 'Press', url: 'https://zevapp.com/press'),
               _FooterDot(),
-              _FooterLink(text: 'API'),
+              _FooterLink(text: 'API', url: 'https://zevapp.com/api-info'),
               _FooterDot(),
-              _FooterLink(text: 'Jobs'),
+              _FooterLink(text: 'Jobs', url: 'https://zevapp.com/jobs'),
               _FooterDot(),
-              _FooterLink(text: 'Privacy'),
+              _FooterLink(text: 'Privacy', url: 'https://zevapp.com/privacy'),
               _FooterDot(),
-              _FooterLink(text: 'Terms'),
+              _FooterLink(text: 'Terms', url: 'https://zevapp.com/terms'),
               _FooterDot(),
-              _FooterLink(text: 'Locations'),
+              _FooterLink(text: 'Locations', url: 'https://zevapp.com/locations'),
             ],
           ),
           const SizedBox(height: 12),
@@ -455,18 +456,47 @@ class _FeedDesktopRightSidebarState extends State<FeedDesktopRightSidebar> {
   }
 }
 
-class _FooterLink extends StatelessWidget {
+class _FooterLink extends StatefulWidget {
   final String text;
-  const _FooterLink({required this.text});
+  final String url;
+  const _FooterLink({required this.text, required this.url});
+
+  @override
+  State<_FooterLink> createState() => _FooterLinkState();
+}
+
+class _FooterLinkState extends State<_FooterLink> {
+  bool _isHovered = false;
+
+  Future<void> _openUrl() async {
+    final uri = Uri.parse(widget.url);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint('[FooterLink] Failed to launch ${widget.url}: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 11,
-        color: Color(0xFF94A3B8),
-        fontWeight: FontWeight.w500,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: _openUrl,
+        child: Text(
+          widget.text,
+          style: TextStyle(
+            fontSize: 11,
+            color: _isHovered ? ZevColors.primaryBlue : const Color(0xFF94A3B8),
+            fontWeight: _isHovered ? FontWeight.w700 : FontWeight.w500,
+            decoration: _isHovered ? TextDecoration.underline : TextDecoration.none,
+            decorationColor: ZevColors.primaryBlue,
+          ),
+        ),
       ),
     );
   }
