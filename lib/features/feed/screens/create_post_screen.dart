@@ -37,8 +37,10 @@ class CreatePostScreen extends StatefulWidget {
           const begin = Offset(0.0, 1.0);
           const end = Offset.zero;
           const curve = Curves.easeOutCubic;
-          final tween =
-              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          final tween = Tween(
+            begin: begin,
+            end: end,
+          ).chain(CurveTween(curve: curve));
           return SlideTransition(
             position: animation.drive(tween),
             child: child,
@@ -177,7 +179,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         final ln = res['last_name'] ?? '';
         final full = "$fn $ln".trim();
         setState(() {
-          _authorUsername = res['username'] ?? (full.isNotEmpty ? full : 'user');
+          _authorUsername =
+              res['username'] ?? (full.isNotEmpty ? full : 'user');
           _authorFullName = full.isNotEmpty ? full : 'ZEV Creator';
           _authorAvatar = res['avatar_url'] ?? '';
           _isVerified = res['is_verified'] == true;
@@ -222,7 +225,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           });
           _jumpToSlide(_currentSlideIndex);
           if (pickedList.length > remaining) {
-            _showSnack('Only the first $remaining photo(s) were added (max $_maxCarouselImages).');
+            _showSnack(
+              'Only the first $remaining photo(s) were added (max $_maxCarouselImages).',
+            );
           }
         }
       }
@@ -306,7 +311,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   void _insertHashtag(String tag) {
     HapticFeedback.selectionClick();
     final currentText = _contentCtrl.text;
-    final space = currentText.isNotEmpty && !currentText.endsWith(' ') ? ' ' : '';
+    final space = currentText.isNotEmpty && !currentText.endsWith(' ')
+        ? ' '
+        : '';
     _contentCtrl.text = "$currentText$space$tag ";
     _contentCtrl.selection = TextSelection.fromPosition(
       TextPosition(offset: _contentCtrl.text.length),
@@ -388,10 +395,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       for (final u in currentList) u.id: u,
     };
 
-    Future<void> runSearch(
-      String q,
-      StateSetter setModalState,
-    ) async {
+    Future<void> runSearch(String q, StateSetter setModalState) async {
       setModalState(() => loading = true);
       try {
         final safety = await SocialGraphService.instance.fetchSafetyFilters();
@@ -412,15 +416,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           );
         }
 
-        final res = await query.order('followers_count', ascending: false).limit(30);
+        final res = await query
+            .order('followers_count', ascending: false)
+            .limit(30);
         final rows = List<Map<String, dynamic>>.from(res as List);
 
         final clean = <FeedPostUserTag>[];
         for (final row in rows) {
           final id = row['id']?.toString() ?? '';
-          if (id.isEmpty ||
-              id == me ||
-              safety.blockedUserIds.contains(id)) {
+          if (id.isEmpty || id == me || safety.blockedUserIds.contains(id)) {
             continue;
           }
           clean.add(FeedPostUserTag.fromMap(row));
@@ -464,8 +468,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               ),
               decoration: BoxDecoration(
                 color: ZevColors.softSurface,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(28)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
                 border: Border.all(color: Colors.white, width: 1.5),
               ),
               child: Column(
@@ -581,146 +586,144 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                             ),
                           )
                         : results.isEmpty
-                            ? const Center(
-                                child: Text(
-                                  'No matching accounts found.',
-                                  style: TextStyle(
-                                    color: ZevColors.textMuted,
-                                    fontSize: 13,
+                        ? const Center(
+                            child: Text(
+                              'No matching accounts found.',
+                              style: TextStyle(
+                                color: ZevColors.textMuted,
+                                fontSize: 13,
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: results.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 8),
+                            itemBuilder: (context, idx) {
+                              final u = results[idx];
+                              final isPicked = selectedMap.containsKey(u.id);
+                              return GestureDetector(
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  setModalState(() {
+                                    if (isPicked) {
+                                      selectedMap.remove(u.id);
+                                    } else {
+                                      if (selectedMap.length >= maxCount) {
+                                        ScaffoldMessenger.of(ctx)
+                                          ..hideCurrentSnackBar()
+                                          ..showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Maximum $maxCount accounts can be selected.',
+                                              ),
+                                              backgroundColor:
+                                                  ZevColors.deepNavy,
+                                            ),
+                                          );
+                                        return;
+                                      }
+                                      selectedMap[u.id] = u;
+                                    }
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
                                   ),
-                                ),
-                              )
-                            : ListView.separated(
-                                physics: const BouncingScrollPhysics(),
-                                itemCount: results.length,
-                                separatorBuilder: (_, _) =>
-                                    const SizedBox(height: 8),
-                                itemBuilder: (context, idx) {
-                                  final u = results[idx];
-                                  final isPicked = selectedMap.containsKey(u.id);
-                                  return GestureDetector(
-                                    onTap: () {
-                                      HapticFeedback.selectionClick();
-                                      setModalState(() {
-                                        if (isPicked) {
-                                          selectedMap.remove(u.id);
-                                        } else {
-                                          if (selectedMap.length >= maxCount) {
-                                            ScaffoldMessenger.of(ctx)
-                                              ..hideCurrentSnackBar()
-                                              ..showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                    'Maximum $maxCount accounts can be selected.',
-                                                  ),
-                                                  backgroundColor:
-                                                      ZevColors.deepNavy,
-                                                ),
-                                              );
-                                            return;
-                                          }
-                                          selectedMap[u.id] = u;
-                                        }
-                                      });
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 10,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: ZevColors.white,
-                                        borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(
-                                          color: isPicked
-                                              ? ZevColors.secondaryBlue
-                                              : ZevColors.border,
-                                          width: isPicked ? 1.5 : 1.0,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          u.avatarUrl.isNotEmpty
-                                              ? ZevCachedImage.avatar(
-                                                  imageUrl: u.avatarUrl,
-                                                  size: 38,
-                                                )
-                                              : Container(
-                                                  width: 38,
-                                                  height: 38,
-                                                  decoration: const BoxDecoration(
-                                                    shape: BoxShape.circle,
-                                                    color: ZevColors.softSurface,
-                                                  ),
-                                                  child: const Icon(
-                                                    Icons.person_rounded,
-                                                    color: ZevColors.textMuted,
-                                                  ),
-                                                ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
+                                  decoration: BoxDecoration(
+                                    color: ZevColors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: isPicked
+                                          ? ZevColors.secondaryBlue
+                                          : ZevColors.border,
+                                      width: isPicked ? 1.5 : 1.0,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      u.avatarUrl.isNotEmpty
+                                          ? ZevCachedImage.avatar(
+                                              imageUrl: u.avatarUrl,
+                                              size: 38,
+                                            )
+                                          : Container(
+                                              width: 38,
+                                              height: 38,
+                                              decoration: const BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                color: ZevColors.softSurface,
+                                              ),
+                                              child: const Icon(
+                                                Icons.person_rounded,
+                                                color: ZevColors.textMuted,
+                                              ),
+                                            ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
                                               children: [
-                                                Row(
-                                                  children: [
-                                                    Flexible(
-                                                      child: Text(
-                                                        '@${u.username}',
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                        style: const TextStyle(
-                                                          fontSize: 13.5,
-                                                          fontWeight:
-                                                              FontWeight.w800,
-                                                          color:
-                                                              ZevColors.deepNavy,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    if (u.isVerified) ...[
-                                                      const SizedBox(width: 4),
-                                                      const Icon(
-                                                        Icons.verified_rounded,
-                                                        size: 14,
-                                                        color:
-                                                            ZevColors.primaryBlue,
-                                                      ),
-                                                    ],
-                                                  ],
-                                                ),
-                                                if (u.fullName.isNotEmpty)
-                                                  Text(
-                                                    u.fullName,
+                                                Flexible(
+                                                  child: Text(
+                                                    '@${u.username}',
                                                     maxLines: 1,
                                                     overflow:
                                                         TextOverflow.ellipsis,
                                                     style: const TextStyle(
-                                                      fontSize: 11.5,
-                                                      color: ZevColors
-                                                          .textSecondary,
+                                                      fontSize: 13.5,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      color: ZevColors.deepNavy,
                                                     ),
                                                   ),
+                                                ),
+                                                if (u.isVerified) ...[
+                                                  const SizedBox(width: 4),
+                                                  const Icon(
+                                                    Icons.verified_rounded,
+                                                    size: 14,
+                                                    color:
+                                                        ZevColors.primaryBlue,
+                                                  ),
+                                                ],
                                               ],
                                             ),
-                                          ),
-                                          Icon(
-                                            isPicked
-                                                ? Icons.check_circle_rounded
-                                                : Icons.add_circle_outline_rounded,
-                                            color: isPicked
-                                                ? ZevColors.secondaryBlue
-                                                : ZevColors.textMuted,
-                                            size: 22,
-                                          ),
-                                        ],
+                                            if (u.fullName.isNotEmpty)
+                                              Text(
+                                                u.fullName,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontSize: 11.5,
+                                                  color:
+                                                      ZevColors.textSecondary,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
-                              ),
+                                      Icon(
+                                        isPicked
+                                            ? Icons.check_circle_rounded
+                                            : Icons.add_circle_outline_rounded,
+                                        color: isPicked
+                                            ? ZevColors.secondaryBlue
+                                            : ZevColors.textMuted,
+                                        size: 22,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                   ),
                 ],
               ),
@@ -746,8 +749,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
     final isScheduled = !asDraft && _scheduledAt != null;
     if (isScheduled &&
-        _scheduledAt!
-            .isBefore(DateTime.now().add(const Duration(minutes: 5)))) {
+        _scheduledAt!.isBefore(
+          DateTime.now().add(const Duration(minutes: 5)),
+        )) {
       _showSnack(
         'Scheduled time must be at least 5 minutes in the future.',
         isError: true,
@@ -769,8 +773,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       _uploadStage = _selectedImages.isNotEmpty
           ? 'Checking media safety...'
           : (asDraft
-              ? 'Saving draft...'
-              : (isScheduled ? 'Scheduling post...' : 'Publishing post...'));
+                ? 'Saving draft...'
+                : (isScheduled ? 'Scheduling post...' : 'Publishing post...'));
       _errorMessage = null;
     });
 
@@ -787,17 +791,16 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 : 'Checking media safety...';
           });
         }
-        final safetyResult =
-            await ContentSafetyService.instance.checkImageSafety(
-          file: _selectedImages[i],
-        );
+        final safetyResult = await ContentSafetyService.instance
+            .checkImageSafety(file: _selectedImages[i]);
         if (!safetyResult.isSafe) {
           if (mounted) {
             setState(() {
               _isPublishing = false;
               _uploadProgress = 0.0;
               _uploadStage = '';
-              _errorMessage = safetyResult.errorMessage ??
+              _errorMessage =
+                  safetyResult.errorMessage ??
                   "Image #${i + 1} was flagged as inappropriate (+18) and cannot be posted.";
             });
             _showSnack(_errorMessage!, isError: true);
@@ -845,12 +848,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       final formattedTitle = title.trim().isNotEmpty
           ? title.trim()
           : (content.trim().isNotEmpty
-              ? (content.trim().length > 60 ? content.trim().substring(0, 60) : content.trim())
-              : '');
+                ? (content.trim().length > 60
+                      ? content.trim().substring(0, 60)
+                      : content.trim())
+                : '');
 
       final nowUtc = DateTime.now().toUtc();
-      final effectiveCreatedAt =
-          isScheduled ? _scheduledAt!.toUtc() : nowUtc;
+      final effectiveCreatedAt = isScheduled ? _scheduledAt!.toUtc() : nowUtc;
 
       final inserted = await supabase
           .from('discussion_posts')
@@ -861,19 +865,20 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             'image_url': uploadedUrls.isNotEmpty
                 ? uploadedUrls.first
                 : (_selectedGradient != null
-                    ? 'gradient:${_selectedGradient!.key}'
-                    : ''),
+                      ? 'gradient:${_selectedGradient!.key}'
+                      : ''),
             'post_type': uploadedUrls.length > 1
                 ? 'carousel'
                 : (uploadedUrls.isNotEmpty
-                    ? 'image'
-                    : (_selectedGradient != null ? 'gradient' : 'text')),
+                      ? 'image'
+                      : (_selectedGradient != null ? 'gradient' : 'text')),
             'location': location.isEmpty ? null : location,
             'collaborator_ids': _collaborators.map((c) => c.id).toList(),
             'tagged_user_ids': _taggedUsers.map((t) => t.id).toList(),
             'is_draft': asDraft,
-            'scheduled_at':
-                isScheduled ? _scheduledAt!.toUtc().toIso8601String() : null,
+            'scheduled_at': isScheduled
+                ? _scheduledAt!.toUtc().toIso8601String()
+                : null,
             'published_at': (asDraft || isScheduled)
                 ? null
                 : nowUtc.toIso8601String(),
@@ -912,8 +917,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           asDraft
               ? 'Draft saved! Find it under Drafts & Scheduled.'
               : (isScheduled
-                  ? 'Post scheduled for ${_formatScheduleLabel(_scheduledAt!)}'
-                  : 'Post published successfully!'),
+                    ? 'Post scheduled for ${_formatScheduleLabel(_scheduledAt!)}'
+                    : 'Post published successfully!'),
         );
         Navigator.pop(context);
       }
@@ -987,18 +992,17 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         if (existing != null) {
           tagId = existing['id'].toString();
           final currentCount = (existing['posts_count'] as num?)?.toInt() ?? 0;
-          await supabase.from('hashtags').update({
-            'posts_count': currentCount + 1,
-            'updated_at': DateTime.now().toUtc().toIso8601String(),
-          }).eq('id', tagId);
+          await supabase
+              .from('hashtags')
+              .update({
+                'posts_count': currentCount + 1,
+                'updated_at': DateTime.now().toUtc().toIso8601String(),
+              })
+              .eq('id', tagId);
         } else {
           final insertedTag = await supabase
               .from('hashtags')
-              .insert({
-                'tag': raw,
-                'posts_count': 1,
-                'reels_count': 0,
-              })
+              .insert({'tag': raw, 'posts_count': 1, 'reels_count': 0})
               .select('id')
               .single();
           tagId = insertedTag['id'].toString();
@@ -1155,8 +1159,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       ),
                     )
                   : GestureDetector(
-                      onTap:
-                          _canPublish ? () => _submitPost(asDraft: false) : null,
+                      onTap: _canPublish
+                          ? () => _submitPost(asDraft: false)
+                          : null,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
@@ -1165,7 +1170,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         decoration: BoxDecoration(
                           gradient: _canPublish
                               ? const LinearGradient(
-                                  colors: [Color(0xFF00D4FF), Color(0xFF0284C7)],
+                                  colors: [
+                                    Color(0xFF00D4FF),
+                                    Color(0xFF0284C7),
+                                  ],
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                 )
@@ -1175,8 +1183,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           boxShadow: _canPublish
                               ? [
                                   BoxShadow(
-                                    color: const Color(0xFF0284C7)
-                                        .withValues(alpha: 0.35),
+                                    color: const Color(
+                                      0xFF0284C7,
+                                    ).withValues(alpha: 0.35),
                                     blurRadius: 8,
                                     offset: const Offset(0, 3),
                                   ),
@@ -1256,7 +1265,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? ZevColors.deepNavy : const Color(0xFF64748B),
+                color: isSelected
+                    ? ZevColors.deepNavy
+                    : const Color(0xFF64748B),
               ),
             ),
           ],
@@ -1285,7 +1296,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     ? NetworkImage(_authorAvatar)
                     : null,
                 child: _authorAvatar.isEmpty
-                    ? const Icon(Icons.person_rounded, color: ZevColors.textMuted)
+                    ? const Icon(
+                        Icons.person_rounded,
+                        color: ZevColors.textMuted,
+                      )
                     : null,
               ),
               const SizedBox(width: 12),
@@ -1314,7 +1328,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   ),
                   const SizedBox(height: 2),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: ZevColors.softSurface,
                       borderRadius: BorderRadius.circular(10),
@@ -1383,7 +1400,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       gradient: isSelected
                           ? const LinearGradient(
@@ -1401,14 +1421,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       boxShadow: isSelected
                           ? [
                               BoxShadow(
-                                color: const Color(0xFF0284C7).withValues(alpha: 0.35),
+                                color: const Color(
+                                  0xFF0284C7,
+                                ).withValues(alpha: 0.35),
                                 blurRadius: 8,
                                 offset: const Offset(0, 3),
                               ),
                             ]
                           : [
                               BoxShadow(
-                                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                                color: const Color(
+                                  0xFF0F172A,
+                                ).withValues(alpha: 0.04),
                                 blurRadius: 6,
                                 offset: const Offset(0, 2),
                               ),
@@ -1470,8 +1494,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 borderRadius: BorderRadius.circular(22),
                 boxShadow: [
                   BoxShadow(
-                    color: _selectedGradient!.colors.first
-                        .withValues(alpha: 0.35),
+                    color: _selectedGradient!.colors.first.withValues(
+                      alpha: 0.35,
+                    ),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                   ),
@@ -1563,15 +1588,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         shape: BoxShape.circle,
                         gradient: preset.toGradient(),
                         border: Border.all(
-                          color:
-                              isSelected ? Colors.white : Colors.transparent,
+                          color: isSelected ? Colors.white : Colors.transparent,
                           width: 2.5,
                         ),
                         boxShadow: isSelected
                             ? [
                                 BoxShadow(
-                                  color: preset.colors.first
-                                      .withValues(alpha: 0.5),
+                                  color: preset.colors.first.withValues(
+                                    alpha: 0.5,
+                                  ),
                                   blurRadius: 8,
                                   spreadRadius: 1,
                                 ),
@@ -1633,7 +1658,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: ZevPostGradientPreset.presets.length + 1,
-                  separatorBuilder: (context, index) => const SizedBox(width: 8),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(width: 8),
                   itemBuilder: (context, i) {
                     if (i == 0) {
                       return Container(
@@ -1694,7 +1720,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 return GestureDetector(
                   onTap: () => _insertHashtag(tagItem.tag),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
@@ -1704,7 +1733,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          color: const Color(
+                            0xFF0F172A,
+                          ).withValues(alpha: 0.04),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         ),
@@ -1823,16 +1854,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   (u) => _buildUserChip(
                     user: u,
                     prefix: 'Collab:',
-                    onRemove: () =>
-                        setState(() => _collaborators.removeWhere((x) => x.id == u.id)),
+                    onRemove: () => setState(
+                      () => _collaborators.removeWhere((x) => x.id == u.id),
+                    ),
                   ),
                 ),
                 ..._taggedUsers.map(
                   (u) => _buildUserChip(
                     user: u,
                     prefix: 'Tag:',
-                    onRemove: () =>
-                        setState(() => _taggedUsers.removeWhere((x) => x.id == u.id)),
+                    onRemove: () => setState(
+                      () => _taggedUsers.removeWhere((x) => x.id == u.id),
+                    ),
                   ),
                 ),
               ],
@@ -1880,7 +1913,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       border: Border.all(color: Colors.white, width: 2),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                          color: const Color(
+                            0xFF0F172A,
+                          ).withValues(alpha: 0.08),
                           blurRadius: 16,
                           offset: const Offset(0, 6),
                         ),
@@ -1988,14 +2023,16 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                 ),
                               ),
                               GestureDetector(
-                                onTap: _currentSlideIndex <
+                                onTap:
+                                    _currentSlideIndex <
                                         _selectedImages.length - 1
                                     ? () => _moveSlide(_currentSlideIndex, 1)
                                     : null,
                                 child: Icon(
                                   Icons.arrow_forward_rounded,
                                   size: 18,
-                                  color: _currentSlideIndex <
+                                  color:
+                                      _currentSlideIndex <
                                           _selectedImages.length - 1
                                       ? Colors.white
                                       : Colors.white38,
@@ -2090,7 +2127,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     icon: Icons.photo_library_outlined,
                     title: "Gallery",
                     subtitle: "Select up to 8 photos",
-                    gradientColors: const [Color(0xFF00D4FF), Color(0xFF0284C7)],
+                    gradientColors: const [
+                      Color(0xFF00D4FF),
+                      Color(0xFF0284C7),
+                    ],
                     onTap: _pickGalleryImages,
                   ),
                 ),
@@ -2100,7 +2140,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     icon: Icons.camera_alt_outlined,
                     title: "Camera",
                     subtitle: "Take a photo now",
-                    gradientColors: const [Color(0xFF536DFE), Color(0xFF8B5CF6)],
+                    gradientColors: const [
+                      Color(0xFF536DFE),
+                      Color(0xFF8B5CF6),
+                    ],
                     onTap: _pickCameraImage,
                   ),
                 ),
@@ -2220,8 +2263,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         style: OutlinedButton.styleFrom(
                           foregroundColor: ZevColors.secondaryBlue,
                           side: BorderSide(
-                            color:
-                                ZevColors.secondaryBlue.withValues(alpha: 0.4),
+                            color: ZevColors.secondaryBlue.withValues(
+                              alpha: 0.4,
+                            ),
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 11),
                           shape: RoundedRectangleBorder(
@@ -2299,16 +2343,25 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               decoration: BoxDecoration(
                 color: Colors.redAccent.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: Colors.redAccent.withValues(alpha: 0.3),
+                ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 20),
+                  const Icon(
+                    Icons.error_outline_rounded,
+                    color: Colors.redAccent,
+                    size: 20,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       _errorMessage!,
-                      style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                      style: const TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -2319,14 +2372,20 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     style: TextButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: ZevColors.deepNavy,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                     child: const Text(
                       'Retry',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ],
@@ -2555,8 +2614,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       title: title.trim().isNotEmpty
           ? title.trim()
           : (content.trim().isNotEmpty
-              ? (content.trim().length > 60 ? content.trim().substring(0, 60) : content.trim())
-              : ''),
+                ? (content.trim().length > 60
+                      ? content.trim().substring(0, 60)
+                      : content.trim())
+                : ''),
       content: content.isNotEmpty
           ? content
           : "Your caption text will appear here with dynamic RTL/LTR support.",
@@ -2626,8 +2687,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               width: double.infinity,
               height: 48,
               child: ElevatedButton.icon(
-                onPressed:
-                    _canPublish && !_isPublishing ? () => _submitPost(asDraft: false) : null,
+                onPressed: _canPublish && !_isPublishing
+                    ? () => _submitPost(asDraft: false)
+                    : null,
                 icon: Icon(
                   _scheduledAt != null
                       ? Icons.schedule_send_rounded

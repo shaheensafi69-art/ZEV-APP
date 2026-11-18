@@ -126,9 +126,12 @@ class CallScreen extends StatefulWidget {
     }
     if (ZevRtcService.instance.activeCallId == session.id) return;
 
-    final peerId =
-        session.callerId == myId ? session.calleeId : session.callerId;
-    final peerProfile = await ZevRtcService.instance.fetchProfileSummary(peerId);
+    final peerId = session.callerId == myId
+        ? session.calleeId
+        : session.callerId;
+    final peerProfile = await ZevRtcService.instance.fetchProfileSummary(
+      peerId,
+    );
     final navState = appNavigatorKey.currentState;
     if (navState == null || !navState.mounted) return;
 
@@ -157,8 +160,7 @@ class _RemoteParticipantState {
   });
 }
 
-class _CallScreenState extends State<CallScreen>
-    with TickerProviderStateMixin {
+class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
   final _supabase = Supabase.instance.client;
 
   ZevCallSession? _session;
@@ -168,7 +170,9 @@ class _CallScreenState extends State<CallScreen>
 
   // Remote participants map for 1-to-1 & Group Calling
   final Map<int, _RemoteParticipantState> _remoteParticipants = {};
-  final ValueNotifier<Set<int>> _speakingUidsNotifier = ValueNotifier<Set<int>>({});
+  final ValueNotifier<Set<int>> _speakingUidsNotifier = ValueNotifier<Set<int>>(
+    {},
+  );
   int? _primaryRemoteUid;
 
   RealtimeChannel? _callChannel;
@@ -202,7 +206,8 @@ class _CallScreenState extends State<CallScreen>
   // Beauty & Lighting Studio State
   bool _showEffectsTray = false;
   String _selectedEffectId = 'none';
-  ZevCallEffectCategory _selectedEffectCategory = ZevCallEffectCategory.lighting;
+  ZevCallEffectCategory _selectedEffectCategory =
+      ZevCallEffectCategory.lighting;
   ZevBeautyTuning _beautyTuning = const ZevBeautyTuning();
 
   // Draggable PIP State (Snap-to-4-corners)
@@ -228,7 +233,9 @@ class _CallScreenState extends State<CallScreen>
     );
 
     if (widget.resumedFromMinimized) {
-      _session = widget.initialSession ?? ZevRtcService.instance.activeMinimizedSession;
+      _session =
+          widget.initialSession ??
+          ZevRtcService.instance.activeMinimizedSession;
       _phase = 'accepted';
       _statusLabel = 'Connected';
       _engineJoined = true;
@@ -274,9 +281,7 @@ class _CallScreenState extends State<CallScreen>
 
     _resetControlsHideTimer();
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      unawaited(
-        ZevPipService.instance.enableAutoPip(aspectX: 9, aspectY: 16),
-      );
+      unawaited(ZevPipService.instance.enableAutoPip(aspectX: 9, aspectY: 16));
     }
     _bootstrapCall();
   }
@@ -413,8 +418,8 @@ class _CallScreenState extends State<CallScreen>
         String myDisplayName = 'A ZEV user';
         if (myId != null) {
           final prof = await ZevRtcService.instance.fetchProfileSummary(myId);
-          final full =
-              '${prof['first_name'] ?? ''} ${prof['last_name'] ?? ''}'.trim();
+          final full = '${prof['first_name'] ?? ''} ${prof['last_name'] ?? ''}'
+              .trim();
           final uname = (prof['username'] ?? '').toString().trim();
           if (full.isNotEmpty) {
             myDisplayName = full;
@@ -465,8 +470,9 @@ class _CallScreenState extends State<CallScreen>
         ZevRtcService.instance.setActiveCall(session.id);
         setState(() {
           _phase = session.isAccepted ? 'accepted' : 'ringing';
-          _statusLabel =
-              session.isVideo ? 'Incoming Video Call' : 'Incoming Voice Call';
+          _statusLabel = session.isVideo
+              ? 'Incoming Video Call'
+              : 'Incoming Voice Call';
         });
         if (!session.isAccepted) {
           unawaited(ZevCallAudioService.instance.startIncomingRingtone());
@@ -491,9 +497,7 @@ class _CallScreenState extends State<CallScreen>
     } catch (e) {
       debugPrint('[CallScreen] bootstrap error: $e');
       if (mounted) {
-        _finishLocally(
-          e.toString().replaceFirst('Exception: ', '').trim(),
-        );
+        _finishLocally(e.toString().replaceFirst('Exception: ', '').trim());
       }
     }
   }
@@ -696,8 +700,9 @@ class _CallScreenState extends State<CallScreen>
     );
     if (!mounted || _phase == 'ended') return;
 
-    final resolvedAppId =
-        creds.appId.isNotEmpty ? creds.appId : AppConfig.agoraAppId;
+    final resolvedAppId = creds.appId.isNotEmpty
+        ? creds.appId
+        : AppConfig.agoraAppId;
     if (resolvedAppId.isEmpty || creds.token.isEmpty) {
       throw Exception('Agora RTC credentials unavailable.');
     }
@@ -751,25 +756,26 @@ class _CallScreenState extends State<CallScreen>
           }
         });
       },
-      onUserOffline: (
-        RtcConnection connection,
-        int remoteUid,
-        UserOfflineReasonType reason,
-      ) {
-        if (!mounted) return;
-        setState(() {
-          final p = _remoteParticipants.remove(remoteUid);
-          p?.videoController?.dispose();
-          if (_primaryRemoteUid == remoteUid) {
-            _primaryRemoteUid = _remoteParticipants.keys.isNotEmpty
-                ? _remoteParticipants.keys.first
-                : null;
-          }
-        });
-        if (_remoteParticipants.isEmpty && _phase == 'accepted') {
-          _finishLocally('Call Ended');
-        }
-      },
+      onUserOffline:
+          (
+            RtcConnection connection,
+            int remoteUid,
+            UserOfflineReasonType reason,
+          ) {
+            if (!mounted) return;
+            setState(() {
+              final p = _remoteParticipants.remove(remoteUid);
+              p?.videoController?.dispose();
+              if (_primaryRemoteUid == remoteUid) {
+                _primaryRemoteUid = _remoteParticipants.keys.isNotEmpty
+                    ? _remoteParticipants.keys.first
+                    : null;
+              }
+            });
+            if (_remoteParticipants.isEmpty && _phase == 'accepted') {
+              _finishLocally('Call Ended');
+            }
+          },
       onUserMuteVideo: (RtcConnection connection, int remoteUid, bool muted) {
         if (!mounted) return;
         setState(() {
@@ -788,91 +794,94 @@ class _CallScreenState extends State<CallScreen>
           }
         });
       },
-      onAudioVolumeIndication: (
-        RtcConnection connection,
-        List<AudioVolumeInfo> speakers,
-        int totalVolume,
-        int speakerNumber,
-      ) {
-        if (!mounted) return;
-        final current = Set<int>.from(_speakingUidsNotifier.value);
-        bool changed = false;
-        for (final spk in speakers) {
-          final uid = spk.uid ?? 0;
-          if (uid > 0) {
-            final isSpeaking = (spk.volume ?? 0) > 15;
-            if (isSpeaking && !current.contains(uid)) {
-              current.add(uid);
-              changed = true;
-            } else if (!isSpeaking && current.contains(uid)) {
-              current.remove(uid);
-              changed = true;
-            }
-            if (_remoteParticipants.containsKey(uid)) {
-              _remoteParticipants[uid]!.isSpeaking = isSpeaking;
-            }
-          }
-        }
-        if (changed) {
-          _speakingUidsNotifier.value = current;
-        }
-      },
-      onRemoteVideoStateChanged: (
-        RtcConnection connection,
-        int remoteUid,
-        RemoteVideoState state,
-        RemoteVideoStateReason reason,
-        int elapsed,
-      ) {
-        if (!mounted || remoteUid == 0) return;
-        if (state == RemoteVideoState.remoteVideoStateDecoding ||
-            state == RemoteVideoState.remoteVideoStateStarting) {
-          setState(() {
-            _primaryRemoteUid = remoteUid;
-            _isVideoActive = true;
-            final part = _remoteParticipants.putIfAbsent(
-              remoteUid,
-              () => _RemoteParticipantState(uid: remoteUid),
-            );
-            part.videoEnabled = true;
-            part.videoController ??= VideoViewController.remote(
-              rtcEngine: engine,
-              canvas: VideoCanvas(
-                uid: remoteUid,
-                renderMode: RenderModeType.renderModeHidden,
-              ),
-              connection: connection,
-            );
-          });
-        } else if (state == RemoteVideoState.remoteVideoStateStopped) {
-          setState(() {
-            _remoteParticipants[remoteUid]?.videoEnabled = false;
-          });
-        }
-      },
-      onStreamMessage: (
-        RtcConnection connection,
-        int remoteUid,
-        int streamId,
-        Uint8List data,
-        int length,
-        int sentTs,
-      ) {
-        if (!mounted || remoteUid == 0) return;
-        try {
-          final str = utf8.decode(data);
-          final map = jsonDecode(str) as Map<String, dynamic>;
-          if (map['type'] == 'effect') {
-            final effectId = map['id']?.toString() ?? 'none';
-            setState(() {
-              final part = _remoteParticipants[remoteUid];
-              if (part != null) {
-                part.selectedEffectId = effectId;
+      onAudioVolumeIndication:
+          (
+            RtcConnection connection,
+            List<AudioVolumeInfo> speakers,
+            int totalVolume,
+            int speakerNumber,
+          ) {
+            if (!mounted) return;
+            final current = Set<int>.from(_speakingUidsNotifier.value);
+            bool changed = false;
+            for (final spk in speakers) {
+              final uid = spk.uid ?? 0;
+              if (uid > 0) {
+                final isSpeaking = (spk.volume ?? 0) > 15;
+                if (isSpeaking && !current.contains(uid)) {
+                  current.add(uid);
+                  changed = true;
+                } else if (!isSpeaking && current.contains(uid)) {
+                  current.remove(uid);
+                  changed = true;
+                }
+                if (_remoteParticipants.containsKey(uid)) {
+                  _remoteParticipants[uid]!.isSpeaking = isSpeaking;
+                }
               }
-            });
-          }
-        } catch (_) {}
-      },
+            }
+            if (changed) {
+              _speakingUidsNotifier.value = current;
+            }
+          },
+      onRemoteVideoStateChanged:
+          (
+            RtcConnection connection,
+            int remoteUid,
+            RemoteVideoState state,
+            RemoteVideoStateReason reason,
+            int elapsed,
+          ) {
+            if (!mounted || remoteUid == 0) return;
+            if (state == RemoteVideoState.remoteVideoStateDecoding ||
+                state == RemoteVideoState.remoteVideoStateStarting) {
+              setState(() {
+                _primaryRemoteUid = remoteUid;
+                _isVideoActive = true;
+                final part = _remoteParticipants.putIfAbsent(
+                  remoteUid,
+                  () => _RemoteParticipantState(uid: remoteUid),
+                );
+                part.videoEnabled = true;
+                part.videoController ??= VideoViewController.remote(
+                  rtcEngine: engine,
+                  canvas: VideoCanvas(
+                    uid: remoteUid,
+                    renderMode: RenderModeType.renderModeHidden,
+                  ),
+                  connection: connection,
+                );
+              });
+            } else if (state == RemoteVideoState.remoteVideoStateStopped) {
+              setState(() {
+                _remoteParticipants[remoteUid]?.videoEnabled = false;
+              });
+            }
+          },
+      onStreamMessage:
+          (
+            RtcConnection connection,
+            int remoteUid,
+            int streamId,
+            Uint8List data,
+            int length,
+            int sentTs,
+          ) {
+            if (!mounted || remoteUid == 0) return;
+            try {
+              final str = utf8.decode(data);
+              final map = jsonDecode(str) as Map<String, dynamic>;
+              if (map['type'] == 'effect') {
+                final effectId = map['id']?.toString() ?? 'none';
+                setState(() {
+                  final part = _remoteParticipants[remoteUid];
+                  if (part != null) {
+                    part.selectedEffectId = effectId;
+                  }
+                });
+              }
+            } catch (_) {}
+          },
     );
 
     engine.registerEventHandler(handler);
@@ -1084,7 +1093,8 @@ class _CallScreenState extends State<CallScreen>
     VideoViewController? remoteCtrl;
     int? remoteUid;
     if (_remoteParticipants.isNotEmpty) {
-      final p = _remoteParticipants[_primaryRemoteUid] ??
+      final p =
+          _remoteParticipants[_primaryRemoteUid] ??
           _remoteParticipants.values.first;
       remoteCtrl = p.videoController;
       remoteUid = p.uid;
@@ -1381,11 +1391,12 @@ class _CallScreenState extends State<CallScreen>
         : maxY;
 
     final target = Offset(targetX, targetY);
-    _pipSnapAnim = Tween<Offset>(begin: _pipOffset, end: target).animate(
-      CurvedAnimation(parent: _pipSnapCtrl, curve: Curves.easeOutBack),
-    )..addListener(() {
-        setState(() => _pipOffset = _pipSnapAnim!.value);
-      });
+    _pipSnapAnim =
+        Tween<Offset>(begin: _pipOffset, end: target).animate(
+          CurvedAnimation(parent: _pipSnapCtrl, curve: Curves.easeOutBack),
+        )..addListener(() {
+          setState(() => _pipOffset = _pipSnapAnim!.value);
+        });
 
     _pipSnapCtrl.forward(from: 0.0);
   }
@@ -1493,9 +1504,7 @@ class _CallScreenState extends State<CallScreen>
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
                   color: Colors.black,
-                  child: AgoraVideoView(
-                    controller: _localVideoController!,
-                  ),
+                  child: AgoraVideoView(controller: _localVideoController!),
                 ),
               ),
             ),
@@ -1539,11 +1548,7 @@ class _CallScreenState extends State<CallScreen>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF070B14),
-            Color(0xFF0F172A),
-            Color(0xFF0A0F1D),
-          ],
+          colors: [Color(0xFF070B14), Color(0xFF0F172A), Color(0xFF0A0F1D)],
         ),
       ),
       child: SafeArea(
@@ -1869,12 +1874,14 @@ class _CallScreenState extends State<CallScreen>
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color:
-                                  ZevColors.successGreen.withValues(alpha: 0.2),
+                              color: ZevColors.successGreen.withValues(
+                                alpha: 0.2,
+                              ),
                               borderRadius: BorderRadius.circular(999),
                               border: Border.all(
-                                color: ZevColors.successGreen
-                                    .withValues(alpha: 0.5),
+                                color: ZevColors.successGreen.withValues(
+                                  alpha: 0.5,
+                                ),
                               ),
                             ),
                             child: Text(
@@ -1949,7 +1956,8 @@ class _CallScreenState extends State<CallScreen>
       );
 
       final screenSize = MediaQuery.sizeOf(context);
-      final isWide = screenSize.width >= 720 || (kIsWeb && screenSize.width >= 600);
+      final isWide =
+          screenSize.width >= 720 || (kIsWeb && screenSize.width >= 600);
 
       Widget videoWidget = AgoraVideoView(
         key: ValueKey('remote_${remote.uid}'),
@@ -1976,7 +1984,8 @@ class _CallScreenState extends State<CallScreen>
                   child: CachedNetworkImage(
                     imageUrl: widget.peerAvatar.trim(),
                     fit: BoxFit.cover,
-                    errorWidget: (context, url, error) => const SizedBox.shrink(),
+                    errorWidget: (context, url, error) =>
+                        const SizedBox.shrink(),
                   ),
                 ),
               ),
@@ -2186,18 +2195,20 @@ class _CallScreenState extends State<CallScreen>
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: (_phase == 'accepted'
-                                ? const Color(0xFF10B981)
-                                : const Color(0xFF3B82F6))
-                            .withValues(alpha: 0.55),
+                        color:
+                            (_phase == 'accepted'
+                                    ? const Color(0xFF10B981)
+                                    : const Color(0xFF3B82F6))
+                                .withValues(alpha: 0.55),
                         width: 3.0,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: (_phase == 'accepted'
-                                  ? const Color(0xFF10B981)
-                                  : const Color(0xFF3B82F6))
-                              .withValues(alpha: 0.35),
+                          color:
+                              (_phase == 'accepted'
+                                      ? const Color(0xFF10B981)
+                                      : const Color(0xFF3B82F6))
+                                  .withValues(alpha: 0.35),
                           blurRadius: glow,
                           spreadRadius: 2,
                         ),
@@ -2213,10 +2224,15 @@ class _CallScreenState extends State<CallScreen>
                           width: 120,
                           height: 120,
                           fit: BoxFit.cover,
-                          placeholder: (ctx, _) =>
-                              _buildAvatarInitialFallback(displayName, size: 120),
+                          placeholder: (ctx, _) => _buildAvatarInitialFallback(
+                            displayName,
+                            size: 120,
+                          ),
                           errorWidget: (ctx, _, _) =>
-                              _buildAvatarInitialFallback(displayName, size: 120),
+                              _buildAvatarInitialFallback(
+                                displayName,
+                                size: 120,
+                              ),
                         )
                       : _buildAvatarInitialFallback(displayName, size: 120),
                 ),
@@ -2282,11 +2298,11 @@ class _CallScreenState extends State<CallScreen>
                     Text(
                       widget.isVideo
                           ? (_phase == 'accepted'
-                              ? 'Camera is turned off'
-                              : _statusLabel)
+                                ? 'Camera is turned off'
+                                : _statusLabel)
                           : (_phase == 'accepted'
-                              ? 'HD Voice Connected'
-                              : _statusLabel),
+                                ? 'HD Voice Connected'
+                                : _statusLabel),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12.5,
@@ -2332,10 +2348,11 @@ class _CallScreenState extends State<CallScreen>
           itemCount: participants.length,
           itemBuilder: (context, idx) {
             final p = participants[idx];
-            final pName = (p.profile?['first_name'] != null &&
+            final pName =
+                (p.profile?['first_name'] != null &&
                     p.profile!['first_name'].toString().isNotEmpty)
                 ? '${p.profile!['first_name']} ${p.profile!['last_name'] ?? ''}'
-                    .trim()
+                      .trim()
                 : 'User ${p.uid}';
 
             return Container(
@@ -2471,7 +2488,9 @@ class _CallScreenState extends State<CallScreen>
                   ),
                   Builder(
                     builder: (context) {
-                      final myEffect = ZevEffectsCatalog.findById(_selectedEffectId);
+                      final myEffect = ZevEffectsCatalog.findById(
+                        _selectedEffectId,
+                      );
                       if (myEffect.snapchatLensType != null) {
                         return ZevSnapchatLensOverlay(
                           lensType: myEffect.snapchatLensType!,
@@ -2481,8 +2500,7 @@ class _CallScreenState extends State<CallScreen>
                       return const SizedBox.shrink();
                     },
                   ),
-                ]
-                else
+                ] else
                   // Camera Off inside PIP
                   Container(
                     color: const Color(0xFF0F172A),
@@ -2539,8 +2557,9 @@ class _CallScreenState extends State<CallScreen>
 
   /// AR Face & Camera Effects Tray Carousel with Two-Tier Architecture (Beauty vs Effects)
   Widget _buildArEffectsTray() {
-    final currentCatEffects =
-        ZevEffectsCatalog.byCategory(_selectedEffectCategory);
+    final currentCatEffects = ZevEffectsCatalog.byCategory(
+      _selectedEffectCategory,
+    );
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
@@ -2552,9 +2571,7 @@ class _CallScreenState extends State<CallScreen>
           decoration: BoxDecoration(
             color: const Color(0xFF0F172A).withValues(alpha: 0.94),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.16),
-            ),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.5),
@@ -2570,7 +2587,10 @@ class _CallScreenState extends State<CallScreen>
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF2563EB).withValues(alpha: 0.20),
                       borderRadius: BorderRadius.circular(12),
@@ -2581,7 +2601,11 @@ class _CallScreenState extends State<CallScreen>
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.auto_awesome_rounded, size: 14, color: Color(0xFF60A5FA)),
+                        Icon(
+                          Icons.auto_awesome_rounded,
+                          size: 14,
+                          color: Color(0xFF60A5FA),
+                        ),
                         SizedBox(width: 6),
                         Text(
                           'SNAPCHAT LENSES & BEAUTY STUDIO',
@@ -2600,7 +2624,10 @@ class _CallScreenState extends State<CallScreen>
                   GestureDetector(
                     onTap: _openBeautyTuningSheet,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF3B82F6).withValues(alpha: 0.25),
                         borderRadius: BorderRadius.circular(999),
@@ -2612,7 +2639,11 @@ class _CallScreenState extends State<CallScreen>
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.tune_rounded, size: 13, color: Color(0xFF60A5FA)),
+                          Icon(
+                            Icons.tune_rounded,
+                            size: 13,
+                            color: Color(0xFF60A5FA),
+                          ),
                           SizedBox(width: 4),
                           Text(
                             'Tune',
@@ -2777,8 +2808,6 @@ class _CallScreenState extends State<CallScreen>
     );
   }
 
-
-
   Widget _buildCategoryPill(
     String label,
     ZevCallEffectCategory cat,
@@ -2830,16 +2859,18 @@ class _CallScreenState extends State<CallScreen>
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
             return ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(28)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
+              ),
               child: BackdropFilter(
                 filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                 child: Container(
                   padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
                   decoration: BoxDecoration(
                     color: const Color(0xFF0F172A).withValues(alpha: 0.96),
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(28)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(28),
+                    ),
                     border: Border.all(
                       color: Colors.white.withValues(alpha: 0.14),
                     ),
@@ -3069,8 +3100,7 @@ class _CallScreenState extends State<CallScreen>
                 activeTrackColor: const Color(0xFF3B82F6),
                 inactiveTrackColor: Colors.white.withValues(alpha: 0.15),
                 thumbColor: Colors.white,
-                thumbShape:
-                    const RoundSliderThumbShape(enabledThumbRadius: 6),
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
                 trackHeight: 3,
               ),
               child: Slider(
@@ -3143,9 +3173,7 @@ class _CallScreenState extends State<CallScreen>
           decoration: BoxDecoration(
             color: const Color(0xFF0F172A).withValues(alpha: 0.88),
             borderRadius: BorderRadius.circular(30),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.14),
-            ),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -3157,8 +3185,7 @@ class _CallScreenState extends State<CallScreen>
                 bgColor: _isMicMuted
                     ? Colors.white
                     : Colors.white.withValues(alpha: 0.14),
-                iconColor:
-                    _isMicMuted ? const Color(0xFF0F172A) : Colors.white,
+                iconColor: _isMicMuted ? const Color(0xFF0F172A) : Colors.white,
                 onTap: _phase == 'ended' ? null : _toggleMute,
               ),
 
@@ -3183,7 +3210,8 @@ class _CallScreenState extends State<CallScreen>
                 label: _selectedEffectId != 'none' || _beautyTuning.isActive
                     ? 'Effect On'
                     : 'Filters',
-                bgColor: _showEffectsTray ||
+                bgColor:
+                    _showEffectsTray ||
                         _selectedEffectId != 'none' ||
                         _beautyTuning.isActive
                     ? const Color(0xFF3B82F6)
@@ -3255,11 +3283,10 @@ class _CallScreenState extends State<CallScreen>
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
               decoration: BoxDecoration(
                 color: const Color(0xFF0F172A).withValues(alpha: 0.96),
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(28)),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.14),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
                 ),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
               ),
               child: SafeArea(
                 top: false,
@@ -3297,8 +3324,7 @@ class _CallScreenState extends State<CallScreen>
                       child: FutureBuilder<List<Map<String, dynamic>>>(
                         future: _fetchAddableFriends(),
                         builder: (context, snap) {
-                          if (snap.connectionState ==
-                              ConnectionState.waiting) {
+                          if (snap.connectionState == ConnectionState.waiting) {
                             return const Center(
                               child: CircularProgressIndicator(),
                             );
@@ -3323,8 +3349,7 @@ class _CallScreenState extends State<CallScreen>
                                       .trim();
                               final fUname =
                                   f['username']?.toString() ?? 'User';
-                              final fAvatar =
-                                  f['avatar_url']?.toString() ?? '';
+                              final fAvatar = f['avatar_url']?.toString() ?? '';
                               final fId = f['id']?.toString() ?? '';
 
                               return ListTile(
@@ -3349,29 +3374,29 @@ class _CallScreenState extends State<CallScreen>
                                 ),
                                 trailing: ElevatedButton(
                                   onPressed: () async {
-                                    final scaffold =
-                                        ScaffoldMessenger.of(context);
+                                    final scaffold = ScaffoldMessenger.of(
+                                      context,
+                                    );
                                     Navigator.pop(ctx);
                                     if (_session != null) {
                                       await ZevRtcService.instance
                                           .inviteParticipant(
-                                        callId: _session!.id,
-                                        userId: fId,
-                                      );
+                                            callId: _session!.id,
+                                            userId: fId,
+                                          );
                                       if (!mounted) return;
                                       scaffold.showSnackBar(
                                         SnackBar(
-                                          content:
-                                              Text('Invited $fName to call'),
-                                          behavior:
-                                              SnackBarBehavior.floating,
+                                          content: Text(
+                                            'Invited $fName to call',
+                                          ),
+                                          behavior: SnackBarBehavior.floating,
                                         ),
                                       );
                                     }
                                   },
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor:
-                                        const Color(0xFF3B82F6),
+                                    backgroundColor: const Color(0xFF3B82F6),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
@@ -3406,7 +3431,9 @@ class _CallScreenState extends State<CallScreen>
     try {
       final res = await _supabase
           .from('profiles')
-          .select('id, username, first_name, last_name, avatar_url, is_verified')
+          .select(
+            'id, username, first_name, last_name, avatar_url, is_verified',
+          )
           .neq('id', myId)
           .limit(20);
       return (res as List).map((m) => Map<String, dynamic>.from(m)).toList();
@@ -3429,11 +3456,10 @@ class _CallScreenState extends State<CallScreen>
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
               decoration: BoxDecoration(
                 color: const Color(0xFF0F172A).withValues(alpha: 0.95),
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(28)),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.14),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
                 ),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
               ),
               child: SafeArea(
                 top: false,
@@ -3482,10 +3508,7 @@ class _CallScreenState extends State<CallScreen>
                         ),
                         subtitle: const Text(
                           'Switch front / back camera',
-                          style: TextStyle(
-                            color: Colors.white60,
-                            fontSize: 12,
-                          ),
+                          style: TextStyle(color: Colors.white60, fontSize: 12),
                         ),
                         onTap: () {
                           Navigator.of(ctx).pop();
@@ -3548,10 +3571,7 @@ class _CallScreenState extends State<CallScreen>
                       ),
                       subtitle: const Text(
                         'Coming soon in next release',
-                        style: TextStyle(
-                          color: Colors.white60,
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: Colors.white60, fontSize: 12),
                       ),
                       onTap: () {
                         Navigator.of(ctx).pop();
@@ -3575,8 +3595,11 @@ class _CallScreenState extends State<CallScreen>
       SnackBar(
         content: const Row(
           children: [
-            Icon(Icons.screen_share_rounded,
-                color: Color(0xFF60A5FA), size: 20),
+            Icon(
+              Icons.screen_share_rounded,
+              color: Color(0xFF60A5FA),
+              size: 20,
+            ),
             SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -3661,8 +3684,10 @@ class _CallScreenState extends State<CallScreen>
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 7,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(999),
@@ -3730,9 +3755,9 @@ class _CallScreenState extends State<CallScreen>
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: const Color(0xFF2563EB).withValues(
-                                  alpha: (1.0 - t) * 0.25,
-                                ),
+                                color: const Color(
+                                  0xFF2563EB,
+                                ).withValues(alpha: (1.0 - t) * 0.25),
                                 width: 1.5,
                               ),
                             ),
@@ -3747,16 +3772,13 @@ class _CallScreenState extends State<CallScreen>
                             gradient: const LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
-                              colors: [
-                                Color(0xFF3B82F6),
-                                Color(0xFF06B6D4),
-                              ],
+                              colors: [Color(0xFF3B82F6), Color(0xFF06B6D4)],
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF2563EB).withValues(
-                                  alpha: 0.50 + (t * 0.25),
-                                ),
+                                color: const Color(
+                                  0xFF2563EB,
+                                ).withValues(alpha: 0.50 + (t * 0.25)),
                                 blurRadius: 28 + (t * 12),
                                 spreadRadius: 2,
                               ),
@@ -3770,11 +3792,20 @@ class _CallScreenState extends State<CallScreen>
                                     height: 124,
                                     fit: BoxFit.cover,
                                     placeholder: (ctx, _) =>
-                                        _buildAvatarInitialFallback(displayName, size: 124),
+                                        _buildAvatarInitialFallback(
+                                          displayName,
+                                          size: 124,
+                                        ),
                                     errorWidget: (ctx, _, _) =>
-                                        _buildAvatarInitialFallback(displayName, size: 124),
+                                        _buildAvatarInitialFallback(
+                                          displayName,
+                                          size: 124,
+                                        ),
                                   )
-                                : _buildAvatarInitialFallback(displayName, size: 124),
+                                : _buildAvatarInitialFallback(
+                                    displayName,
+                                    size: 124,
+                                  ),
                           ),
                         ),
                       ],
@@ -3821,8 +3852,10 @@ class _CallScreenState extends State<CallScreen>
 
               if (widget.peerUsername.isNotEmpty)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(999),
@@ -3843,19 +3876,23 @@ class _CallScreenState extends State<CallScreen>
               const SizedBox(height: 14),
 
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  color: (widget.isVideo
-                          ? const Color(0xFF2563EB)
-                          : const Color(0xFF10B981))
-                      .withValues(alpha: 0.18),
+                  color:
+                      (widget.isVideo
+                              ? const Color(0xFF2563EB)
+                              : const Color(0xFF10B981))
+                          .withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(
-                    color: (widget.isVideo
-                            ? const Color(0xFF3B82F6)
-                            : const Color(0xFF10B981))
-                        .withValues(alpha: 0.40),
+                    color:
+                        (widget.isVideo
+                                ? const Color(0xFF3B82F6)
+                                : const Color(0xFF10B981))
+                            .withValues(alpha: 0.40),
                   ),
                 ),
                 child: Row(
@@ -3955,15 +3992,13 @@ class _CallScreenState extends State<CallScreen>
                               gradient: const LinearGradient(
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
-                                colors: [
-                                  Color(0xFFEF4444),
-                                  Color(0xFFB91C1C),
-                                ],
+                                colors: [Color(0xFFEF4444), Color(0xFFB91C1C)],
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFFEF4444)
-                                      .withValues(alpha: 0.45),
+                                  color: const Color(
+                                    0xFFEF4444,
+                                  ).withValues(alpha: 0.45),
                                   blurRadius: 20,
                                   offset: const Offset(0, 8),
                                 ),
@@ -4007,15 +4042,13 @@ class _CallScreenState extends State<CallScreen>
                               gradient: const LinearGradient(
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
-                                colors: [
-                                  Color(0xFF10B981),
-                                  Color(0xFF047857),
-                                ],
+                                colors: [Color(0xFF10B981), Color(0xFF047857)],
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF10B981)
-                                      .withValues(alpha: 0.45),
+                                  color: const Color(
+                                    0xFF10B981,
+                                  ).withValues(alpha: 0.45),
                                   blurRadius: 20,
                                   offset: const Offset(0, 8),
                                 ),
@@ -4161,10 +4194,7 @@ class _CallScreenState extends State<CallScreen>
             Container(
               width: size,
               height: size,
-              decoration: BoxDecoration(
-                color: bgColor,
-                shape: BoxShape.circle,
-              ),
+              decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
               child: Icon(icon, color: iconColor, size: size * 0.46),
             ),
             const SizedBox(height: 5),

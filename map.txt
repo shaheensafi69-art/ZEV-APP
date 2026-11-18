@@ -1,969 +1,1312 @@
-سلام، خوبم، ممنون! ❤️
+# Agora Documentation (/en/introduction)
 
-مشکلاتی که توضیح دادی را کامل بررسی کردم. به نظرم وقت آن رسیده که سیستم تماس ZEV از حالت یک قابلیت ساده خارج شود و به یک سیستم ارتباطی حرفه‌ای در سطح WhatsApp، Instagram و Snapchat تبدیل شود.
+> For AI agents: see the complete documentation index at [llms.txt](/llms.txt).
 
-یک نکته مهم: فقط تغییر ظاهر کافی نیست. باید هم‌زمان روی **موتور تماس، سرعت اتصال، WebRTC، پردازش تصویر، مدیریت دوربین، اجرای پس‌زمینه و رابط کاربری** کار شود.
+## Build a Voice Agent
 
-من برایت یک رودمپ فنی و اجرایی آماده کردم که می‌توانی مستقیم به Antigravity بدهی. روی فیلترها و افکت‌ها عمداً تمرکز بیشتری گذاشته‌ام.
+**[Explore Voice Agents](/en/ai/documentation-versions)**
 
-# **ZEV Calling System 2.0**
+Understand how Agora Voice Agents work and choose the right path for apps or dedicated devices.
 
-Full Upgrade
+**[Build a Voice Agent App](/en/ai/get-started/quickstart)**
 
-13 Major Areas
+Build the minimal backend-plus-client flow and get a working voice agent running quickly.
 
-Premium Experience
+## Build Real-Time Applications
 
-[Video Call Experience — Mobile UI by Evgeniya Kuzenkova on Dribbble](https://images.openai.com/static-rsc-4/HYczBS48B3Kam8QMFhPlsl85bH9LJWc0zMI8H05g-SHrdj3aWaNap2dgTm54XNDlJ_3F3D8wsCyFU_7IMEW1za9a3coMeRkAaoJ0Dj-ZUw7Zy91APz2qOFivpvpyelvcgZ1fWO99-xo_ZWpVqfI0C-AXMnV2lNA0AajmSjn2JLY?purpose=inline)
+**[RTC](/en/realtime-media/rtc)**
 
-[Face Filters for Video | Real-Time Beauty Filters | BIGVU](https://images.openai.com/static-rsc-4/LyyzesMxLNAM89xVwQzvr44yhPEX_o_KVkgUUxDDcCGTkPaxauOZl7VLSboFHCuOUUL7HMxc5z3LLjQvQEGQJkXcC43Ljx6YMTXbChByEdzJziyMa5UCyQR6ytTNcb8CiVjPsMatRhbwuweWKpZ743UuoFqezTScVT62K2hSomA?purpose=inline)
+Voice calls, video calls, interactive live streaming, and broadcast streaming sessions.
 
-[Rekomendasi Aplikasi Chat Praktis dan Ringan, Alternatif saat WhatsApp Down](https://images.openai.com/static-rsc-4/dB1t-4_M-q5JnhPJaQl58ZFaaDdbmE4qZIZS9l1PAKFkDw_sU3b-Rte_cE0k2OxctlGy4WDTRrfPT_Dva_Go-UbmsZE7JQZcDn9t0GvZeSfq0SJAu_VRfhDLODkJct1Ch2YJ_yGgH2I-NCa9Ap9UqsimmGA8MjD6hrcqnH9hrio?purpose=inline)
+**[Signaling](/en/realtime-media/rtm)**
 
-14
+Channel messaging, presence, and real-time state synchronization.
 
-**هدف اصلی:** تبدیل سیستم Voice & Video Call زیف به یک تجربه سریع، روان، زیبا و قابل‌اعتماد با امکانات پیشرفته.
+**[Explore Agora Real-Time Communications products](/en/realtime-media/overview)**
 
-# **رودمپ جامع برای Antigravity**
+See every real-time capability — recording, transcription, transcoding, external media, and audience delivery.
 
-متن زیر را به‌صورت کامل کپی کن و در Antigravity قرار بده.
+## Start with AI Tools
 
-# ZEV CALLING SYSTEM 2.0 — COMPLETE REDESIGN & ENGINEERING ROADMAP
+**[Start with AI tools](/en/introduction/start-with-ai)**
 
-## PROJECT OBJECTIVE
+Let your coding agent build with Agora. Connect the CLI, MCP server, and Skills to your AI workflow.
 
-We need to completely upgrade and redesign the existing Voice Calling and Video Calling system in ZEV.
+## Real-time use cases
 
-ZEV is a social media platform with messaging, feeds, videos, friends, and social features.
+**[Browse Real-Time Communications products and use cases](/en/realtime-media)**
 
-The current calling system has multiple performance, functionality, UI/UX, and stability problems.
+Find real-time products and solution patterns for calling, streaming, classrooms, connected devices, and analytics.
 
-Our objective is to transform ZEV Calling into a premium communication experience comparable to WhatsApp, Instagram, and Snapchat.
+## SDKs and APIs
 
-IMPORTANT:\
-This is not just a UI redesign. It is a complete engineering and product upgrade.
+**Client-Side SDKs**
 
-You must inspect the existing codebase, calling architecture, WebRTC implementation, signaling system, media handling, database structure, permissions, and navigation before making changes.
+**[/en/api-reference/sdks?platform=android](/en/api-reference/sdks?platform=android)**
 
-Do not blindly replace working components.
+**[/en/api-reference/sdks?platform=ios](/en/api-reference/sdks?platform=ios)**
 
-Preserve existing authentication, messaging, user accounts, friendships, database relationships, and other working features.
+**[/en/api-reference/sdks?platform=web](/en/api-reference/sdks?platform=web)**
 
-Do not introduce unnecessary dependencies or break existing functionality.
+**APIs**
 
----
+**[/en/api-reference/api-ref](/en/api-reference/api-ref)**
 
-# PHASE 1 — CALL ENGINE & CONNECTION PERFORMANCE
+**[/en/api-reference/api-ref/rtc](/en/api-reference/api-ref/rtc)**
 
-## 1. Extremely Fast Call Connection
+**[/en/api-reference/api-ref/signaling](/en/api-reference/api-ref/signaling)**
 
-CURRENT PROBLEM:\
-When one user calls another user, the receiver answers, but the call takes approximately 5–6 seconds to establish.
+**[/en/api-reference/api-ref/speech-to-text](/en/api-reference/api-ref/speech-to-text)**
 
-REQUIREMENTS:
+**Server-Side SDKs**
 
-- Minimize call connection time.
-- Establish the media connection immediately after the receiver accepts.
-- Optimize WebRTC peer connection initialization.
-- Optimize SDP offer/answer exchange.
-- Optimize ICE candidate collection and exchange.
-- Avoid unnecessary initialization delays.
-- Implement ICE candidate trickling where supported.
-- Optimize signaling message delivery.
-- Prevent duplicate connection initialization.
-- Handle network changes intelligently.
-- Implement reliable STUN/TURN configuration.
-- Support TURN over UDP and TCP/TLS where appropriate.
-- Implement ICE restart when necessary.
-- Handle connection failures and automatic recovery.
+**[/en/api-reference/api-ref/server-sdk/python](/en/api-reference/api-ref/server-sdk/python)**
 
-The target should be to make the call feel almost instantaneous after acceptance.
+**[/en/api-reference/api-ref/server-sdk/typescript](/en/api-reference/api-ref/server-sdk/typescript)**
 
-Measure actual connection performance rather than assuming it is fast.
+**[/en/api-reference/api-ref/server-sdk/go](/en/api-reference/api-ref/server-sdk/go)**
 
-Track:
+**[/en/realtime-media/rtc-server-sdk](/en/realtime-media/rtc-server-sdk)**
 
-- Call initiation time.
-- Receiver notification time.
-- Answer response time.
-- ICE gathering time.
-- ICE connection time.
-- First audio packet time.
-- First video frame time.
+## Get Help
 
-Do not sacrifice connection stability for speed.
 
-## 2. Instant Video Rendering
 
-CURRENT PROBLEM:\
-After accepting a video call, the remote camera sometimes takes 10 seconds to appear.
+# Core concepts (/en/introduction/core-concepts)
 
-REQUIREMENTS:
+> For AI agents: see the complete documentation index at [llms.txt](/llms.txt).
 
-- Display the remote video as soon as the first usable video frame arrives.
-- Start audio and video negotiation efficiently.
-- Optimize camera initialization.
-- Optimize remote video track handling.
-- Avoid waiting for unnecessary media operations.
-- Prevent multiple unnecessary renderer initializations.
-- Handle track replacement correctly.
-- Display a professional loading state while the remote video initializes.
-- Avoid displaying a broken or frozen video component.
-- Ensure audio starts without waiting for video rendering.
+Voice Agents are real-time AI experiences where users speak naturally with an AI system. On Agora, voice agents listen, reason over the conversation, and respond with low-latency speech inside a live session.
 
-The first remote video frame should appear as quickly as technically possible.
+RTC (Real-Time Communication) technology allows almost instant exchange of audio, video, and other media data between the sender and the receiver.
 
----
+Agora Signaling, formerly known as RTM, provides real-time delivery of messages, presence, metadata, transcripts, state updates, and control events. In many voice agent experiences, RTC carries the live audio path, while Signaling carries the events and data that coordinate the experience.
 
-# PHASE 2 — PROFESSIONAL VIDEO CALL UI
+Agora SDKs provide real-time audio, video, and messaging interaction services, with multi-platform and multi-device support. This includes high-definition video calls, voice-only calls, interactive live streaming, real-time messaging, as well as one-on-one and multi-group chats.
 
-## 3. Camera-Off Profile Display
+This article introduces the key processes and concepts you need to know to use Agora SDKs.
 
-CURRENT PROBLEM:\
-When a user turns off their camera, the remote screen becomes completely black.
+## Before you start
 
-REQUIREMENTS:
+Most quickstarts and guides ask for the same values:
 
-Replace the black screen with a professional camera-off interface.
+| Value                               | What it identifies                                                  |
+| ----------------------------------- | ------------------------------------------------------------------- |
+| [App ID](#app-id)                   | The Agora project that your app belongs to.                         |
+| [App Certificate](#app-certificate) | The secret used to enable token authentication.                     |
+| [Token](#token)                     | A dynamic key that grants a user permission to access a channel.    |
+| [Channel](#channel)                 | The live space, identified by a channel name, where users interact. |
+| [UID](#user-id-uid)                 | The unique user identity of one participant in a channel.           |
 
-When the remote user disables their camera:
+## Set up your Agora project
 
-- Display their profile picture.
-- Show their name.
-- Show a subtle camera-off indicator.
-- Use a beautiful background derived from their profile image or a premium neutral background.
-- Apply a smooth transition when switching between video and camera-off states.
-- Avoid black screens.
-- Preserve the correct layout.
+To use Agora SDKs, first create a project in Agora Console. See [Agora account management](/en/introduction/account) for details.
 
-The interface should feel similar to WhatsApp and Instagram video calling.
+![Create project in Agora Console](https://assets-docs.agora.io/images/common/create-project.svg)
 
-The same behavior must work in one-to-one and group calls.
+[Agora Console](https://console.agora.io/) is the main dashboard where you manage your Agora projects and services. After registering an [Agora account](https://console.agora.io/), use Agora Console to:
 
-## 4. Draggable Self-View Window
+- Manage the account
+- Create and configure Agora projects and services
+- Get an App ID
+- Manage members and roles
+- Check call quality and usage
+- Check bills and make payments
+- Access product resources
 
-CURRENT PROBLEM:\
-Users cannot move their own camera preview around the screen.
+Agora also provides REST APIs for tasks such as creating projects and retrieving usage data programmatically.
 
-REQUIREMENTS:
+## General concepts
 
-Implement a fully draggable Picture-in-Picture-style self-view window inside the active video call.
+Agora uses the following basic concepts across its SDKs and cloud services:
 
-Users must be able to:
+### App ID
 
-- Drag their camera preview anywhere on the call screen.
-- Move it to all four corners.
-- Position it along the screen edges.
-- Release it and have it snap smoothly to the nearest suitable corner.
-- Prevent it from overlapping important call controls.
-- Keep it inside the screen boundaries.
-- Maintain its position when the call UI changes.
-- Support different screen sizes and orientations.
+The App ID is a string generated in [Agora Console](https://console.agora.io) when you create a project. Each project has a unique App ID. Pass it when you initialize an Agora SDK, and use it when generating the authentication tokens that control access to a channel. You can [retrieve your App ID](https://console.agora.io/projects) in Agora Console.
 
-Use smooth gestures and professional animations.
+Agora uses the App ID to identify your project and associate usage and billing data with it.
 
-The draggable window must work reliably without interfering with scrolling or other gestures.
+For production environments, use the **App ID + token** authentication mechanism. Without a token, anyone with access to your App ID can join your channels.
 
-## 5. Premium Self-View Design
+### App Certificate
 
-CURRENT PROBLEM:\
-The user's camera preview window looks poorly designed and does not fit the video properly.
+An App Certificate is a secret generated by Agora Console to enable token authentication. It is required when generating RTC or Signaling tokens.
 
-REQUIREMENTS:
+To use your App Certificate to set up a token server, see [Deploy a token server](/en/realtime-media/rtc/build/authenticate-users/deploy-token-server).
 
-Completely redesign the self-view window.
+### Token
 
-- Use a premium rounded-rectangle design.
-- Use proper clipping and aspect-ratio handling.
-- Eliminate stretched and distorted video.
-- Use a correct camera preview transformation.
-- Add subtle borders and shadows.
-- Support smooth resizing and movement.
-- Use consistent spacing.
-- Make the window visually balanced.
-- Ensure the preview is not cropped incorrectly.
+A token is a dynamic key that is used by the Agora authentication server to check user permissions. A token is usually scoped to a channel, a UID, a product capability, and an expiration time. You use Agora Console to generate a temporary token for testing purposes during the development process. In a production environment, you implement a token server in your security infrastructure to control access to your channels.
 
-Use a professional video preview aspect ratio and make the preview adapt to different screen dimensions.
+After obtaining the App ID, App Certificate, and token in Agora Console, you can start implementing basic audio and video communication in your app.
 
-## 6. Correct Camera Zoom and Default Framing
+### Channel
 
-CURRENT PROBLEM:\
-The camera sometimes appears unnecessarily zoomed in.
+Agora uses the *channel name* to identify a channel. Users who specify the same *channel name* join a common channel and interact with each other. A channel is created when the first user joins. It ceases to exist when the last user leaves.
 
-REQUIREMENTS:
+You create a channel by calling the methods for transmitting real-time data. Agora uses different channels to transmit different types of data. The RTC SDK channel transmits audio or video data, while the Signaling channel transmits messaging or signaling data. The RTC SDK and Signaling channels are independent of each other.
 
-- Use the camera's appropriate default field of view.
-- Avoid accidental digital zoom.
-- Do not apply unintended cropping.
-- Respect camera sensor orientation.
-- Correctly handle front and rear camera transformations.
-- Preserve natural facial proportions.
-- Use the appropriate capture resolution and aspect ratio.
-- Allow intentional zoom controls only when supported.
+Additional components provided by Agora, such as On-Premise Recording and Cloud Recording, join the RTC SDK channel and provide real-time recording, transmission acceleration, media playback, and content moderation.
 
-The default camera experience should look natural and similar to WhatsApp.
+### Channel profile
 
----
+The SDK applies different optimization methods according to the selected channel profile. Agora supports the following channel profiles:
 
-# PHASE 3 — BACKGROUND CALLING & MULTITASKING
+| Channel profile     | Description                                                                                                                                                                                                          |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `COMMUNICATION`     | This profile is suitable for one-on-one or group calls, where all users in the channel talk freely.                                                                                                                  |
+| `LIVE_BROADCASTING` | In a live streaming channel, users have two client roles: *host* and *audience*. The *host* sends and receives audio or video, while the *audience* only receives audio or video with the sending function disabled. |
 
-## 7. Continue Calls in the Background
+### Stream
 
-CURRENT PROBLEM:\
-Pressing the Android Back button terminates the call.
+A stream is a sequence of digitally-encoded coherent signals that contains audio or video data. Users in a channel [publish](#publish) local streams and [subscribe](#subscribe) to remote streams from other users.
 
-REQUIREMENTS:
+### Publish
 
-Completely redesign call lifecycle and navigation behavior.
+Publishing is the act of sending a user's audio or video data to the channel. Usually, the published stream is created by the audio data sampled from a microphone or the video data captured by a camera. You can also publish media streams from other sources, such as an online music file or the user's screen.
 
-When a user presses Back during an active call:
+After successfully publishing a stream, the SDK continues sending media data to other users in the channel. By publishing the local stream and subscribing to remote streams, users communicate with each other in real time.
 
-- Do not disconnect the call.
-- Minimize the call interface.
-- Keep the audio connection active.
-- Display a compact floating call interface when supported.
-- Allow the user to navigate through other ZEV screens.
-- Allow access to messages, feeds, profiles, and other features.
-- Preserve call state when switching between screens.
-- Provide a persistent active-call indicator.
+### Subscribe
 
-Implement proper platform-specific background execution.
+Subscribing is the act of receiving media streams published by remote users in the channel. A user receives audio and video data from other users by subscribing to one or more of their streams. You either directly play the subscribed streams or process incoming data for other purposes such as recording or capturing screenshots.
 
-For Android:
+### User ID (UID)
 
-- Use an appropriate foreground service for ongoing calls.
-- Display the required ongoing call notification.
-- Handle microphone and camera foreground-service permissions.
-- Respect Android background execution restrictions.
-- Ensure audio continues correctly.
+A User ID (UID) uniquely identifies a user within an Agora service. Both RTC and Signaling (formerly RTM) use UIDs, but the UID format, identity scope, and session behavior differ between the two services.
 
-For iOS, if supported:
+In RTC, the UID is an integer that uniquely identifies a user within a channel. When joining a channel, you can assign a specific UID or let Agora generate one automatically by passing `0` or, where supported, `null`. Each user in the same channel must have a unique UID. If multiple users join the same channel with the same UID, unexpected behavior may occur. Agora services and components use the UID to identify and manage the user within that channel.
 
-- Integrate the appropriate native call lifecycle and background audio capabilities.
-- Respect system camera and microphone restrictions.
+In Signaling, the UID is a unique string supplied with the App ID when initializing the SDK. It identifies the user when logging in to Signaling and throughout the session, including for billing and online status notifications. Because the UID is associated with the user during initialization, the user only needs to provide the channel name when joining a channel. The same UID cannot be logged in to Signaling from multiple devices at the same time. If another client logs in with an active UID, the previously connected client is disconnected and receives a notification.
 
-Never disconnect an active call just because the user navigates away from the call screen.
+### User role
 
-## 8. Floating Video Call / Picture-in-Picture
+A user role is used to define whether users in the channel have permission to publish streams. There are two user roles:
 
-CURRENT PROBLEM:\
-When users leave the calling screen, they cannot continue watching the video call.
+- Host: A user who can publish streams in a channel.
+- Audience: A user who cannot publish streams in a channel. Users with this role can only subscribe to remote audio and video streams.
 
-REQUIREMENTS:
+### Connection (RtcConnection)
 
-Implement a WhatsApp-style floating video experience.
+A connection is the link between the SDK and the channel. When you need to publish or receive multiple streams in multiple channels, use a connection to specify the target channel.
 
-When the user leaves the full-screen call interface:
+### Agora SDRTN®
 
-- Show a compact floating video window when platform capabilities permit.
-- Keep the remote video visible.
-- Keep the user's self-view accessible.
-- Allow repositioning of the floating window.
-- Allow returning to the full-screen call with one tap.
-- Provide quick mute and camera controls where appropriate.
-- Maintain audio and video continuity.
-- Support Android system Picture-in-Picture where appropriate.
-- Support the correct native experience on iOS where available.
+Agora's core engagement services are powered by its Software-Defined Real-Time Network (SDRTN®) that is accessible and available anytime, anywhere around the world. The software-defined network isn't confined by device, phone numbers, or a telecommunication provider's coverage area like traditional networks. Agora SDRTN® has data centers globally that cover over 200+ countries and regions. The network delivers sub-second latency and high availability of real-time video and audio anywhere on the globe. With Agora SDRTN®, Agora can deliver live user engagement experiences in the form of real-time communication (RTC) with the following advantages:
 
-IMPORTANT:\
-Distinguish between an in-app floating window and native operating-system Picture-in-Picture.
+- Unmatched quality of service
+- High availability and accessibility
+- True scalability
+- Low Cost
 
-Use the appropriate implementation for each platform.
 
----
 
-# PHASE 4 — ADVANCED FILTERS & CAMERA EFFECTS
+# Start with AI (/en/introduction/start-with-ai)
 
-THIS IS ONE OF THE MOST IMPORTANT PARTS OF THE ENTIRE PROJECT.
+> For AI agents: see the complete documentation index at [llms.txt](/llms.txt).
 
-We want to build a rich, modern camera effects system inspired by Snapchat, Instagram, and other leading social applications.
+## Agora AI Developer Toolkit
 
-Do not implement filters as simple static UI elements.
+The Agora AI Developer Toolkit provides the resources you and your AI coding agent need to build real-time applications. It works with coding agents such as Codex, Claude Code, and Cursor.
 
-Build a proper, scalable, real-time camera effects architecture.
+Use the toolkit to start a new project or add voice, video, interactive live streaming, and conversational AI to an existing application.
 
-## 9. Independent Camera Filters for Each User
+The toolkit includes:
 
-CURRENT PROBLEM:\
-When one user activates a filter, the filter incorrectly affects the other user's video.
+| Component                               | Purpose                                                                                                           |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| [Skills](/en/introduction/agora-skills) | Guides your coding agent through Agora development workflows and integration patterns.                            |
+| [CLI](/en/introduction/agora-cli)       | Initializes projects, configures credentials, and troubleshoots local environments.                               |
+| [SDKs](/en/api-reference/sdks)          | Provides the voice, video, and conversational AI capabilities your coding agent integrates into your application. |
+| [Recipes](https://recipes.agora.io/)    | Provides runnable code for common integration scenarios.                                                          |
 
-REQUIREMENTS:
+## Quick start
 
-Every user must independently control their own camera filters and effects.
+### 1. Install CLI
 
-Example:
+**macOS and Linux**
 
-User A enables a beauty filter.
+```bash
+curl -fsSL https://dl.agora.io/cli/install.sh | sh
+agora --help
+```
 
-Only User A's outgoing camera video should contain that effect.
+**Windows (PowerShell)**
 
-User B must not have their own camera affected by User A's filter selection.
+```powershell
+irm https://dl.agora.io/cli/install.ps1 | iex
+agora --help
+```
 
-If User B wants a filter, User B must independently select one.
+If your execution policy blocks inline scripts, download `install.ps1` and run:
 
-However, User B must see User A's selected visual effect in User A's transmitted video.
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
 
-The correct media pipeline should be:
+After installation, confirm `agora --help` works in the same shell.
 
-Camera Input → Local Effects Processing → Outgoing Video Track → Remote Participant.
+### 2. Add skill
 
-The local preview and outgoing video must show the same processed image.
+Install [Agora Skills](/en/introduction/agora-skills) so your assistant can choose the right Agora workflow, starter, and setup sequence before it edits code.
 
-Never apply a local camera effect directly to the remote participant's camera.
+**Skills CLI**
 
-## 10. Advanced Filter Library
+```bash
+npx skills add AgoraIO/skills
+```
 
-Build a large and expandable filter library.
+**Manual installation**
 
-Organize filters into professional categories.
+Clone the repository and point your coding assistant to the Agora skill files:
 
-### A. Beauty Filters
+```bash
+git clone https://github.com/AgoraIO/skills.git ~/agora-skills
+```
 
-- Natural Beauty
-- Smooth Skin
-- Soft Skin
-- Skin Tone Enhancement
-- Face Brightening
-- Eye Enhancement
-- Natural Makeup
-- Glam Makeup
-- Soft Portrait
-- Professional Portrait
-- Beauty Plus
-- Studio Beauty
+Use `skills/agora/` as the directory entry point, or load `SKILL.md` directly if your tool expects a single root file.
 
-### B. Color Filters
+If your tool prefers local instruction files, point it at `skills/agora/` or the top-level `SKILL.md`.
 
-- Warm
-- Cool
-- Cinematic
-- Vintage
-- Retro
-- Golden Hour
-- Sunset
-- Soft Pink
-- Dream
-- Pastel
-- Black & White
-- Film
-- Classic
-- Moody
-- Neon
-- Luxury
-- Natural
-- Bright
-- Dark Cinema
+If you only want docs lookup and not workflow guidance, install [Agora MCP](/en/introduction/agora-mcp) instead. Many teams use both.
 
-### C. Face Effects
+### 3. Prompt
 
-- Face Tracking
-- Animated Face Effects
-- Eye Effects
-- Face Decorations
-- Virtual Makeup
-- Face Accessories
-- Animated Stickers
-- AR Face Effects
+Now tell the assistant what you want it to build and how to approach the setup. A strong prompt includes the Agora product, the target platform, the language or starter preference, and the end goal.
 
-Only implement effects that can run reliably on supported devices.
+```text
+Use Agora Skills to help me build a web-based conversational AI demo in Python.
+```
 
-### D. Lighting Effects
+From there, let the assistant choose the starter, run `agora login`, initialize the project, and explain any environment values it writes locally.
 
-- Studio Lighting
-- Soft Lighting
-- Warm Lighting
-- Natural Lighting
-- Ring Light
-- Cinematic Lighting
-- Low-Light Enhancement
-- Background Lighting
+## What success looks like
 
-### E. Background Effects
+You are on the right path when the assistant can:
 
-- Background Blur
-- Portrait Background Blur
-- Background Replacement
-- Custom Background Image
-- Professional Office
-- Studio Background
-- Nature Background
-- Gradient Background
-- Virtual Meeting Background
+- choose an official starter instead of inventing one
+- explain why that starter matches your product and platform
+- use the Agora CLI for setup instead of ad hoc manual steps
+- stay grounded in current Agora docs when platform details matter
 
-### F. Special Effects
 
-- Glow
-- Sparkle
-- Soft Focus
-- Dreamy
-- Film Grain
-- Retro Camera
-- Vintage Camera
-- Cinematic Glow
-- Color Splash
-- Light Leak
 
-## 11. Advanced Beauty Controls
+# Agora Skills (/en/introduction/agora-skills)
 
-Provide individual adjustable controls instead of relying only on predefined filters.
+> For AI agents: see the complete documentation index at [llms.txt](/llms.txt).
 
-Users should be able to adjust:
+Install Agora Skills when you want your assistant to choose the right Agora workflow before it starts coding. Skills helps you pick the right product path, starter, and setup sequence, so your assistant can follow official Agora patterns instead of guessing.
 
-- Skin smoothing.
-- Brightness.
-- Contrast.
-- Saturation.
-- Warmth.
-- Exposure.
-- Sharpness.
-- Background blur intensity.
-- Beauty intensity.
-- Filter intensity.
+Use Skills when docs lookup alone is not enough and the harder part is deciding what to build first or which official path to follow. If you also want fresh documentation while your assistant works, pair Skills with [Agora MCP](/en/introduction/agora-mcp).
 
-Provide an easy-to-use slider for effect intensity.
+## Install Agora Skills
 
-Include:
+**Skills CLI**
 
-- Reset button.
-- Remove all effects.
-- Original camera preview.
-- Live preview.
-- Save favorite filters.
+```bash
+npx skills add AgoraIO/skills
+```
 
-The user must see the effect immediately while adjusting it.
+Skills activate automatically when the agent detects a relevant Agora task.
 
-## 12. Advanced Filter Interface
+**Manual installation**
 
-Design a premium filter selection interface.
+Clone the repository and point your coding assistant to the Agora skill files:
 
-Requirements:
+```bash
+git clone https://github.com/AgoraIO/skills.git ~/agora-skills
+```
 
-- Horizontal filter carousel.
-- Live camera preview.
-- Filter thumbnails.
-- Filter category navigation.
-- Selected filter indication.
-- Smooth transitions.
-- Real-time preview.
-- Clear effect names.
-- Adjustable intensity controls.
-- Favorites section.
-- Search or category browsing when useful.
+Use `skills/agora/` as the directory entry point, or load `SKILL.md` directly if your tool expects a single root file.
 
-The interface must be clean, modern, and intuitive.
+If you install Skills manually, place the files where your assistant already looks for local instructions:
 
-Do not use emoji icons.
+**Claude Code**
 
-Use professional vector icons.
+Run the following commands inside Claude Code:
 
-The filter panel must not cover the user's face or important camera controls.
+- **User-level** (available across all your projects)
 
-## 13. Filter Performance & Processing Architecture
+  ```bash
+  /plugin marketplace add AgoraIO/skills
+  /plugin install agora
+  ```
 
-This is a critical engineering requirement.
 
-The filter system must not make video calls slow or unstable.
+- **Project-level** (shared with your team via version control)
 
-Investigate suitable technologies for the existing application architecture, including:
+  ```bash
+  /plugin marketplace add AgoraIO/skills
+  /plugin install agora --scope project
+  ```
 
-- GPU-accelerated image processing.
-- OpenGL ES or Vulkan where appropriate.
-- Metal on supported iOS devices.
-- MediaPipe or suitable face-landmark detection.
-- Real-time segmentation.
-- Efficient video frame processing.
-- Hardware acceleration.
-- Adaptive processing resolution.
-- Frame-rate management.
+**Cursor**
 
-Avoid expensive CPU-based processing for every frame when GPU acceleration is available.
+Copy or symlink `skills/agora/` into `.cursor/rules/`.
 
-Implement adaptive quality depending on device capability.
+**Windsurf**
 
-The filter system must:
+Add `skills/agora/` to Cascade context.
 
-- Avoid unnecessary frame copies.
-- Avoid memory leaks.
-- Avoid excessive battery consumption.
-- Avoid blocking the main UI thread.
-- Maintain stable video frame delivery.
-- Release processing resources when a call ends.
+**GitHub Copilot**
 
-If a feature is not supported by the current architecture, investigate the correct integration before implementing it.
+Reference the files with `@workspace` or add them to Copilot instructions.
 
-Do not create fake filters that only change their names without actually processing the camera image.
+**Other tools**
 
----
+Point the tool at `skills/agora/` or the top-level `SKILL.md`.
 
-# PHASE 5 — GROUP VOICE & VIDEO CALLING
+## Start with a prompt
 
-## 14. Professional Group Calling
+Install Skills, then ask your assistant to choose the correct Agora path before it starts scaffolding or editing code.
 
-CURRENT PROBLEM:\
-ZEV does not yet provide a complete group calling experience.
+```text
+Use Agora Skills and Agora MCP to help me build a web-based conversational AI demo.
+Check the official docs first, choose the right starter, and use the Agora CLI for setup.
+```
 
-REQUIREMENTS:
+From there, let your assistant choose the starter and setup path before it edits code.
 
-Implement professional group voice and video calls.
+## Reference resources
 
-Users must be able to:
+For the Agora Skills source, see the GitHub repository:
 
-- Start a group voice call.
-- Start a group video call.
-- Invite multiple friends.
-- Accept or reject invitations.
-- See active participants.
-- See participant names and profile pictures.
-- See who is speaking.
-- Mute and unmute their microphone.
-- Enable or disable their camera.
-- Switch between front and rear cameras.
-- View participant video tiles.
-- View camera-off profile cards.
-- Leave the call without disconnecting everyone else.
+**[https://github.com/AgoraIO/skills](https://github.com/AgoraIO/skills)**
 
-Build a scalable group calling architecture.
+Browse the skill definitions, scripts, and reference materials.
 
-Investigate whether the existing peer-to-peer implementation can support the required scale.
 
-If necessary, evaluate an SFU-based architecture for group video calls.
 
-Do not use a full mesh architecture for large groups without evaluating its bandwidth and CPU limitations.
+# Agora CLI (/en/introduction/agora-cli)
 
-Optimize:
+> For AI agents: see the complete documentation index at [llms.txt](/llms.txt).
 
-- Audio routing.
-- Video subscriptions.
-- Participant management.
-- Bandwidth adaptation.
-- Video quality.
-- Speaker detection.
-- Connection recovery.
+Install the Agora CLI when you want the shortest path to a working Agora starter. Use it to log in, initialize an official starter, write environment values, switch projects, and diagnose setup problems from the terminal.
 
-Support different screen sizes and different participant counts.
+If you want to get a demo running before you fine-tune prompts or architecture, start here. After the starter works, add [Agora MCP](/en/introduction/agora-mcp) or [Agora Skills](/en/introduction/agora-skills) if you want your assistant to stay grounded in current docs and Agora-specific workflows.
 
-## 15. Add Participants During an Active Call
+## Install the Agora CLI
 
-CURRENT PROBLEM:\
-Users cannot invite another person while already in a direct call.
+**macOS and Linux**
 
-REQUIREMENTS:
+```bash
+curl -fsSL https://dl.agora.io/cli/install.sh | sh
+agora --help
+```
 
-Allow participants to add new friends during an active voice or video call.
+**Windows (PowerShell)**
 
-Example:
+```powershell
+irm https://dl.agora.io/cli/install.ps1 | iex
+agora --help
+```
 
-User A is having a video call with User B.
+## Quick start
 
-User A taps Add Participant.
+Follow this path if you want to get an official starter running as quickly as possible.
 
-User A selects User C.
+**TypeScript**
 
-User C receives a group call invitation.
+```bash
+agora login
+agora init my-nextjs-demo --template nextjs
+cd my-nextjs-demo
+pnpm install
+pnpm dev
+```
 
-When User C joins:
+**Python**
 
-- The direct call transitions into a group call.
-- Existing participants remain connected.
-- The new participant joins without unnecessarily restarting the call.
-- The participant list updates in real time.
-- All participants see the correct group call interface.
+```bash
+agora login
+agora init my-python-demo --template python
+cd my-python-demo
+bun install
+bun run dev
+```
 
-Do not disconnect existing participants during this transition.
+**Go**
 
-## 16. Automatic Group Chat Creation
+```bash
+agora login
+agora init my-go-demo --template go
+cd my-go-demo
+make setup
+make dev
+```
 
-When a direct call becomes a group call through adding participants:
+### What happens in this flow
 
-Create or reuse a group conversation involving the call participants.
+1. `agora login` authenticates your machine.
+2. `agora init` clones an official starter, binds it to your Agora project, and writes the environment you need locally.
+3. The runtime-specific install and dev commands start the application.
 
-Requirements:
+If the starter runs, move on to application-specific work. If not, troubleshoot in the same order you experienced the setup below.
 
-- Create a group chat with the same participants.
-- Avoid duplicate group conversations.
-- Use the existing messaging architecture.
-- Add a professional group name or allow participants to name the group.
-- Show a system message indicating that a group call started.
-- Keep group call information linked to the correct conversation.
-- Allow participants to continue messaging after the call.
-- Respect privacy and group membership rules.
+## If something fails
 
-The group chat must only be created after the appropriate user action and must not expose private conversations or data.
+### The `agora` command is not available
 
----
+If `agora --help` does not work after installation, rerun the installer first. On macOS and Linux, make sure you used the install command with `--add-to-path`.
 
-# PHASE 6 — IMMERSIVE CALL EXPERIENCE
+If PowerShell blocks the Windows install script, download `install.ps1` and run:
 
-## 17. Hide and Show Call Controls
+```text
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
 
-CURRENT PROBLEM:\
-The video call interface does not provide an immersive full-screen experience.
+### Login or starter setup fails
 
-REQUIREMENTS:
+Run the setup path again in order:
 
-When the user taps the video screen:
+```bash
+agora login
+agora init my-demo --template nextjs
+```
 
-- Hide all call control buttons.
-- Hide unnecessary interface elements.
-- Display the video in an immersive full-screen layout.
+This covers the two most common first-run failures: the machine is not authenticated, or the starter was not initialized correctly.
 
-When the user taps again:
+### The starter runs incorrectly
 
-- Restore all call controls.
-- Restore the participant information.
-- Restore the call interface.
+Use the CLI to check readiness, credentials, and feature enablement:
 
-Implement smooth fade animations.
+```bash
+agora project doctor
+```
 
-Support automatic control hiding after a short period of inactivity.
+### Project settings or credentials look wrong
 
-Ensure important emergency actions, such as ending the call, remain accessible when controls are visible.
+Inspect the current environment values that the CLI exported for your active project:
 
----
+```bash
+agora project env --shell
+```
 
-# PHASE 7 — COMPLETE CALL UI REDESIGN
+This is the right check when the local app starts but the agent does not join, transcripts do not appear, or the active project looks wrong.
 
-## 18. Premium Call Interface
+## Build from scratch instead
 
-CURRENT PROBLEM:\
-The existing calling UI does not look professional.
+If you are not using an official starter, create or switch projects first, then export credentials into the local environment.
 
-Redesign the entire voice and video calling experience.
+**TypeScript**
 
-Design direction:
+```bash
+agora login
+agora project create conv-ai-tutorial
+agora project use conv-ai-tutorial
+agora project env --shell
+```
 
-- Premium modern interface.
-- Clean visual hierarchy.
-- Elegant dark calling interface.
-- Carefully selected colors.
-- Smooth animations.
-- Professional typography.
-- Consistent spacing.
-- Proper safe-area handling.
-- High-quality visual components.
-- Native-feeling interactions.
+**Python**
 
-Do not use emoji icons anywhere in the calling interface.
+```bash
+agora login
+agora project create conv-ai-tutorial
+agora project use conv-ai-tutorial
+agora project env --shell
+```
 
-Use real professional vector icons.
+**Go**
 
-### Incoming Call Screen
+```bash
+agora login
+agora project create conv-ai-tutorial
+agora project use conv-ai-tutorial
+agora project env --shell
+```
 
-Design a premium incoming call screen with:
+You can also switch the active project later or create a new one explicitly:
 
-- Caller profile picture.
-- Caller name.
-- Incoming voice/video call indicator.
-- Accept button.
-- Decline button.
-- Subtle animations.
-- Professional background.
+```bash
+agora project create my-project
+agora project use my-project
+```
 
-### Outgoing Call Screen
+The CLI gives your assistant reproducible local steps it can execute and verify, especially during starter bootstrapping, project binding, environment generation, and first-line diagnosis.
 
-Design:
 
-- Receiver profile picture.
-- Receiver name.
-- Calling status.
-- Ringing status.
-- Cancel call button.
-- Smooth transitions.
 
-### Active Voice Call Screen
+# Agora MCP (/en/introduction/agora-mcp)
 
-Design:
+> For AI agents: see the complete documentation index at [llms.txt](/llms.txt).
 
-- Large profile picture.
-- User name.
-- Call duration.
-- Connection status.
-- Microphone control.
-- Speaker control.
-- Bluetooth/audio routing control where supported.
-- Add participant.
-- End call.
+Install Agora MCP when you want your assistant to check the latest Agora docs before it writes or changes code. Use it to confirm current SDK methods, parameters, quickstarts, and product or platform differences while you build or debug.
 
-### Active Video Call Screen
+This is most useful when documentation freshness is the risky part of the task. If you also want help choosing the right Agora workflow or starter, add [Agora Skills](/en/introduction/agora-skills).
 
-Design:
+## Install the MCP server
 
-- Full-screen remote video.
-- Floating draggable self-view.
-- Professional control bar.
-- Camera switching.
-- Microphone control.
-- Camera on/off.
-- Speaker/audio routing.
-- Effects and filters.
-- Add participant.
-- End call.
+`Agora MCP` is included when you install [Agora Skills](/en/introduction/agora-skills), but you can also install the MCP server on its own:
 
-All controls must have consistent sizes, shapes, and spacing.
+```text
+https://mcp.agora.io
+```
 
----
+Agora MCP is available only in coding tools where you install or configure it. A regular browser-based chat session does not connect to this server automatically.
 
-# PHASE 8 — CALL RELIABILITY & EDGE CASES
+**Cursor**
 
-## 19. Call Lifecycle Management
+Add the following JSON to your MCP configuration:
 
-Implement a robust call state machine.
+```json
+{
+  "mcpServers": {
+    "agora-docs": {
+      "url": "https://mcp.agora.io"
+    }
+  }
+}
+```
 
-Handle:
+**Claude Code**
 
-- Incoming call.
-- Outgoing call.
-- Ringing.
-- Accepted.
-- Connecting.
-- Connected.
-- Reconnecting.
-- Rejected.
-- Cancelled.
-- Busy.
-- Ended.
-- Failed.
+```bash
+claude mcp add --transport http agora-docs https://mcp.agora.io
+```
 
-Prevent:
+**Codex**
 
-- Duplicate incoming calls.
-- Duplicate call acceptance.
-- Stuck ringing screens.
-- Calls that remain active after termination.
-- Orphaned WebRTC connections.
-- Incorrect participant states.
+```bash
+codex mcp add --url https://mcp.agora.io agora-docs
+```
 
-Handle:
+**Gemini CLI**
 
-- Network disconnection.
-- Wi-Fi to mobile data switching.
-- Application backgrounding.
-- Screen locking.
-- Permission denial.
-- Camera failure.
-- Microphone failure.
-- Bluetooth connection changes.
-- Device audio interruptions.
+```bash
+gemini mcp add --transport http agora-docs https://mcp.agora.io
+```
 
-Provide understandable error messages and recovery actions.
+**Manual installation**
 
-## 20. Notifications and Native Call Experience
+Add `https://mcp.agora.io` to your MCP client and use `http` or `Streamable HTTP` transport if the client asks for a transport type.
 
-Ensure reliable incoming call notifications.
+## Check the available tools
 
-Investigate native call integration appropriate to each platform.
+The server supports searches across Agora product guides and SDK API references.
+Some tools also expose filter discovery.
 
-For Android:
+Your MCP client retrieves the tool catalog through `tools/list`.
+Use the returned names, descriptions, and input schemas when selecting tools and preparing arguments.
+Supply every required field using the declared types. Tool availability and parameter types can change with the server.
 
-- Full-screen incoming call notification where permitted.
-- Foreground call service.
-- Correct notification channels.
-- Lock-screen call actions.
-- Proper permission handling.
+Include the product, platform, and task in each search.
+Open returned documentation URLs when search excerpts do not contain the full answer.
+For a guide on `docs.agora.io`, append `.md` to read its Markdown content.
 
-For iOS:
+If a tool is unavailable, refresh the tool list before selecting another tool.
+If MCP is unavailable or returns no useful content, use the fallback resources below.
 
-- PushKit and CallKit integration where appropriate.
-- Correct incoming call lifecycle.
-- Native audio session handling.
+## Start with a prompt
 
-Do not assume that a normal push notification alone guarantees reliable incoming calls.
+Install the server in your coding tool, then ask your assistant to search Agora docs before it writes code. Include the Agora product, the target platform, and the task type in the same prompt.
 
----
+```text
+Use Agora MCP to find the current web quickstart for Conversational AI and explain the minimum setup for a browser voice demo.
+```
 
-# PHASE 9 — TESTING & QUALITY ASSURANCE
+## Make docs lookup part of the workflow
 
-## 21. Comprehensive Testing
+If your repository includes `AGENTS.md` or similar instructions, tell your assistant to prefer Agora MCP for product-specific lookups. That turns docs checks into a normal part of the workflow instead of an optional extra step.
 
-Test all calling features using real devices.
+If your MCP client is not available, these fallback resources still help:
 
-Test scenarios:
+- Use `https://docs.agora.io/llms.txt` as the lightweight documentation index. Its entries link directly to Markdown pages.
+- Append `.md` to a documentation URL to read that page as Markdown. For example, use `https://docs.agora.io/en/ai/get-started/quickstart.md`.
+- Use `https://docs.agora.io/llms-full.txt` only for offline indexing or bulk processing. It is too large to use as the default context for an interactive assistant.
 
-1. Direct voice call.
-2. Direct video call.
-3. Fast answer.
-4. Camera disabled.
-5. Camera enabled again.
-6. Microphone disabled.
-7. Microphone enabled again.
-8. Draggable self-view.
-9. Floating call window.
-10. Background call.
-11. App navigation during a call.
-12. Screen lock during a call.
-13. Network switching.
-14. Poor internet connection.
-15. Front/rear camera switching.
-16. Filter activation.
-17. Filter removal.
-18. Beauty adjustment.
-19. Background replacement.
-20. Group voice call.
-21. Group video call.
-22. Adding a participant.
-23. Direct-to-group transition.
-24. Group chat creation.
-25. Immersive video mode.
-26. Call termination and resource cleanup.
 
-Test on different Android devices, screen sizes, and operating-system versions.
 
-Do not mark a feature complete just because the UI appears.
+# Account (/en/introduction/account)
 
-Every feature must work.
+> For AI agents: see the complete documentation index at [llms.txt](/llms.txt).
 
----
+This page shows you how to sign up for an Agora account, create a new project, and get the App ID and App Certificate to generate a temporary token.
 
-# PHASE 10 — IMPLEMENTATION RULES
+## Get started with Agora
 
-## Mandatory Development Instructions
+Use [Agora Console](https://console.agora.io) to create and configure projects, and manage your Agora account. Each project provides the credentials your app needs to integrate Agora products.
 
-1. First inspect the complete existing calling implementation.
-2. Identify the root cause of every reported problem.
-3. Produce a technical implementation plan based on the existing architecture.
-4. Preserve all working features.
-5. Do not unnecessarily replace the database or authentication system.
-6. Reuse existing services and components where appropriate.
-7. Keep code modular and maintainable.
-8. Implement proper error handling.
-9. Avoid memory leaks.
-10. Avoid duplicate event listeners.
-11. Avoid unnecessary network requests.
-12. Avoid blocking the main UI thread.
-13. Test every major change.
-14. Do not use placeholder implementations for production features.
-15. Do not claim that a feature is complete without testing it.
+### Sign up for an Agora account
 
-## Recommended Implementation Order
+To use Agora products and services, you need an Agora account. Go to the [Agora sign-up page](https://sso2.agora.io/en/signup) and sign up with an email address, or with a Google or GitHub account.
 
-Priority 1:
+After you sign up, you are logged in automatically. For later visits, log in to [Agora Console](https://console.agora.io) with your email address or linked third-party account.
 
-- Fix call connection speed.
-- Fix remote video initialization.
-- Fix call lifecycle.
-- Fix camera rendering and camera-off state.
-- Fix background calling.
+### Your first Agora project
 
-Priority 2:
+When you create a new account, Agora creates a default project and opens it for you when you log in.
 
-- Redesign the complete calling interface.
-- Implement draggable self-view.
-- Implement floating video experience.
-- Implement immersive full-screen mode.
+To create a new project:
 
-Priority 3:
+1. In [Agora Console](https://console.agora.io), expand the **Projects** dropdown at the top of the page.
 
-- Build the advanced filter and effects engine.
-- Implement beauty controls.
-- Implement background segmentation and replacement.
-- Build a large filter library.
-- Optimize effects performance.
+2. Select **Create project**.
+   ![Create a new project button](https://assets-docs.agora.io/images/console/create-new-project-button.png)
 
-Priority 4:
+3. Enter a **Project Name**. Agora creates the project with a default setup: App ID and token authentication enabled, and Conversational AI with Signaling (RTM) enabled.
 
-- Implement group voice and video calling.
-- Implement adding participants.
-- Implement direct-to-group conversion.
-- Implement automatic group chat creation.
+   ![Create project dialog](https://assets-docs.agora.io/images/console/create-new-project.png)
 
-Priority 5:
+4. Click **Create Project**. You see the new project selected in the **Project** dropdown.
 
-- Comprehensive testing.
-- Performance optimization.
-- Memory and battery optimization.
-- Final UI polish.
+### Get the App ID and App Certificate
 
-## FINAL ACCEPTANCE CRITERIA
+Agora automatically assigns a unique identifier to each project, called an App ID. To generate authentication tokens on your app server, you also need the project's App Certificate.
 
-The project is complete only when:
+To get the App ID and App Certificate for a project:
 
-- Calls connect quickly and reliably.
-- Remote video appears without unnecessary delays.
-- Camera-off users display professional profile interfaces.
-- Self-view is draggable.
-- Self-view has correct video framing.
-- Camera zoom is natural.
-- Calls survive normal app navigation and backgrounding.
-- Floating video works where supported.
-- Filters are independently controlled by each user.
-- Remote participants see the sender's processed video.
-- The filter library offers extensive variety.
-- Beauty and background effects work in real time.
-- Group voice and video calls work.
-- Participants can be added during active calls.
-- Direct calls can transition into group calls.
-- Group conversations are correctly created or reused.
-- Video controls can be hidden for immersive viewing.
-- All calling screens have a premium design.
-- No emoji icons are used in the calling UI.
-- No existing ZEV features are broken.
+1. On the **Home** page, select **Manage credentials** on the project card.
+2. Use the copy buttons next to **App ID** and **Primary certificate** to get your App ID and App Certificate, respectively.
 
-IMPORTANT FINAL INSTRUCTION:
+![Project credentials panel](https://assets-docs.agora.io/images/console/project-credentials.png)
 
-Do not attempt to implement all features blindly in one operation.
+For full App Certificate management details, see [Projects](/en/introduction/projects#manage-app-certificates).
 
-First inspect the existing project and provide a detailed technical audit.
+### Generate temporary tokens
 
-Then implement the roadmap phase by phase.
+To ensure communication security, best practice is to use tokens to authenticate users who log in from your client app.
 
-After each phase:
+To generate a temporary RTC + RTM token for your project:
 
-- Explain what was changed.
-- List the files modified.
-- Explain the technical implementation.
-- Report the tests performed.
-- Identify any remaining limitations.
+1. On the **Home** page, select **Manage credentials** on the project card.
 
-The final result must be a production-quality calling system, not a prototype.
+2. Select **Generate Temp Token**.
 
-Our goal is to make ZEV Calling a premium, reliable, fast, and feature-rich communication experience that can compete with WhatsApp, Instagram, and Snapchat.
+3. Enter a **Channel** name and **RTC UID** in the pop-up box and select **Generate token**.
 
-# **چند نکته بسیار مهم درباره اجرای این رودمپ**
+   ![Generate Temp Token dialog](https://assets-docs.agora.io/images/console/generate-temp-token.png)
 
-من چند موضوع فنی را هم اضافه کردم که اگر رعایت نشوند، حتی با طراحی بسیار زیبا باز هم کاربران ناراضی خواهند بود.
+4. Copy the generated token.
 
-## **۱. سیستم فیلترها باید واقعاً حرفه‌ای باشد**
+For more information on managing other aspects of your Agora account, see [Console setup](/en/introduction/console-setup).
 
-بالاترین تمرکز توسعه
 
-[Top Snapchat Filters for Videos and How to Apply Them](https://images.openai.com/static-rsc-4/4W7F6bTA_Ocfs6tAQogTmcWWbSRh1N_WjQR2cDYtYi7ch1H-ofrQm6-74-anCwzwlu9S_GiYcU7IYxwfuRyOLhkp-IotOydvoRKTPXt5kJ2qixdMalyG4pUniHfaBBZh8jxdMmnqzLoOlM84E-7gi4rOGgxyMMvy-nEsPeThBHk?purpose=inline)
 
-[Como colocar efeito na chamada de vídeo do Instagram](https://images.openai.com/static-rsc-4/IHGvurPt09y_8-opOuAXmrioqN-_XRtNQ12KM12nSqO4HzoknrslT5nLQ6Xor1eKCSSA3gGiZEKsw0ebB1YK2NBMjfmXkX8U3COpgagZHBZk7SOqItJ5Ofq9pQpgKdNVNXR0gq3_cmPqzeYbM4_W1C-DgaotN4jqcKCv2KR91_o?purpose=inline)
+# Console overview (/en/introduction/console-setup)
 
-[Real-time Background Removal and Custom Virtual Background - Android SDK Integration Guide - Tencent RTC Documentation](https://images.openai.com/static-rsc-4/XxRqRDx1TGARxB3kj-wgn2mp-kww787FlNs2dUsxVzRTXrZ4H7fjmTq0GNFJuG5OUgFQXN7hOpKiosIYY4n7QaAXI2tyX4sYyjJKi84PVygCHUsWFocCDo3qk9Y3gE6L4mw88RVFRkGHmUbsC85ehq8DWBnjV0cHbOr-Qy0bGoc?purpose=inline)
+> For AI agents: see the complete documentation index at [llms.txt](/llms.txt).
 
-12
+Use Agora Console to manage your projects and account settings. Console settings are organized into two groups:
 
-برای ZEV پیشنهاد می‌کنم فیلترها فقط به چند رنگ ساده محدود نباشند. سه سطح داشته باشیم:
+- **Project-level settings**: Apply to a specific project.
+- **Account settings**: Apply across your entire Agora account.
 
-- **Basic Filters:** تغییر رنگ، نور، سینمایی، Vintage و غیره.
-- **Beauty Effects:** صاف کردن پوست، روشنایی چهره، آرایش و زیبایی طبیعی.
-- **Advanced AR Effects:** تشخیص چهره، افکت‌های متحرک، تغییر پس‌زمینه و افکت‌های هوشمند.
+## Project-level view
 
-یک موضوع مهم: افکتی که روی دوربین خودت فعال می‌کنی باید روی ویدیوی خروجی خودت اعمال شود و شخص مقابل همان تصویر پردازش‌شده را دریافت کند. اما تنظیمات دوربین خودش مستقل باقی بماند.
+When you log in to Agora Console, you land on the **Home** page for the selected project. Use the **Project** dropdown at the top of the page to switch between projects. Agora creates a default project for you when you create a new account.
 
-## **۲. معماری تماس گروهی را جدی بگیر**
+![Home page](https://assets-docs.agora.io/images/console/project-overview.png)
 
-اگر ZEV از WebRTC استفاده می‌کند، برای تماس گروهی بزرگ بهتر است معماری SFU را بررسی کنی. این معماری معمولاً نسبت به اتصال مستقیم همه کاربران به یکدیگر مقیاس‌پذیرتر است.
+Use the sidebar to switch between project-level pages.
 
-## **۳. بک‌گراند و پنجره شناور**
+### Home
 
-این قابلیت‌ها فقط با طراحی UI حل نمی‌شوند. باید چرخه عمر تماس و قابلیت‌های Native اندروید و iOS درست پیاده‌سازی شوند. همچنین پنجره شناور داخل ZEV با Picture-in-Picture سیستم‌عامل دو قابلیت متفاوت هستند.
+The **Home** page is the landing page for a project in Agora Console. It shows quick links to start building an AI agent, RTC services, your project's App ID and certificate, and a summary of your usage and billing across RTC, Signaling, and Conversational AI.
 
-# **ترتیب پیشنهادی من برای توسعه**
+### Credentials
 
-| اولویت | بخش                        | اهمیت      |
-| ------ | -------------------------- | ---------- |
-| ۱      | سرعت اتصال و نمایش ویدیو   | حیاتی      |
-| ۲      | پایداری تماس در پس‌زمینه   | حیاتی      |
-| ۳      | فیلترها و افکت‌های پیشرفته | بسیار بالا |
-| ۴      | طراحی کامل تماس            | بسیار بالا |
-| ۵      | پنجره شناور و Drag         | بالا       |
-| ۶      | تماس گروهی و دعوت مخاطب    | بالا       |
-| ۷      | تست و بهینه‌سازی           | حیاتی      |
+Select **Manage credentials** on the project card, on the **Home** page, to open the **Project credentials** panel. This panel shows the basic identity, security configuration, and credentials for the selected project.
 
-**یک توصیه مهم:** همه این ۱۳ مورد را یک‌باره به Antigravity نسپار که بدون بررسی کدها شروع به تغییر همه‌چیز کند. اول از او Technical Audit بگیر و سپس هر فاز را جداگانه اجرا کن. این کار ریسک خراب شدن سیستم فعلی ZEV را کاهش می‌دهد.
+- **Project Name**: An editable, human-readable name for the project. Select **Edit** to rename the project.
+- **Project ID**: An internal ID for your project. This is **not** the App ID.
+- **Status**: The status of your Agora project. Select **Disable project** to disable it.
+- **App ID**: A unique, non-editable identifier for the project. Select the copy icon to copy the ID to your clipboard.
+- **Primary certificate**: The project's primary server-side secret, used to generate authentication tokens. Enabling the primary certificate (default) secures the project and requires clients to authenticate with a token. Treat the primary certificate like a database password.
+- **Secondary certificate**: An optional fallback certificate used during certificate rotation. Enable it using the **Enable Secondary** button. You can't delete a secondary certificate while it is enabled; disable it first before deleting.
 
-همچنین بعد از اتمام هر فاز، روی حداقل دو گوشی واقعی تماس برقرار کن؛ چون عملکرد WebRTC، دوربین و پردازش افکت‌ها را نمی‌توان صرفاً با شبیه‌ساز تأیید کرد.
+You can copy your **App ID** and **Primary certificate** individually, generate a temporary token, or download your Agora `.env` file for use in your projects.
 
-اگر این رودمپ درست اجرا شود، ZEV می‌تواند یک سیستم تماس بسیار کامل‌تر و حرفه‌ای‌تر داشته باشد.
+![Project credentials panel](https://assets-docs.agora.io/images/console/project-credentials.png)
+
+**Rotate certificates**
+
+If you suspect your primary certificate has been compromised, rotate it using the secondary certificate. Replacing the primary certificate may impact your live business, so only rotate certificates when necessary.
+
+1. Select **Add a Certificate** to enable the secondary certificate.
+2. Select **Make Primary** against the secondary certificate to swap the primary and secondary certificates.
+3. Select **Disable Secondary** to disable the secondary certificate (the original primary certificate).
+4. Once your users have switched to the new certificate, select **Delete Secondary** to delete it.
+
+> **Warning**
+>
+> Once deleted, a certificate can't be restored. Before deleting it, confirm that users have switched to the new certificate. Deleting a certificate immediately invalidates all tokens generated with it, and users already connected can't renew their tokens using it.
+
+### RTC Services
+
+Select **RTC Services** in the sidebar to view and configure the Agora products and services available for the current project. Services are grouped into the following categories:
+
+- **Intelligence**: Conversational AI Engine, Real-Time Speech-to-Text.
+- **Media**: Cloud Recording, Media Push, Video Screenshot Upload, Media Gateway, Media Pull.
+- **Messaging and Signaling**: Signaling, Chat.
+- **Collaboration**: Whiteboard, Flexible Classroom.
+- **Infrastructure**: Cloud Proxy, Co-Host Authentication.
+
+Use the toggle on each product panel to enable or disable it for the project. Select the settings icon to open its configuration panel. For an overview of the available configuration options, refer to the specific product documentation.
+
+![RTC Services page](https://assets-docs.agora.io/images/console/realtime-services.png)
+
+### Webhooks
+
+A webhook is a callback over HTTPS that allows your app or back-end system to receive notifications. Agora calls your webhook endpoint from its servers to send notifications when selected events occur.
+
+Select **Webhooks** in the sidebar to view and manage webhooks for the current project.
+
+![Webhooks page](https://assets-docs.agora.io/images/console/webhooks-list.png)
+
+To configure webhooks:
+
+1. In [Agora Console](https://console.agora.io), select **Webhooks** in the sidebar.
+
+2. Select **New Webhook** to open the webhook configuration panel.
+
+   ![Webhook configuration in Agora Console](https://assets-docs.agora.io/images/console/webhook-rtc.png)
+
+3. From the **Product** dropdown, select the product for which you want to set up Webhook notifications.
+
+4. Copy the **Signing secret**. Use this secret to add signature verification.
+
+5. Fill in the following:
+
+   - **Region**: Select the region where your notifications receiving server is located. Agora connects to the nearest Agora node server based on your selection.
+
+   - **Receiving URL**: The `HTTPS` public address of your server that receives the notifications, for example `https://1111-123-456-789-99.ap.ngrok.io/ncsNotify`. Only `HTTPS` endpoints are supported.
+
+   - **Subscribe to events**: Select all the events for which you want to receive notifications.
+
+     If the selected events generate a high number of queries per second (QPS), ensure that your server has sufficient processing capacity.
+
+   - **IP whitelist**: If your server is behind a firewall, enable this option, then call the [IP address query API](/en/api-reference/api-ref/rtc/query-ip-address) to get the IP addresses of the Agora Notifications server and add them to the firewall's allowed IP list.
+
+   > **Note**
+   >
+   > To reduce the delay in notification delivery, best practice is to activate `HTTP` persistent connection (also called `HTTP` keep-alive) on your server with the following settings:
+   >
+   > - `MaxKeepAliveRequests`: 100 or more
+   > - `KeepAliveTimeout`: 10 seconds or more
+
+6. Select **Run health check**. Agora performs a health test for your configuration as follows:
+
+   1. The health test generates test events that correspond to your subscribed events, and sends callbacks to your server.
+
+      In test event callbacks, the channelName is `test_webhook`, and the uid is `12121212`.
+
+   2. After receiving each test callback, your server must respond within 10 seconds with a status code of `200`. The response body must be in JSON format.
+
+7. When the health check succeeds, select **Save**.
+
+   If the health check fails, follow the prompt in Agora Console to troubleshoot the error. Common errors include the following:
+
+   | Status code | Error                   | Description                                                                                                                                                                                                                                                                                                             |
+   | ----------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `590`       | Request timeout         | Your server does not return the status code `200` within 10 seconds. Check whether your server responds to the request properly. If your server responds to the request properly, contact Agora Technical Support to check if the network connection between the Agora Notifications server and your server is working. |
+   | `591`       | Domain name unreachable | The domain name is invalid and cannot be resolved to the target IP address. Check whether your server is properly deployed.                                                                                                                                                                                             |
+   | `592`       | Certificate error       | The Agora Notifications server fails to verify the SSL certificates returned by your server. Check if the SSL certificates of your server are valid. If your server is behind a firewall, check whether you have added all IP addresses of the Agora Notifications server to the firewall's allowed IP list.            |
+   | Other       | Other response errors   | Your server returns a response with a status code other than `200`. See the prompt in Agora Console for the specific status code and error messages.                                                                                                                                                                    |
+
+### Agora analytics
+
+Select **Agora Analytics** in the sidebar to open analytics in a new tab. Use it to track and analyze usage and quality data for RTC and Chat. For details, see [Agora Analytics overview](/en/realtime-media/agora-analytics/product-overview).
+
+## Account settings
+
+Account settings apply across your entire Agora account, not to a single project. **Usage**, **Projects**, and **Billing** are available directly in the sidebar. Access other options by clicking the username at the bottom of the sidebar.
+
+![Account popup menu](https://assets-docs.agora.io/images/console/account-menu.png)
+
+The popup menu shows your current workspace and gives access to **Profile**, **Subscriptions**, **Extensions**, **RESTful API Keys**, and **Settings**. It also gives you access to developer and support resources, including documentation, support tickets, and community links (**Get Support**), as well as account-wide actions like switching the theme (**Theme**), reverting to the legacy Console (**Back to classic console**), and signing out (**Sign out**).
+
+### Profile
+
+Use the profile page to update your personal and security details such as your name, email, and phone number. You can also reset your password or connect a Google or GitHub account to enable alternate sign-in methods.
+
+### Usage
+
+Select **Usage** in the sidebar. The **Usage** page shows your account's usage for the current billing cycle.
+
+- **Total Usage**: A summary of RTC minutes, agent minutes, and Signaling messages used in the current billing cycle.
+- **Detailed Usage**: A breakdown of usage by product, filterable by project and date range. Select **View Breakdown** to chart usage over time, and export the data using the download icon.
+
+![Detailed Usage chart with filters](https://assets-docs.agora.io/images/console/usage-detailed.png)
+
+For deeper usage insights, use [Agora Analytics](/en/realtime-media/agora-analytics/product-overview).
+
+### Projects
+
+Select **Projects** in the sidebar to view and manage all projects in your account.
+
+- Search projects by name or App ID.
+- Select **Create project** to create a new project.
+- Click the **Actions** menu next to a project to open its **Credentials** panel, or perform other project actions.
+
+![Projects page](https://assets-docs.agora.io/images/console/projects-list.png)
+
+### Subscriptions
+
+The **Subscriptions** page shows available monthly subscription plans and top-up packs for Agora products. You can view your current subscription, compare included features between various plans, and upgrade or downgrade your subscription. You can also view your purchase history on this page.
+
+![Subscription plans](https://assets-docs.agora.io/images/console/subscription-plans.png)
+
+For detailed pricing for a specific product, see the product's pricing page.
+
+### Billing
+
+Select **Billing** in the sidebar. The **Billing** page shows your available and reserved balance, invoices, transactions, payment methods, and billing information.
+
+![Billing page showing balance, invoices, and transactions](https://assets-docs.agora.io/images/console/billing.png)
+
+- **Account Balance**: Your available balance, with options to top up your wallet or withdraw funds once a payment method is on file.
+
+- **Reserved Balance**: Funds reserved against estimated usage. Select **View Estimate** to see the breakdown.
+
+- **Your Invoices**: Monthly and pre-paid invoices, filterable by date range.
+
+- **Transactions**: A log of balance movements, filterable by type, plus a separate tab for withdraw requests.
+
+- **Payment Methods**: Saved cards and bank transfer details used for billing.
+
+  - **Cards**: Select **Add New Card** to save a credit card for billing and invoice settlement. Provide the card number, name on card, expiration date, and CVC. Optionally set the card as the default for future payments.
+
+    ![Add New Card dialog](https://assets-docs.agora.io/images/console/add-new-card.png)
+
+  - **Bank Transfer**: Switch to the **Bank Transfer** tab for wire transfer instructions, including the beneficiary's name, account number, bank, SWIFT code, and bank address. Include the provided note (your Company ID) in the transfer's notes field.
+
+    > **Warning**
+    >
+    > Transfers made without the provided note can't be matched to your account and will be disregarded.
+
+- **Billing Information**: The name and address associated with your billing card.
+
+- **Billing FAQ**: Information about billing, such as schedule, account suspension policy, payment orders, and refunds.
+
+### Extensions
+
+Use the **Extensions** page to browse and manage extensions that add features to your app on top of Agora SDKs.
+
+![Extensions marketplace](https://assets-docs.agora.io/images/console/extensions.png)
+
+Select an extension from the list, then click **View details** to open the configuration page.
+
+### RESTful API keys
+
+This page lists your RESTful API keys, used to authenticate with Agora's RESTful API.
+
+Each key consists of a Customer ID and Customer Secret. Select **Create API Key** to generate a new key. You can download the Customer Secret only once, so save it somewhere secure. Add a note to a key to help identify it. Select the trash icon to delete a key. You can have a maximum of 10 keys per account.
+
+![RESTful API keys](https://assets-docs.agora.io/images/console/restful-api-keys.png)
+
+### Settings
+
+The **Settings** page lets you manage your account information, team members, SSO integration, and notification settings.
+
+#### Account
+
+Use the **Account** tab to manage your account details, security controls, and account deletion. The tab has the following panels:
+
+- **Account**: Edit your organization name, copy your company ID, or change your account email. Select **Save account** to apply your changes.
+- **Security controls**: Toggle **Support operation allowance** to allow Agora customer support to operate your Console for the next 24 hours. Toggle **Two-factor authentication** to require two-factor authentication for sensitive account actions.
+- **Delete account**: Check whether your account can be deleted, then delete it.
+
+To delete your Agora account, do the following:
+
+1. On the **Account** tab, go to the **Delete account** panel at the bottom of the page.
+2. Select **Run pre-check**. The pre-check lists anything that prevents you from deleting your account, such as active projects, a nonzero balance, or remaining team members. Resolve each blocker, then run the pre-check again.
+3. When the pre-check finds no blockers, select **Delete account** and confirm the deletion.
+
+#### Teams and members
+
+The **Teams and Members** tab lets you manage who has access to your account.
+
+- **Members**: Lists each member, their role, status, and any remarks. Select **Invite Member** to add a new member.
+- **Roles**: Lists each role, its permissions, and the projects it applies to. Permissions cover Usage, Finance, Teams & Members, Projects, XLA, and Agora Analytics access. Agora provides five built-in roles: **Finance**, **Engineer**, **CS & Maintenance**, **Product & Operation**, and **Admin**. Built-in roles are locked and can't be edited.
+
+![Roles table showing permissions by module](https://assets-docs.agora.io/images/console/members-roles.png)
+
+Select **Create Role** to define a custom role. When creating a role, set:
+
+- **Role name**: A name for the role.
+- **Permissions**: Access level (**None**, **View**, or **Edit**, depending on the module) for Usage, Finance, Teams & Members, Projects, and XLA.
+- **Agora Analytics**: Access to Call Inspector, Data Insights, and Live Data.
+- **Data**: The projects the role applies to. Select **All Projects**, or choose specific projects from the list.
+
+![Create Role dialog with permissions form](https://assets-docs.agora.io/images/console/create-role.png)
+
+#### SSO management
+
+The **SSO Management** tab lets you integrate Agora Console with Okta as your identity provider, so your team can log in using their Okta SSO credentials. This integration manages access using SAML and SCIM, and requires an active Premium or Enterprise Support Plan. Select **Request** to request the integration.
+
+#### Notification preferences
+
+Use the **Notification Preferences** tab to configure whether you want to receive notifications from Agora by email or text messages. You can set fine-grained preferences for each type of alert.
+
+![Notification preferences](https://assets-docs.agora.io/images/console/notification-preferences.png)
+
+To view your notifications press the bell icon next to your username to open the **Notifications** page. The page lists notifications related to your Agora account. Filter by category using **All**, **Unread**, **Account**, **Billing**, **Product**, or **System**. Select a notification to read its full content.
+
+### Get support
+
+The **Get support** sub-menu provides useful links to Agora documentation, sales, support tickets, and the community platform.
+
+
+
+# Billing policies (/en/introduction/billing/billing-policies)
+
+> For AI agents: see the complete documentation index at [llms.txt](/llms.txt).
+
+This page explains billing, account settlement, end-of-life policies, and any applicable free-of-charge policies for this product.
+
+## Billing and account policies
+
+Agora Console provides billing information, fee deduction details, and account suspension notices based on your account type.
+
+> **Info**
+>
+> If you have signed a contract with Agora, the contract terms override all billing, deduction, and suspension details described on this page.
+
+### Paid accounts
+
+Your account is a paid account if you have registered with Agora and completed any of the following:
+
+- Added a credit card to your account or topped up your balance using a bank account.
+- Made a recent payment.
+- Signed a contract with Agora.
+
+### Billing cycle
+
+Agora provides each account with [10,000 free minutes](#free-of-charge-policy) every month.
+
+On the first day of each month, Agora issues your bill for the previous calendar month.
+
+To view billing information for your projects:
+
+1. In [Agora Console](https://console.agora.io/), click home.
+2. Click **Billing**.
+
+   You see the detailed billing information for your projects, including billing period, due date, and amount.
+
+   ![View bills](https://assets-docs.agora.io/images/video-sdk/bills.png)
+
+#### Additional charges
+
+This section describes the additional charges applicable to your account.
+
+#### Singapore goods and services tax
+
+As of November 2021, Agora Singapore charges [9% Singapore Goods and Services Tax (GST)](https://www.iras.gov.sg/taxes/goods-services-tax-%28gst%29/basics-of-gst/goods-and-services-tax-%28gst%29-what-it-is-and-how-it-works) on invoices for all Agora services provided to accounts located in Singapore. Agora determines the account location based on the tax identification number, contact address, or billing address that you have provided. All GST collected from Singapore accounts is paid to the Singapore tax authority.
+
+If you have any questions, contact <support@agora.io>.
+
+#### Fee deduction
+
+On the sixth day of each month, Agora automatically deducts the fee for the previous month and notifies you by email. No fee is deducted if you meet both of the following conditions:
+
+- Your monthly usage does not exceed the free quota.
+- You do not use any other charged Agora services or products.
+
+If your account balance is negative after the deduction, Agora sends you an email, reminding you to top up your account at your earliest convenience and avoid account suspension.
+
+#### Account suspension
+
+If your account balance remains negative for 5 days after the deduction date, Agora suspends your account and notifies you by email. During suspension, none of your projects can access Agora services.
+
+To restore access, top up your account as soon as possible. Once your balance is zero or greater, Agora unfreezes your account.
+
+### Free accounts
+
+Your account is a free account if you have registered with Agora and have not completed any of the following:
+
+- Added a credit card to your account or topped up your balance using a bank account.
+- Made a recent payment.
+- Signed a contract with Agora.
+
+Free accounts include 10,000 free minutes per month. For details, see [Free-of-charge policy](#free-of-charge-policy).
+
+#### Free account suspension
+
+Agora suspends your account on the second day after any of the following occur:
+
+- Your total usage exceeds the free quota of a service or product.
+- You use Agora services or products not included in the free quota.
+
+After account suspension, none of your projects can access Agora services. To restore access:
+
+1. Add a credit card to your account or top up your balance using a bank account. This unfreezes your account and upgrades it to a paid account.
+2. Purchase a [pre-paid monthly package](/en/introduction/billing/subscription-packages) or [top-up package](/en/introduction/billing/subscription-packages#top-up-package). This option is highly recommended.
+
+## Free-of-charge policy
+
+> **Info**
+>
+> Agora offers a new pricing model. If your account uses this model, you receive a monthly free usage package by default instead of the 10,000 free minutes described below.
+
+Agora provides each account with 10,000 free minutes per month and deducts them in the following order:
+
+- Broadcast Streaming audio minutes
+- Voice call, video call, and Interactive Live Streaming audio minutes
+- On-premise recording audio minutes
+- Server Gateway audio minutes
+- Cloud Proxy audio minutes
+- Broadcast Streaming HD video minutes
+- Voice call, video call, and Interactive Live Streaming HD video minutes
+- On-premise recording HD video minutes
+- Server Gateway HD video minutes
+- Cloud Proxy HD video minutes
+- Broadcast Streaming Full HD\* video minutes
+- Voice call, video call, and Interactive Live Streaming Full HD\* video minutes
+- On-premise recording Full HD\* video minutes
+- Server Gateway Full HD\* video minutes
+- Cloud Proxy Full HD\* video minutes
+- Broadcast Streaming 2K video minutes
+- Voice call, video call, and Interactive Live Streaming 2K video minutes
+- On-premise recording 2K video minutes
+- Server Gateway 2K video minutes
+- Broadcast Streaming 2K+ video minutes
+- Voice call, video call, Interactive Live Streaming 2K+ video minutes
+- On-premise recording 2K+ video minutes
+- Server Gateway 2K+ video minutes
+- Cloud proxy 2K+ video minutes
+
+\* HD+ minutes are also included in the shared 10,000 free minutes.
+
+If your total service minutes do not exceed 10,000 minutes, the service is free-of-charge. After the 10,000 free-of-charge minutes are fully deducted, Agora charges you for the additional service minutes. Agora clears any remaining free-of-charge minutes at the end of each calendar month.
+
+> **Info**
+>
+> - The 10,000 free-of-charge minutes policy does not apply to the Signaling SDK, the Chat SDK, or the IoT SDK.
+> - The 10,000 free-of-charge minutes policy does not apply to Cloud Recording or Web Page Recording. To use these services, add a credit card to your Agora account.
+> - Conversational AI Engine has its own free minutes policy. For details, see [Conversational AI pricing](/en/ai/reference/pricing).
+
+### How service minutes are calculated
+
+Service minutes are calculated either by the number of users or by the number of streams. Agora calculates service minutes **by the number of users**.
+
+#### Approach 1: calculate by the number of users
+
+Suppose N users talk for M minutes in a channel, the total service minutes = N \* M.
+
+- If two users talk for 10 minutes, the total service minutes are: 2 \* 10 = 20.
+- If five users talk for 10 minutes, the total service minutes are: 5 \* 10 = 50.
+- If 10 users talk for 10 minutes, the total service minutes are: 10 \* 10 = 100.
+
+In this approach, service minutes depend only on the number of users in the channel, regardless of how many streams each user subscribes to.
+
+#### Approach 2: calculate by the number of streams
+
+Suppose N users talk for M minutes in a channel, and each user subscribes to all remote streams in the channel, the total service minutes = N \* (N-1) \* M.
+
+- If two users talk for 10 minutes, the total service minutes are: 2 \* (2-1) \* 10 = 20.
+- If five users talk for 10 minutes, the total service minutes are: 5 \* (5-1) \* 10 = 200.
+- If 10 users talk for 10 minutes, the total service minutes are: 10 \* (10-1) \* 10 = 900.
+
+In this approach, every remote stream that a user subscribes to is counted separately.
+
+#### Comparison of calculation approaches
+
+The following table compares service minutes under each approach:
+
+| Use-case                        | Service minutes by the number of users | Service minutes by the number of streams |
+| ------------------------------- | -------------------------------------- | ---------------------------------------- |
+| Two users talk for 10 minutes.  | 20 minutes                             | 20 minutes                               |
+| Five users talk for 10 minutes. | 50 minutes                             | 200 minutes                              |
+| 10 users talk for 10 minutes.   | 100 minutes                            | 900 minutes                              |
+
+The difference between the two approaches increases as more users join the channel.
+
+### Agora's calculation method
+
+Agora calculates service minutes **by the number of users**. Service minutes are also calculated based on aggregate video resolution.
+
+## End-of-life policy
+
+Agora is committed to providing regular updates to core products, extensions, and tools. These updates include new features, updated APIs, bug fixes, security patches, and documentation improvements. Agora strongly encourages developers to update to the latest product releases to benefit from new features, security enhancements, and other improvements.
+
+This section outlines the stages that an Agora product or service moves through, from pre-GA Beta to general availability to retirement, and the support Agora provides during each phase.
+
+### Default introduction period
+
+Agora guarantees a minimum introduction period of 12 months from the release of a product on the Agora Developer Center. During this period, Agora does not initiate any end-of-support or end-of-life actions. After the 12-month period, Agora may transition a product into the Maintenance phase, which marks the beginning of the end-of-support phase.
+
+### SDK lifecycle
+
+| Phase                                | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Beta                                 | During this phase, SDKs are intended solely for early access and feedback purposes. They are not recommended for use in production environments. Beta products fall outside of the EOL policy and are intended for evaluation purposes only. For more information, see the Beta Service Agreement.                                                                                                                                                                                                                                                                                                                                                                                      |
+| General Availability (GA)            | SDKs in this phase are fully supported by Agora. Agora provides support for new services, API updates, feature enhancements, bug fixes, and security patches. Agora guarantees a minimum of 12 months of support for GA SDKs. For details on client SDK support periods, see [Client SDK support periods](#client-sdk-support-periods).                                                                                                                                                                                                                                                                                                                                                 |
+| Retirement (EOL) SDKs: (Maintenance) | When an SDK enters the Retirement phase, Agora announces its retirement with a minimum notice period of 60 days, which is approximately 2 months. This announcement will include crucial timelines and guidelines to assist developers in migrating to the latest recommended SDK version. Agora communicates retirement announcements through email, the Agora Console notifications center, and SDK documentation, and may also post announcements on social media or the [Agora blog](https://www.agora.io/en/blog/). When a product or service reaches the end-of-support or end-of-life stage, Agora stops providing security updates, non-security updates, and assisted support. |
+
+### Client SDK support periods
+
+Agora provides the following support periods for client SDKs:
+
+| Release       | Support                                                                                    |
+| ------------- | ------------------------------------------------------------------------------------------ |
+| Major release | Agora guarantees support for at least 12 months starting from the date of a major release. |
+| Minor release | For minor releases, Agora ensures support for at least 6 months from the release date.     |
+
+### Maintenance support for retired SDKs
+
+Occasionally, Agora may transition a product SDK into a maintenance support phase focused primarily on bug fixes and security patches. In such cases, Agora notifies customers at least 60 days, approximately 2 months, in advance of the retirement period for the affected SDK.
+
+During the Retirement phase, products entering the EOS/EOL phase will continue to be supported as follows:
+
+| Duration                           | Support                                                                                                                         |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Months 1–6 after EOL announcement  | Agora provides bug fixes and security updates. New feature requests are not accepted.                                           |
+| Months 7–12 after EOL announcement | Agora provides security updates only.                                                                                           |
+| After 12 months                    | Agora no longer supports the product or service, unless a support extension was arranged before the end of the 12-month period. |
+
+> **Note**
+>
+> Using an SDK beyond its maintenance support cycle is not recommended and is entirely at the developer's discretion and risk.
+
+Agora is committed to delivering the best SDK experience to its developers. This policy ensures that you have access to the latest features and security updates with clear guidance on the support timelines.
+
+### Support extensions
+
+Customers may apply to extend support for a retired SDK for a temporary period, subject to Agora's discretion and commercial terms. Agora reviews each request and decides whether to grant the customer a license to use the product or service for a limited period beyond the EOL timeline.
+
+
+
+# Account settlement (/en/introduction/billing/account-settlement)
+
+> For AI agents: see the complete documentation index at [llms.txt](/llms.txt).
+
+To ensure billing transparency and smooth service continuity, Agora implements real-time account balance reservation based on estimated usage across all Agora products for SSP customers. This does not apply to customers with a signed contract.
+
+> **Info**
+>
+> For uninterrupted access to Agora's products and services, ensure at least one of the following:
+>
+> - Add a valid credit card for auto-recharge to your Agora account, **or**
+> - Maintain sufficient funds in your Agora Console balance to cover your estimated usage.
+
+Agora employs the following policies to manage your account balance and ensure uninterrupted access to its products and services.
+
+### Real-time usage and estimated bill
+
+You can view your real-time usage and estimated monthly bill at any time by selecting **Billing** in the Agora Console sidebar.
+
+![bill estimate preview](https://assets-docs.agora.io/images/console/bill-estimate-preview.png)
+
+### Real-time reservation of balance
+
+Your reserved balance is updated continuously based on your real-time bill estimation. The corresponding estimated amount is reserved from your available balance at all times.
+
+![Available and reserved balance](https://assets-docs.agora.io/images/console/available-reserved-balance.png)
+
+### Auto-recharge and account suspension
+
+On the **7th, 14th, 21st, and 28th** of each calendar month (excluding February 28), if your available balance is in arrears by more than **$50**:
+
+- If a valid credit card is linked, the system automatically recharges your balance to zero.
+- If no credit card is linked, or if auto-recharge fails, a notification email is sent to you.
+- Top up your wallet within the **24-hour grace period** to avoid account suspension.
+- If your balance remains in arrears after 24 hours, your account is suspended until the balance is restored to zero or above.
+
+### Monthly billing
+
+Your final bill is issued monthly. After bill finalization:
+
+- Any overpaid amount is refunded to your balance.
+- Any undercharged amount is deducted accordingly.
+
+### Balance withdrawal
+
+You can withdraw your available balance for payments completed within the past 90 days directly through the Agora Console. Funds will be returned to the original payment method. For further inquiries, please email <billing@agora.io>.
+
+![Withdraw balance](https://assets-docs.agora.io/images/console/withdraw-balance.png)
+
+
+
+# Subscription packages (/en/introduction/billing/subscription-packages)
+
+> For AI agents: see the complete documentation index at [llms.txt](/llms.txt).
+
+A subscription package is a prepaid billing method. You can purchase a package in the [`Agora Console`](https://console.agora.io/) to cover usage for the current month.
+
+This page explains how to purchase, and manage subscription and top-up packages.
+
+### Purchase and upgrade
+
+By default, a new account may be assigned a Free package when the first eligible project is created. You can upgrade to a paid package at any time. Available package tiers, discounts, and unit prices vary by product. To upgrade:
+
+1. Log in to [Agora Console](https://console.agora.io/).
+2. Click the username at the bottom of the navigation sidebar to open the account popup menu.
+3. Select  **Subscriptions**.
+4. Select the tab for the product subscription you want to manage, such as Realtime, Signaling, or Chat.
+5. Select your package and click **Upgrade** or **Downgrade**.
+
+   ![Subscription plans](https://assets-docs.agora.io/images/console/subscription-plans.png)
+
+For detailed pricing for a specific product, see the product's pricing page.
+
+> **Note**
+>
+> - For non-contracted customers, most packages can be purchased directly from the Agora Console. Some enterprise or contracted packages may require contacting [Agora sales](mailto:sales@agora.io).
+> - You can upgrade sequentially or skip levels when the product supports it.
+> - Package upgrades take effect immediately and apply to the entire calendar month. If you make multiple upgrades on the same day, only the last upgrade is applied.
+> - If your account has a negative balance, purchasing a prepaid package first charges your credit card for the outstanding balance, then for the package fee.
+
+#### Upgrade rules
+
+When you upgrade to a paid package, it becomes effective for the entire calendar month, regardless of the purchase date. You receive the full monthly allocation of the included quota. The cost of the previous package is deducted from the new package price, so you only pay the difference. If you request an upgrade after auto-renewal has triggered, you may upgrade for the next month as well.
+
+### Renewal
+
+By default, your subscription package renews automatically 48 hours before it expires. Ensure your account has sufficient balance or enable auto-pay to avoid renewal failure. You can unsubscribe at any time to prevent renewal. See [Cancel subscription](#cancel-subscription).
+
+If renewal fails:
+
+- The system sends a notification and retries the renewal.
+- If renewal still fails by the time the package expires, the package downgrades to the Free package.
+- To restore the previous package, see [Purchase and Upgrade](#purchase-and-upgrade).
+
+### Downgrade
+
+You can downgrade by selecting and purchasing a lower-tier package. A downgrade takes effect when your current package expires if you request it before auto-renewal is triggered. You are charged for the new package when you request the downgrade.
+
+You can downgrade only once per month.
+
+- If your downgrade for the next month is successful, auto-renewal for the current package is not triggered.
+- If a package is already active, you must wait until the 1st day of that month to initiate a downgrade for the following month.
+
+#### Example
+
+- **Requested more than 48 hours before the current package expires**: The downgrade takes effect after the current package expires.
+- **Requested less than 48 hours before the current package expires**: Since a package is already active for the next month, you must wait until the new package starts to downgrade for the following month.
+
+### Cancel subscription
+
+To cancel a prepaid package, downgrade to the Free package. Downgrade rules apply.
+
+## Top-up package
+
+A top-up package is a pay-as-you-go plan. You can purchase a top-up package from the [`Agora Console`](https://console.agora.io/subscriptions/rtc-plans?tab=top-up) to cover usage that exceeds your monthly package quota.
+
+### Purchase
+
+You can purchase multiple top-up packages. They are deducted in the order of purchase.
+
+#### Example:
+
+- Purchased 250,000-minutes top-up packages on **August 15** and **August 16**. On **September 1**, minutes consumed in August are deducted from the first package, then from the second.
+
+### Validity
+
+Each top-up package is valid for one year, starting from the purchase date to the end of the same month of the following year.
+
+#### Example:
+
+- Purchased on **August 15, 2025** → valid until **August 31, 2026**
+
+Unused minutes expire after the validity period and cannot be carried forward.
+
+### Cancel top-up package
+
+Cancelling a top-up package is not supported.
+
+## Free tier overage
+
+For Free tier users, exceeding the included minutes and any purchased top-up minutes results in service suspension. Service resumes when you purchase additional top-up minutes or upgrade to a prepaid subscription package.
+
+
+

@@ -135,7 +135,8 @@ class ZevCallParticipant {
       status: (map['status'] ?? 'invited').toString(),
       joinedAt: DateTime.tryParse((map['joined_at'] ?? '').toString()),
       leftAt: DateTime.tryParse((map['left_at'] ?? '').toString()),
-      profile: profile ??
+      profile:
+          profile ??
           (map['profiles'] is Map
               ? Map<String, dynamic>.from(map['profiles'])
               : const {}),
@@ -164,7 +165,9 @@ class ZevRtcService {
   bool _isEngineInitializing = false;
 
   // Persistent in-app minimized floating call bar & PiP state
-  final ValueNotifier<ZevCallSession?> minimizedCallNotifier = ValueNotifier(null);
+  final ValueNotifier<ZevCallSession?> minimizedCallNotifier = ValueNotifier(
+    null,
+  );
   Map<String, dynamic>? minimizedPeerProfile;
   int minimizedDurationSeconds = 0;
   bool isMinimizedMicMuted = false;
@@ -255,17 +258,23 @@ class ZevRtcService {
     final session = activeMinimizedSession ?? minimizedCallNotifier.value;
     if (session == null) return;
 
-    final nav = appNavigatorKey.currentState ?? Navigator.of(context, rootNavigator: true);
+    final nav =
+        appNavigatorKey.currentState ??
+        Navigator.of(context, rootNavigator: true);
     if (!nav.mounted) return;
 
-    final prof = activePeerProfile ?? minimizedPeerProfile ?? const <String, dynamic>{};
+    final prof =
+        activePeerProfile ?? minimizedPeerProfile ?? const <String, dynamic>{};
     final uname = (prof['username'] ?? 'User').toString();
-    final full = '${prof['first_name'] ?? ''} ${prof['last_name'] ?? ''}'.trim();
+    final full = '${prof['first_name'] ?? ''} ${prof['last_name'] ?? ''}'
+        .trim();
     final avatar = (prof['avatar_url'] ?? '').toString();
     final verified = prof['is_verified'] == true;
 
     final myId = _supabase.auth.currentUser?.id;
-    final peerId = session.callerId == myId ? session.calleeId : session.callerId;
+    final peerId = session.callerId == myId
+        ? session.calleeId
+        : session.callerId;
 
     nav.push(
       MaterialPageRoute(
@@ -401,8 +410,10 @@ class ZevRtcService {
     final uid = _supabase.auth.currentUser?.id;
     if (uid == null || uid.isEmpty) return;
     try {
-      final cutoff =
-          DateTime.now().toUtc().subtract(const Duration(seconds: 65)).toIso8601String();
+      final cutoff = DateTime.now()
+          .toUtc()
+          .subtract(const Duration(seconds: 65))
+          .toIso8601String();
       final res = await _supabase
           .from('call_sessions')
           .select()
@@ -441,15 +452,11 @@ class ZevRtcService {
     // Pre-warm Agora engine and pre-fetch token immediately in background!
     // This allows near-instant connection when receiver taps Accept!
     unawaited(
-      fetchCallToken(callSessionId: session.id)
-          .then<void>((_) {})
-          .catchError((_) {}),
+      fetchCallToken(
+        callSessionId: session.id,
+      ).then<void>((_) {}).catchError((_) {}),
     );
-    unawaited(
-      getOrInitializeEngine()
-          .then<void>((_) {})
-          .catchError((_) {}),
-    );
+    unawaited(getOrInitializeEngine().then<void>((_) {}).catchError((_) {}));
 
     // If user is already busy on another active call, signal busy cleanly.
     if (activeCallId != null && activeCallId != session.id) {
@@ -511,7 +518,9 @@ class ZevRtcService {
     try {
       final res = await _supabase
           .from('profiles')
-          .select('id, username, first_name, last_name, avatar_url, is_verified')
+          .select(
+            'id, username, first_name, last_name, avatar_url, is_verified',
+          )
           .eq('id', cleanId)
           .maybeSingle();
       if (res != null) return Map<String, dynamic>.from(res);
@@ -523,10 +532,7 @@ class ZevRtcService {
   Future<ZevAgoraCredentials> fetchLiveToken({required String streamId}) async {
     final json = await ApiClient.instance.post(
       '/api/v1/agora/token',
-      data: {
-        'mode': 'live',
-        'streamId': streamId,
-      },
+      data: {'mode': 'live', 'streamId': streamId},
       requireAuth: true,
     );
     return ZevAgoraCredentials.fromJson(json);
@@ -551,10 +557,7 @@ class ZevRtcService {
 
     final json = await ApiClient.instance.post(
       '/api/v1/agora/token',
-      data: {
-        'mode': 'call',
-        'callSessionId': cleanId,
-      },
+      data: {'mode': 'call', 'callSessionId': cleanId},
       requireAuth: true,
     );
     final creds = ZevAgoraCredentials.fromJson(json);
@@ -623,11 +626,7 @@ class ZevRtcService {
   }) async {
     final res = await _supabase.rpc(
       'respond_call_session',
-      params: {
-        'p_call_id': callId,
-        'p_action': action,
-        'p_reason': reason,
-      },
+      params: {'p_call_id': callId, 'p_action': action, 'p_reason': reason},
     );
     return ZevCallSession.fromMap(Map<String, dynamic>.from(res as Map));
   }
@@ -641,10 +640,7 @@ class ZevRtcService {
     try {
       final res = await _supabase.rpc(
         'invite_call_participant',
-        params: {
-          'p_call_id': callId,
-          'p_user_id': userId,
-        },
+        params: {'p_call_id': callId, 'p_user_id': userId},
       );
       final participant = ZevCallParticipant.fromMap(
         Map<String, dynamic>.from(res as Map),
@@ -653,22 +649,21 @@ class ZevRtcService {
       final myUserId = _supabase.auth.currentUser?.id;
       final inviterName = inviterDisplayName ?? 'A friend';
       unawaited(
-        ApiClient.instance.post(
-          '/api/v1/push/send',
-          data: {
-            'recipientUserId': userId,
-            'senderId': myUserId,
-            'title': '$inviterName • Group Call',
-            'body': 'Invited you to join a live call on ZEV',
-            'notificationType': 'group_call',
-            'deepLink': '/call/$callId',
-            'data': {
-              'call_id': callId,
-              'sender_id': myUserId ?? '',
-            },
-          },
-          requireAuth: true,
-        ).catchError((_) => <String, dynamic>{}),
+        ApiClient.instance
+            .post(
+              '/api/v1/push/send',
+              data: {
+                'recipientUserId': userId,
+                'senderId': myUserId,
+                'title': '$inviterName • Group Call',
+                'body': 'Invited you to join a live call on ZEV',
+                'notificationType': 'group_call',
+                'deepLink': '/call/$callId',
+                'data': {'call_id': callId, 'sender_id': myUserId ?? ''},
+              },
+              requireAuth: true,
+            )
+            .catchError((_) => <String, dynamic>{}),
       );
 
       return participant;
@@ -686,10 +681,7 @@ class ZevRtcService {
     try {
       await _supabase.rpc(
         'update_participant_call_status',
-        params: {
-          'p_call_id': callId,
-          'p_status': status,
-        },
+        params: {'p_call_id': callId, 'p_status': status},
       );
     } catch (e) {
       debugPrint('[ZevRtcService] updateParticipantStatus error: $e');
@@ -703,7 +695,9 @@ class ZevRtcService {
     try {
       final res = await _supabase
           .from('call_participants')
-          .select('*, profiles:user_id(id, username, first_name, last_name, avatar_url, is_verified)')
+          .select(
+            '*, profiles:user_id(id, username, first_name, last_name, avatar_url, is_verified)',
+          )
           .eq('call_session_id', callSessionId);
       final list = (res as List).whereType<Map>().toList();
       return list.map((m) {

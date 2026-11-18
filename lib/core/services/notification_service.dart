@@ -53,10 +53,9 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         options: DefaultFirebaseOptions.currentPlatform,
       );
     }
-    final rawType = (message.data['notification_type'] ??
-            message.data['type'] ??
-            'general')
-        .toString();
+    final rawType =
+        (message.data['notification_type'] ?? message.data['type'] ?? 'general')
+            .toString();
     final isCall = rawType == 'voice_call' || rawType == 'video_call';
 
     // If message already has notification payload, Android OS displays it natively.
@@ -128,11 +127,11 @@ class NotificationService {
     }
     try {
       await ensureInitialized();
-      final settings =
-          await FirebaseMessaging.instance.getNotificationSettings();
+      final settings = await FirebaseMessaging.instance
+          .getNotificationSettings();
       final fcmAllowed =
           settings.authorizationStatus == AuthorizationStatus.authorized ||
-              settings.authorizationStatus == AuthorizationStatus.provisional;
+          settings.authorizationStatus == AuthorizationStatus.provisional;
       if (defaultTargetPlatform == TargetPlatform.android) {
         final androidPlugin = _localNotifications
             .resolvePlatformSpecificImplementation<
@@ -174,7 +173,7 @@ class NotificationService {
       );
       final granted =
           settings.authorizationStatus == AuthorizationStatus.authorized ||
-              settings.authorizationStatus == AuthorizationStatus.provisional;
+          settings.authorizationStatus == AuthorizationStatus.provisional;
       final uid = supabase.auth.currentUser?.id;
       if (uid != null && uid.isNotEmpty) {
         unawaited(AuthHelper.syncZevFcmToken(uid, forceSync: true));
@@ -212,7 +211,9 @@ class NotificationService {
       }
 
       // 2. Register background handler & local notification channels
-      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      FirebaseMessaging.onBackgroundMessage(
+        _firebaseMessagingBackgroundHandler,
+      );
       await _initLocalNotifications();
 
       final messaging = FirebaseMessaging.instance;
@@ -264,12 +265,15 @@ class NotificationService {
       FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
         BadgeCounterService.instance.refreshCounts();
 
-        final type = (message.data['notification_type'] ??
-                message.data['type'] ??
-                'general')
-            .toString();
+        final type =
+            (message.data['notification_type'] ??
+                    message.data['type'] ??
+                    'general')
+                .toString();
         final senderId = (message.data['sender_id'] ?? '').toString().trim();
-        final convId = (message.data['conversation_id'] ?? '').toString().trim();
+        final convId = (message.data['conversation_id'] ?? '')
+            .toString()
+            .trim();
         if (_isViewingActiveChat(
           type: type,
           senderId: senderId,
@@ -277,25 +281,28 @@ class NotificationService {
         )) {
           return;
         }
-        final link = (message.data['deep_link'] ??
-                message.data['link_url'] ??
-                message.data['link'] ??
-                '')
-            .toString();
+        final link =
+            (message.data['deep_link'] ??
+                    message.data['link_url'] ??
+                    message.data['link'] ??
+                    '')
+                .toString();
         if ((type == 'voice_call' || type == 'video_call') &&
             isAppInForeground &&
             ZevRtcService.instance.activeCallId != null) {
           return;
         }
-        final title = (message.notification?.title ??
-                message.data['title'] ??
-                'ZEV Activity')
-            .toString();
-        final body = (message.notification?.body ??
-                message.data['body'] ??
-                message.data['message'] ??
-                'You have a new update on ZEV.')
-            .toString();
+        final title =
+            (message.notification?.title ??
+                    message.data['title'] ??
+                    'ZEV Activity')
+                .toString();
+        final body =
+            (message.notification?.body ??
+                    message.data['body'] ??
+                    message.data['message'] ??
+                    'You have a new update on ZEV.')
+                .toString();
 
         final dedupKey = (message.messageId?.isNotEmpty ?? false)
             ? 'fcm:${message.messageId}'
@@ -340,8 +347,8 @@ class NotificationService {
         );
         _dispatchOrQueueNotificationClick(initialMessage.data);
       } else {
-        final launchDetails =
-            await _localNotifications.getNotificationAppLaunchDetails();
+        final launchDetails = await _localNotifications
+            .getNotificationAppLaunchDetails();
         final rawPayload = launchDetails?.notificationResponse?.payload;
         if ((launchDetails?.didNotificationLaunchApp ?? false) &&
             rawPayload != null &&
@@ -422,7 +429,12 @@ class NotificationService {
               String linkedConvId = '';
               String linkedPeerId = senderId;
               if (link.contains('/chat/')) {
-                final chatTarget = link.split('/chat/').last.split('?').first.trim();
+                final chatTarget = link
+                    .split('/chat/')
+                    .last
+                    .split('?')
+                    .first
+                    .trim();
                 if (chatTarget.startsWith('conv:')) {
                   linkedConvId = chatTarget.replaceFirst('conv:', '');
                 } else if (chatTarget.isNotEmpty) {
@@ -461,7 +473,8 @@ class NotificationService {
 
               BadgeCounterService.instance.refreshCounts();
 
-              final overlayReady = isAppInForeground &&
+              final overlayReady =
+                  isAppInForeground &&
                   appNavigatorKey.currentState?.overlay != null;
               if (overlayReady) {
                 showInAppBanner(
@@ -519,7 +532,8 @@ class NotificationService {
                 'image' => 'Sent a photo',
                 'video' => 'Sent a video',
                 'audio' => 'Sent a voice message',
-                'file' => fileName.isNotEmpty ? 'Sent $fileName' : 'Sent a file',
+                'file' =>
+                  fileName.isNotEmpty ? 'Sent $fileName' : 'Sent a file',
                 'post_share' => 'Shared a post with you',
                 'reel_share' => 'Shared a reel with you',
                 _ => rawText.isNotEmpty ? rawText : 'Sent you a message',
@@ -552,7 +566,8 @@ class NotificationService {
 
               BadgeCounterService.instance.refreshCounts();
 
-              final overlayReady = isAppInForeground &&
+              final overlayReady =
+                  isAppInForeground &&
                   appNavigatorKey.currentState?.overlay != null;
               if (overlayReady) {
                 showInAppBanner(
@@ -584,7 +599,8 @@ class NotificationService {
   }) {
     if (!isAppInForeground) return false;
     final t = type.toLowerCase();
-    final isChat = t == 'message' ||
+    final isChat =
+        t == 'message' ||
         t.contains('chat') ||
         t.contains('message') ||
         t == 'dm' ||
@@ -678,10 +694,7 @@ class NotificationService {
             buttonTitle: 'Send',
             placeholder: 'Type a message...',
           ),
-          DarwinNotificationAction.plain(
-            'action_mark_read',
-            'Mark as Read',
-          ),
+          DarwinNotificationAction.plain('action_mark_read', 'Mark as Read'),
         ],
         options: <DarwinNotificationCategoryOption>{
           DarwinNotificationCategoryOption.hiddenPreviewShowTitle,
@@ -709,10 +722,7 @@ class NotificationService {
       DarwinNotificationCategory(
         'zev_category_friend_request',
         actions: <DarwinNotificationAction>[
-          DarwinNotificationAction.plain(
-            'action_accept_friend',
-            'Accept',
-          ),
+          DarwinNotificationAction.plain('action_accept_friend', 'Accept'),
           DarwinNotificationAction.plain(
             'action_decline_friend',
             'Decline',
@@ -786,7 +796,9 @@ class NotificationService {
   }
 
   /// Interactive Notification Action handler for both foreground & background clicks.
-  static Future<void> handleNotificationAction(NotificationResponse response) async {
+  static Future<void> handleNotificationAction(
+    NotificationResponse response,
+  ) async {
     final actionId = response.actionId;
     final rawPayload = response.payload;
     if (rawPayload == null || rawPayload.isEmpty) return;
@@ -808,7 +820,10 @@ class NotificationService {
 
     final supabase = Supabase.instance.client;
     final currentUserId = supabase.auth.currentUser?.id;
-    final senderId = (data['sender_id'] ?? data['peer_id'] ?? data['user_id'] ?? '').toString().trim();
+    final senderId =
+        (data['sender_id'] ?? data['peer_id'] ?? data['user_id'] ?? '')
+            .toString()
+            .trim();
     final convId = (data['conversation_id'] ?? '').toString().trim();
 
     switch (actionId) {
@@ -838,14 +853,17 @@ class NotificationService {
 
       case 'action_reply_comment':
         final text = response.input?.trim() ?? '';
-        final postId = (data['post_id'] ?? data['target_id'] ?? '').toString().trim();
+        final postId = (data['post_id'] ?? data['target_id'] ?? '')
+            .toString()
+            .trim();
         if (text.isNotEmpty && currentUserId != null && postId.isNotEmpty) {
           try {
             await supabase.from('post_comments').insert({
               'post_id': postId,
               'user_id': currentUserId,
               'comment_text': text,
-              if (data['comment_id'] != null) 'parent_comment_id': data['comment_id'],
+              if (data['comment_id'] != null)
+                'parent_comment_id': data['comment_id'],
             });
           } catch (e) {
             debugPrint('[NotificationService] comment reply notice: $e');
@@ -871,10 +889,15 @@ class NotificationService {
         break;
 
       case 'action_decline_call':
-        final callId = (data['call_id'] ?? data['channel_name'] ?? '').toString().trim();
+        final callId = (data['call_id'] ?? data['channel_name'] ?? '')
+            .toString()
+            .trim();
         if (callId.isNotEmpty) {
           unawaited(
-            ZevRtcService.instance.respondCall(callId: callId, action: 'rejected'),
+            ZevRtcService.instance.respondCall(
+              callId: callId,
+              action: 'rejected',
+            ),
           );
         }
         break;
@@ -903,10 +926,7 @@ class NotificationService {
         final reqId = (data['request_id'] ?? '').toString().trim();
         if (reqId.isNotEmpty) {
           try {
-            await supabase
-                .from('user_follows')
-                .delete()
-                .eq('id', reqId);
+            await supabase.from('user_follows').delete().eq('id', reqId);
           } catch (_) {}
         } else if (currentUserId != null && senderId.isNotEmpty) {
           try {
@@ -931,12 +951,22 @@ class NotificationService {
   static Future<void> showBackgroundNotification(RemoteMessage message) async {
     try {
       final local = FlutterLocalNotificationsPlugin();
-      const androidSettings = AndroidInitializationSettings('@drawable/ic_notification');
-      await local.initialize(const InitializationSettings(android: androidSettings));
+      const androidSettings = AndroidInitializationSettings(
+        '@drawable/ic_notification',
+      );
+      await local.initialize(
+        const InitializationSettings(android: androidSettings),
+      );
 
       final data = Map<String, dynamic>.from(message.data);
-      final title = (message.notification?.title ?? data['title'] ?? 'ZEV').toString();
-      final body = (message.notification?.body ?? data['body'] ?? data['message'] ?? 'New notification on ZEV').toString();
+      final title = (message.notification?.title ?? data['title'] ?? 'ZEV')
+          .toString();
+      final body =
+          (message.notification?.body ??
+                  data['body'] ??
+                  data['message'] ??
+                  'New notification on ZEV')
+              .toString();
 
       await _renderNativeNotification(
         localPlugin: local,
@@ -974,30 +1004,39 @@ class NotificationService {
     bool vibrate = true,
   }) async {
     try {
-      final rawType = (data['notification_type'] ?? data['type'] ?? 'general').toString();
+      final rawType = (data['notification_type'] ?? data['type'] ?? 'general')
+          .toString();
       final config = ZevNotificationChannels.resolve(rawType);
 
-      final avatarUrl = (data['avatar_url'] ??
-              data['sender_avatar'] ??
-              data['user_avatar'] ??
-              '')
+      final avatarUrl =
+          (data['avatar_url'] ??
+                  data['sender_avatar'] ??
+                  data['user_avatar'] ??
+                  '')
+              .toString()
+              .trim();
+
+      final mediaUrl =
+          (data['image'] ??
+                  data['image_url'] ??
+                  data['media_url'] ??
+                  data['thumbnail_url'] ??
+                  '')
+              .toString()
+              .trim();
+
+      final senderName = (data['sender_name'] ?? data['user_name'] ?? title)
           .toString()
           .trim();
-
-      final mediaUrl = (data['image'] ??
-              data['image_url'] ??
-              data['media_url'] ??
-              data['thumbnail_url'] ??
-              '')
+      final senderId = (data['sender_id'] ?? data['user_id'] ?? '')
           .toString()
           .trim();
-
-      final senderName = (data['sender_name'] ?? data['user_name'] ?? title).toString().trim();
-      final senderId = (data['sender_id'] ?? data['user_id'] ?? '').toString().trim();
 
       // Parallel download circular avatar and media thumbnail using ZevNotificationMediaHelper
-      final avatarBytes = await ZevNotificationMediaHelper.getCircularAvatarBytes(avatarUrl);
-      final pictureBytes = await ZevNotificationMediaHelper.getMediaThumbnailBytes(mediaUrl);
+      final avatarBytes =
+          await ZevNotificationMediaHelper.getCircularAvatarBytes(avatarUrl);
+      final pictureBytes =
+          await ZevNotificationMediaHelper.getMediaThumbnailBytes(mediaUrl);
 
       ByteArrayAndroidBitmap? largeIconBitmap;
       if (avatarBytes != null) {
@@ -1010,10 +1049,9 @@ class NotificationService {
       if (config.type == ZevNotificationCategoryType.messages ||
           config.type == ZevNotificationCategoryType.groups) {
         final isGroup = config.type == ZevNotificationCategoryType.groups;
-        final groupTitle = (data['group_name'] ??
-                data['conversation_title'] ??
-                'Group Chat')
-            .toString();
+        final groupTitle =
+            (data['group_name'] ?? data['conversation_title'] ?? 'Group Chat')
+                .toString();
 
         final person = Person(
           name: senderName.isNotEmpty ? senderName : 'ZEV User',
@@ -1027,13 +1065,7 @@ class NotificationService {
           person,
           conversationTitle: isGroup ? groupTitle : null,
           groupConversation: isGroup,
-          messages: [
-            Message(
-              body,
-              DateTime.now(),
-              person,
-            ),
-          ],
+          messages: [Message(body, DateTime.now(), person)],
           htmlFormatContent: true,
           htmlFormatTitle: true,
         );
@@ -1044,9 +1076,7 @@ class NotificationService {
             'Reply',
             icon: DrawableResourceAndroidBitmap('@drawable/ic_notif_message'),
             inputs: [
-              AndroidNotificationActionInput(
-                label: 'Type a message...',
-              ),
+              AndroidNotificationActionInput(label: 'Type a message...'),
             ],
             showsUserInterface: false,
           ),
@@ -1075,9 +1105,7 @@ class NotificationService {
               'Reply',
               icon: DrawableResourceAndroidBitmap('@drawable/ic_notif_comment'),
               inputs: [
-                AndroidNotificationActionInput(
-                  label: 'Write a reply...',
-                ),
+                AndroidNotificationActionInput(label: 'Write a reply...'),
               ],
               showsUserInterface: false,
             ),
@@ -1098,7 +1126,8 @@ class NotificationService {
         );
       }
 
-      final isCall = config.type == ZevNotificationCategoryType.voiceCalls ||
+      final isCall =
+          config.type == ZevNotificationCategoryType.voiceCalls ||
           config.type == ZevNotificationCategoryType.videoCalls;
 
       if (isCall) {
@@ -1181,7 +1210,8 @@ class NotificationService {
         attachments: darwinAttachments,
       );
 
-      final notifId = data['notification_id']?.hashCode.remainder(100000).abs() ??
+      final notifId =
+          data['notification_id']?.hashCode.remainder(100000).abs() ??
           DateTime.now().millisecondsSinceEpoch.remainder(100000).abs();
 
       await localPlugin.show(
@@ -1223,16 +1253,18 @@ class NotificationService {
       return;
     }
 
-    final type =
-        (data['notification_type'] ?? data['type'] ?? '').toString().toLowerCase();
-    final linkUrl = (data['deep_link'] ??
-            data['link_url'] ??
-            data['link'] ??
-            data['target_id'] ??
-            data['id'] ??
-            '')
+    final type = (data['notification_type'] ?? data['type'] ?? '')
         .toString()
-        .trim();
+        .toLowerCase();
+    final linkUrl =
+        (data['deep_link'] ??
+                data['link_url'] ??
+                data['link'] ??
+                data['target_id'] ??
+                data['id'] ??
+                '')
+            .toString()
+            .trim();
     final senderId =
         (data['sender_id'] ?? data['peer_id'] ?? data['user_id'] ?? '')
             .toString()
@@ -1353,9 +1385,7 @@ class NotificationService {
 
     // 4. Story (Like, Reaction, Reply, New Story) — check BEFORE generic like/reply!
     if (type.contains('story')) {
-      final cleanStoryId = linkUrl
-          .replaceFirst(RegExp(r'^/story/'), '')
-          .trim();
+      final cleanStoryId = linkUrl.replaceFirst(RegExp(r'^/story/'), '').trim();
       final isUuid = RegExp(
         r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
       ).hasMatch(cleanStoryId);
@@ -1448,7 +1478,8 @@ class NotificationService {
           viewsCount: (res['views_count'] as num?)?.toInt() ?? 0,
           likesCount: (res['likes_count'] as num?)?.toInt() ?? 0,
           commentsCount: (res['comments_count'] as num?)?.toInt() ?? 0,
-          createdAt: DateTime.tryParse(res['created_at']?.toString() ?? '') ??
+          createdAt:
+              DateTime.tryParse(res['created_at']?.toString() ?? '') ??
               DateTime.now(),
         );
 
@@ -1497,23 +1528,86 @@ class NotificationService {
       HapticFeedback.mediumImpact();
     }
 
-    final rawType = (data['notification_type'] ?? data['type'] ?? 'general').toString().toLowerCase();
-    final avatarUrl = (data['avatar_url'] ?? data['sender_avatar'] ?? data['user_avatar'] ?? '').toString().trim();
-    final mediaUrl = (data['image'] ?? data['image_url'] ?? data['media_url'] ?? data['thumbnail_url'] ?? '').toString().trim();
+    final rawType = (data['notification_type'] ?? data['type'] ?? 'general')
+        .toString()
+        .toLowerCase();
+    final avatarUrl =
+        (data['avatar_url'] ??
+                data['sender_avatar'] ??
+                data['user_avatar'] ??
+                '')
+            .toString()
+            .trim();
+    final mediaUrl =
+        (data['image'] ??
+                data['image_url'] ??
+                data['media_url'] ??
+                data['thumbnail_url'] ??
+                '')
+            .toString()
+            .trim();
 
     final (badgeIcon, badgeColor, categoryLabel) = switch (true) {
-      _ when rawType == 'voice_call' => (Icons.phone_rounded, const Color(0xFF10B981), 'Voice Call'),
-      _ when rawType == 'video_call' => (Icons.videocam_rounded, const Color(0xFF8B5CF6), 'Video Call'),
-      _ when rawType == 'message' || rawType.contains('chat') || rawType == 'dm' => (Icons.chat_bubble_rounded, const Color(0xFF2563EB), 'Chat'),
-      _ when rawType.contains('group') => (Icons.group_rounded, const Color(0xFF0284C7), 'Group'),
-      _ when rawType.contains('like') => (Icons.favorite_rounded, const Color(0xFFEF4444), 'Liked your post'),
-      _ when rawType.contains('comment') || rawType.contains('reply') => (Icons.chat_bubble_outline_rounded, const Color(0xFF3B82F6), 'Commented'),
-      _ when rawType == 'friend_request' || rawType == 'follow_request' => (Icons.person_add_rounded, const Color(0xFFF59E0B), 'Friend Request'),
-      _ when rawType.contains('follow') => (Icons.person_add_alt_1_rounded, const Color(0xFF06B6D4), 'New Follower'),
-      _ when rawType.contains('story') => (Icons.motion_photos_on_rounded, const Color(0xFFEC4899), 'Story'),
-      _ when rawType.contains('share') => (Icons.share_rounded, const Color(0xFF6366F1), 'Shared'),
-      _ when rawType.contains('security') || rawType.contains('login') => (Icons.shield_rounded, const Color(0xFFDC2626), 'Security Alert'),
-      _ => (Icons.notifications_active_rounded, const Color(0xFF2563EB), 'Activity'),
+      _ when rawType == 'voice_call' => (
+        Icons.phone_rounded,
+        const Color(0xFF10B981),
+        'Voice Call',
+      ),
+      _ when rawType == 'video_call' => (
+        Icons.videocam_rounded,
+        const Color(0xFF8B5CF6),
+        'Video Call',
+      ),
+      _
+          when rawType == 'message' ||
+              rawType.contains('chat') ||
+              rawType == 'dm' =>
+        (Icons.chat_bubble_rounded, const Color(0xFF2563EB), 'Chat'),
+      _ when rawType.contains('group') => (
+        Icons.group_rounded,
+        const Color(0xFF0284C7),
+        'Group',
+      ),
+      _ when rawType.contains('like') => (
+        Icons.favorite_rounded,
+        const Color(0xFFEF4444),
+        'Liked your post',
+      ),
+      _ when rawType.contains('comment') || rawType.contains('reply') => (
+        Icons.chat_bubble_outline_rounded,
+        const Color(0xFF3B82F6),
+        'Commented',
+      ),
+      _ when rawType == 'friend_request' || rawType == 'follow_request' => (
+        Icons.person_add_rounded,
+        const Color(0xFFF59E0B),
+        'Friend Request',
+      ),
+      _ when rawType.contains('follow') => (
+        Icons.person_add_alt_1_rounded,
+        const Color(0xFF06B6D4),
+        'New Follower',
+      ),
+      _ when rawType.contains('story') => (
+        Icons.motion_photos_on_rounded,
+        const Color(0xFFEC4899),
+        'Story',
+      ),
+      _ when rawType.contains('share') => (
+        Icons.share_rounded,
+        const Color(0xFF6366F1),
+        'Shared',
+      ),
+      _ when rawType.contains('security') || rawType.contains('login') => (
+        Icons.shield_rounded,
+        const Color(0xFFDC2626),
+        'Security Alert',
+      ),
+      _ => (
+        Icons.notifications_active_rounded,
+        const Color(0xFF2563EB),
+        'Activity',
+      ),
     };
 
     late OverlayEntry entry;
@@ -1538,7 +1632,10 @@ class NotificationService {
                 _bannerDismissTimer?.cancel();
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.96),
                   borderRadius: BorderRadius.circular(20),
@@ -1604,9 +1701,16 @@ class NotificationService {
                               decoration: BoxDecoration(
                                 color: badgeColor,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 1.5),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 1.5,
+                                ),
                               ),
-                              child: Icon(badgeIcon, size: 10, color: Colors.white),
+                              child: Icon(
+                                badgeIcon,
+                                size: 10,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ],
@@ -1700,8 +1804,10 @@ class NotificationService {
   }
 
   /// Tests local OS tray notifications AND live server `/api/v1/push/send` (`testSelf: true`).
-  Future<({bool localShown, bool serverSent, int tokensTargeted, String detail})>
-      sendTestNotification() async {
+  Future<
+    ({bool localShown, bool serverSent, int tokensTargeted, String detail})
+  >
+  sendTestNotification() async {
     await ensureInitialized();
     final granted = await requestOsPermission();
 
@@ -1749,15 +1855,16 @@ class NotificationService {
         detail: sent > 0
             ? 'Delivered to $sent active device(s) via FCM.'
             : (res['reason']?.toString() ??
-                res['skipped']?.toString() ??
-                'Server accepted request (0 active FCM tokens).'),
+                  res['skipped']?.toString() ??
+                  'Server accepted request (0 active FCM tokens).'),
       );
     } on ApiException catch (e) {
       return (
         localShown: true,
         serverSent: false,
         tokensTargeted: 0,
-        detail: 'Local alert shown; server FCM (${e.statusCode ?? 'err'}): ${e.message}',
+        detail:
+            'Local alert shown; server FCM (${e.statusCode ?? 'err'}): ${e.message}',
       );
     } catch (e) {
       return (
@@ -1780,9 +1887,7 @@ class NotificationService {
     Map<String, String>? extraData,
   }) async {
     final myId = supabase.auth.currentUser?.id;
-    if (myId == null ||
-        recipientUserId.isEmpty ||
-        recipientUserId == myId) {
+    if (myId == null || recipientUserId.isEmpty || recipientUserId == myId) {
       return;
     }
 

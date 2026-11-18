@@ -38,7 +38,8 @@ class ZevSponsoredAd {
     required this.destinationUrl,
   });
 
-  bool get isBoostedPost => sourcePostId != null && sourcePostId!.trim().isNotEmpty;
+  bool get isBoostedPost =>
+      sourcePostId != null && sourcePostId!.trim().isNotEmpty;
 
   bool get isVideo =>
       mediaType.toLowerCase() == 'video' ||
@@ -47,8 +48,9 @@ class ZevSponsoredAd {
       mediaUrl.toLowerCase().contains('.webm');
 
   factory ZevSponsoredAd.fromJson(Map<String, dynamic> json) {
-    final rawSourcePostId =
-        (json['source_post_id'] ?? json['sourcePostId'])?.toString().trim();
+    final rawSourcePostId = (json['source_post_id'] ?? json['sourcePostId'])
+        ?.toString()
+        .trim();
     return ZevSponsoredAd(
       campaignId: (json['campaign_id'] ?? json['campaignId'] ?? '').toString(),
       creativeId: (json['creative_id'] ?? json['creativeId'] ?? '').toString(),
@@ -69,8 +71,8 @@ class ZevSponsoredAd {
           .toLowerCase(),
       ctaLabel: (json['cta_label'] ?? json['ctaLabel'] ?? 'Learn More')
           .toString(),
-      destinationUrl:
-          (json['destination_url'] ?? json['destinationUrl'] ?? '').toString(),
+      destinationUrl: (json['destination_url'] ?? json['destinationUrl'] ?? '')
+          .toString(),
     );
   }
 }
@@ -165,7 +167,8 @@ class ZevAdCampaign {
     required this.createdAt,
   });
 
-  bool get isBoostedPost => sourcePostId != null && sourcePostId!.trim().isNotEmpty;
+  bool get isBoostedPost =>
+      sourcePostId != null && sourcePostId!.trim().isNotEmpty;
 
   double get ctrPercent =>
       impressionsCount > 0 ? (clicksCount / impressionsCount) * 100.0 : 0.0;
@@ -173,14 +176,17 @@ class ZevAdCampaign {
   factory ZevAdCampaign.fromJson(Map<String, dynamic> json) {
     Map<String, dynamic> creative = {};
     final rawCreatives = json['creatives'] ?? json['ad_creatives'];
-    if (rawCreatives is List && rawCreatives.isNotEmpty && rawCreatives.first is Map) {
+    if (rawCreatives is List &&
+        rawCreatives.isNotEmpty &&
+        rawCreatives.first is Map) {
       creative = Map<String, dynamic>.from(rawCreatives.first as Map);
     } else if (json['creative'] is Map) {
       creative = Map<String, dynamic>.from(json['creative'] as Map);
     }
 
-    final rawSourcePostId =
-        (json['source_post_id'] ?? json['sourcePostId'])?.toString().trim();
+    final rawSourcePostId = (json['source_post_id'] ?? json['sourcePostId'])
+        ?.toString()
+        .trim();
 
     return ZevAdCampaign(
       id: (json['id'] ?? '').toString(),
@@ -206,12 +212,12 @@ class ZevAdCampaign {
       rejectionReason: json['rejection_reason']?.toString(),
       creativeTitle: (json['creative_title'] ?? creative['title'])?.toString(),
       creativeBody: (json['creative_body'] ?? creative['body'])?.toString(),
-      creativeMediaUrl:
-          (json['creative_media_url'] ?? creative['media_url'])?.toString(),
-      creativeMediaType:
-          (json['creative_media_type'] ?? creative['media_type'])?.toString(),
-      creativeCtaLabel:
-          (json['creative_cta_label'] ?? creative['cta_label'])?.toString(),
+      creativeMediaUrl: (json['creative_media_url'] ?? creative['media_url'])
+          ?.toString(),
+      creativeMediaType: (json['creative_media_type'] ?? creative['media_type'])
+          ?.toString(),
+      creativeCtaLabel: (json['creative_cta_label'] ?? creative['cta_label'])
+          ?.toString(),
       creativeDestinationUrl:
           (json['creative_destination_url'] ?? creative['destination_url'])
               ?.toString(),
@@ -280,15 +286,13 @@ class ZevAdsService {
   static String buildImpressionIdempotencyKey({
     required String slotKey,
     required String campaignId,
-  }) =>
-      'imp_${slotKey}_$campaignId';
+  }) => 'imp_${slotKey}_$campaignId';
 
   static String buildClickIdempotencyKey({
     required String slotKey,
     required String campaignId,
     required int timestampMs,
-  }) =>
-      'click_${slotKey}_${campaignId}_$timestampMs';
+  }) => 'click_${slotKey}_${campaignId}_$timestampMs';
 
   void clearSlotCache() {
     _slotAdCache.clear();
@@ -316,7 +320,8 @@ class ZevAdsService {
 
     try {
       final excluded =
-          _servedCampaignIdsByPlacement[placement]?.toList() ?? const <String>[];
+          _servedCampaignIdsByPlacement[placement]?.toList() ??
+          const <String>[];
       final res = await ApiClient.instance.get(
         '/api/v1/ads/serve',
         queryParameters: {
@@ -358,7 +363,8 @@ class ZevAdsService {
         return segs[1];
       }
     }
-    if (ad.isBoostedPost && (dest.isEmpty || dest.contains('zevapp.com/post/'))) {
+    if (ad.isBoostedPost &&
+        (dest.isEmpty || dest.contains('zevapp.com/post/'))) {
       return ad.sourcePostId;
     }
     return null;
@@ -453,12 +459,16 @@ class ZevAdsService {
       final [profileRes, postsRes] = await Future.wait([
         client
             .from('profiles')
-            .select('id, username, first_name, last_name, avatar_url, is_verified')
+            .select(
+              'id, username, first_name, last_name, avatar_url, is_verified',
+            )
             .eq('id', uid)
             .maybeSingle(),
         client
             .from('discussion_posts')
-            .select('id, student_id, title, content, image_url, location, created_at')
+            .select(
+              'id, student_id, title, content, image_url, location, created_at',
+            )
             .eq('student_id', uid)
             .eq('is_draft', false)
             .isFilter('deleted_at', null)
@@ -469,8 +479,8 @@ class ZevAdsService {
       final profile = profileRes is Map<String, dynamic>
           ? profileRes
           : (profileRes is Map
-              ? Map<String, dynamic>.from(profileRes)
-              : <String, dynamic>{});
+                ? Map<String, dynamic>.from(profileRes)
+                : <String, dynamic>{});
       final username = (profile['username'] ?? 'creator').toString();
       final fullName =
           '${profile['first_name'] ?? ''} ${profile['last_name'] ?? ''}'.trim();
@@ -490,7 +500,9 @@ class ZevAdsService {
         try {
           final mediaRows = await client
               .from('post_media')
-              .select('id, post_id, media_type, media_url, thumbnail_url, sort_order')
+              .select(
+                'id, post_id, media_type, media_url, thumbnail_url, sort_order',
+              )
               .inFilter('post_id', postIds)
               .order('sort_order', ascending: true);
           for (final m in (mediaRows as List).whereType<Map>()) {
@@ -533,7 +545,9 @@ class ZevAdsService {
     try {
       res = await ApiClient.instance.get('/api/v1/ads/campaigns');
     } catch (e) {
-      debugPrint('[ZevAdsService] API /api/v1/ads/campaigns notice ($e), trying direct RPC fallback.');
+      debugPrint(
+        '[ZevAdsService] API /api/v1/ads/campaigns notice ($e), trying direct RPC fallback.',
+      );
       try {
         final rpcRes = await _supabase.rpc('get_my_advertiser_dashboard');
         res = (rpcRes is Map)
@@ -581,7 +595,8 @@ class ZevAdsService {
       data: {
         'action': 'register_advertiser',
         'businessName': businessName.trim(),
-        if (website != null && website.trim().isNotEmpty) 'website': website.trim(),
+        if (website != null && website.trim().isNotEmpty)
+          'website': website.trim(),
         if (contactEmail != null && contactEmail.trim().isNotEmpty)
           'contactEmail': contactEmail.trim(),
       },
@@ -633,7 +648,8 @@ class ZevAdsService {
         'totalBudget': totalBudget,
         'title': title.trim(),
         'body': body.trim(),
-        if (mediaUrl != null && mediaUrl.trim().isNotEmpty) 'mediaUrl': mediaUrl.trim(),
+        if (mediaUrl != null && mediaUrl.trim().isNotEmpty)
+          'mediaUrl': mediaUrl.trim(),
         'mediaType': mediaType,
         'ctaLabel': ctaLabel.trim().isEmpty ? 'Learn More' : ctaLabel.trim(),
         'destinationUrl': destinationUrl.trim(),
@@ -658,10 +674,7 @@ class ZevAdsService {
   }) async {
     await ApiClient.instance.patch(
       '/api/v1/ads/campaigns',
-      data: {
-        'campaignId': campaignId,
-        'pause': pause,
-      },
+      data: {'campaignId': campaignId, 'pause': pause},
     );
   }
 
@@ -670,7 +683,8 @@ class ZevAdsService {
       '/api/v1/ads/campaigns',
       data: {
         'action': 'generate_invoice',
-        if (campaignId != null && campaignId.isNotEmpty) 'campaignId': campaignId,
+        if (campaignId != null && campaignId.isNotEmpty)
+          'campaignId': campaignId,
       },
     );
   }

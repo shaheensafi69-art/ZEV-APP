@@ -94,29 +94,29 @@ class _FeedPostCardState extends State<FeedPostCard>
 
     _heartScaleAnim = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 0.0, end: 1.35)
-            .chain(CurveTween(curve: Curves.easeOutBack)),
+        tween: Tween<double>(
+          begin: 0.0,
+          end: 1.35,
+        ).chain(CurveTween(curve: Curves.easeOutBack)),
         weight: 60,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.35, end: 1.0)
-            .chain(CurveTween(curve: Curves.easeInOut)),
+        tween: Tween<double>(
+          begin: 1.35,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
         weight: 40,
       ),
     ]).animate(_heartAnimCtrl);
 
     _heartOpacityAnim = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween<double>(begin: 0.0, end: 1.0), weight: 20),
+      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.0), weight: 50),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 0.0, end: 1.0),
-        weight: 20,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 1.0, end: 1.0),
-        weight: 50,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 1.0, end: 0.0)
-            .chain(CurveTween(curve: Curves.easeIn)),
+        tween: Tween<double>(
+          begin: 1.0,
+          end: 0.0,
+        ).chain(CurveTween(curve: Curves.easeIn)),
         weight: 30,
       ),
     ]).animate(_heartAnimCtrl);
@@ -199,7 +199,9 @@ class _FeedPostCardState extends State<FeedPostCard>
       }
     });
 
-    _commentSub = ZevRealtimeSyncService.instance.onCommentUpdate.listen((event) {
+    _commentSub = ZevRealtimeSyncService.instance.onCommentUpdate.listen((
+      event,
+    ) {
       if (event.postId == _post.id && mounted) {
         setState(() {
           if (event.isAdded) {
@@ -435,7 +437,9 @@ class _FeedPostCardState extends State<FeedPostCard>
     HapticFeedback.lightImpact();
     setState(() => _isFollowLoading = true);
 
-    final status = await SocialGraphService.instance.toggleFollow(_post.authorId);
+    final status = await SocialGraphService.instance.toggleFollow(
+      _post.authorId,
+    );
 
     if (!mounted) return;
     setState(() {
@@ -831,10 +835,7 @@ class _FeedPostCardState extends State<FeedPostCard>
 
     return Container(
       width: double.infinity,
-      constraints: const BoxConstraints(
-        minHeight: 220,
-        maxHeight: 560,
-      ),
+      constraints: const BoxConstraints(minHeight: 220, maxHeight: 560),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(20),
@@ -932,7 +933,9 @@ class _FeedPostCardState extends State<FeedPostCard>
                       border: Border.all(color: Colors.white, width: 1.5),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                          color: const Color(
+                            0xFF0F172A,
+                          ).withValues(alpha: 0.08),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         ),
@@ -1102,8 +1105,9 @@ class _FeedPostCardState extends State<FeedPostCard>
                             ? null
                             : [
                                 BoxShadow(
-                                  color: const Color(0xFF0095F6)
-                                      .withValues(alpha: 0.35),
+                                  color: const Color(
+                                    0xFF0095F6,
+                                  ).withValues(alpha: 0.35),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),
@@ -1150,7 +1154,9 @@ class _FeedPostCardState extends State<FeedPostCard>
                       border: Border.all(color: Colors.white, width: 1.0),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          color: const Color(
+                            0xFF0F172A,
+                          ).withValues(alpha: 0.04),
                           blurRadius: 4,
                           offset: const Offset(0, 1),
                         ),
@@ -1200,11 +1206,12 @@ class _FeedPostCardState extends State<FeedPostCard>
                           child: Text(
                             post.content.isNotEmpty ? post.content : post.title,
                             textAlign: TextAlign.center,
-                            textDirection: TextDirectionHelper.isRtl(
-                              post.content.isNotEmpty
-                                  ? post.content
-                                  : post.title,
-                            )
+                            textDirection:
+                                TextDirectionHelper.isRtl(
+                                  post.content.isNotEmpty
+                                      ? post.content
+                                      : post.title,
+                                )
                                 ? TextDirection.rtl
                                 : TextDirection.ltr,
                             style: const TextStyle(
@@ -1238,8 +1245,9 @@ class _FeedPostCardState extends State<FeedPostCard>
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.redAccent
-                                            .withValues(alpha: 0.5),
+                                        color: Colors.redAccent.withValues(
+                                          alpha: 0.5,
+                                        ),
                                         blurRadius: 36,
                                         spreadRadius: 8,
                                       ),
@@ -1277,8 +1285,9 @@ class _FeedPostCardState extends State<FeedPostCard>
                           if (mediaUrls.length == 1)
                             _buildSingleMediaSlide(
                               mediaUrls.first,
-                              mediaItem:
-                                  mediaItems.isNotEmpty ? mediaItems.first : null,
+                              mediaItem: mediaItems.isNotEmpty
+                                  ? mediaItems.first
+                                  : null,
                               slideIndex: 0,
                             )
                           else
@@ -1330,8 +1339,9 @@ class _FeedPostCardState extends State<FeedPostCard>
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: const Color(0xFF0F172A)
-                                          .withValues(alpha: 0.10),
+                                      color: const Color(
+                                        0xFF0F172A,
+                                      ).withValues(alpha: 0.10),
                                       blurRadius: 8,
                                       offset: const Offset(0, 2),
                                     ),
@@ -1368,8 +1378,9 @@ class _FeedPostCardState extends State<FeedPostCard>
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: const Color(0xFF0F172A)
-                                            .withValues(alpha: 0.12),
+                                        color: const Color(
+                                          0xFF0F172A,
+                                        ).withValues(alpha: 0.12),
                                         blurRadius: 8,
                                         offset: const Offset(0, 2),
                                       ),
@@ -1412,8 +1423,9 @@ class _FeedPostCardState extends State<FeedPostCard>
                                         shape: BoxShape.circle,
                                         boxShadow: [
                                           BoxShadow(
-                                            color: Colors.redAccent
-                                                .withValues(alpha: 0.5),
+                                            color: Colors.redAccent.withValues(
+                                              alpha: 0.5,
+                                            ),
                                             blurRadius: 36,
                                             spreadRadius: 8,
                                           ),
@@ -1511,8 +1523,9 @@ class _FeedPostCardState extends State<FeedPostCard>
                       icon: _isLiked
                           ? Icons.favorite_rounded
                           : Icons.favorite_border_rounded,
-                      iconColor:
-                          _isLiked ? Colors.redAccent : ZevColors.deepNavy,
+                      iconColor: _isLiked
+                          ? Colors.redAccent
+                          : ZevColors.deepNavy,
                       count: _likesCount,
                       onTap: _toggleLike,
                       isHighlight: _isLiked,
@@ -1538,7 +1551,9 @@ class _FeedPostCardState extends State<FeedPostCard>
                       count: _repostsCount,
                       onTap: _toggleRepost,
                       isHighlight: _isReposted,
-                      highlightBg: ZevColors.primaryBlue.withValues(alpha: 0.12),
+                      highlightBg: ZevColors.primaryBlue.withValues(
+                        alpha: 0.12,
+                      ),
                     ),
                     const SizedBox(width: 8),
 
@@ -1570,7 +1585,9 @@ class _FeedPostCardState extends State<FeedPostCard>
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          color: const Color(
+                            0xFF0F172A,
+                          ).withValues(alpha: 0.04),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         ),
@@ -1580,8 +1597,9 @@ class _FeedPostCardState extends State<FeedPostCard>
                       _isSaved
                           ? Icons.bookmark_rounded
                           : Icons.bookmark_border_rounded,
-                      color:
-                          _isSaved ? ZevColors.primaryBlue : ZevColors.deepNavy,
+                      color: _isSaved
+                          ? ZevColors.primaryBlue
+                          : ZevColors.deepNavy,
                       size: 20,
                     ),
                   ),
@@ -1591,67 +1609,67 @@ class _FeedPostCardState extends State<FeedPostCard>
           ),
 
           // 4. Post Title & Caption Block with Smart Dynamic RTL/LTR
-          if (!post.isGradientTextPost) () {
-            final cleanCaption = _getCleanCaption();
-            if (cleanCaption.isEmpty) return const SizedBox.shrink();
+          if (!post.isGradientTextPost)
+            () {
+              final cleanCaption = _getCleanCaption();
+              if (cleanCaption.isEmpty) return const SizedBox.shrink();
 
-            final isContentRtl = TextDirectionHelper.isRtl(cleanCaption);
-            return Padding(
-              padding: const EdgeInsets.only(left: 14, right: 14, top: 4),
-              child: SizedBox(
-                width: double.infinity,
-                child: Column(
-                  crossAxisAlignment: isContentRtl
-                      ? CrossAxisAlignment.end
-                      : CrossAxisAlignment.start,
-                  children: [
-                    ZevRichText(
-                      text: cleanCaption,
-                      textDirection: isContentRtl
-                          ? TextDirection.rtl
-                          : TextDirection.ltr,
-                      textAlign:
-                          isContentRtl ? TextAlign.right : TextAlign.left,
-                      maxLines: _isExpanded ? null : 2,
-                      overflow: _isExpanded
-                          ? TextOverflow.visible
-                          : TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        color: ZevColors.deepNavy,
-                        height: 1.35,
-                      ),
-                      prefixSpans: [
-                        TextSpan(
-                          text: isContentRtl
-                              ? " ${post.authorUsername} "
-                              : "${post.authorUsername} ",
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                          ),
+              final isContentRtl = TextDirectionHelper.isRtl(cleanCaption);
+              return Padding(
+                padding: const EdgeInsets.only(left: 14, right: 14, top: 4),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Column(
+                    crossAxisAlignment: isContentRtl
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
+                    children: [
+                      ZevRichText(
+                        text: cleanCaption,
+                        textDirection: isContentRtl
+                            ? TextDirection.rtl
+                            : TextDirection.ltr,
+                        textAlign: isContentRtl
+                            ? TextAlign.right
+                            : TextAlign.left,
+                        maxLines: _isExpanded ? null : 2,
+                        overflow: _isExpanded
+                            ? TextOverflow.visible
+                            : TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          color: ZevColors.deepNavy,
+                          height: 1.35,
                         ),
-                      ],
-                    ),
-                    if (!_isExpanded && (cleanCaption.length > 70))
-                      GestureDetector(
-                        onTap: () => setState(() => _isExpanded = true),
-                        child: const Padding(
-                          padding: EdgeInsets.only(top: 2),
-                          child: Text(
-                            "more",
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              color: ZevColors.textMuted,
-                              fontWeight: FontWeight.w600,
+                        prefixSpans: [
+                          TextSpan(
+                            text: isContentRtl
+                                ? " ${post.authorUsername} "
+                                : "${post.authorUsername} ",
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ],
+                      ),
+                      if (!_isExpanded && (cleanCaption.length > 70))
+                        GestureDetector(
+                          onTap: () => setState(() => _isExpanded = true),
+                          child: const Padding(
+                            padding: EdgeInsets.only(top: 2),
+                            child: Text(
+                              "more",
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: ZevColors.textMuted,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            );
-          }(),
+              );
+            }(),
 
           // 5. Timestamp & Edited Badge
           Padding(
@@ -1790,7 +1808,9 @@ class _FeedPostCardState extends State<FeedPostCard>
               onTap: () {
                 Navigator.pop(bottomSheetContext);
                 Clipboard.setData(
-                  ClipboardData(text: "https://www.zevapp.com/post/${_post.id}"),
+                  ClipboardData(
+                    text: "https://www.zevapp.com/post/${_post.id}",
+                  ),
                 );
                 _showNotice("Post link copied to clipboard.");
               },
@@ -1813,10 +1833,11 @@ class _FeedPostCardState extends State<FeedPostCard>
                 color: ZevColors.deepNavy,
                 onTap: () async {
                   Navigator.pop(bottomSheetContext);
-                  final updated = await ContentDeletionService.showEditPostDialog(
-                    context,
-                    post: _post,
-                  );
+                  final updated =
+                      await ContentDeletionService.showEditPostDialog(
+                        context,
+                        post: _post,
+                      );
                   if (updated != null && mounted) {
                     setState(() => _post = updated);
                     widget.onPostUpdated?.call(updated);
@@ -1987,7 +2008,11 @@ class _FeedPostCardState extends State<FeedPostCard>
               ),
             ),
             const Spacer(),
-            const Icon(Icons.chevron_right_rounded, color: ZevColors.textMuted, size: 20),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: ZevColors.textMuted,
+              size: 20,
+            ),
           ],
         ),
       ),
