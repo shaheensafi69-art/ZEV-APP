@@ -1,16 +1,20 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/services/telegram_notification_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import 'professional_account_setup_screen.dart';
 
 /// Flagship ZEV Verification & Notability Portal.
 /// Features 2 Elite Tiers:
-///  - ZEV Blue (تیک آبی): 500,000+ real followers + 10 strict verification conditions.
-///  - ZEV Gold (تیک طلایی): 1,000,000+ real followers + ZEV Blue prerequisite.
+///  - ZEV Blue: 500,000+ real followers on ZEV + 10 strict verification conditions.
+///  - ZEV Gold: 1,000,000+ real followers on ZEV + ZEV Blue prerequisite.
 /// Non-negotiable: 0% pay-to-win, 0% referral shortcuts, 100% human compliance audit.
 class ZevBlueVerificationScreen extends StatefulWidget {
   final Map<String, dynamic> userProfile;
@@ -40,6 +44,7 @@ class ZevBlueVerificationScreen extends StatefulWidget {
 class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
     with SingleTickerProviderStateMixin {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final ImagePicker _picker = ImagePicker();
 
   bool _isLoading = true;
   bool _isVerified = false;
@@ -50,6 +55,10 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
   String? _badgeLabel;
   String? _verificationReason;
   DateTime? _verifiedAt;
+
+  // Document upload state (stored in Cloudflare R2)
+  String? _uploadedDocUrl;
+  bool _isUploadingDoc = false;
 
   // Audit state
   bool _hasProfessionalAccount = false;
@@ -62,8 +71,6 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
   String _selectedTier = 'blue'; // 'blue' or 'gold'
   final TextEditingController _legalNameCtrl = TextEditingController();
   final TextEditingController _knownAsCtrl = TextEditingController();
-  final TextEditingController _primaryPlatformCtrl = TextEditingController();
-  final TextEditingController _platformFollowersCtrl = TextEditingController();
   final TextEditingController _pressLink1Ctrl = TextEditingController();
   final TextEditingController _pressLink2Ctrl = TextEditingController();
   final TextEditingController _websiteCtrl = TextEditingController();
@@ -95,8 +102,6 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
     _tabCtrl.dispose();
     _legalNameCtrl.dispose();
     _knownAsCtrl.dispose();
-    _primaryPlatformCtrl.dispose();
-    _platformFollowersCtrl.dispose();
     _pressLink1Ctrl.dispose();
     _pressLink2Ctrl.dispose();
     _websiteCtrl.dispose();
@@ -121,7 +126,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
       // 1. Fetch live profile stats
       final profileRes = await _supabase
           .from('profiles')
-          .select('id, is_verified, badge_tier, account_type, avatar_url, bio, username')
+          .select('id, is_verified, badge_tier, account_type, avatar_url, bio, username, followers_count')
           .eq('id', currentUserId)
           .maybeSingle();
 
@@ -135,21 +140,26 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
             (profileRes['avatar_url']?.toString() ?? '').isNotEmpty;
         final hasBio = (profileRes['bio']?.toString() ?? '').isNotEmpty;
         _hasCompleteProfile = hasAvatar && hasBio;
+        if (profileRes['followers_count'] != null) {
+          _followersCount = (profileRes['followers_count'] as num).toInt();
+        }
       }
 
-      // 2. Fetch follower count
-      final followersRes = await _supabase
-          .from('user_follows')
-          .select('follower_id')
-          .eq('following_id', currentUserId);
-      _followersCount = (followersRes as List).length;
+      // 2. Fetch follower count from user_follows if 0 or unpopulated
+      if (_followersCount == 0) {
+        final followersRes = await _supabase
+            .from('user_follows')
+            .select('follower_id')
+            .eq('following_id', currentUserId);
+        _followersCount = (followersRes as List).length;
+      }
 
       // 3. Fetch verification record from user_verifications
       try {
         final verifRes = await _supabase
             .from('user_verifications')
             .select(
-                'status, is_active, badge_type, badge_label, verification_reason, verified_at, expires_at')
+                'status, is_active, badge_type, badge_label, verification_reason, verified_at, expires_at, document_url, legal_name, known_as, category, document_type')
             .eq('user_id', currentUserId)
             .maybeSingle();
 
@@ -158,6 +168,19 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
           _pendingBadgeType = verifRes['badge_type']?.toString();
           _badgeLabel = verifRes['badge_label']?.toString();
           _verificationReason = verifRes['verification_reason']?.toString();
+          _uploadedDocUrl = verifRes['document_url']?.toString();
+          if ((verifRes['legal_name']?.toString() ?? '').isNotEmpty) {
+            _legalNameCtrl.text = verifRes['legal_name'].toString();
+          }
+          if ((verifRes['known_as']?.toString() ?? '').isNotEmpty) {
+            _knownAsCtrl.text = verifRes['known_as'].toString();
+          }
+          if ((verifRes['category']?.toString() ?? '').isNotEmpty) {
+            _selectedCategory = verifRes['category'].toString();
+          }
+          if ((verifRes['document_type']?.toString() ?? '').isNotEmpty) {
+            _selectedDocType = verifRes['document_type'].toString();
+          }
           if (verifRes['verified_at'] != null) {
             _verifiedAt = DateTime.tryParse(verifRes['verified_at'].toString());
           }
@@ -178,6 +201,51 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
     }
   }
 
+  Future<void> _pickAndUploadDocument() async {
+    final userId = widget.userProfile['id']?.toString() ??
+        _supabase.auth.currentUser?.id ??
+        '';
+    if (userId.isEmpty) return;
+
+    try {
+      final picked = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 88,
+      );
+      if (picked == null) return;
+
+      setState(() {
+        _isUploadingDoc = true;
+      });
+
+      final bytes = await picked.readAsBytes();
+      final ext = picked.name.split('.').last.toLowerCase();
+      final effectiveExt = (ext == 'png' || ext == 'webp') ? ext : 'jpg';
+      final fileName = 'id_doc_${DateTime.now().millisecondsSinceEpoch}.$effectiveExt';
+      final uploadPath = '$userId/$fileName';
+
+      final url = await CloudflareStorageService.instance.upload(
+        bucket: 'verification',
+        path: uploadPath,
+        bytes: bytes,
+        file: kIsWeb ? null : File(picked.path),
+        contentType: 'image/$effectiveExt',
+        compressImage: true,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _uploadedDocUrl = url;
+        _isUploadingDoc = false;
+      });
+      _showToast("Document uploaded securely to Cloudflare R2!");
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isUploadingDoc = false);
+      _showToast("Document upload failed: $e", isError: true);
+    }
+  }
+
   Future<void> _submitApplication() async {
     final userId = widget.userProfile['id']?.toString() ??
         _supabase.auth.currentUser?.id ??
@@ -190,6 +258,11 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
       return;
     }
 
+    if (_uploadedDocUrl == null || _uploadedDocUrl!.isEmpty) {
+      _showToast("Please upload your official ID document to Cloudflare R2.", isError: true);
+      return;
+    }
+
     if (_selectedTier == 'gold' && !_isVerified) {
       _showToast(
         "You must first be ZEV Blue verified before applying for ZEV Gold.",
@@ -198,26 +271,61 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
       return;
     }
 
+    final isGold = _selectedTier == 'gold';
+    final targetFollowers = isGold ? kGoldFollowerThreshold : kBlueFollowerThreshold;
+
+    // Follower requirement is STRICTLY ON ZEV
+    if (_followersCount < targetFollowers) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text(
+            "ZEV Follower Requirement",
+            style: TextStyle(fontWeight: FontWeight.w900, color: ZevColors.deepNavy),
+          ),
+          content: Text(
+            "The official policy requires at least ${isGold ? '1,000,000' : '500,000'} real followers directly on ZEV.\n\nYour current ZEV followers: $_followersCount.\n\nDo you wish to submit your application for exceptional board review?",
+            style: const TextStyle(fontSize: 13.5, color: ZevColors.textSecondary, height: 1.45),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text("Cancel", style: TextStyle(color: ZevColors.textSecondary)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ZevColors.primaryBlue,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text("Submit Anyway", style: TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ),
+      );
+      if (proceed != true) return;
+    }
+
     setState(() => _isSubmitting = true);
     HapticFeedback.heavyImpact();
 
     try {
       final nowIso = DateTime.now().toUtc().toIso8601String();
       final evidenceLinks = [
-        if (_primaryPlatformCtrl.text.trim().isNotEmpty)
-          "Main Platform: ${_primaryPlatformCtrl.text.trim()} (${_platformFollowersCtrl.text.trim()} followers)",
         if (_pressLink1Ctrl.text.trim().isNotEmpty) _pressLink1Ctrl.text.trim(),
         if (_pressLink2Ctrl.text.trim().isNotEmpty) _pressLink2Ctrl.text.trim(),
         if (_websiteCtrl.text.trim().isNotEmpty) _websiteCtrl.text.trim(),
       ].join(' | ');
 
-      final isGold = _selectedTier == 'gold';
       final badgeType = isGold ? 'gold_tick' : 'blue_tick';
       final badgeLabel = isGold ? 'ZEV Gold Icon' : 'ZEV Blue Verified';
       final planType = isGold ? 'notability_1m_gold' : 'notability_500k_blue';
 
       final reasonText =
-          "Tier: ${isGold ? 'GOLD (1M+)' : 'BLUE (500K+)'} | Category: $_selectedCategory | Doc: $_selectedDocType | Known As: ${_knownAsCtrl.text.trim()} | Evidence: $evidenceLinks | Statement: ${_statementCtrl.text.trim()}";
+          "Tier: ${isGold ? 'GOLD (1M+ ZEV)' : 'BLUE (500K+ ZEV)'} | Category: $_selectedCategory | Doc: $_selectedDocType | Known As: ${_knownAsCtrl.text.trim()} | DocURL: $_uploadedDocUrl | Evidence: $evidenceLinks | Statement: ${_statementCtrl.text.trim()}";
 
       // 1. Upsert into public.user_verifications
       await _supabase.from('user_verifications').upsert({
@@ -231,6 +339,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
         'known_as': _knownAsCtrl.text.trim(),
         'category': _selectedCategory,
         'document_type': _selectedDocType,
+        'document_url': _uploadedDocUrl,
         'evidence_links': evidenceLinks,
         'follower_count': _followersCount,
         'verification_reason': reasonText,
@@ -245,7 +354,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
               ? 'ZEV Gold Application Submitted 🏆'
               : 'ZEV Blue Application Submitted 🌟',
           'message':
-              'Your verification application for ${isGold ? 'ZEV Gold (1M+)' : 'ZEV Blue (500K+)'} has been received. Our Trust & Safety team will conduct a thorough human review within 24-72 hours.',
+              'Your verification application for ${isGold ? 'ZEV Gold (1M+ Followers on ZEV)' : 'ZEV Blue (500K+ Followers on ZEV)'} has been received. Our Trust & Safety team will conduct a thorough human review within 24-72 hours.',
           'notification_type': 'verification',
           'app_source': 'zev',
           'is_read': false,
@@ -258,11 +367,11 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
           fullName: legalName,
           phone: widget.userProfile['public_phone']?.toString() ?? 'N/A',
           planKey: planType,
-          planName: isGold ? 'ZEV Gold Verification (1M+)' : 'ZEV Blue Verification (500K+)',
-          planPrice: isGold ? '1,000,000+ Followers' : '500,000+ Followers',
+          planName: isGold ? 'ZEV Gold Verification (1M+ ZEV Followers)' : 'ZEV Blue Verification (500K+ ZEV Followers)',
+          planPrice: isGold ? '1,000,000+ ZEV Followers' : '500,000+ ZEV Followers',
           email: widget.userProfile['email']?.toString() ?? '',
           notes: reasonText,
-          paymentMethod: 'Manual Human Audit',
+          paymentMethod: 'Cloudflare R2 Document Verified',
         );
       } catch (_) {}
 
@@ -345,10 +454,10 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              "Your application has been registered for human verification by the ZEV Compliance & Safety Board according to the 10 official conditions.\n\nEstimated review window: 24 to 72 hours.",
+            const Text(
+              "Your application and Cloudflare R2 verified documents have been registered for human verification by the ZEV Compliance & Safety Board according to the 10 official conditions.\n\nEstimated review window: 24 to 72 hours.",
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 color: ZevColors.textSecondary,
                 height: 1.45,
@@ -430,7 +539,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
                       // Header Badge Hero (Blue vs Gold)
                       _buildHeaderHero(fullName, username),
 
-                      // Clay Tab Navigation
+                      // Tab Navigation Pills
                       Container(
                         height: 44,
                         margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
@@ -608,10 +717,10 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
                           fontSize: 10,
                           fontWeight: FontWeight.w900,
                           color: hasBadge
-                              ? (isGold ? const Color(0xFFB45309) : const Color(0xFF166534))
-                              : (_pendingStatus == 'pending'
-                                  ? const Color(0xFF92400E)
-                                  : ZevColors.primaryBlue),
+                               ? (isGold ? const Color(0xFFB45309) : const Color(0xFF166534))
+                                : (_pendingStatus == 'pending'
+                                    ? const Color(0xFF92400E)
+                                    : ZevColors.primaryBlue),
                         ),
                       ),
                     ),
@@ -620,8 +729,8 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
                 const SizedBox(height: 3),
                 Text(
                   hasBadge
-                      ? "Official authenticity badge earned via verifiable notability."
-                      : "Strictly non-purchasable: Blue (500K+ & 10 Rules) and Gold (1M+).",
+                      ? "Official authenticity badge earned via verifiable ZEV notability."
+                      : "Strictly non-purchasable: Blue (500K+ on ZEV) and Gold (1M+ on ZEV).",
                   style: const TextStyle(
                     fontSize: 12,
                     color: ZevColors.textSecondary,
@@ -637,78 +746,78 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
   }
 
   // ===========================================================================
-  // TAB 0: 10 OFFICIAL RULES & POLICIES (MATCHING USER SPECIFICATION)
+  // TAB 0: 10 OFFICIAL RULES & POLICIES (ENGLISH SPECIFICATION)
   // ===========================================================================
   Widget _buildRulesTab() {
     final rules = [
       {
-        'num': '۱',
-        'title': 'حداقل ۵۰۰ هزار دنبال‌کننده واقعی',
+        'num': '1',
+        'title': 'Minimum 500,000 Real Followers on ZEV',
         'desc':
-            'متقاضی باید حداقل ۵۰۰,۰۰۰ دنبال‌کننده واقعی در یکی از شبکه‌های اجتماعی معتبر مانند Instagram، YouTube، TikTok یا ZEV داشته باشد. دنبال‌کنندگان جعلی و خریداری‌شده پذیرفته نیستند.',
+            'The applicant must have at least 500,000 genuine, active followers directly on the ZEV network. External platform followings, bought bots, or inactive profiles are strictly disqualified.',
         'icon': Icons.groups_rounded,
       },
       {
-        'num': '۲',
-        'title': 'احراز هویت رسمی',
+        'num': '2',
+        'title': 'Official Legal Identity Verification',
         'desc':
-            'ارائه مدرک هویتی معتبر (پاسپورت، کارت ملی یا ثبت شرکت) و تطبیق نام، تصویر و اطلاعات حساب با هویت واقعی متقاضی الزامی است.',
+            'Submission of valid, government-issued photo identification (Passport, National ID, Driver\'s License, or Business Registration) matching account details is mandatory.',
         'icon': Icons.badge_outlined,
       },
       {
-        'num': '۳',
-        'title': 'شهرت و شناخته‌شدگی عمومی',
+        'num': '3',
+        'title': 'Public Prominence & Notability',
         'desc':
-            'شخص باید در سطح ملی یا بین‌المللی شناخته‌شده باشد؛ مانند هنرمندان، ورزشکاران، کارآفرینان، شخصیت‌های رسانه‌ای و افراد تأثیرگذار.',
+            'Applicant must represent an established public figure, creator, athlete, entertainer, entrepreneur, or certified institution of national or international recognition.',
         'icon': Icons.star_outline_rounded,
       },
       {
-        'num': '۴',
-        'title': 'حضور رسانه‌ای معتبر',
+        'num': '4',
+        'title': 'Credible Press & Media Presence',
         'desc':
-            'متقاضی باید سابقه حضور یا معرفی در رسانه‌های خبری، مجلات، مصاحبه‌های معتبر یا منابع مستقل قابل اعتماد داشته باشد.',
+            'Applicant must have documented coverage in reputable news media, verified publications, broadcast interviews, or independent encyclopedic sources.',
         'icon': Icons.newspaper_rounded,
       },
       {
-        'num': '۵',
-        'title': 'فعالیت مستمر و حرفه‌ای',
+        'num': '5',
+        'title': 'Continuous & Professional ZEV Activity',
         'desc':
-            'حساب ZEV باید حداقل ۹۰ روز سابقه فعالیت واقعی داشته باشد و در این مدت محتوای معتبر و منظم منتشر کرده باشد.',
+            'The ZEV account must demonstrate at least 90 days of consistent, high-standard activity and regular content creation directly on ZEV.',
         'icon': Icons.history_toggle_off_rounded,
       },
       {
-        'num': '۶',
-        'title': 'تعامل واقعی با مخاطبان',
+        'num': '6',
+        'title': 'Authentic Community Engagement',
         'desc':
-            'میزان تعامل، بازدید، نظرات و مشارکت مخاطبان بررسی می‌شود. تعداد دنبال‌کننده به‌تنهایی معیار اعتبار نیست.',
+            'Audience interactions, views, discussions, and meaningful engagement are thoroughly audited. Follower count alone does not grant verification.',
         'icon': Icons.chat_bubble_outline_rounded,
       },
       {
-        'num': '۷',
-        'title': 'اصالت محتوا و هویت دیجیتال',
+        'num': '7',
+        'title': 'Originality & Digital Authenticity',
         'desc':
-            'متقاضی باید مالک واقعی حساب باشد و محتوای اصیل منتشر کند. جعل هویت، سرقت محتوا و استفاده گمراه‌کننده از نام اشخاص دیگر ممنوع است.',
+            'Applicant must be the sole authentic owner of the account with original creative rights. Content theft, impersonation, or misleading branding will result in a permanent ban.',
         'icon': Icons.fingerprint_rounded,
       },
       {
-        'num': '۸',
-        'title': 'سابقه رفتاری و امنیت حساب',
+        'num': '8',
+        'title': 'Account Safety & Clean Record',
         'desc':
-            'حساب نباید سابقه جدی کلاهبرداری، جعل هویت، آزار و اذیت، انتشار محتوای غیرقانونی یا نقض مکرر قوانین ZEV داشته باشد.',
+            'Zero history of community guidelines violations, fraud, impersonation, harassment, or illegal broadcasts on ZEV within the last 180 days.',
         'icon': Icons.security_rounded,
       },
       {
-        'num': '۹',
-        'title': 'تأثیرگذاری و دستاوردهای قابل اثبات',
+        'num': '9',
+        'title': 'Provable Impact & Achievements',
         'desc':
-            'فعالیت حرفه‌ای، دستاوردهای اجتماعی، علمی، فرهنگی، ورزشی، اقتصادی یا هنری متقاضی باید قابل بررسی و تأیید باشد.',
+            'Documented professional, cultural, athletic, scientific, philanthropic, or business accomplishments that can be independently validated.',
         'icon': Icons.emoji_events_outlined,
       },
       {
-        'num': '۱۰',
-        'title': 'تأیید نهایی توسط تیم انسانی ZEV',
+        'num': '10',
+        'title': 'Final Human Board Approval',
         'desc':
-            'دریافت بلو تیک منوط به بررسی کامل درخواست و تأیید تیم رسمی ZEV است. حتی در صورت داشتن تمام شرایط، اعطای نشان تضمین‌شده نیست.',
+            'Every verification request is reviewed manually by the ZEV Trust & Safety Compliance Board. Meeting technical criteria does not guarantee approval.',
         'icon': Icons.verified_user_outlined,
       },
     ];
@@ -733,7 +842,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
                   Icon(Icons.shield_rounded, color: Color(0xFFDC2626), size: 20),
                   SizedBox(width: 8),
                   Text(
-                    "قوانین غیرقابل مذاکره ZEV",
+                    "Non-Negotiable ZEV Policy",
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w900,
@@ -743,12 +852,13 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
                 ],
               ),
               const SizedBox(height: 10),
-              _buildBulletPoint("خرید بلو تیک یا گلد تیک به هیچ وجه امکان‌پذیر نیست."),
-              _buildBulletPoint("اشتراک ماهانه یا سالانه هیچ امتیازی برای دریافت تیک ایجاد نمی‌کند."),
-              _buildBulletPoint("سیستم Referral هیچ نقشی در اعطای نشان ندارد."),
-              _buildBulletPoint("تعداد دنبال‌کنندگان جعلی باعث رد دائم درخواست می‌شود."),
-              _buildBulletPoint("نشان تأیید هویت قابل انتقال یا فروش نیست."),
-              _buildBulletPoint("تمامی درخواست‌ها به صورت کاملاً دستی توسط تیم انسانی بررسی می‌شوند."),
+              _buildBulletPoint("Purchasing Blue or Gold Verification is strictly impossible."),
+              _buildBulletPoint("Paid subscriptions (monthly/yearly) provide zero verification privilege."),
+              _buildBulletPoint("Referral counts or invites have no influence on verification status."),
+              _buildBulletPoint("Follower requirement must be native to ZEV (minimum 500,000 on ZEV)."),
+              _buildBulletPoint("Fake, bot, or purchased followers will lead to permanent disqualification."),
+              _buildBulletPoint("Verification badges cannot be transferred, leased, or sold."),
+              _buildBulletPoint("100% human manual review — automated approvals are strictly prohibited."),
             ],
           ),
         ),
@@ -757,7 +867,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           child: Text(
-            "۱۰ شرط رسمی برای دریافت نشان تأیید هویت",
+            "10 Official Conditions for Identity Verification",
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w900,
@@ -802,6 +912,13 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: ZevColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: ZevColors.deepNavy.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -810,13 +927,18 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: ZevColors.primaryBlue.withValues(alpha: 0.08),
+              color: const Color(0xFFEFF6FF),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(
-              rule['icon'] as IconData,
-              size: 20,
-              color: ZevColors.primaryBlue,
+            child: Center(
+              child: Text(
+                rule['num'] as String,
+                style: const TextStyle(
+                  color: ZevColors.primaryBlue,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 14),
@@ -826,15 +948,9 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
               children: [
                 Row(
                   children: [
-                    Text(
-                      rule['num'] as String,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        color: ZevColors.primaryBlue,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
+                    Icon(rule['icon'] as IconData,
+                        size: 16, color: ZevColors.primaryBlue),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         rule['title'] as String,
@@ -847,13 +963,13 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 5),
                 Text(
                   rule['desc'] as String,
                   style: const TextStyle(
                     fontSize: 12.5,
                     color: ZevColors.textSecondary,
-                    height: 1.4,
+                    height: 1.45,
                   ),
                 ),
               ],
@@ -875,14 +991,14 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
       children: [
-        // Tier 1: ZEV Blue Card (500K)
+        // Tier 1: ZEV Blue Card (500K on ZEV)
         _buildTierOverviewCard(
           tierKey: 'blue',
-          title: "ZEV Blue (تیک آبی)",
-          subtitle: "تأیید هویت اشخاص حقیقی، چهره‌های شناخته‌شده، و کریتورها",
+          title: "ZEV Blue Badge",
+          subtitle: "Official Verification for Public Figures, Notable Creators & Leaders",
           badgeColor: ZevColors.primaryBlue,
           icon: Icons.verified_rounded,
-          requirement: "۵۰۰,۰۰۰ دنبال‌کننده واقعی + تکمیل ۱۰ شرط رسمی",
+          requirement: "500,000 Real ZEV Followers + Full Compliance with 10 Rules",
           currentCount: _followersCount,
           targetCount: kBlueFollowerThreshold,
           progress: blueProgress,
@@ -891,14 +1007,14 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
 
         const SizedBox(height: 14),
 
-        // Tier 2: ZEV Gold Card (1M)
+        // Tier 2: ZEV Gold Card (1M on ZEV)
         _buildTierOverviewCard(
           tierKey: 'gold',
-          title: "ZEV Gold (تیک طلایی)",
-          subtitle: "شخصیت‌های بسیار تأثیرگذار جهانی و دارای دستاوردهای برجسته",
+          title: "ZEV Gold Badge",
+          subtitle: "The Pinnacle of Global Impact & Industry Leadership",
           badgeColor: const Color(0xFFD97706),
           icon: Icons.emoji_events_rounded,
-          requirement: "۱,۰۰۰,۰۰۰ دنبال‌کننده واقعی + داشتن نشان تیک آبی ZEV",
+          requirement: "1,000,000 Real ZEV Followers + Active ZEV Blue Badge Prerequisite",
           currentCount: _followersCount,
           targetCount: kGoldFollowerThreshold,
           progress: goldProgress,
@@ -909,7 +1025,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           child: Text(
-            "بررسی وضعیت پیش‌نیازهای حساب شما",
+            "Account Readiness Pre-Audit",
             style: TextStyle(
               fontSize: 14.5,
               fontWeight: FontWeight.w900,
@@ -920,12 +1036,12 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
         const SizedBox(height: 8),
 
         _buildAuditItem(
-          title: "نوع حساب کاربری (Professional)",
+          title: "Professional Account (Creator / Business)",
           subtitle: _hasProfessionalAccount
-              ? "حساب شما به صورت کریتور یا بیزنس تنظیم شده است."
-              : "اکانت شما فعلاً پرسونال است (باید به Creator یا Business تبدیل شود).",
+              ? "Your account is configured as Professional (Creator / Business)."
+              : "Currently Personal. You must switch to Creator or Business account.",
           isPassed: _hasProfessionalAccount,
-          actionLabel: _hasProfessionalAccount ? null : "تبدیل اکانت",
+          actionLabel: _hasProfessionalAccount ? null : "Switch Account",
           onAction: () async {
             final updated = await ProfessionalAccountSetupScreen.open(
               context,
@@ -938,22 +1054,22 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
         ),
 
         _buildAuditItem(
-          title: "کامل بودن پروفایل",
+          title: "Complete Profile Standards",
           subtitle: _hasCompleteProfile
-              ? "عکس باکیفیت و بایو پروفایل تکمیل است."
-              : "عکس پروفایل یا بیوگرافی ناقص است.",
+              ? "High-resolution avatar and professional biography completed."
+              : "Profile photo or biography is incomplete.",
           isPassed: _hasCompleteProfile,
         ),
 
         _buildAuditItem(
-          title: "امنیت ۲FA و احراز هویت دومرحله‌ای",
-          subtitle: "حفاظت ضد سرقت حساب کاربری فعال است.",
+          title: "Two-Factor Authentication (2FA)",
+          subtitle: "Multi-factor authentication and account protection enabled.",
           isPassed: _has2fa,
         ),
 
         _buildAuditItem(
-          title: "سلامت رفتار و سوابق جامعه",
-          subtitle: "فاقد هرگونه اخطار یا نقض قوانین در ۱۸۰ روز اخیر.",
+          title: "Community Standing & History",
+          subtitle: "Clean account record with zero strikes or violations in the last 180 days.",
           isPassed: true,
         ),
       ],
@@ -972,7 +1088,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
     required double progress,
     required bool isPassed,
   }) {
-    final targetStr = targetCount == 1000000 ? "۱ میلیون" : "۵۰۰ هزار";
+    final targetStr = targetCount == 1000000 ? "1 Million" : "500,000";
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1037,7 +1153,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  isPassed ? "واجد شرایط" : targetStr,
+                  isPassed ? "Eligible" : "$targetStr Target",
                   style: TextStyle(
                     fontSize: 10.5,
                     fontWeight: FontWeight.w900,
@@ -1073,11 +1189,11 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                "فالورهای ZEV شما: $currentCount",
+                "Your ZEV Followers: $currentCount",
                 style: const TextStyle(fontSize: 11.5, color: ZevColors.textSecondary),
               ),
               Text(
-                "هدف: $targetCount",
+                "Goal: $targetCount",
                 style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: ZevColors.deepNavy),
               ),
             ],
@@ -1196,8 +1312,8 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
             const SizedBox(height: 24),
             Text(
               isGoldPending
-                  ? "درخواست نشان طلایی (ZEV Gold) در حال بررسی"
-                  : "درخواست تیک آبی (ZEV Blue) در حال بررسی",
+                  ? "ZEV Gold Application Under Review"
+                  : "ZEV Blue Application Under Review",
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 19,
@@ -1207,7 +1323,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
             ),
             const SizedBox(height: 10),
             const Text(
-              "درخواست شما توسط تیم انطباق و امنیت ZEV بر اساس ۱۰ شرط رسمی در حال ارزیابی دستی است.\n\nمدت زمان معمول بررسی: ۲۴ الی ۷۲ ساعت.",
+              "Your application and verified Cloudflare R2 documents are undergoing manual compliance evaluation by the ZEV Trust & Safety Board according to the 10 official conditions.\n\nTypical review window: 24 to 72 hours.",
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
@@ -1241,7 +1357,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
             ),
             const SizedBox(height: 24),
             const Text(
-              "شما دارای بالاترین سطح اعتبار ZEV Gold هستید",
+              "You Hold the Highest ZEV Gold Distinction",
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 19,
@@ -1251,7 +1367,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              "نشان: ${_badgeLabel ?? 'ZEV Gold Icon'}\nوضعیت: رسمی و فعال${_verifiedAt != null ? '\nتاریخ اعطا: ${_verifiedAt!.toLocal().toString().split(' ').first}' : ''}${_verificationReason != null && _verificationReason!.isNotEmpty ? '\nمعیار: $_verificationReason' : ''}",
+              "Badge: ${_badgeLabel ?? 'ZEV Gold Icon'}\nStatus: Active Official Distinction${_verifiedAt != null ? '\nAwarded: ${_verifiedAt!.toLocal().toString().split(' ').first}' : ''}${_verificationReason != null && _verificationReason!.isNotEmpty ? '\nCriteria: $_verificationReason' : ''}",
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 13,
@@ -1270,7 +1386,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
       children: [
         // Choose Target Tier (Blue or Gold)
         const Text(
-          "انتخاب سطح نشان مورد درخواست",
+          "Select Target Verification Level",
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w900,
@@ -1284,7 +1400,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
               child: _buildTierSelectorPill(
                 keyName: 'blue',
                 title: "ZEV Blue",
-                subtitle: "۵۰۰ هزار فالور + ۱۰ شرط",
+                subtitle: "500K+ ZEV Followers & 10 Conditions",
                 color: ZevColors.primaryBlue,
                 isSelected: _selectedTier == 'blue',
               ),
@@ -1294,7 +1410,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
               child: _buildTierSelectorPill(
                 keyName: 'gold',
                 title: "ZEV Gold",
-                subtitle: "۱ میلیون فالور (نیاز به تیک آبی)",
+                subtitle: "1M+ ZEV Followers (Requires Blue)",
                 color: const Color(0xFFD97706),
                 isSelected: _selectedTier == 'gold',
               ),
@@ -1304,7 +1420,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
 
         const SizedBox(height: 20),
         const Text(
-          "بخش اول: احراز هویت قانونی",
+          "Section 1: Legal Identity Verification",
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w900,
@@ -1314,21 +1430,21 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
         const SizedBox(height: 12),
 
         _buildFormField(
-          label: "نام و نام خانوادگی قانونی (مطابق مدرک)",
-          hint: "مثلاً: علی احمدی",
+          label: "Full Legal Name (as shown on official ID)",
+          hint: "e.g., Alexander Smith",
           controller: _legalNameCtrl,
         ),
         const SizedBox(height: 12),
 
         _buildFormField(
-          label: "نام شناخته‌شده / نام هنری / نام برند",
-          hint: "مثلاً: DJ Spark, Safi Media",
+          label: "Known As / Public Brand / Creator Moniker",
+          hint: "e.g., DJ Spark, Safi Media",
           controller: _knownAsCtrl,
         ),
         const SizedBox(height: 12),
 
         _buildDropdownField(
-          label: "دسته‌بندی فعالیت",
+          label: "Professional Category",
           value: _selectedCategory,
           items: const [
             'Creator & Influencer',
@@ -1347,7 +1463,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
         const SizedBox(height: 12),
 
         _buildDropdownField(
-          label: "نوع مدرک هویتی",
+          label: "Official Document Type",
           value: _selectedDocType,
           items: const [
             'National ID Card',
@@ -1359,13 +1475,17 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
             if (val != null) setState(() => _selectedDocType = val);
           },
         ),
+        const SizedBox(height: 14),
+
+        // Cloudflare R2 Document Upload Card
+        _buildDocumentUploadCard(),
 
         const SizedBox(height: 24),
         const Divider(color: ZevColors.border),
         const SizedBox(height: 16),
 
         const Text(
-          "بخش دوم: اثبات سرشناسی و ۵۰۰K+ / ۱M+ دنبال‌کننده",
+          "Section 2: ZEV Standing & Verifiable Notability",
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w900,
@@ -1373,38 +1493,42 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
           ),
         ),
         const SizedBox(height: 6),
-        const Text(
-          "لینک صفحه رسمی شما در یکی از پلتفرم‌های اصلی (Instagram / YouTube / TikTok / ZEV) با تعداد فالورها:",
-          style: TextStyle(fontSize: 12.5, color: ZevColors.textSecondary),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0FDF4),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFBBF7D0)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.verified_outlined, color: Color(0xFF16A34A), size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  "Your Current ZEV Followers: $_followersCount (Minimum ${_selectedTier == 'gold' ? '1,000,000' : '500,000'} required on ZEV)",
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF166534),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
 
         _buildFormField(
-          label: "لینک پروفایل رسمی اصلی",
-          hint: "https://instagram.com/your_handle",
-          controller: _primaryPlatformCtrl,
-          keyboardType: TextInputType.url,
-        ),
-        const SizedBox(height: 12),
-
-        _buildFormField(
-          label: "تعداد تقریبی دنبال‌کنندگان فعال در پلتفرم اصلی",
-          hint: "مثلاً: 650,000",
-          controller: _platformFollowersCtrl,
-          keyboardType: TextInputType.number,
-        ),
-        const SizedBox(height: 12),
-
-        _buildFormField(
-          label: "لینک حضور در رسانه‌ها / مقاله خبری معتبر ۱",
-          hint: "https://bbc.com/article...",
+          label: "Credible News / Press Article URL 1",
+          hint: "https://reputable-news.com/article...",
           controller: _pressLink1Ctrl,
           keyboardType: TextInputType.url,
         ),
         const SizedBox(height: 12),
 
         _buildFormField(
-          label: "لینک حضور در رسانه‌ها / مصاحبه / صفحه ویکی‌پدیا ۲",
+          label: "Press Interview / Magazine / Wikipedia URL 2",
           hint: "https://wikipedia.org/wiki/...",
           controller: _pressLink2Ctrl,
           keyboardType: TextInputType.url,
@@ -1412,7 +1536,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
         const SizedBox(height: 12),
 
         _buildFormField(
-          label: "وب‌سایت رسمی / دامین شرکتی",
+          label: "Official Website / Certified Domain",
           hint: "https://yourbrand.com",
           controller: _websiteCtrl,
           keyboardType: TextInputType.url,
@@ -1420,8 +1544,8 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
         const SizedBox(height: 12),
 
         _buildFormField(
-          label: "توضیحات تکمیلی و بیانیه دستاوردها",
-          hint: "شرح خلاصه فعالیت‌ها و دستاوردهای برجسته اجتماعی، فرهنگی، هنری یا علمی...",
+          label: "Notability Statement & Summary of Achievements",
+          hint: "Summary of your public impact, cultural, artistic, scientific, or professional achievements...",
           controller: _statementCtrl,
           maxLines: 3,
         ),
@@ -1454,8 +1578,8 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
                   )
                 : Text(
                     _selectedTier == 'gold'
-                        ? "ثبت درخواست بررسی نشان طلایی (ZEV Gold)"
-                        : "ثبت درخواست بررسی تیک آبی (ZEV Blue)",
+                        ? "Submit ZEV Gold Application (1M+ ZEV)"
+                        : "Submit ZEV Blue Application (500K+ ZEV)",
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
@@ -1464,6 +1588,128 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildDocumentUploadCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _uploadedDocUrl != null
+              ? const Color(0xFF10B981)
+              : ZevColors.border,
+          width: _uploadedDocUrl != null ? 1.5 : 1.0,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                _uploadedDocUrl != null
+                    ? Icons.check_circle_rounded
+                    : Icons.cloud_upload_outlined,
+                color: _uploadedDocUrl != null
+                    ? const Color(0xFF10B981)
+                    : ZevColors.primaryBlue,
+                size: 22,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _uploadedDocUrl != null
+                      ? "Official ID Uploaded to Cloudflare R2"
+                      : "Upload Official ID Document (Required)",
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: _uploadedDocUrl != null
+                        ? const Color(0xFF065F46)
+                        : ZevColors.deepNavy,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _uploadedDocUrl != null
+                ? "Document is encrypted and securely stored for compliance review."
+                : "Submit a clear photo of your Passport, National ID, or Driver's License.",
+            style: const TextStyle(
+              fontSize: 12,
+              color: ZevColors.textSecondary,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_isUploadingDoc)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: ZevColors.primaryBlue,
+                      ),
+                    ),
+                    SizedBox(width: 10),
+                    Text(
+                      "Uploading to Cloudflare R2...",
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: ZevColors.primaryBlue,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _pickAndUploadDocument,
+                icon: Icon(
+                  _uploadedDocUrl != null
+                      ? Icons.refresh_rounded
+                      : Icons.add_photo_alternate_outlined,
+                  size: 18,
+                ),
+                label: Text(
+                  _uploadedDocUrl != null
+                      ? "Replace ID Document"
+                      : "Choose Document / Photo",
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _uploadedDocUrl != null
+                      ? const Color(0xFF065F46)
+                      : ZevColors.primaryBlue,
+                  side: BorderSide(
+                    color: _uploadedDocUrl != null
+                        ? const Color(0xFF10B981)
+                        : ZevColors.primaryBlue,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 

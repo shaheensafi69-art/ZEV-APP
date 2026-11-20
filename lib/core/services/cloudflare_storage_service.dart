@@ -24,6 +24,7 @@ class CloudflareStorageService {
     'direct_messages',
     'highlights',
     'ads',
+    'verification',
     'temp',
   };
 
