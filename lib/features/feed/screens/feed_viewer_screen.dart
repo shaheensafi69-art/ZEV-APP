@@ -23,6 +23,8 @@ import '../../notifications/screens/notifications_screen.dart';
 import '../../chat/screens/chat_list_screen.dart';
 import '../../discover/screens/discover_screen.dart';
 import '../../live/screens/live_rooms_screen.dart';
+import '../../reels/models/reel_item.dart';
+import '../../reels/screens/reel_playback_modal_screen.dart';
 import 'create_post_screen.dart';
 
 /// Next-Generation Instagram-Grade Home Feed Screen for ZEV.
@@ -59,9 +61,11 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
   ActiveFriendStory? _myActiveStory;
   List<ActiveFriendStory> _stories = [];
   List<Map<String, dynamic>> _suggestedUsers = [];
+  List<ReelItem> _suggestedReels = [];
   final Set<String> _followedSuggestedIds = {};
   final Set<String> _requestedSuggestedIds = {};
   bool _dismissSuggestedCarousel = false;
+  bool _dismissSuggestedReels = false;
   String _myAvatarUrl = '';
   String _myUsername = '';
   String _myFullName = '';
@@ -129,6 +133,7 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
         _fetchStories(),
         _fetchPosts(),
         _fetchSuggestedUsers(),
+        _fetchSuggestedReels(),
       ]);
     } catch (e) {
       debugPrint("Feed data fetch warning: $e");
@@ -194,6 +199,106 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
     } catch (e) {
       debugPrint("Suggested users warning: $e");
     }
+  }
+
+  Future<void> _fetchSuggestedReels() async {
+    try {
+      final filters = await SocialGraphService.instance.fetchSafetyFilters();
+
+      List<Map<String, dynamic>> rawRows = [];
+      try {
+        final rpcRes = await supabase.rpc(
+          'get_reels_page',
+          params: {
+            'p_limit': 12,
+            'p_following_only': false,
+          },
+        );
+        if (rpcRes is List) {
+          rawRows = rpcRes
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+        }
+      } catch (rpcErr) {
+        debugPrint("get_reels_page RPC fallback in feed: $rpcErr");
+      }
+
+      if (rawRows.isEmpty) {
+        final queryRes = await supabase
+            .from('reels')
+            .select('''
+              id,
+              user_id,
+              video_url,
+              thumbnail_url,
+              title,
+              description,
+              views_count,
+              likes_count,
+              comments_count,
+              created_at,
+              profiles:user_id (
+                id,
+                username,
+                first_name,
+                last_name,
+                avatar_url,
+                is_verified
+              )
+            ''')
+            .order('views_count', ascending: false)
+            .order('created_at', ascending: false)
+            .limit(12);
+
+        final queryList = queryRes as List;
+        rawRows = queryList.map((item) {
+          final r = item as Map<String, dynamic>;
+          final p = r['profiles'] as Map<String, dynamic>? ?? {};
+          return {
+              'id': r['id'],
+              'user_id': r['user_id'],
+              'video_url': r['video_url'],
+              'thumbnail_url': r['thumbnail_url'],
+              'title': r['title'] ?? '',
+              'description': r['description'] ?? '',
+              'views_count': r['views_count'] ?? 0,
+              'likes_count': r['likes_count'] ?? 0,
+              'comments_count': r['comments_count'] ?? 0,
+              'created_at': r['created_at'],
+              'author_username': p['username'] ?? '',
+              'author_first_name': p['first_name'] ?? '',
+              'author_last_name': p['last_name'] ?? '',
+              'author_avatar_url': p['avatar_url'] ?? '',
+              'author_is_verified': p['is_verified'] == true,
+            };
+          }).toList();
+      }
+
+      final List<ReelItem> items = [];
+      for (final r in rawRows) {
+        final uId = r['user_id']?.toString() ?? '';
+        if (uId.isNotEmpty && filters.blockedUserIds.contains(uId)) continue;
+        items.add(ReelItem.fromRpcMap(r));
+      }
+
+      if (mounted) {
+        setState(() {
+          _suggestedReels = items;
+        });
+      }
+    } catch (e) {
+      debugPrint("Suggested reels fetch error: $e");
+    }
+  }
+
+  String _formatNumberCount(int count) {
+    if (count >= 1000000) {
+      return '${(count / 1000000).toStringAsFixed(1)}M';
+    }
+    if (count >= 1000) {
+      return '${(count / 1000).toStringAsFixed(1)}K';
+    }
+    return '$count';
   }
 
   Future<void> _fetchStories() async {
@@ -673,6 +778,424 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSuggestedReelsCarousel() {
+    if (_dismissSuggestedReels || _suggestedReels.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.95),
+          width: 1.8,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 5),
+          ),
+          const BoxShadow(
+            color: Colors.white,
+            blurRadius: 8,
+            offset: Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header: "Suggested reels" + three-dots icon
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "Suggested reels",
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: ZevColors.deepNavy,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: _showSuggestedReelsMenu,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFFE2E8F0),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.more_vert_rounded,
+                      size: 18,
+                      color: ZevColors.deepNavy,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Horizontal Carousel of vertical portrait reel cards
+          SizedBox(
+            height: 280,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: _suggestedReels.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 10),
+              itemBuilder: (context, i) {
+                final reel = _suggestedReels[i];
+                return _buildSuggestedReelCard(reel, i);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuggestedReelCard(ReelItem reel, int index) {
+    final views = reel.viewsCount > 0 ? reel.viewsCount : 124;
+    final thumb = (reel.thumbnailUrl != null && reel.thumbnailUrl!.isNotEmpty)
+        ? reel.thumbnailUrl!
+        : '';
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        ReelPlaybackModalScreen.open(
+          context,
+          reels: _suggestedReels,
+          initialIndex: index,
+        );
+      },
+      child: Container(
+        width: 164,
+        height: 280,
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F172A),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.12),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // 1. Thumbnail Image
+            if (thumb.isNotEmpty)
+              ZevCachedImage(
+                imageUrl: thumb,
+                fit: BoxFit.cover,
+                placeholder: Container(
+                  color: const Color(0xFF1E293B),
+                  child: const Center(
+                    child: Icon(Icons.movie_outlined, color: Colors.white24, size: 32),
+                  ),
+                ),
+                errorWidget: Container(
+                  color: const Color(0xFF1E293B),
+                  child: const Center(
+                    child: Icon(Icons.play_circle_fill_rounded, color: Colors.white30, size: 36),
+                  ),
+                ),
+              )
+            else
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF0A0F1D), Color(0xFF1E293B)],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
+                child: const Center(
+                  child: Icon(Icons.play_circle_fill_rounded, color: Colors.white30, size: 36),
+                ),
+              ),
+
+            // 2. Top Scrim Gradient
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 50,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.45),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // 3. Top-Right Views Badge (Instagram style)
+            Positioned(
+              top: 10,
+              right: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    width: 0.8,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.play_arrow_rounded,
+                      color: Colors.white,
+                      size: 13,
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      _formatNumberCount(views),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // 4. Bottom Scrim Gradient
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 125,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.45),
+                      Colors.black.withValues(alpha: 0.88),
+                    ],
+                    stops: const [0.0, 0.4, 1.0],
+                  ),
+                ),
+              ),
+            ),
+
+            // 5. Bottom Overlay: Creator info + Title
+            Positioned(
+              bottom: 10,
+              left: 10,
+              right: 10,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Author avatar & username
+                  Row(
+                    children: [
+                      Container(
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1.2),
+                        ),
+                        child: ClipOval(
+                          child: reel.authorAvatar.isNotEmpty
+                              ? ZevCachedImage.avatar(
+                                  imageUrl: reel.authorAvatar,
+                                  size: 22,
+                                )
+                              : Container(
+                                  color: ZevColors.primaryBlue,
+                                  child: Center(
+                                    child: Text(
+                                      reel.authorUsername.isNotEmpty
+                                          ? reel.authorUsername[0].toUpperCase()
+                                          : 'Z',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                reel.authorUsername.isNotEmpty
+                                    ? reel.authorUsername
+                                    : 'creator',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black,
+                                      blurRadius: 3,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            if (reel.isVerified) ...[
+                              const SizedBox(width: 3),
+                              const Icon(
+                                Icons.verified_rounded,
+                                color: Color(0xFF00D4FF),
+                                size: 12,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+
+                  // Title / Caption
+                  if (reel.title.isNotEmpty || reel.description.isNotEmpty)
+                    Text(
+                      reel.title.isNotEmpty ? reel.title : reel.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.25,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black,
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSuggestedReelsMenu() {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFCBD5E1),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 14),
+              ListTile(
+                leading: const Icon(
+                  Icons.visibility_off_outlined,
+                  color: ZevColors.deepNavy,
+                ),
+                title: const Text(
+                  "Hide suggested reels",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14.5,
+                    color: ZevColors.deepNavy,
+                  ),
+                ),
+                subtitle: const Text(
+                  "Don't show reels suggestions in your feed for now",
+                  style: TextStyle(fontSize: 12, color: ZevColors.textMuted),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  setState(() => _dismissSuggestedReels = true);
+                  _showNotice("Suggested reels hidden");
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.explore_outlined,
+                  color: ZevColors.deepNavy,
+                ),
+                title: const Text(
+                  "Explore all reels",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14.5,
+                    color: ZevColors.deepNavy,
+                  ),
+                ),
+                subtitle: const Text(
+                  "Discover creators and trending short videos",
+                  style: TextStyle(fontSize: 12, color: ZevColors.textMuted),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  DiscoverScreen.open(context);
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1405,7 +1928,8 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                       // Display a native in-stream ad card every 3 posts (posts 0, 1, 2 -> Ad below 2, etc.)
                       final showNativeAd = (index + 1) % 3 == 0;
 
-                      // Render "Suggested for you" carousel directly below the first post
+                      // Render "Suggested for you" (users) carousel directly below post 0
+                      // and "Suggested reels" directly below post 1 (or below post 0 if only 1 post exists)
                       Widget itemWidget = card;
                       if (index == 0 &&
                           _suggestedUsers.isNotEmpty &&
@@ -1415,6 +1939,26 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                           children: [
                             card,
                             _buildSuggestedCarousel(),
+                            if (_posts.length == 1 &&
+                                _suggestedReels.isNotEmpty &&
+                                !_dismissSuggestedReels)
+                              _buildSuggestedReelsCarousel(),
+                            if (showNativeAd)
+                              ZevNativeAdCard(
+                                key: ValueKey('feed_ad_${post.id}'),
+                                placement: 'feed',
+                                slotKey: 'feed_${post.id}',
+                              ),
+                          ],
+                        );
+                      } else if (index == 1 &&
+                          _suggestedReels.isNotEmpty &&
+                          !_dismissSuggestedReels) {
+                        itemWidget = Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            card,
+                            _buildSuggestedReelsCarousel(),
                             if (showNativeAd)
                               ZevNativeAdCard(
                                 key: ValueKey('feed_ad_${post.id}'),
