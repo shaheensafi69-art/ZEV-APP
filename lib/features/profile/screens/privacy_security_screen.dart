@@ -178,6 +178,140 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) return;
 
+    final accountType =
+        (widget.profile['account_type'] ?? 'personal').toString().toLowerCase();
+    final isProfessional =
+        accountType == 'creator' || accountType == 'business';
+
+    // Instagram Rule: Professional accounts CANNOT be private
+    if (value && isProfessional) {
+      HapticFeedback.heavyImpact();
+      final shouldSwitchToPersonal = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          title: const Text(
+            "Business & Creator Accounts Can't Be Private",
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
+              color: ZevColors.deepNavy,
+            ),
+          ),
+          content: const Text(
+            "To make your account private, you must first switch back to a Personal Account. Insights, analytics, and active ads promotions will be paused.",
+            style: TextStyle(
+              fontSize: 13,
+              color: ZevColors.textSecondary,
+              height: 1.45,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text(
+                "Keep Public",
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: ZevColors.textSecondary,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ZevColors.primaryBlue,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                "Switch to Personal",
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldSwitchToPersonal != true) {
+        setState(() => _isPrivate = false);
+        return;
+      }
+
+      // Switch to personal first
+      await supabase
+          .from('profiles')
+          .update({'account_type': 'personal'})
+          .eq('id', userId);
+      widget.profile['account_type'] = 'personal';
+    } else {
+      // Instagram Confirmation Dialog for Personal Account
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          title: Text(
+            value ? "Switch to Private Account?" : "Switch to Public Account?",
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
+              color: ZevColors.deepNavy,
+            ),
+          ),
+          content: Text(
+            value
+                ? "Only people you approve can see your photos, reels, and stories. Your existing followers won't be affected."
+                : "Anyone will be able to see your photos, reels, and stories. Anyone can remix your reels, and any pending follow requests will be automatically approved.",
+            style: const TextStyle(
+              fontSize: 13,
+              color: ZevColors.textSecondary,
+              height: 1.45,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text(
+                "Cancel",
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: ZevColors.textSecondary,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    value ? ZevColors.deepNavy : ZevColors.primaryBlue,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(
+                value ? "Switch to Private" : "Switch to Public",
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) {
+        setState(() => _isPrivate = !value);
+        return;
+      }
+    }
+
     HapticFeedback.selectionClick();
     setState(() {
       _isPrivate = value;

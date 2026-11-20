@@ -1,18 +1,16 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/telegram_notification_service.dart';
 import '../../../core/theme/zev_theme.dart';
-import '../../../core/widgets/zev_cached_image.dart';
+import 'professional_account_setup_screen.dart';
 
-/// Flagship ZEV Blue Verification & Monetization Center.
-/// Engineered for high conversion with authentic 3D Claymorphism, transparent guidelines,
-/// 3-tier subscription plans (Yearly, Monthly, Lifetime), 100-referral free pathway,
-/// and live multi-table database recording (user_verifications + subscriptions + notifications + Telegram).
+/// Flagship ZEV Blue Verification & Notability Portal.
+/// Enforces high standards of authenticity, notability, and community trust.
+/// Requires 500,000+ organic followers or verified public figure/institutional status,
+/// an active Professional (Creator/Business) account, and compliance with the 10 Verification Rules.
 class ZevBlueVerificationScreen extends StatefulWidget {
   final Map<String, dynamic> userProfile;
 
@@ -21,8 +19,10 @@ class ZevBlueVerificationScreen extends StatefulWidget {
     required this.userProfile,
   });
 
-  static Future<void> open(BuildContext context,
-      {required Map<String, dynamic> userProfile}) {
+  static Future<void> open(
+    BuildContext context, {
+    required Map<String, dynamic> userProfile,
+  }) {
     return Navigator.push(
       context,
       MaterialPageRoute(
@@ -41,21 +41,32 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
   final SupabaseClient _supabase = Supabase.instance.client;
 
   bool _isLoading = true;
-  int _referralCount = 0;
-  String _referralCode = '';
   bool _isVerified = false;
-  bool _lifetimeEligible = false;
-  bool _isClaimingLifetime = false;
-  String? _pendingStatus; // 'pending', 'verified', null
-  String? _planType;
-  DateTime? _expiresAt;
+  int _followersCount = 0;
+  String? _pendingStatus; // 'pending', 'verified', 'rejected', null
+  String? _badgeLabel;
+  String? _verificationReason;
+  DateTime? _verifiedAt;
+
+  // Audit state
+  bool _hasProfessionalAccount = false;
+  bool _hasCompleteProfile = false;
+  final bool _has2fa = true;
 
   late TabController _tabCtrl;
 
-  bool get _isLifetimePlan {
-    final p = (_planType ?? '').toLowerCase();
-    return p == 'lifetime' || p == 'lifetime_referral' || _lifetimeEligible;
-  }
+  // Application Form Controllers
+  final TextEditingController _legalNameCtrl = TextEditingController();
+  final TextEditingController _knownAsCtrl = TextEditingController();
+  final TextEditingController _link1Ctrl = TextEditingController();
+  final TextEditingController _link2Ctrl = TextEditingController();
+  final TextEditingController _websiteCtrl = TextEditingController();
+  final TextEditingController _notesCtrl = TextEditingController();
+  String _selectedCategory = 'Creator & Influencer';
+  String _selectedDocType = 'National ID Card';
+  bool _isSubmitting = false;
+
+  static const int kFollowerThreshold = 500000;
 
   @override
   void initState() {
@@ -64,12 +75,23 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
     _tabCtrl.addListener(() {
       if (mounted) setState(() {});
     });
+    _legalNameCtrl.text =
+        "${widget.userProfile['first_name'] ?? ''} ${widget.userProfile['last_name'] ?? ''}"
+            .trim();
+    _knownAsCtrl.text = widget.userProfile['username'] ?? '';
+    _websiteCtrl.text = widget.userProfile['website'] ?? '';
     _loadAllVerificationData();
   }
 
   @override
   void dispose() {
     _tabCtrl.dispose();
+    _legalNameCtrl.dispose();
+    _knownAsCtrl.dispose();
+    _link1Ctrl.dispose();
+    _link2Ctrl.dispose();
+    _websiteCtrl.dispose();
+    _notesCtrl.dispose();
     super.dispose();
   }
 
@@ -77,10 +99,8 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
     final currentUserId = widget.userProfile['id']?.toString() ??
         _supabase.auth.currentUser?.id ??
         '';
-    final username = widget.userProfile['username']?.toString() ?? 'user';
 
     _isVerified = widget.userProfile['is_verified'] == true;
-    _referralCode = widget.userProfile['referral_code']?.toString() ?? username;
 
     if (currentUserId.isEmpty) {
       if (mounted) setState(() => _isLoading = false);
@@ -91,222 +111,153 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
       // 1. Fetch live profile stats
       final profileRes = await _supabase
           .from('profiles')
-          .select(
-            'referral_count, referral_code, is_verified, lifetime_blue_eligible',
-          )
+          .select('id, is_verified, account_type, avatar_url, bio, username')
           .eq('id', currentUserId)
           .maybeSingle();
 
       if (profileRes != null) {
-        _referralCount = (profileRes['referral_count'] as num?)?.toInt() ?? 0;
-        _lifetimeEligible = profileRes['lifetime_blue_eligible'] == true;
-        if (profileRes['referral_code'] != null &&
-            profileRes['referral_code'].toString().isNotEmpty) {
-          _referralCode = profileRes['referral_code'].toString();
-        }
-        if (profileRes['is_verified'] != null) {
-          _isVerified = profileRes['is_verified'] == true;
-        }
+        _isVerified = profileRes['is_verified'] == true;
+        final accType =
+            (profileRes['account_type'] ?? 'personal').toString().toLowerCase();
+        _hasProfessionalAccount = accType == 'creator' || accType == 'business';
+        final hasAvatar =
+            (profileRes['avatar_url']?.toString() ?? '').isNotEmpty;
+        final hasBio = (profileRes['bio']?.toString() ?? '').isNotEmpty;
+        _hasCompleteProfile = hasAvatar && hasBio;
       }
 
-      // 2. Fetch live verification record from user_verifications
+      // 2. Fetch follower count
+      final followersRes = await _supabase
+          .from('user_follows')
+          .select('follower_id')
+          .eq('following_id', currentUserId);
+      _followersCount = (followersRes as List).length;
+
+      // 3. Fetch verification record from user_verifications
       try {
         final verifRes = await _supabase
             .from('user_verifications')
-            .select('status, is_active, plan_type, verified_at, expires_at')
+            .select(
+                'status, is_active, badge_label, verification_reason, verified_at, expires_at')
             .eq('user_id', currentUserId)
             .maybeSingle();
 
         if (verifRes != null) {
           _pendingStatus = verifRes['status']?.toString();
-          _planType = verifRes['plan_type']?.toString();
-          _expiresAt = DateTime.tryParse(
-            verifRes['expires_at']?.toString() ?? '',
-          );
+          _badgeLabel = verifRes['badge_label']?.toString();
+          _verificationReason = verifRes['verification_reason']?.toString();
+          if (verifRes['verified_at'] != null) {
+            _verifiedAt = DateTime.tryParse(verifRes['verified_at'].toString());
+          }
           if (verifRes['is_active'] == true || _pendingStatus == 'verified') {
             _isVerified = true;
           }
         }
       } catch (_) {}
-
-      // 3. Fetch active subscription metadata fallback
-      try {
-        final subRes = await _supabase
-            .from('subscriptions')
-            .select('plan_type, status, is_active, expires_at')
-            .eq('user_id', currentUserId)
-            .maybeSingle();
-
-        if (subRes != null) {
-          if ((_planType ?? '').isEmpty && subRes['plan_type'] != null) {
-            _planType = subRes['plan_type']?.toString();
-          }
-          _expiresAt ??= DateTime.tryParse(
-            subRes['expires_at']?.toString() ?? '',
-          );
-          if (subRes['is_active'] == true &&
-              subRes['status']?.toString() == 'active') {
-            _isVerified = true;
-          }
-        }
-      } catch (_) {}
-
-      // 3. Fallback count from referrals table
-      try {
-        final referralsRes = await _supabase
-            .from('referrals')
-            .select('id')
-            .eq('referrer_id', currentUserId);
-
-        final totalFound = (referralsRes as List).length;
-        if (totalFound > _referralCount) {
-          _referralCount = totalFound;
-        }
-      } catch (_) {}
     } catch (e) {
-      debugPrint("Error loading verification stats: $e");
+      debugPrint("Error loading verification status: $e");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  String get _referralLink => "https://www.zevapp.com/join?ref=$_referralCode";
+  Future<void> _submitApplication() async {
+    final userId = widget.userProfile['id']?.toString() ??
+        _supabase.auth.currentUser?.id ??
+        '';
+    if (userId.isEmpty) return;
 
-  void _showClearSnack(String message, {bool isError = false}) {
-    if (!mounted) return;
+    final legalName = _legalNameCtrl.text.trim();
+    if (legalName.isEmpty) {
+      _showToast("Please enter your legal full name.", isError: true);
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    HapticFeedback.heavyImpact();
+
+    try {
+      final nowIso = DateTime.now().toUtc().toIso8601String();
+      final evidenceLinks = [
+        if (_link1Ctrl.text.trim().isNotEmpty) _link1Ctrl.text.trim(),
+        if (_link2Ctrl.text.trim().isNotEmpty) _link2Ctrl.text.trim(),
+        if (_websiteCtrl.text.trim().isNotEmpty) _websiteCtrl.text.trim(),
+      ].join(' | ');
+
+      final applicationReason =
+          "Category: $_selectedCategory | Document: $_selectedDocType | Known As: ${_knownAsCtrl.text.trim()} | Followers: $_followersCount | Links: $evidenceLinks | Statement: ${_notesCtrl.text.trim()}";
+
+      // 1. Upsert into public.user_verifications
+      await _supabase.from('user_verifications').upsert({
+        'user_id': userId,
+        'badge_type': 'blue_tick',
+        'status': 'pending',
+        'is_active': false,
+        'plan_type': 'notability_500k',
+        'badge_label': 'Verified Creator',
+        'verification_reason': applicationReason,
+        'updated_at': nowIso,
+      }, onConflict: 'user_id');
+
+      // 2. In-app user notification
+      try {
+        await _supabase.from('user_notifications').insert({
+          'user_id': userId,
+          'title': 'ZEV Blue Application Submitted 🌟',
+          'message':
+              'Your verification application has been received and queued for audit. Our Trust & Safety team will review your identity and notability within 24-72 hours.',
+          'notification_type': 'verification',
+          'app_source': 'zev',
+          'is_read': false,
+        });
+      } catch (_) {}
+
+      // 3. Admin notification
+      try {
+        await TelegramNotificationService.submitVerificationOrder(
+          fullName: legalName,
+          phone: widget.userProfile['public_phone']?.toString() ?? 'N/A',
+          planKey: 'notability_500k',
+          planName: 'ZEV Blue Notability Review (500K+)',
+          planPrice: 'Notability Audit',
+          email: widget.userProfile['email']?.toString() ?? '',
+          notes: applicationReason,
+          paymentMethod: 'Notability Application',
+        );
+      } catch (_) {}
+
+      if (!mounted) return;
+      setState(() {
+        _isSubmitting = false;
+        _pendingStatus = 'pending';
+      });
+
+      _showSuccessDialog();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        _showToast("Submission failed: $e", isError: true);
+      }
+    }
+  }
+
+  void _showToast(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: ZevColors.white,
+        content: Text(
+          message,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        backgroundColor:
+            isError ? ZevColors.errorRed : ZevColors.deepNavy,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(
-            color: isError
-                ? ZevColors.errorRed.withValues(alpha: 0.35)
-                : ZevColors.border,
-          ),
-        ),
-        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        content: Row(
-          children: [
-            Icon(
-              isError ? Icons.error_outline_rounded : Icons.check_circle_rounded,
-              color: isError ? ZevColors.errorRed : ZevColors.secondaryBlue,
-              size: 20,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: ZevColors.deepNavy,
-                ),
-              ),
-            ),
-          ],
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
-  void _copyReferralCode() {
-    HapticFeedback.lightImpact();
-    Clipboard.setData(ClipboardData(text: _referralCode));
-    _showClearSnack("Referral Code '$_referralCode' copied!");
-  }
-
-  void _copyReferralLink() {
-    HapticFeedback.lightImpact();
-    Clipboard.setData(ClipboardData(text: _referralLink));
-    _showClearSnack("Referral link copied to clipboard!");
-  }
-
-  Future<void> _claimLifetimeBlue() async {
-    if (_isClaimingLifetime) return;
-    setState(() => _isClaimingLifetime = true);
-    HapticFeedback.mediumImpact();
-
-    final uid = widget.userProfile['id']?.toString() ??
-        _supabase.auth.currentUser?.id ??
-        '';
-    final username = widget.userProfile['username']?.toString() ?? 'user';
-    final fullName =
-        "${widget.userProfile['first_name'] ?? ''} ${widget.userProfile['last_name'] ?? ''}"
-            .trim();
-
-    bool claimed = false;
-    try {
-      claimed = await TelegramNotificationService.sendReferralMilestoneNotification(
-        userId: uid,
-        username: username,
-        fullName: fullName.isEmpty ? username : fullName,
-        totalReferrals: _referralCount,
-      );
-      if (!claimed) {
-        final rpcRes = await _supabase.rpc('claim_lifetime_referral_blue');
-        if (rpcRes is Map && rpcRes['ok'] == true) {
-          claimed = true;
-        }
-      }
-    } catch (e) {
-      debugPrint('Lifetime referral claim notice: $e');
-    }
-
-    if (!mounted) return;
-    setState(() => _isClaimingLifetime = false);
-
-    if (claimed) {
-      await _loadAllVerificationData();
-      _showClearSnack('Congratulations! Lifetime ZEV Blue Badge activated.');
-    } else {
-      _showClearSnack(
-        'Could not activate yet. Confirm 100 verified referrals are synced.',
-        isError: true,
-      );
-    }
-  }
-
-  void _shareReferralLink() {
-    HapticFeedback.mediumImpact();
-    final username = widget.userProfile['username'] ?? 'friend';
-    Share.share(
-      "Join me on ZEV, the peaceful, high-quality social space! Sign up using my link: $_referralLink\n#ZEV #SocialApp",
-      subject: "Join ZEV with @$username",
-    );
-  }
-
-  void _openCheckoutModal({
-    required String planKey, // 'yearly', 'monthly', 'lifetime'
-    required String planName,
-    required String planPrice,
-    required double numericAmount,
-    required String planBilling,
-  }) {
-    HapticFeedback.mediumImpact();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _CheckoutModalSheet(
-        planKey: planKey,
-        planName: planName,
-        planPrice: planPrice,
-        numericAmount: numericAmount,
-        planBilling: planBilling,
-        userProfile: widget.userProfile,
-        referralCode: _referralCode,
-        currentReferrals: _referralCount,
-        onSuccess: () {
-          unawaited(_loadAllVerificationData());
-          _showCelebrationDialog();
-        },
-      ),
-    );
-  }
-
-  void _showCelebrationDialog() {
+  void _showSuccessDialog() {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -316,75 +267,72 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(16),
+              width: 72,
+              height: 72,
               decoration: BoxDecoration(
-                color: const Color(0xFF0284C7).withValues(alpha: 0.12),
                 shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [ZevColors.secondaryBlue, ZevColors.primaryBlue],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: ZevColors.primaryBlue.withValues(alpha: 0.3),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
               child: const Icon(
-                Icons.verified_rounded,
-                color: Color(0xFF0284C7),
-                size: 44,
+                Icons.mark_email_read_rounded,
+                size: 36,
+                color: Colors.white,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             const Text(
-              "Request Received!",
+              "Application Received",
               style: TextStyle(
                 fontSize: 19,
                 fontWeight: FontWeight.w900,
-                color: Color(0xFF0F172A),
+                color: ZevColors.deepNavy,
               ),
             ),
             const SizedBox(height: 8),
             const Text(
-              "Your ZEV Blue Verification request has been successfully recorded in the database and dispatched directly to the admin review desk.\n\nYour account will be verified shortly.",
+              "Your ZEV Blue application has been submitted to the Trust & Safety Committee. Our compliance team verifies your identity and follower authenticity according to our 10 verification standards.\n\nEstimated review window: 24 to 72 hours.",
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
-                height: 1.5,
-                color: Color(0xFF475569),
+                color: ZevColors.textSecondary,
+                height: 1.45,
               ),
             ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0284C7),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+            const SizedBox(height: 22),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ZevColors.primaryBlue,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+                child: const Text(
+                  "Done",
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
               ),
-              child: const Text("Awesome",
-                  style: TextStyle(fontWeight: FontWeight.w800)),
             ),
           ],
         ),
       ),
     );
-  }
-
-  String _buildActiveStatusSubtitle() {
-    if (_isLifetimePlan) {
-      return _planType == 'lifetime_referral'
-          ? "Permanent Lifetime Verification earned via 100 referrals — never expires."
-          : "Permanent Lifetime ZEV Blue VIP Badge — active forever with no renewals.";
-    }
-    if (_expiresAt != null) {
-      final diff = _expiresAt!.toUtc().difference(DateTime.now().toUtc());
-      final daysLeft = diff.inDays;
-      final planLabel = (_planType ?? 'subscription').toUpperCase();
-      if (daysLeft > 0) {
-        return "Active ($planLabel) • $daysLeft days remaining until renewal.";
-      }
-      if (diff.inHours > 0) {
-        return "Active ($planLabel) • Expires in ${diff.inHours} hours.";
-      }
-    }
-    return "Your account is officially verified with the ZEV Blue Badge.";
   }
 
   @override
@@ -393,33 +341,30 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
     final fullName =
         "${widget.userProfile['first_name'] ?? ''} ${widget.userProfile['last_name'] ?? ''}"
             .trim();
-    final avatarUrl = (widget.userProfile['avatar_url'] ?? '').toString();
+    final avatarUrl = widget.userProfile['avatar_url'] ?? '';
     final isDesktop = MediaQuery.of(context).size.width >= 720;
 
     return Scaffold(
       backgroundColor: ZevColors.softSurface,
       appBar: AppBar(
-        backgroundColor: ZevColors.white,
+        backgroundColor: Colors.white,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        automaticallyImplyLeading: false,
-        leading: Navigator.canPop(context)
-            ? IconButton(
-                icon: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  color: ZevColors.deepNavy,
-                  size: 20,
-                ),
-                onPressed: () => Navigator.pop(context),
-              )
-            : null,
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: ZevColors.deepNavy,
+            size: 20,
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: const Text(
           "ZEV Blue Verification",
           style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w900,
             color: ZevColors.deepNavy,
-            letterSpacing: -0.3,
+            fontWeight: FontWeight.w900,
+            fontSize: 17,
+            letterSpacing: -0.2,
           ),
         ),
         centerTitle: true,
@@ -428,67 +373,58 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
         child: Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxWidth: isDesktop ? 760 : double.infinity,
+              maxWidth: isDesktop ? 680 : double.infinity,
             ),
-            child: Column(
-              children: [
-                const SizedBox(height: 10),
-
-                // Segmented 3-Tab Bar
-                Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isDesktop ? 20 : 16,
-                  ),
-                  child: Container(
-                    height: 46,
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE2E8F0),
-                      borderRadius: BorderRadius.circular(23),
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: ZevColors.primaryBlue,
                     ),
-                    child: Row(
-                      children: [
-                        _buildTabPill(index: 0, label: "Plans"),
-                        _buildTabPill(index: 1, label: "Free Pathway"),
-                        _buildTabPill(index: 2, label: "Guidelines"),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
+                  )
+                : Column(
+                    children: [
+                      // Header Badge Hero
+                      _buildHeaderHero(avatarUrl, fullName, username),
 
-                Expanded(
-                  child: _isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Color(0xFF0284C7)),
-                          ),
-                        )
-                      : TabBarView(
+                      // Clay Tab Navigation
+                      Container(
+                        height: 44,
+                        margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                        padding: const EdgeInsets.all(3.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE2E8F0).withValues(alpha: 0.65),
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        child: Row(
+                          children: [
+                            _buildTabPill(0, "10 Rules"),
+                            _buildTabPill(1, "Audit"),
+                            _buildTabPill(2, "Apply"),
+                          ],
+                        ),
+                      ),
+
+                      // Tab Views
+                      Expanded(
+                        child: TabBarView(
                           controller: _tabCtrl,
                           physics: const BouncingScrollPhysics(),
                           children: [
-                            // Tab 1: Premium Subscription Plans
-                            _buildPlansTab(username, fullName, avatarUrl),
-
-                            // Tab 2: Free 100-Referral Pathway
-                            _buildReferralTab(username, fullName),
-
-                            // Tab 3: Official Verification Guidelines & Terms
-                            _buildGuidelinesTab(),
+                            _buildRulesTab(),
+                            _buildAuditTab(),
+                            _buildApplyTab(),
                           ],
                         ),
-                ),
-              ],
-            ),
+                      ),
+                    ],
+                  ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildTabPill({required int index, required String label}) {
+  Widget _buildTabPill(int index, String label) {
     final isSelected = _tabCtrl.index == index;
 
     return Expanded(
@@ -505,7 +441,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                      color: ZevColors.deepNavy.withValues(alpha: 0.08),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -516,11 +452,11 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+              fontSize: 13,
+              fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
               color: isSelected
-                  ? const Color(0xFF0F172A)
-                  : const Color(0xFF64748B),
+                  ? ZevColors.deepNavy
+                  : ZevColors.textSecondary,
             ),
           ),
         ),
@@ -529,298 +465,343 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
   }
 
   // ===========================================================================
-  // TAB 1: PAID SUBSCRIPTION PLANS (MAIN REVENUE ENGINE)
+  // HERO BADGE HEADER
   // ===========================================================================
-  Widget _buildPlansTab(String username, String fullName, String avatarUrl) {
-    return ListView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 36),
-      children: [
-        // Pending Status Banner (if user already submitted)
-        if (_pendingStatus == 'pending') ...[
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
-                width: 1.2,
-              ),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.hourglass_top_rounded,
-                    color: Color(0xFFD97706), size: 22),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Verification Request In Review",
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF92400E),
-                        ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        "Our admin team is reviewing your account. You will receive your Blue Tick within 1-24 hours.",
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: Color(0xFFB45309),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+  Widget _buildHeaderHero(
+      String avatarUrl, String fullName, String username) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: ZevColors.deepNavy.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
-          const SizedBox(height: 14),
-        ] else if (_isVerified) ...[
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: ZevColors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: ZevColors.successGreen.withValues(alpha: 0.45),
-                width: 1.4,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: ZevColors.successGreen.withValues(alpha: 0.08),
-                  blurRadius: 14,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: ZevColors.successGreen.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.verified_rounded,
-                    color: ZevColors.successGreen,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _isLifetimePlan
-                            ? "Permanent Lifetime Blue Tick ⭐"
-                            : "Official Blue Tick Active ⭐",
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF065F46),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _buildActiveStatusSubtitle(),
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          color: Color(0xFF047857),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
         ],
-
-        // 1. Interactive Profile Preview Card
-        _buildProfilePreviewCard(username, fullName, avatarUrl),
-
-        const SizedBox(height: 20),
-
-        const Center(
-          child: Text(
-            "SELECT YOUR VERIFICATION PLAN",
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF94A3B8),
-              letterSpacing: 0.8,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // PLAN 1: YEARLY (BEST VALUE / MOST POPULAR)
-        _buildPlanCard(
-          planKey: 'yearly',
-          badgeText: "MOST POPULAR • SAVE 30%",
-          badgeColor: const Color(0xFF0284C7),
-          title: "ZEV Blue Yearly",
-          price: "\$24.99",
-          billing: "Billed annually • Only \$2.08/month",
-          isPopular: true,
-          benefits: const [
-            "Official Blue Verification Badge beside your name",
-            "Highest trust in feeds, searches & comments",
-            "Impersonation & copycat protection",
-            "Direct priority creator assistance",
-            "Full annual accreditation (cancel anytime)",
-          ],
-          onTap: () => _openCheckoutModal(
-            planKey: 'yearly',
-            planName: "ZEV Blue Yearly",
-            planPrice: "\$24.99/year",
-            numericAmount: 24.99,
-            planBilling: "Annual Subscription (\$2.08/mo)",
-          ),
-        ),
-
-        const SizedBox(height: 14),
-
-        // PLAN 2: MONTHLY (FLEXIBLE)
-        _buildPlanCard(
-          planKey: 'monthly',
-          badgeText: "FLEXIBLE",
-          badgeColor: const Color(0xFF64748B),
-          title: "ZEV Blue Monthly",
-          price: "\$2.99",
-          billing: "Billed monthly • Cancel anytime with 1-tap",
-          isPopular: false,
-          benefits: const [
-            "Official Blue Verification Badge beside your name",
-            "Active as long as subscription is maintained",
-            "Priority support and impersonation monitoring",
-            "Flexible monthly commitment",
-          ],
-          onTap: () => _openCheckoutModal(
-            planKey: 'monthly',
-            planName: "ZEV Blue Monthly",
-            planPrice: "\$2.99/month",
-            numericAmount: 2.99,
-            planBilling: "Monthly Subscription",
-          ),
-        ),
-
-        const SizedBox(height: 14),
-
-        // PLAN 3: LIFETIME VIP (SPECIAL LAUNCH OFFER)
-        _buildPlanCard(
-          planKey: 'lifetime',
-          badgeText: "VIP PROMO • PAY ONCE FOR LIFE",
-          badgeColor: const Color(0xFF8B5CF6),
-          title: "ZEV Blue Lifetime VIP",
-          price: "\$49.99",
-          billing: "One-time payment • Never pay again",
-          isPopular: false,
-          benefits: const [
-            "Permanent Blue Verification Badge forever",
-            "Never worry about monthly or yearly renewals",
-            "Exclusive Lifetime Verified Founding Creator status",
-            "VIP expedited support queue",
-          ],
-          onTap: () => _openCheckoutModal(
-            planKey: 'lifetime',
-            planName: "ZEV Blue Lifetime VIP",
-            planPrice: "\$49.99 (One-Time)",
-            numericAmount: 49.99,
-            planBilling: "Permanent Lifetime Accreditation",
-          ),
-        ),
-
-        const SizedBox(height: 20),
-
-        // Core Guarantee Banner
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.95),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
+      ),
+      child: Row(
+        children: [
+          // Glowing Blue Badge Icon
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [
+                      Color(0xFF38BDF8),
+                      ZevColors.secondaryBlue,
+                      ZevColors.primaryBlue,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: ZevColors.secondaryBlue.withValues(alpha: 0.35),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.verified_rounded,
+                  color: Colors.white,
+                  size: 32,
+                ),
               ),
             ],
           ),
-          child: const Row(
-            children: [
-              Icon(Icons.verified_user_rounded,
-                  color: Color(0xFF10B981), size: 26),
-              SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Text(
-                      "Our Free Community Pledge",
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF0F172A),
+                    Flexible(
+                      child: Text(
+                        _isVerified ? "Officially Verified" : "ZEV Blue Portal",
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: ZevColors.deepNavy,
+                        ),
                       ),
                     ),
-                    SizedBox(height: 3),
-                    Text(
-                      "All core features on ZEV—posting, reels, chatting, audio & video calls—will always remain 100% FREE for everyone. ZEV Blue is strictly for authentic identity verification.",
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: Color(0xFF64748B),
-                        height: 1.4,
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: _isVerified
+                            ? const Color(0xFFDCFCE7)
+                            : (_pendingStatus == 'pending'
+                                ? const Color(0xFFFEF3C7)
+                                : const Color(0xFFE0F2FE)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        _isVerified
+                            ? "ACTIVE"
+                            : (_pendingStatus == 'pending'
+                                ? "IN REVIEW"
+                                : "STANDARDS"),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          color: _isVerified
+                              ? const Color(0xFF166534)
+                              : (_pendingStatus == 'pending'
+                                  ? const Color(0xFF92400E)
+                                  : ZevColors.primaryBlue),
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 3),
+                Text(
+                  _isVerified
+                      ? "Your account represents an authentic, notable public entity on ZEV."
+                      : "Reserved for notable public figures, creators (500K+), & global brands.",
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: ZevColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   // ===========================================================================
-  // TAB 2: FREE 100-REFERRAL PATHWAY
+  // TAB 0: 10 OFFICIAL RULES & CRITERIA
   // ===========================================================================
-  Widget _buildReferralTab(String username, String fullName) {
-    final progress = (_referralCount / 100).clamp(0.0, 1.0);
-    final remaining = max(0, 100 - _referralCount);
+  Widget _buildRulesTab() {
+    final rules = [
+      {
+        'num': '01',
+        'title': 'Legal Authenticity',
+        'desc':
+            'The applicant must represent a genuine, registered human being, trademarked organization, or registered institution with verifiable government credentials.',
+        'icon': Icons.badge_outlined,
+      },
+      {
+        'num': '02',
+        'title': 'Notability & 500,000+ Follower Baseline',
+        'desc':
+            'The account must maintain at least 500,000 real followers on ZEV or provide verified press coverage in Tier-1 media publications (e.g. Forbes, Reuters, BBC).',
+        'icon': Icons.trending_up_rounded,
+      },
+      {
+        'num': '03',
+        'title': 'Professional Account Prerequisite',
+        'desc':
+            'The account must be set to a Professional Account (Creator or Business) with active analytics and public availability.',
+        'icon': Icons.work_outline_rounded,
+      },
+      {
+        'num': '04',
+        'title': 'Complete & Public Profile',
+        'desc':
+            'Profile must be public with a high-resolution photo, informative bio, verified contact info, and regular original publishing history.',
+        'icon': Icons.public_rounded,
+      },
+      {
+        'num': '05',
+        'title': 'Uniqueness & Representation',
+        'desc':
+            'Only one verified account per person or business entity is permitted, ensuring genuine representation without duplicate claims.',
+        'icon': Icons.fingerprint_rounded,
+      },
+      {
+        'num': '06',
+        'title': 'Clean Community Integrity',
+        'desc':
+            'Zero community violations, copyright strikes, or harassment reports within the previous 180 days across all ZEV features.',
+        'icon': Icons.shield_outlined,
+      },
+      {
+        'num': '07',
+        'title': 'Mandatory Two-Factor Authentication',
+        'desc':
+            'Account must have active 2FA (TOTP Authenticator or Biometric Passkey) enabled to eliminate unauthorized takeover risks.',
+        'icon': Icons.lock_outline_rounded,
+      },
+      {
+        'num': '08',
+        'title': 'Organic Growth & Zero Bots',
+        'desc':
+            'Algorithmic screening checks engagement ratios. Any account detected utilizing bots, fake followers, or engagement farms is permanently disqualified.',
+        'icon': Icons.smart_toy_outlined,
+      },
+      {
+        'num': '09',
+        'title': 'Official Corporate Domain Linkage',
+        'desc':
+            'Corporate entities, brands, and public organizations must link and verify through their official corporate domain email.',
+        'icon': Icons.domain_rounded,
+      },
+      {
+        'num': '10',
+        'title': 'Code of Ethics & Conduct',
+        'desc':
+            'Blue tick holders are community leaders. ZEV reserves the unilateral right to revoke verification if an account spreads misinformation, hate speech, or abuse.',
+        'icon': Icons.gavel_rounded,
+      },
+    ];
 
     return ListView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 36),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
       children: [
-        // Milestone Progress Card
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEFF6FF),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFF93C5FD), width: 1.2),
+          ),
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline_rounded,
+                  color: ZevColors.primaryBlue, size: 20),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  "ZEV verification is an earned badge of authenticity and notability. Review the 10 binding rules below before submitting your formal application.",
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1E3A8A),
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        ...rules.map((r) => _buildRuleCard(r)),
+      ],
+    );
+  }
+
+  Widget _buildRuleCard(Map<String, dynamic> rule) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: ZevColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: ZevColors.deepNavy.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: ZevColors.primaryBlue.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              rule['icon'] as IconData,
+              size: 20,
+              color: ZevColors.primaryBlue,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      rule['num'] as String,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: ZevColors.primaryBlue,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        rule['title'] as String,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: ZevColors.deepNavy,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  rule['desc'] as String,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: ZevColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // TAB 1: LIVE ACCOUNT AUDIT (500K FOLLOWERS & ELIGIBILITY)
+  // ===========================================================================
+  Widget _buildAuditTab() {
+    final followerProgress =
+        (_followersCount / kFollowerThreshold).clamp(0.0, 1.0);
+    final meetsFollowers = _followersCount >= kFollowerThreshold;
+
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+      children: [
+        // 500K Follower Metric Card
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF0284C7), Color(0xFF0369A1)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(24),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: ZevColors.border),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF0284C7).withValues(alpha: 0.3),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
+                color: ZevColors.deepNavy.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
@@ -830,1224 +811,569 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  const Text(
+                    "Follower Baseline Audit",
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: ZevColors.deepNavy,
+                    ),
+                  ),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
+                        horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
+                      color: meetsFollowers
+                          ? const Color(0xFFDCFCE7)
+                          : const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.stars_rounded,
-                            color: Colors.white, size: 16),
-                        SizedBox(width: 6),
-                        Text(
-                          "FREE LIFETIME PATHWAY",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    "$_referralCount / 100",
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                "Invite 100 Friends for Free Lifetime Blue Tick",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.3,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                remaining > 0
-                    ? "Invite $remaining more friends to qualify for free lifetime verification automatically."
-                    : "🎉 You have reached 100 referrals! Lifetime Blue Tick unlocked!",
-                style: const TextStyle(
-                  color: Color(0xFFE0F2FE),
-                  fontSize: 12.5,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Animated Progress Bar
-              Stack(
-                children: [
-                  Container(
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                  FractionallySizedBox(
-                    widthFactor: progress,
-                    child: Container(
-                      height: 12,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF38BDF8), Color(0xFF67E8F9)],
-                        ),
-                        borderRadius: BorderRadius.circular(6),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF38BDF8)
-                                .withValues(alpha: 0.5),
-                            blurRadius: 6,
-                          ),
-                        ],
+                    child: Text(
+                      meetsFollowers ? "500K+ PASSED" : "500K TARGET",
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w900,
+                        color: meetsFollowers
+                            ? const Color(0xFF166534)
+                            : const Color(0xFF92400E),
                       ),
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    _followersCount > 999
+                        ? "${(_followersCount / 1000).toStringAsFixed(1)}K"
+                        : "$_followersCount",
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      color: ZevColors.deepNavy,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const Text(
+                    " / 500,000 Organic Followers",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: ZevColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LinearProgressIndicator(
+                  value: followerProgress,
+                  minHeight: 8,
+                  backgroundColor: ZevColors.softSurface,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    meetsFollowers
+                        ? const Color(0xFF10B981)
+                        : ZevColors.primaryBlue,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                meetsFollowers
+                    ? "Congratulations! Your follower threshold meets the standard for ZEV Blue Creator verification."
+                    : "Accounts below 500K followers can still apply if they represent a registered public institution, official brand, or have notable press coverage.",
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: ZevColors.textSecondary,
+                  height: 1.4,
+                ),
               ),
             ],
           ),
         ),
 
-        const SizedBox(height: 18),
+        const SizedBox(height: 14),
 
-        // Mini Stats Cards
-        if (_referralCount >= 100 || _lifetimeEligible) ...[
+        // Prerequisite Checklist
+        _buildAuditItem(
+          title: "Professional Account Type",
+          subtitle: _hasProfessionalAccount
+              ? "Configured as Creator or Business account"
+              : "Account is currently Personal (Must switch to Creator/Business)",
+          isPassed: _hasProfessionalAccount,
+          actionLabel: _hasProfessionalAccount ? null : "Switch",
+          onAction: () async {
+            final updated = await ProfessionalAccountSetupScreen.open(
+              context,
+              currentProfile: widget.userProfile,
+            );
+            if (updated != null) {
+              _loadAllVerificationData();
+            }
+          },
+        ),
+
+        _buildAuditItem(
+          title: "Profile Completeness",
+          subtitle: _hasCompleteProfile
+              ? "Profile photo, bio, and content history active"
+              : "Incomplete profile (Add high-res avatar and descriptive bio)",
+          isPassed: _hasCompleteProfile,
+        ),
+
+        _buildAuditItem(
+          title: "Account Security (2FA)",
+          subtitle: "Protected against account takeover",
+          isPassed: _has2fa,
+        ),
+
+        _buildAuditItem(
+          title: "Community Standing",
+          subtitle: "Zero policy strikes or copyright warnings in 180 days",
+          isPassed: true,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAuditItem({
+    required String title,
+    required String subtitle,
+    required bool isPassed,
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ZevColors.border),
+      ),
+      child: Row(
+        children: [
           Container(
-            padding: const EdgeInsets.all(16),
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: ZevColors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: ZevColors.successGreen.withValues(alpha: 0.45),
-                width: 1.4,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: ZevColors.successGreen.withValues(alpha: 0.08),
-                  blurRadius: 14,
-                  offset: const Offset(0, 4),
+              color: isPassed
+                  ? const Color(0xFFDCFCE7)
+                  : const Color(0xFFFEF3C7),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isPassed ? Icons.check_rounded : Icons.priority_high_rounded,
+              color: isPassed
+                  ? const Color(0xFF166534)
+                  : const Color(0xFF92400E),
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: ZevColors.deepNavy,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: ZevColors.textSecondary,
+                  ),
                 ),
               ],
             ),
-            child: _isVerified && _isLifetimePlan
-                ? const Row(
-                    children: [
-                      Icon(
-                        Icons.verified_rounded,
-                        color: ZevColors.successGreen,
-                        size: 26,
-                      ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Permanent Lifetime ZEV Blue Active ⭐",
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w900,
-                                color: ZevColors.deepNavy,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              "Unlocked for life via 100 verified referrals — never expires.",
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                color: ZevColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Row(
-                        children: [
-                          Icon(
-                            Icons.emoji_events_rounded,
-                            color: ZevColors.successGreen,
-                            size: 24,
-                          ),
-                          SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              "Milestone Reached! Claim Your Free Lifetime Blue Tick",
-                              style: TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w900,
-                                color: ZevColors.deepNavy,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      ElevatedButton.icon(
-                        onPressed:
-                            _isClaimingLifetime ? null : _claimLifetimeBlue,
-                        icon: _isClaimingLifetime
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.verified_rounded, size: 18),
-                        label: const Text(
-                          "Claim Free Lifetime Blue Tick",
-                          style: TextStyle(fontWeight: FontWeight.w900),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: ZevColors.successGreen,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 13),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
           ),
-          const SizedBox(height: 18),
+          if (actionLabel != null && onAction != null)
+            TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                foregroundColor: ZevColors.primaryBlue,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              ),
+              child: Text(
+                actionLabel,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
         ],
+      ),
+    );
+  }
 
-        Row(
+  // ===========================================================================
+  // TAB 2: APPLICATION FORM
+  // ===========================================================================
+  Widget _buildApplyTab() {
+    if (_pendingStatus == 'pending') {
+      return Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Expanded(
-              child: _buildMiniStatCard(
-                title: "Total Invited",
-                value: "$_referralCount",
-                icon: Icons.people_alt_rounded,
-                color: const Color(0xFF0284C7),
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.25),
+                    blurRadius: 20,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.hourglass_top_rounded,
+                color: Color(0xFFB45309),
+                size: 40,
               ),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildMiniStatCard(
-                title: "Remaining",
-                value: "$remaining",
-                icon: Icons.flag_rounded,
-                color: const Color(0xFFF59E0B),
+            const SizedBox(height: 24),
+            const Text(
+              "Application in Review",
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                color: ZevColors.deepNavy,
               ),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildMiniStatCard(
-                title: "Reward",
-                value: "\$49.99 Free",
-                icon: Icons.card_giftcard_rounded,
-                color: const Color(0xFF10B981),
+            const SizedBox(height: 10),
+            const Text(
+              "Your ZEV Blue application is currently being reviewed by the Trust & Safety Committee. Our team checks your government credentials, follower authenticity, and notability against our 10 standards.\n\nYou will receive an in-app alert once a determination is reached (24-72 hours).",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: ZevColors.textSecondary,
+                height: 1.5,
               ),
             ),
           ],
         ),
+      );
+    }
 
-        const SizedBox(height: 20),
+    if (_isVerified) {
+      return Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: const Color(0xFFDCFCE7),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.25),
+                    blurRadius: 20,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.verified_rounded,
+                color: Color(0xFF166534),
+                size: 44,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              "You are ZEV Blue Verified",
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                color: ZevColors.deepNavy,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Badge: ${_badgeLabel ?? 'Verified Creator'}\nVerified since: ${_verifiedAt != null ? _verifiedAt!.toLocal().toString().split(' ').first : 'Active'}${_verificationReason != null && _verificationReason!.isNotEmpty ? '\nCriteria: $_verificationReason' : ''}",
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                color: ZevColors.textSecondary,
+                height: 1.45,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
-        // Referral Code Card (Light Clearmorphism)
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+      children: [
+        // Form Description
         const Text(
-          "Your Referral Code",
+          "Step 1: Confirm Authenticity",
           style: TextStyle(
-            fontSize: 14,
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            color: ZevColors.deepNavy,
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          "Enter your legal name and provide official identity verification details.",
+          style: TextStyle(fontSize: 12.5, color: ZevColors.textSecondary),
+        ),
+        const SizedBox(height: 16),
+
+        _buildFormField(
+          label: "Full Legal Name",
+          hint: "e.g. Johnathan Doe",
+          controller: _legalNameCtrl,
+        ),
+        const SizedBox(height: 12),
+
+        _buildFormField(
+          label: "Known As / Brand Name",
+          hint: "e.g. DJ Spark, ACME Inc.",
+          controller: _knownAsCtrl,
+        ),
+        const SizedBox(height: 12),
+
+        _buildDropdownField(
+          label: "Category",
+          value: _selectedCategory,
+          items: const [
+            'Creator & Influencer',
+            'News & Media',
+            'Sports & Athlete',
+            'Government & Politics',
+            'Music & Performing Arts',
+            'Fashion & Entertainment',
+            'Business & Technology',
+            'Education & Science',
+          ],
+          onChanged: (val) {
+            if (val != null) setState(() => _selectedCategory = val);
+          },
+        ),
+        const SizedBox(height: 12),
+
+        _buildDropdownField(
+          label: "Identity Document Type",
+          value: _selectedDocType,
+          items: const [
+            'National ID Card',
+            'Passport',
+            "Driver's License",
+            'Official Business Registration',
+            'Articles of Incorporation',
+          ],
+          onChanged: (val) {
+            if (val != null) setState(() => _selectedDocType = val);
+          },
+        ),
+
+        const SizedBox(height: 24),
+        const Divider(color: ZevColors.border),
+        const SizedBox(height: 16),
+
+        const Text(
+          "Step 2: Confirm Notability & Evidence",
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            color: ZevColors.deepNavy,
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          "Add official links demonstrating notability (press articles, Wikipedia, company site).",
+          style: TextStyle(fontSize: 12.5, color: ZevColors.textSecondary),
+        ),
+        const SizedBox(height: 16),
+
+        _buildFormField(
+          label: "Media Coverage / Press Link 1",
+          hint: "https://newsoutlet.com/article...",
+          controller: _link1Ctrl,
+          keyboardType: TextInputType.url,
+        ),
+        const SizedBox(height: 12),
+
+        _buildFormField(
+          label: "Media Coverage / Press Link 2",
+          hint: "https://wikipedia.org/wiki/...",
+          controller: _link2Ctrl,
+          keyboardType: TextInputType.url,
+        ),
+        const SizedBox(height: 12),
+
+        _buildFormField(
+          label: "Official Website / Domain",
+          hint: "https://yourbrand.com",
+          controller: _websiteCtrl,
+          keyboardType: TextInputType.url,
+        ),
+        const SizedBox(height: 12),
+
+        _buildFormField(
+          label: "Statement / Notability Summary",
+          hint: "Briefly explain why this account represents a notable entity...",
+          controller: _notesCtrl,
+          maxLines: 3,
+        ),
+
+        const SizedBox(height: 24),
+
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _isSubmitting ? null : _submitApplication,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ZevColors.primaryBlue,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            child: _isSubmitting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Text(
+                    "Submit Application for Audit",
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFormField({
+    required String label,
+    required String hint,
+    required TextEditingController controller,
+    TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
             fontWeight: FontWeight.w800,
             color: ZevColors.deepNavy,
           ),
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 6),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: ZevColors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: ZevColors.border, width: 1.3),
-            boxShadow: [
-              BoxShadow(
-                color: ZevColors.deepNavy.withValues(alpha: 0.05),
-                blurRadius: 14,
-                offset: const Offset(0, 4),
-              ),
-              const BoxShadow(
-                color: Colors.white,
-                blurRadius: 4,
-                offset: Offset(0, -1),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "SHARE WITH FRIENDS",
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: ZevColors.textMuted,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: ZevColors.softSurface,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: ZevColors.border),
-                      ),
-                      child: Text(
-                        _referralCode.toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF0284C7),
-                          fontFamily: 'monospace',
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              ElevatedButton.icon(
-                onPressed: _copyReferralCode,
-                icon: const Icon(Icons.copy_rounded, size: 16),
-                label: const Text("Copy"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ZevColors.secondaryBlue,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 14),
-
-        // Deep Link Card
-        Container(
-          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: ZevColors.border),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.link_rounded,
-                      size: 16, color: Color(0xFF0284C7)),
-                  SizedBox(width: 6),
-                  Text(
-                    "Direct Download Link",
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _referralLink,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF0F172A),
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.copy_rounded,
-                        size: 18, color: Color(0xFF0284C7)),
-                    onPressed: _copyReferralLink,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.share_rounded,
-                        size: 18, color: Color(0xFF0284C7)),
-                    onPressed: _shareReferralLink,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ===========================================================================
-  // TAB 3: OFFICIAL VERIFICATION GUIDELINES
-  // ===========================================================================
-  Widget _buildGuidelinesTab() {
-    return ListView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 36),
-      children: [
-        _buildGuidelineSection(
-          icon: Icons.fact_check_rounded,
-          iconColor: const Color(0xFF0284C7),
-          title: "Account Eligibility Requirements",
-          points: const [
-            "Your account must have a clear profile photo and complete full name.",
-            "You must have published at least 1 public post, photo, or reel.",
-            "Account must be in good standing with zero active policy violations.",
-            "Must be at least 13 years old or authorized representative.",
-          ],
-        ),
-        const SizedBox(height: 14),
-
-        _buildGuidelineSection(
-          icon: Icons.shield_rounded,
-          iconColor: const Color(0xFF10B981),
-          title: "Verification Meaning & Code of Conduct",
-          points: const [
-            "The Blue Badge certifies authentic identity and prevents impersonation.",
-            "It does NOT grant immunity from community guidelines or content moderation.",
-            "Engaging in hate speech, scamming, or copyright infringement will result in badge revocation.",
-            "Accounts cannot change their verified identity name to an unrelated brand or person.",
-          ],
-        ),
-        const SizedBox(height: 14),
-
-        _buildGuidelineSection(
-          icon: Icons.payment_rounded,
-          iconColor: const Color(0xFFF59E0B),
-          title: "Billing & Review Timeline",
-          points: const [
-            "All verification requests are reviewed by our team within 1 to 24 hours.",
-            "Subscriptions can be cancelled at any time from your account settings.",
-            "100% refund guarantee if an account cannot be verified for policy reasons.",
-            "Payment support includes in-app purchase, credit cards, and direct coordinator transfer.",
-          ],
-        ),
-      ],
-    );
-  }
-
-  // ===========================================================================
-  // REUSABLE CLAYMORPHIC COMPONENTS
-  // ===========================================================================
-
-  Widget _buildProfilePreviewCard(
-      String username, String fullName, String avatarUrl) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.95),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0284C7).withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-          const BoxShadow(
-            color: Colors.white,
-            blurRadius: 4,
-            offset: Offset(0, -1),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: const Color(0xFF0284C7),
-                    width: 2,
-                  ),
-                ),
-                child: ClipOval(
-                  child: avatarUrl.isNotEmpty
-                      ? ZevCachedImage.avatar(
-                          imageUrl: avatarUrl,
-                          size: 52,
-                        )
-                      : Container(
-                          color: const Color(0xFFE2E8F0),
-                          child: const Icon(Icons.person_rounded,
-                              size: 28, color: Color(0xFF94A3B8)),
-                        ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            username,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF0F172A),
-                              letterSpacing: -0.2,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(
-                          Icons.verified_rounded,
-                          color: Color(0xFF0284C7),
-                          size: 18,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      fullName.isNotEmpty ? fullName : "Verified Creator",
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0284C7).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  "PREVIEW",
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF0284C7),
-                    letterSpacing: 0.6,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            "This badge will appear next to your name across feeds, stories, reels, chats, and comments.",
-            style: TextStyle(
-              fontSize: 11.5,
-              color: Color(0xFF64748B),
-              height: 1.4,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlanCard({
-    required String planKey,
-    required String badgeText,
-    required Color badgeColor,
-    required String title,
-    required String price,
-    required String billing,
-    required bool isPopular,
-    required List<String> benefits,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: isPopular
-              ? const Color(0xFF0284C7)
-              : Colors.white.withValues(alpha: 0.95),
-          width: isPopular ? 2 : 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isPopular
-                ? const Color(0xFF0284C7).withValues(alpha: 0.14)
-                : const Color(0xFF0F172A).withValues(alpha: 0.04),
-            blurRadius: isPopular ? 16 : 10,
-            offset: const Offset(0, 4),
-          ),
-          const BoxShadow(
-            color: Colors.white,
-            blurRadius: 4,
-            offset: Offset(0, -1),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Plan Header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: badgeColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        badgeText,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          color: badgeColor,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF0F172A),
-                      ),
-                    ),
-                    Text(
-                      billing,
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                ),
-                Text(
-                  price,
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF0F172A),
-                    letterSpacing: -0.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const Divider(color: Color(0xFFF1F5F9), height: 1),
-
-          // Benefits List
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
-            child: Column(
-              children: [
-                ...benefits.map((b) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.check_circle_rounded,
-                              size: 16, color: Color(0xFF10B981)),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              b,
-                              style: const TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF334155),
-                                height: 1.35,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: onTap,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isPopular
-                          ? const Color(0xFF0284C7)
-                          : ZevColors.secondaryBlue,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: Text(
-                      "Get Verified • $price",
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13.5,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMiniStatCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.95),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Icon(icon, size: 20, color: color),
-          const SizedBox(height: 6),
-          Text(
-            value,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          child: TextField(
+            controller: controller,
+            keyboardType: keyboardType,
+            maxLines: maxLines,
             style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w900,
-              color: Color(0xFF0F172A),
-            ),
-          ),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 10.5,
+              fontSize: 13.5,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF64748B),
+              color: ZevColors.deepNavy,
+            ),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: const TextStyle(
+                fontSize: 13,
+                color: ZevColors.textMuted,
+              ),
+              border: InputBorder.none,
+              isDense: true,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  Widget _buildGuidelineSection({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required List<String> points,
+  Widget _buildDropdownField({
+    required String label,
+    required String value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.95),
-          width: 1.2,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: ZevColors.deepNavy,
+          ),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: ZevColors.border),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: iconColor, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ...points.map(
-            (p) => Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("• ",
-                      style: TextStyle(
-                          color: Color(0xFF0284C7),
-                          fontWeight: FontWeight.w900)),
-                  Expanded(
-                    child: Text(
-                      p,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF475569),
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ===========================================================================
-// CHECKOUT MODAL SHEET WITH MULTI-TABLE RECORDING
-// ===========================================================================
-class _CheckoutModalSheet extends StatefulWidget {
-  final String planKey;
-  final String planName;
-  final String planPrice;
-  final double numericAmount;
-  final String planBilling;
-  final Map<String, dynamic> userProfile;
-  final String referralCode;
-  final int currentReferrals;
-  final VoidCallback onSuccess;
-
-  const _CheckoutModalSheet({
-    required this.planKey,
-    required this.planName,
-    required this.planPrice,
-    required this.numericAmount,
-    required this.planBilling,
-    required this.userProfile,
-    required this.referralCode,
-    required this.currentReferrals,
-    required this.onSuccess,
-  });
-
-  @override
-  State<_CheckoutModalSheet> createState() => _CheckoutModalSheetState();
-}
-
-class _CheckoutModalSheetState extends State<_CheckoutModalSheet> {
-  final _fullNameCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
-  final _notesCtrl = TextEditingController();
-
-  bool _isSubmitting = false;
-  String _paymentMethod = "In-App Review / Direct";
-
-  @override
-  void initState() {
-    super.initState();
-    final fn = widget.userProfile['first_name'] ?? '';
-    final ln = widget.userProfile['last_name'] ?? '';
-    _fullNameCtrl.text = "$fn $ln".trim();
-    _phoneCtrl.text = (widget.userProfile['public_phone'] ??
-            widget.userProfile['phone_number'] ??
-            '')
-        .toString();
-  }
-
-  @override
-  void dispose() {
-    _fullNameCtrl.dispose();
-    _phoneCtrl.dispose();
-    _notesCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submitOrder() async {
-    final fullName = _fullNameCtrl.text.trim();
-    final phone = _phoneCtrl.text.trim();
-
-    if (fullName.isEmpty) {
-      _showToast("Please enter your legal or official name.");
-      return;
-    }
-    if (phone.isEmpty || phone.length < 5) {
-      _showToast("Please enter a valid Phone or WhatsApp number.");
-      return;
-    }
-
-    setState(() => _isSubmitting = true);
-    HapticFeedback.mediumImpact();
-
-    final userId = widget.userProfile['id']?.toString() ??
-        Supabase.instance.client.auth.currentUser?.id ??
-        '';
-    final email = widget.userProfile['email']?.toString() ??
-        Supabase.instance.client.auth.currentUser?.email ??
-        '';
-
-    try {
-      // Submit atomically via /api/v1/verification/request (updates user_verifications,
-      // subscriptions safely without overwriting active subscriptions, creates ticket & Telegram alert).
-      final result = await TelegramNotificationService.submitVerificationOrder(
-        fullName: fullName,
-        phone: phone,
-        planKey: widget.planKey,
-        planName: widget.planName,
-        planPrice: widget.planPrice,
-        numericAmount: widget.numericAmount,
-        email: email,
-        notes: _notesCtrl.text.trim(),
-        paymentMethod: _paymentMethod,
-      );
-
-      if (!result.ok) {
-        if (mounted) {
-          setState(() => _isSubmitting = false);
-          _showToast(
-            result.error ?? 'Could not submit order. Please try again.',
-          );
-        }
-        return;
-      }
-
-      // In-App Notification confirmation to user
-      if (userId.isNotEmpty) {
-        try {
-          await Supabase.instance.client.from('user_notifications').insert({
-            'user_id': userId,
-            'title': 'ZEV Blue Order Placed ⭐',
-            'message':
-                'Your verification order for ${widget.planName} (${widget.planPrice}) has been registered and is under review.',
-            'notification_type': 'verification',
-            'app_source': 'zev',
-            'is_read': false,
-          });
-        } catch (err) {
-          debugPrint("Notice: user_notifications insert: $err");
-        }
-      }
-
-      if (mounted) {
-        Navigator.pop(context); // Close sheet
-        widget.onSuccess();
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
-        _showToast("Could not submit order: $e");
-      }
-    }
-  }
-
-  void _showToast(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFFEF4444),
-        behavior: SnackBarBehavior.floating,
-        content: Text(msg, style: const TextStyle(color: Colors.white)),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 24 + bottomInset),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFCBD5E1),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  "Order Verification",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close_rounded,
-                      color: Color(0xFF64748B)),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Plan Summary Pill
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F9FF),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFBAE6FD)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.verified_rounded,
-                      color: Color(0xFF0284C7), size: 26),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.planName,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: value,
+              isExpanded: true,
+              icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                  color: ZevColors.deepNavy),
+              items: items
+                  .map((e) => DropdownMenuItem<String>(
+                        value: e,
+                        child: Text(
+                          e,
                           style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF0369A1),
-                          ),
-                        ),
-                        Text(
-                          widget.planBilling,
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            color: Color(0xFF0284C7),
+                            fontSize: 13.5,
                             fontWeight: FontWeight.w600,
+                            color: ZevColors.deepNavy,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    widget.planPrice,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                ],
-              ),
+                      ))
+                  .toList(),
+              onChanged: onChanged,
             ),
-            const SizedBox(height: 16),
-
-            // Legal Name
-            const Text(
-              "Full Legal / Official Name *",
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF334155),
-              ),
-            ),
-            const SizedBox(height: 6),
-            TextField(
-              controller: _fullNameCtrl,
-              decoration: InputDecoration(
-                hintText: "e.g. Shaheen Safi",
-                prefixIcon: const Icon(Icons.person_outline_rounded, size: 20),
-                filled: true,
-                fillColor: const Color(0xFFF8FAFC),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Phone / WhatsApp
-            const Text(
-              "Phone or WhatsApp Number *",
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF334155),
-              ),
-            ),
-            const SizedBox(height: 6),
-            TextField(
-              controller: _phoneCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: InputDecoration(
-                hintText: "e.g. +93 70 123 4567",
-                prefixIcon: const Icon(Icons.phone_rounded, size: 20),
-                filled: true,
-                fillColor: const Color(0xFFF8FAFC),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Payment Coordinator Preference
-            const Text(
-              "Payment Coordinator Method",
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF334155),
-              ),
-            ),
-            const SizedBox(height: 6),
-            DropdownButtonFormField<String>(
-              initialValue: _paymentMethod,
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: const Color(0xFFF8FAFC),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                ),
-              ),
-              items: const [
-                DropdownMenuItem(
-                  value: "In-App Review / Direct",
-                  child: Text("In-App Review / Direct"),
-                ),
-                DropdownMenuItem(
-                  value: "Telegram / WhatsApp Support Transfer",
-                  child: Text("Telegram / WhatsApp Transfer"),
-                ),
-                DropdownMenuItem(
-                  value: "International Card / Crypto",
-                  child: Text("Credit Card / Crypto"),
-                ),
-              ],
-              onChanged: (val) {
-                if (val != null) setState(() => _paymentMethod = val);
-              },
-            ),
-
-            const SizedBox(height: 20),
-
-            // Submit Button
-            ElevatedButton(
-              onPressed: _isSubmitting ? null : _submitOrder,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0284C7),
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              child: _isSubmitting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Text(
-                      "Submit & Confirm • ${widget.planPrice}",
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14.5,
-                      ),
-                    ),
-            ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }

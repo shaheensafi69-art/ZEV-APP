@@ -917,6 +917,69 @@ class _ProfileScreenState extends State<ProfileScreen>
     final currentUserId = supabase.auth.currentUser?.id;
     if (currentUserId == null || _isFollowLoading || _isBlockedView) return;
 
+    if (_followRequested) {
+      final shouldCancel = await showModalBottomSheet<bool>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => Container(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 38,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 18),
+                decoration: BoxDecoration(
+                  color: ZevColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Text(
+                "Cancel follow request for @${_profile['username'] ?? 'this user'}?",
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: ZevColors.deepNavy,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                title: const Text(
+                  "Cancel Follow Request",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFEF4444),
+                  ),
+                ),
+                onTap: () => Navigator.pop(ctx, true),
+              ),
+              const Divider(color: ZevColors.border),
+              ListTile(
+                title: const Text(
+                  "Keep Request",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: ZevColors.textSecondary,
+                  ),
+                ),
+                onTap: () => Navigator.pop(ctx, false),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (shouldCancel != true) return;
+    }
+
     HapticFeedback.lightImpact();
     setState(() => _isFollowLoading = true);
 
@@ -2868,7 +2931,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                     child: _buildStatItem(
                       label: "Followers",
                       count: _followersCount,
-                      onTap: allowStatsTap ? () => _openFollowersSheet(0) : null,
+                      onTap: allowStatsTap
+                          ? () => _openFollowersSheet(0)
+                          : _showPrivateStatsNotice,
                       isCompact: isCompact,
                     ),
                   ),
@@ -2877,7 +2942,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                     child: _buildStatItem(
                       label: "Following",
                       count: _followingCount,
-                      onTap: allowStatsTap ? () => _openFollowersSheet(1) : null,
+                      onTap: allowStatsTap
+                          ? () => _openFollowersSheet(1)
+                          : _showPrivateStatsNotice,
                       isCompact: isCompact,
                     ),
                   ),
@@ -3040,7 +3107,103 @@ class _ProfileScreenState extends State<ProfileScreen>
             }).toList(),
           ),
         ],
+
+        // Professional Dashboard Card for Account Owner
+        if (_isMyProfile &&
+            ((_profile['account_type'] ?? 'personal').toString().toLowerCase() ==
+                    'creator' ||
+                (_profile['account_type'] ?? 'personal').toString().toLowerCase() ==
+                    'business')) ...[
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: () => CreatorInsightsScreen.open(
+              context,
+              userProfile: _profile,
+            ),
+            child: _buildClayCard(
+              borderRadius: 16,
+              depth: 3.2,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              color: Colors.white,
+              border: Border.all(
+                color: ZevColors.primaryBlue.withValues(alpha: 0.25),
+                width: 1.2,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: ZevColors.primaryBlue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.insights_rounded,
+                      color: ZevColors.primaryBlue,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Professional Dashboard",
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w900,
+                            color: ZevColors.deepNavy,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          "${(_profile['account_type'] ?? 'Professional').toString().toUpperCase()} • Insights, tools and promotions",
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w500,
+                            color: ZevColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 13,
+                    color: ZevColors.textMuted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ],
+    );
+  }
+
+  void _showPrivateStatsNotice() {
+    HapticFeedback.lightImpact();
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.lock_rounded, color: Colors.white, size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                "Follow @${_profile['username'] ?? 'this account'} to see their followers and who they follow.",
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: ZevColors.deepNavy,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
     );
   }
 
@@ -3328,7 +3491,163 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
           ),
         ),
+        if (_profile['show_contact_info'] == true &&
+            ((_profile['public_email'] ?? '').toString().trim().isNotEmpty ||
+                (_profile['public_phone'] ?? '').toString().trim().isNotEmpty)) ...[
+          SizedBox(width: isCompact ? 6 : 8),
+          Expanded(
+            child: GestureDetector(
+              onTap: _showContactOptionsSheet,
+              child: _buildClayCard(
+                borderRadius: 14,
+                depth: 3.2,
+                padding: EdgeInsets.symmetric(
+                  vertical: isCompact ? 9 : 11,
+                  horizontal: 4,
+                ),
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.contact_mail_outlined,
+                        size: isCompact ? 14 : 15,
+                        color: ZevColors.deepNavy,
+                      ),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            "Contact",
+                            style: TextStyle(
+                              fontSize: isCompact ? 13 : 13.5,
+                              fontWeight: FontWeight.w800,
+                              color: ZevColors.deepNavy,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
+    );
+  }
+
+  void _showContactOptionsSheet() {
+    HapticFeedback.lightImpact();
+    final publicEmail = (_profile['public_email'] ?? '').toString().trim();
+    final publicPhone = (_profile['public_phone'] ?? '').toString().trim();
+    final username = _profile['username'] ?? 'User';
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 38,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 18),
+                decoration: BoxDecoration(
+                  color: ZevColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Text(
+              "Contact @$username",
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                color: ZevColors.deepNavy,
+              ),
+            ),
+            const SizedBox(height: 14),
+            if (publicEmail.isNotEmpty)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: ZevColors.primaryBlue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.email_outlined,
+                      color: ZevColors.primaryBlue),
+                ),
+                title: const Text(
+                  "Email",
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                ),
+                subtitle: Text(publicEmail,
+                    style: const TextStyle(fontSize: 12.5)),
+                trailing:
+                    const Icon(Icons.arrow_forward_ios_rounded, size: 13),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Clipboard.setData(ClipboardData(text: publicEmail));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Email '$publicEmail' copied to clipboard."),
+                      backgroundColor: ZevColors.deepNavy,
+                    ),
+                  );
+                },
+              ),
+            if (publicPhone.isNotEmpty) ...[
+              if (publicEmail.isNotEmpty) const Divider(color: ZevColors.border),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.phone_outlined,
+                      color: Color(0xFF10B981)),
+                ),
+                title: const Text(
+                  "Call / Phone",
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                ),
+                subtitle: Text(publicPhone,
+                    style: const TextStyle(fontSize: 12.5)),
+                trailing:
+                    const Icon(Icons.arrow_forward_ios_rounded, size: 13),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Clipboard.setData(ClipboardData(text: publicPhone));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Phone '$publicPhone' copied to clipboard."),
+                      backgroundColor: ZevColors.deepNavy,
+                    ),
+                  );
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 

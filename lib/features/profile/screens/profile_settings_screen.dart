@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/auth_helper.dart';
 import '../../../core/services/multi_account_service.dart';
@@ -12,6 +13,7 @@ import 'help_support_screen.dart';
 import 'mfa_settings_screen.dart';
 import 'notification_settings_screen.dart';
 import 'privacy_security_screen.dart';
+import 'professional_account_setup_screen.dart';
 import 'share_profile_screen.dart';
 import 'user_activity_screen.dart';
 import 'zev_blue_verification_screen.dart';
@@ -42,6 +44,213 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   void initState() {
     super.initState();
     _profile = Map<String, dynamic>.from(widget.profile);
+  }
+
+  Future<void> _showSwitchAccountTypeSheet() async {
+    final accountType =
+        (_profile['account_type'] ?? 'personal').toString().toLowerCase();
+    final isCreator = accountType == 'creator';
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 18),
+                decoration: BoxDecoration(
+                  color: ZevColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const Text(
+              "Switch Account Type",
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: ZevColors.deepNavy,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: ZevColors.primaryBlue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  isCreator
+                      ? Icons.storefront_rounded
+                      : Icons.auto_awesome_rounded,
+                  color: ZevColors.primaryBlue,
+                ),
+              ),
+              title: Text(
+                isCreator
+                    ? "Switch to Business Account"
+                    : "Switch to Creator Account",
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14.5,
+                  color: ZevColors.deepNavy,
+                ),
+              ),
+              subtitle: Text(
+                isCreator
+                    ? "Best for brands, retailers, and service providers"
+                    : "Best for public figures, artists, and content producers",
+                style: const TextStyle(fontSize: 12, color: ZevColors.textSecondary),
+              ),
+              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+              onTap: () async {
+                Navigator.pop(ctx);
+                await _updateAccountType(isCreator ? 'business' : 'creator');
+              },
+            ),
+            const Divider(color: ZevColors.border),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.person_outline_rounded,
+                  color: Color(0xFFEF4444),
+                ),
+              ),
+              title: const Text(
+                "Switch to Personal Account",
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14.5,
+                  color: Color(0xFFEF4444),
+                ),
+              ),
+              subtitle: const Text(
+                "Return to standard personal profile and enable private option",
+                style: TextStyle(fontSize: 12, color: ZevColors.textSecondary),
+              ),
+              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showConfirmSwitchToPersonalDialog();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showConfirmSwitchToPersonalDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: const Text(
+          "Switch to Personal Account?",
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 18,
+            color: ZevColors.deepNavy,
+          ),
+        ),
+        content: const Text(
+          "When you switch back to a personal account, your insights data will be cleared, active promotions will be paused, and you will regain the option to make your account private at any time.",
+          style: TextStyle(fontSize: 13.5, color: ZevColors.textSecondary, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(fontWeight: FontWeight.w700, color: ZevColors.textSecondary),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _updateAccountType('personal');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
+            child: const Text(
+              "Switch to Personal",
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _updateAccountType(String newType) async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    try {
+      final nowIso = DateTime.now().toUtc().toIso8601String();
+      await Supabase.instance.client
+          .from('profiles')
+          .update({'account_type': newType, 'updated_at': nowIso})
+          .eq('id', userId);
+
+      final updated = Map<String, dynamic>.from(_profile);
+      updated['account_type'] = newType;
+      setState(() => _profile = updated);
+      widget.onProfileUpdated?.call(updated);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              newType == 'personal'
+                  ? "Switched to Personal Account."
+                  : "Switched to ${newType == 'creator' ? 'Creator' : 'Business'} Account.",
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            backgroundColor: ZevColors.deepNavy,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Failed to update account type: $e"),
+            backgroundColor: ZevColors.errorRed,
+          ),
+        );
+      }
+    }
   }
 
   void _showLogoutDialog() {
@@ -105,6 +314,10 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     final username = _profile['username'] ?? 'user';
     final avatarUrl = _profile['avatar_url'] ?? '';
     final isDesktop = MediaQuery.of(context).size.width >= 720;
+    final accountType =
+        (_profile['account_type'] ?? 'personal').toString().toLowerCase();
+    final isProfessional =
+        accountType == 'creator' || accountType == 'business';
 
     return Scaffold(
       backgroundColor: ZevColors.softSurface,
@@ -285,7 +498,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                           Text(
                             isVerified
                                 ? "ZEV Blue Verified"
-                                : "ZEV Blue & Referral Program",
+                                : "ZEV Blue Official Verification",
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 15,
@@ -296,7 +509,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                           Text(
                             isVerified
                                 ? "Your account is officially verified with Blue Tick."
-                                : "Get verified from \$2.99 or earn it FREE via 100 referrals.",
+                                : "Official verification for recognized creators with 500K+ followers & public figures.",
                             style: const TextStyle(
                               color: Color(0xFFE0F2FE),
                               fontSize: 11.5,
@@ -379,23 +592,54 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
             ),
             const SizedBox(height: 18),
 
-            // Section 2: Monetization & Advertising
-            _buildSectionHeader("Monetization & Advertising"),
-            _buildSettingsTile(
-              icon: Icons.insights_rounded,
-              title: "Creator Insights & Dashboard",
-              subtitle: "Views, engagement rate, top content & referral progress",
-              onTap: () => CreatorInsightsScreen.open(
-                context,
-                userProfile: _profile,
+            // Section 2: Professional Tools & Account Switching
+            if (isProfessional) ...[
+              _buildSectionHeader("For Professionals (${accountType.toUpperCase()})"),
+              _buildSettingsTile(
+                icon: Icons.insights_rounded,
+                title: accountType == 'business'
+                    ? "Business Insights & Analytics"
+                    : "Creator Insights & Dashboard",
+                subtitle: "Views, engagement rate, top content & audience growth",
+                onTap: () => CreatorInsightsScreen.open(
+                  context,
+                  userProfile: _profile,
+                ),
               ),
-            ),
-            _buildSettingsTile(
-              icon: Icons.campaign_rounded,
-              title: "Ads Manager",
-              subtitle: "Create sponsored campaigns, targeting, analytics & billing",
-              onTap: () => AdsManagerScreen.open(context),
-            ),
+              _buildSettingsTile(
+                icon: Icons.campaign_rounded,
+                title: "Ads Manager",
+                subtitle: "Create sponsored campaigns, targeting, analytics & billing",
+                onTap: () => AdsManagerScreen.open(context),
+              ),
+              _buildSettingsTile(
+                icon: Icons.swap_horiz_rounded,
+                title: "Switch account type",
+                subtitle: "Switch to ${accountType == 'creator' ? 'Business' : 'Creator'} or Personal account",
+                iconColor: ZevColors.primaryBlue,
+                onTap: _showSwitchAccountTypeSheet,
+              ),
+            ] else ...[
+              _buildSectionHeader("For Professionals"),
+              _buildSettingsTile(
+                icon: Icons.auto_awesome_rounded,
+                title: "Switch to Professional Account",
+                subtitle: "Get free insights, advertising tools, and category badges",
+                iconColor: ZevColors.primaryBlue,
+                titleColor: ZevColors.primaryBlue,
+                onTap: () async {
+                  final updated =
+                      await ProfessionalAccountSetupScreen.open(
+                    context,
+                    currentProfile: _profile,
+                  );
+                  if (updated != null) {
+                    setState(() => _profile = updated);
+                    widget.onProfileUpdated?.call(updated);
+                  }
+                },
+              ),
+            ],
             const SizedBox(height: 18),
 
             // Section 3: Privacy & Security
