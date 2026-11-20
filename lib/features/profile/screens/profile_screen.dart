@@ -2661,10 +2661,15 @@ class _ProfileScreenState extends State<ProfileScreen>
                           ),
                           if (isVerified) ...[
                             const SizedBox(width: 4),
-                            const Icon(
+                            Icon(
                               Icons.verified_rounded,
                               size: 16,
-                              color: ZevColors.primaryBlue,
+                              color: (_profile['badge_tier'] ?? '')
+                                          .toString()
+                                          .toLowerCase() ==
+                                      'gold'
+                                  ? const Color(0xFFF59E0B)
+                                  : ZevColors.primaryBlue,
                             ),
                           ],
                           if (_isMyProfile) ...[
@@ -2974,10 +2979,15 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
             if (isVerified) ...[
               const SizedBox(width: 4),
-              const Icon(
+              Icon(
                 Icons.verified_rounded,
                 size: 15,
-                color: ZevColors.primaryBlue,
+                color: (_profile['badge_tier'] ?? '')
+                            .toString()
+                            .toLowerCase() ==
+                        'gold'
+                    ? const Color(0xFFF59E0B)
+                    : ZevColors.primaryBlue,
               ),
             ],
             if (pronouns.isNotEmpty) ...[
