@@ -554,7 +554,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
             _buildSettingsTile(
               icon: Icons.qr_code_rounded,
               title: "QR code & Share profile",
-              subtitle: "Share your profile and referral link",
+              subtitle: "Share your profile QR code and link",
               onTap: () {
                 Navigator.push(
                   context,
@@ -564,6 +564,9 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                       username: username,
                       fullName: fullName,
                       avatarUrl: avatarUrl,
+                      bio: _profile['bio']?.toString(),
+                      isVerified: _profile['is_verified'] == true,
+                      badgeTier: (_profile['badge_tier'] ?? 'none').toString(),
                     ),
                   ),
                 );

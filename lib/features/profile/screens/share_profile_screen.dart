@@ -3,17 +3,21 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 
-/// Ultra-Modern, 100% Tactile Claymorphic "Share Profile & QR Code" Hub for ZEV.
+/// Ultra-Modern, Instagram-Style "Share Profile & QR Code" Hub for ZEV.
 /// Features authentic dual-shadow 3D clay elevation, fully functional and
-/// genuine scannable QR code generation, interactive color palette customization,
-/// responsive geometry for small and large screens, and instant referral sharing.
+/// genuine scannable QR code linking directly to the user's ZEV profile URL,
+/// interactive color theme switcher, and instant native system sharing.
 class ShareProfileScreen extends StatefulWidget {
   final String? userId;
   final String username;
   final String fullName;
   final String avatarUrl;
+  final String? bio;
+  final bool isVerified;
+  final String badgeTier;
 
   const ShareProfileScreen({
     super.key,
@@ -21,6 +25,9 @@ class ShareProfileScreen extends StatefulWidget {
     required this.username,
     required this.fullName,
     required this.avatarUrl,
+    this.bio,
+    this.isVerified = false,
+    this.badgeTier = 'none',
   });
 
   @override
@@ -31,15 +38,38 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
   int _colorThemeIndex = 0;
 
   final List<List<Color>> _themeGradients = [
-    [const Color(0xFF0284C7), const Color(0xFF0369A1), const Color(0xFF0F172A)],
-    [const Color(0xFF7C3AED), const Color(0xFF4F46E5), const Color(0xFF0F172A)],
-    [const Color(0xFF059669), const Color(0xFF0D9488), const Color(0xFF0F172A)],
-    [const Color(0xFFE11D48), const Color(0xFFBE123C), const Color(0xFF0F172A)],
-    [const Color(0xFF0F172A), const Color(0xFF1E293B), const Color(0xFF334155)],
+    // Instagram Sunset Glow
+    [const Color(0xFF833AB4), const Color(0xFFFD1D1D), const Color(0xFFFCB045)],
+    // ZEV Electric Blue
+    [const Color(0xFF0284C7), const Color(0xFF2563EB), const Color(0xFF1E1B4B)],
+    // Midnight Cyber
+    [const Color(0xFF0F172A), const Color(0xFF1E293B), const Color(0xFF0284C7)],
+    // Emerald Aurora
+    [const Color(0xFF059669), const Color(0xFF10B981), const Color(0xFF064E3B)],
+    // Velvet Purple
+    [const Color(0xFF7C3AED), const Color(0xFF9333EA), const Color(0xFF4C1D95)],
+    // Ruby Rose
+    [const Color(0xFFE11D48), const Color(0xFFF43F5E), const Color(0xFF881337)],
+    // Gold Luxury
+    [const Color(0xFFD97706), const Color(0xFFF59E0B), const Color(0xFF78350F)],
+    // Obsidian Dark
+    [const Color(0xFF18181B), const Color(0xFF27272A), const Color(0xFF09090B)],
   ];
 
-  String get _referralCode => widget.username.toLowerCase();
-  String get _referralLink => "https://www.zevapp.com/join?ref=$_referralCode";
+  final List<String> _themeNames = [
+    "SUNSET",
+    "ELECTRIC",
+    "MIDNIGHT",
+    "EMERALD",
+    "VELVET",
+    "RUBY",
+    "GOLD",
+    "DARK",
+  ];
+
+  String get _cleanUsername => widget.username.replaceAll('@', '').trim();
+  String get _profileUrl => "https://zevapp.com/@$_cleanUsername";
+  String get _displayUrl => "zevapp.com/@$_cleanUsername";
 
   void _cycleColorTheme() {
     HapticFeedback.selectionClick();
@@ -48,9 +78,10 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
     });
   }
 
-  void _copyLink() {
+  void _copyProfileLink() {
     HapticFeedback.lightImpact();
-    Clipboard.setData(ClipboardData(text: _referralLink));
+    Clipboard.setData(ClipboardData(text: _profileUrl));
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Row(
@@ -58,33 +89,8 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
             Icon(Icons.check_circle_rounded, color: Color(0xFF38BDF8), size: 20),
             SizedBox(width: 10),
             Text(
-              "Profile deep link copied to clipboard!",
+              "Profile link copied to clipboard!",
               style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
-            ),
-          ],
-        ),
-        backgroundColor: const Color(0xFF0F172A),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      ),
-    );
-  }
-
-  void _copyReferralCode() {
-    HapticFeedback.lightImpact();
-    Clipboard.setData(ClipboardData(text: _referralCode));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle_rounded,
-                color: Color(0xFF38BDF8), size: 20),
-            const SizedBox(width: 10),
-            Text(
-              "Referral Code '$_referralCode' copied!",
-              style: const TextStyle(
-                  fontWeight: FontWeight.w700, color: Colors.white),
             ),
           ],
         ),
@@ -98,17 +104,13 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
 
   void _shareProfile() {
     HapticFeedback.mediumImpact();
+    final displayName = widget.fullName.isNotEmpty ? widget.fullName : "@$_cleanUsername";
     Share.share(
-      "Connect with ${widget.fullName.isNotEmpty ? widget.fullName : widget.username} (@${widget.username}) on ZEV!\n"
-      "Download or open the app directly with my referral code [$_referralCode]:\n"
-      "$_referralLink",
-      subject: "${widget.fullName} on ZEV",
+      "Check out $displayName (@$_cleanUsername) on ZEV:\n$_profileUrl",
+      subject: "$displayName on ZEV",
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Core Claymorphic Elevation Helper
-  // ---------------------------------------------------------------------------
   Widget _buildClayCard({
     required Widget child,
     EdgeInsetsGeometry? padding,
@@ -130,13 +132,11 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
               width: 1.5,
             ),
         boxShadow: [
-          // Dark tactile drop shadow (bottom-right)
           BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.12),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.14),
             blurRadius: depth * 2.8,
             offset: Offset(depth * 0.7, depth * 0.9),
           ),
-          // Crisp glossy white ambient light (top-left)
           BoxShadow(
             color: Colors.white.withValues(alpha: 0.7),
             blurRadius: depth * 1.8,
@@ -157,10 +157,13 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
 
     final activeGradient = _themeGradients[_colorThemeIndex];
     final primaryColor = activeGradient.first;
+    final themeName = _themeNames[_colorThemeIndex];
 
-    // Responsive dimensions
-    final cardWidth = (screenWidth * (isSmall ? 0.88 : 0.82)).clamp(260.0, 360.0);
-    final avatarSize = isSmall ? 68.0 : 82.0;
+    final isGold = widget.badgeTier == 'gold';
+    final isVerified = widget.isVerified || isGold || widget.badgeTier == 'blue';
+
+    final cardWidth = (screenWidth * (isSmall ? 0.88 : 0.84)).clamp(270.0, 360.0);
+    final avatarSize = isSmall ? 68.0 : 80.0;
     final qrSize = (isSmall ? 150.0 : 185.0).clamp(130.0, 200.0);
 
     return Scaffold(
@@ -169,16 +172,14 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: activeGradient,
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
         ),
         child: SafeArea(
           child: Column(
             children: [
-              // ---------------------------------------------------------------
-              // Clay Top Bar
-              // ---------------------------------------------------------------
+              // Top Bar
               Padding(
                 padding: EdgeInsets.symmetric(
                   horizontal: isSmall ? 12 : 18,
@@ -187,7 +188,7 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Clay Close Button
+                    // Close Button
                     GestureDetector(
                       onTap: () {
                         HapticFeedback.lightImpact();
@@ -210,11 +211,11 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
                       ),
                     ),
 
-                    // Clay Color Theme Switcher
+                    // Color Theme Switcher Pill
                     GestureDetector(
                       onTap: _cycleColorTheme,
                       child: _buildClayCard(
-                        borderRadius: 18,
+                        borderRadius: 20,
                         depth: 2.8,
                         color: Colors.white.withValues(alpha: 0.22),
                         border: Border.all(
@@ -222,7 +223,7 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
                           width: 1.4,
                         ),
                         padding: EdgeInsets.symmetric(
-                          horizontal: isSmall ? 10 : 14,
+                          horizontal: isSmall ? 12 : 16,
                           vertical: 7,
                         ),
                         child: Row(
@@ -233,12 +234,12 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
                               color: Colors.white,
                               size: 16,
                             ),
-                            const SizedBox(width: 6),
+                            const SizedBox(width: 7),
                             Text(
-                              "COLOR",
+                              themeName,
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: isSmall ? 10.5 : 11.5,
+                                fontSize: isSmall ? 11 : 12,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 0.8,
                               ),
@@ -248,15 +249,13 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
                       ),
                     ),
 
-                    // Balance placeholder
+                    // Placeholder to maintain balance
                     const SizedBox(width: 44),
                   ],
                 ),
               ),
 
-              // ---------------------------------------------------------------
-              // Central Scrollable Clay QR Hero Card
-              // ---------------------------------------------------------------
+              // Central Instagram-Style Profile Card
               Expanded(
                 child: Center(
                   child: SingleChildScrollView(
@@ -280,62 +279,82 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              // 1. 3D Tactile Clay Avatar Well
-                              Stack(
-                                alignment: Alignment.center,
+                              // Top Brand Header
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Container(
-                                    width: avatarSize + 12,
-                                    height: avatarSize + 12,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
                                     decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: Colors.white,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: primaryColor
-                                              .withValues(alpha: 0.35),
-                                          blurRadius: 18,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                        const BoxShadow(
-                                          color: Colors.white,
-                                          blurRadius: 10,
-                                          offset: Offset(-3, -3),
+                                      color: primaryColor.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.bolt_rounded, size: 14, color: primaryColor),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          "ZEV PROFILE",
+                                          style: TextStyle(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w900,
+                                            color: primaryColor,
+                                            letterSpacing: 1.0,
+                                          ),
                                         ),
                                       ],
-                                      border: Border.all(
-                                        color: primaryColor,
-                                        width: 2.8,
-                                      ),
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(3.0),
-                                      child: ClipOval(
-                                        child: widget.avatarUrl.isNotEmpty
-                                            ? ZevCachedImage.avatar(
-                                                imageUrl: widget.avatarUrl,
-                                                size: avatarSize,
-                                              )
-                                            : Container(
-                                                color: const Color(0xFFF1F5F9),
-                                                child: Icon(
-                                                  Icons.person,
-                                                  color: const Color(0xFF94A3B8),
-                                                  size: avatarSize * 0.55,
-                                                ),
-                                              ),
-                                      ),
                                     ),
                                   ),
                                 ],
                               ),
+                              SizedBox(height: isSmall ? 12 : 16),
+
+                              // Avatar with Dynamic Theme Gradient Ring
+                              Container(
+                                width: avatarSize + 10,
+                                height: avatarSize + 10,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: LinearGradient(
+                                    colors: activeGradient,
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: primaryColor.withValues(alpha: 0.35),
+                                      blurRadius: 16,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(3.0),
+                                  child: ClipOval(
+                                    child: widget.avatarUrl.isNotEmpty
+                                        ? ZevCachedImage.avatar(
+                                            imageUrl: widget.avatarUrl,
+                                            size: avatarSize,
+                                          )
+                                        : Container(
+                                            color: const Color(0xFFF1F5F9),
+                                            child: Icon(
+                                              Icons.person,
+                                              color: const Color(0xFF94A3B8),
+                                              size: avatarSize * 0.55,
+                                            ),
+                                          ),
+                                  ),
+                                ),
+                              ),
                               SizedBox(height: isSmall ? 10 : 14),
 
-                              // 2. Full Name & @Username
+                              // Full Name
                               Text(
                                 widget.fullName.isNotEmpty
                                     ? widget.fullName
-                                    : "@${widget.username}",
+                                    : "@$_cleanUsername",
                                 style: TextStyle(
                                   fontSize: isSmall ? 17 : 20,
                                   fontWeight: FontWeight.w900,
@@ -346,18 +365,57 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                "@${widget.username}",
-                                style: TextStyle(
-                                  fontSize: isSmall ? 12.5 : 14,
-                                  fontWeight: FontWeight.w800,
-                                  color: primaryColor,
-                                ),
+                              const SizedBox(height: 3),
+
+                              // Username Handle + Verification Badge
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    "@$_cleanUsername",
+                                    style: TextStyle(
+                                      fontSize: isSmall ? 12.5 : 14,
+                                      fontWeight: FontWeight.w800,
+                                      color: primaryColor,
+                                    ),
+                                  ),
+                                  if (isVerified) ...[
+                                    const SizedBox(width: 5),
+                                    Icon(
+                                      isGold
+                                          ? Icons.emoji_events_rounded
+                                          : Icons.verified_rounded,
+                                      size: 16,
+                                      color: isGold
+                                          ? const Color(0xFFF59E0B)
+                                          : ZevColors.primaryBlue,
+                                    ),
+                                  ],
+                                ],
                               ),
+
+                              // Optional Bio Snippet
+                              if (widget.bio != null && widget.bio!.trim().isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                                  child: Text(
+                                    widget.bio!.trim(),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      color: Color(0xFF64748B),
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ),
+                              ],
                               SizedBox(height: isSmall ? 14 : 18),
 
-                              // 3. GENUINE, REAL SCANNABLE QR CODE
+                              // Scannable Profile QR Code
                               _buildClayCard(
                                 borderRadius: 22,
                                 depth: 2.8,
@@ -370,26 +428,22 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
                                 child: Stack(
                                   alignment: Alignment.center,
                                   children: [
-                                    // Real QR Image View
                                     QrImageView(
-                                      data: _referralLink,
+                                      data: _profileUrl,
                                       version: QrVersions.auto,
                                       size: qrSize,
-                                      errorCorrectionLevel:
-                                          QrErrorCorrectLevel.M,
+                                      errorCorrectionLevel: QrErrorCorrectLevel.M,
                                       eyeStyle: QrEyeStyle(
                                         eyeShape: QrEyeShape.square,
                                         color: const Color(0xFF0F172A),
                                       ),
                                       dataModuleStyle: const QrDataModuleStyle(
-                                        dataModuleShape:
-                                            QrDataModuleShape.circle,
+                                        dataModuleShape: QrDataModuleShape.circle,
                                         color: Color(0xFF0F172A),
                                       ),
                                       gapless: true,
                                     ),
-
-                                    // Center ZEV Network Watermark Badge
+                                    // Center ZEV Watermark Emblem
                                     Container(
                                       width: isSmall ? 32 : 38,
                                       height: isSmall ? 32 : 38,
@@ -402,8 +456,7 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
                                         ),
                                         boxShadow: [
                                           BoxShadow(
-                                            color: Colors.black
-                                                .withValues(alpha: 0.15),
+                                            color: Colors.black.withValues(alpha: 0.15),
                                             blurRadius: 8,
                                             offset: const Offset(0, 2),
                                           ),
@@ -423,40 +476,34 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
                                   ],
                                 ),
                               ),
-                              SizedBox(height: isSmall ? 12 : 16),
+                              SizedBox(height: isSmall ? 14 : 18),
 
-                              // 4. Referral Code Box (Pill Container with Copy)
+                              // Direct Profile Link Chip (Tap to Copy)
                               GestureDetector(
-                                onTap: _copyReferralCode,
-                                child: _buildClayCard(
-                                  borderRadius: 14,
-                                  depth: 2.0,
-                                  color: const Color(0xFFF1F5F9),
-                                  border: Border.all(
-                                    color: const Color(0xFFCBD5E1),
-                                    width: 1.2,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
+                                onTap: _copyProfileLink,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: const Color(0xFFE2E8F0)),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       const Icon(
-                                        Icons.confirmation_number_outlined,
-                                        size: 15,
+                                        Icons.link_rounded,
+                                        size: 16,
                                         color: Color(0xFF64748B),
                                       ),
                                       const SizedBox(width: 6),
                                       Flexible(
                                         child: Text(
-                                          "Code: $_referralCode",
+                                          _displayUrl,
                                           style: TextStyle(
                                             fontSize: isSmall ? 11.5 : 12.5,
-                                            fontWeight: FontWeight.w900,
+                                            fontWeight: FontWeight.w700,
                                             color: const Color(0xFF0F172A),
-                                            fontFamily: 'monospace',
                                           ),
                                           overflow: TextOverflow.ellipsis,
                                         ),
@@ -480,9 +527,7 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
                 ),
               ),
 
-              // ---------------------------------------------------------------
-              // Clay Bottom Action Buttons
-              // ---------------------------------------------------------------
+              // Bottom Instagram-Style Action Buttons
               Padding(
                 padding: EdgeInsets.fromLTRB(
                   isSmall ? 14 : 20,
@@ -492,10 +537,10 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
                 ),
                 child: Row(
                   children: [
-                    // Copy Link Clay Button
+                    // Copy Link Button
                     Expanded(
                       child: GestureDetector(
-                        onTap: _copyLink,
+                        onTap: _copyProfileLink,
                         child: _buildClayCard(
                           borderRadius: 16,
                           depth: 3.2,
@@ -529,7 +574,7 @@ class _ShareProfileScreenState extends State<ShareProfileScreen> {
                     ),
                     const SizedBox(width: 12),
 
-                    // Share Profile Clay Button
+                    // Share Profile Button
                     Expanded(
                       child: GestureDetector(
                         onTap: _shareProfile,

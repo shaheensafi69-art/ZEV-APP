@@ -1388,6 +1388,9 @@ class _ProfileScreenState extends State<ProfileScreen>
               "${_profile['first_name'] ?? ''} ${_profile['last_name'] ?? ''}"
                   .trim(),
           avatarUrl: _profile['avatar_url'] ?? '',
+          bio: _profile['bio']?.toString(),
+          isVerified: _profile['is_verified'] == true,
+          badgeTier: (_profile['badge_tier'] ?? 'none').toString(),
         ),
       ),
     );
