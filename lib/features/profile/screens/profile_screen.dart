@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -344,10 +345,17 @@ class _ProfileScreenState extends State<ProfileScreen>
         );
       }
 
+      final dbFollowersCount = (_profile['followers_count'] as num?)?.toInt();
+      final dbFollowingCount = (_profile['following_count'] as num?)?.toInt();
+
       if (mounted) {
         setState(() {
-          _followersCount = followersList.length;
-          _followingCount = followingList.length;
+          _followersCount = (dbFollowersCount != null && dbFollowersCount > followersList.length)
+              ? dbFollowersCount
+              : followersList.length;
+          _followingCount = (dbFollowingCount != null && dbFollowingCount > followingList.length)
+              ? dbFollowingCount
+              : followingList.length;
           _isFollowing = isFollowingMe;
         });
       }
@@ -2534,6 +2542,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
             child: RefreshIndicator(
               color: ZevColors.primaryBlue,
+              notificationPredicate: (notification) => true,
               onRefresh: _loadAllProfileData,
               child: NestedScrollView(
                 physics: const AlwaysScrollableScrollPhysics(
@@ -2800,6 +2809,11 @@ class _ProfileScreenState extends State<ProfileScreen>
     bool isVerified, [
     bool isCompact = false,
   ]) {
+    final accountType =
+        (_profile['account_type'] ?? 'personal').toString().toLowerCase();
+    final isProfessional =
+        accountType == 'creator' || accountType == 'business';
+
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: isCompact ? 10 : 16,
@@ -2946,27 +2960,29 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    CreatorInsightsScreen.open(
-                      context,
-                      userProfile: _profile,
-                    ).then((_) => _loadAllProfileData());
-                  },
-                  behavior: HitTestBehavior.opaque,
-                  child: _buildClayCard(
-                    borderRadius: 12,
-                    depth: 3.0,
-                    padding: const EdgeInsets.all(7),
-                    child: const Icon(
-                      Icons.insights_rounded,
-                      color: ZevColors.secondaryBlue,
-                      size: 21,
+                if (_isMyProfile && isProfessional) ...[
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      CreatorInsightsScreen.open(
+                        context,
+                        userProfile: _profile,
+                      ).then((_) => _loadAllProfileData());
+                    },
+                    behavior: HitTestBehavior.opaque,
+                    child: _buildClayCard(
+                      borderRadius: 12,
+                      depth: 3.0,
+                      padding: const EdgeInsets.all(7),
+                      child: const Icon(
+                        Icons.insights_rounded,
+                        color: ZevColors.secondaryBlue,
+                        size: 21,
+                      ),
                     ),
                   ),
-                ),
+                ],
                 const SizedBox(width: 8),
                 GestureDetector(
                   onTap: _openCreateMenu,
@@ -3184,7 +3200,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                   Expanded(
                     child: _buildStatItem(
                       label: "Posts",
-                      count: _userPosts.length + _userReels.length,
+                      count: math.max(
+                        _userPosts.length + _userReels.length,
+                        ((_profile['posts_count'] as num?)?.toInt() ?? 0) +
+                            ((_profile['reels_count'] as num?)?.toInt() ?? 0),
+                      ),
                       isCompact: isCompact,
                     ),
                   ),
@@ -4420,7 +4440,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
 
     return GridView.builder(
-      physics: const BouncingScrollPhysics(),
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
       padding: const EdgeInsets.fromLTRB(10, 4, 10, 100),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
@@ -4519,7 +4541,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
 
     return GridView.builder(
-      physics: const BouncingScrollPhysics(),
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
       padding: const EdgeInsets.fromLTRB(10, 4, 10, 100),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
@@ -4568,7 +4592,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
 
     return GridView.builder(
-      physics: const BouncingScrollPhysics(),
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
       padding: const EdgeInsets.fromLTRB(10, 4, 10, 100),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
@@ -4670,7 +4696,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     return GridView.builder(
-      physics: const BouncingScrollPhysics(),
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
       padding: const EdgeInsets.fromLTRB(10, 4, 10, 100),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
@@ -4787,7 +4815,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   }) {
     return Center(
       child: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         child: _buildClayCard(
           borderRadius: 24,

@@ -80,6 +80,10 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   Map<String, dynamic> _myProfileMap = {};
   StreamSubscription<AuthState>? _authSubscription;
 
+  // Reels triple-tap fast refresh tracking
+  int _reelsTapCount = 0;
+  DateTime? _lastReelsTapTime;
+
   // Persistent cached tab widgets to prevent unnecessary rebuilds
   late final Widget _feedTab;
   late final Widget _exploreTab;
@@ -230,6 +234,55 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
   void _onTabTapped(int index) {
     HapticFeedback.selectionClick();
     FocusScope.of(context).unfocus();
+
+    // Reels rapid 3-tap refresh trigger
+    if (index == 3) {
+      final now = DateTime.now();
+      if (_lastReelsTapTime != null &&
+          now.difference(_lastReelsTapTime!) < const Duration(milliseconds: 700)) {
+        _reelsTapCount++;
+      } else {
+        _reelsTapCount = 1;
+      }
+      _lastReelsTapTime = now;
+
+      if (_reelsTapCount >= 3) {
+        _reelsTapCount = 0;
+        HapticFeedback.heavyImpact();
+        ReelsViewerScreen.refreshReels();
+        ScaffoldMessenger.of(context).removeCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: const [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Refreshing Reels...',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.black87,
+            duration: const Duration(seconds: 1),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    } else {
+      _reelsTapCount = 0;
+    }
+
     setState(() => _currentIndex = index);
     if (kIsWeb) {
       switch (index) {

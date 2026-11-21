@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../features/feed/models/feed_post_item.dart';
 import '../../features/reels/models/reel_item.dart';
 
@@ -46,6 +48,8 @@ class FeedAlgorithmService {
     String? category,
     String? text,
     double weight = 4.0,
+    String? contentId,
+    String? contentType,
   }) {
     if (authorId.isNotEmpty) {
       _authorAffinity[authorId] =
@@ -64,6 +68,40 @@ class FeedAlgorithmService {
         }
       }
     }
+    if (contentId != null && contentId.isNotEmpty) {
+      recordInteractionTelemetry(
+        contentType: contentType ?? 'post',
+        contentId: contentId,
+        interactionType: weight >= 6 ? 'save' : (weight >= 5 ? 'comment' : 'like'),
+        category: category,
+        authorId: authorId.isNotEmpty ? authorId : null,
+        weight: weight,
+      );
+    }
+  }
+
+  void recordInteractionTelemetry({
+    required String contentType,
+    required String contentId,
+    required String interactionType,
+    String? category,
+    String? authorId,
+    double? weight,
+  }) {
+    if (contentId.isEmpty) return;
+    try {
+      Supabase.instance.client.rpc(
+        'record_content_interaction',
+        params: {
+          'p_content_type': contentType,
+          'p_content_id': contentId,
+          'p_interaction_type': interactionType,
+          'p_category': category,
+          'p_author_id': authorId,
+          'p_weight': weight,
+        },
+      ).catchError((_) {});
+    } catch (_) {}
   }
 
   void recordNegativeFeedback({
@@ -74,9 +112,23 @@ class FeedAlgorithmService {
   }) {
     if (postId != null && postId.isNotEmpty) {
       _suppressedPostIds.add(postId);
+      recordInteractionTelemetry(
+        contentType: 'post',
+        contentId: postId,
+        interactionType: 'hide',
+        authorId: authorId,
+        weight: -10.0,
+      );
     }
     if (reelId != null && reelId.isNotEmpty) {
       _suppressedReelIds.add(reelId);
+      recordInteractionTelemetry(
+        contentType: 'reel',
+        contentId: reelId,
+        interactionType: 'hide',
+        authorId: authorId,
+        weight: -10.0,
+      );
     }
     if (authorId != null && authorId.isNotEmpty) {
       _authorAffinity[authorId] =

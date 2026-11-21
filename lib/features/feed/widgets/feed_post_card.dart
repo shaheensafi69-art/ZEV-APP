@@ -87,6 +87,7 @@ class _FeedPostCardState extends State<FeedPostCard>
     _isSaved = _post.isBookmarkedByMe;
     _isFollowing = _post.isAuthorFollowed;
     FeedAlgorithmService.instance.markSeen(_post.id);
+    _recordPostViewOnce();
 
     _heartAnimCtrl = AnimationController(
       vsync: this,
@@ -139,6 +140,7 @@ class _FeedPostCardState extends State<FeedPostCard>
       _post = widget.post;
       if (idChanged) {
         _setupRealtimeSync();
+        _recordPostViewOnce();
       }
       final mediaLen = _post.effectiveMediaUrls.length;
       if (mediaLen <= 1) {
@@ -236,6 +238,15 @@ class _FeedPostCardState extends State<FeedPostCard>
     _mediaPageCtrl.dispose();
     _heartAnimCtrl.dispose();
     super.dispose();
+  }
+
+  static final Set<String> _recordedPostViews = <String>{};
+
+  void _recordPostViewOnce() {
+    final postId = _post.id;
+    if (postId.isEmpty || _recordedPostViews.contains(postId)) return;
+    _recordedPostViews.add(postId);
+    supabase.rpc('record_post_view', params: {'p_post_id': postId}).catchError((_) {});
   }
 
   String _getCategorySubtitle() {

@@ -28,8 +28,15 @@ class ReelsViewerScreen extends StatefulWidget {
   static final ValueNotifier<String?> targetReelNotifier =
       ValueNotifier<String?>(null);
 
+  /// Global refresh notifier triggered e.g. on triple-tap of Reels bottom nav button
+  static final ValueNotifier<int> refreshNotifier = ValueNotifier<int>(0);
+
   static void jumpToReelId(String reelId) {
     targetReelNotifier.value = reelId;
+  }
+
+  static void refreshReels() {
+    refreshNotifier.value++;
   }
 
   @override
@@ -81,6 +88,7 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen>
     WidgetsBinding.instance.addObserver(this);
     _pageController = PageController();
     ReelsViewerScreen.targetReelNotifier.addListener(_onTargetReelChanged);
+    ReelsViewerScreen.refreshNotifier.addListener(_onRefreshTriggered);
     _fetchReels();
   }
 
@@ -118,9 +126,25 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen>
   @override
   void dispose() {
     ReelsViewerScreen.targetReelNotifier.removeListener(_onTargetReelChanged);
+    ReelsViewerScreen.refreshNotifier.removeListener(_onRefreshTriggered);
     WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     super.dispose();
+  }
+
+  void _onRefreshTriggered() {
+    if (!mounted) return;
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(
+        0,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+      );
+    }
+    _cursorCreatedAt = null;
+    _cursorId = null;
+    _loadedReelIds.clear();
+    _fetchReels();
   }
 
   void _syncPlaybackAndPreload() {
