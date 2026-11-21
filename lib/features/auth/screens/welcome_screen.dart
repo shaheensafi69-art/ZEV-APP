@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/utils/web_url_helper.dart';
 import '../../../core/widgets/apple_sign_in_button.dart';
 import '../../../core/widgets/google_sign_in_button.dart';
 import '../../../core/widgets/zev_logo.dart';
+import '../widgets/zev_auth_web_wrapper.dart';
 import 'login_screen.dart';
 
 /// Flagship Serene Welcome & Onboarding Screen for ZEV.
@@ -131,6 +133,111 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     // 3. Carousel Auto-scroll
     _pageController = PageController();
     _startCarouselTimer();
+
+    // 4. Check for OAuth errors in browser URL (Web only)
+    _checkForOAuthError();
+  }
+
+  void _checkForOAuthError() {
+    if (!kIsWeb) return;
+    try {
+      final params = getBrowserQueryParams();
+      final errorDesc = params['error_description'] ?? params['error'];
+      if (errorDesc != null && errorDesc.isNotEmpty) {
+        replaceBrowserUrl(Uri.base.path);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _showOAuthNotice(errorDesc);
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _showOAuthNotice(String errorDesc) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 20,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Color(0xFFD97706),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      "Google Sign-In Notice",
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                errorDesc.contains("Unable to exchange")
+                    ? "Google authentication was approved, but Supabase could not exchange the authorization code. Please ensure the Google Client Secret is saved in Supabase Dashboard (Authentication ➔ Providers ➔ Google)."
+                    : errorDesc,
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  color: Color(0xFF475569),
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00D4FF),
+                    foregroundColor: const Color(0xFF080D1A),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: const Text(
+                    "Got it",
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _startCarouselTimer() {
@@ -169,8 +276,114 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     }
   }
 
+  Widget _buildDesktopContent() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Center(
+          child: ZevLogo(height: 48),
+        ),
+        const SizedBox(height: 20),
+        const Text(
+          "Welcome to ZEV",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w900,
+            color: ZevColors.deepNavy,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          "Connect with friends, share 4K reels, and join authentic creator communities.",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13.5,
+            color: Color(0xFF64748B),
+            height: 1.45,
+          ),
+        ),
+        const SizedBox(height: 28),
+
+        // 1. Google Sign-In
+        GoogleSignInButton(
+          text: "Continue with Google",
+          onSuccess: () {},
+          onError: (msg) => _showOAuthNotice(msg),
+        ),
+
+        const SizedBox(height: 12),
+
+        // 2. Continue with Email
+        _buildEmailAuthButton(),
+
+        const SizedBox(height: 20),
+
+        // Divider
+        Row(
+          children: [
+            Expanded(child: Container(height: 1, color: const Color(0xFFE2E8F0))),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14),
+              child: Text(
+                "OR",
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF94A3B8),
+                ),
+              ),
+            ),
+            Expanded(child: Container(height: 1, color: const Color(0xFFE2E8F0))),
+          ],
+        ),
+
+        const SizedBox(height: 20),
+
+        // Already have an account? Log in
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              "Already have an account?",
+              style: TextStyle(
+                fontSize: 13.5,
+                color: Color(0xFF64748B),
+              ),
+            ),
+            TextButton(
+              onPressed: _handleLogin,
+              child: const Text(
+                "Log In",
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF00D4FF),
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 16),
+        _buildTrustFootnote(),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isDesktop = kIsWeb && screenWidth >= 960;
+
+    if (isDesktop) {
+      return ZevAuthWebWrapper(
+        child: _buildDesktopContent(),
+      );
+    }
+
     final size = MediaQuery.of(context).size;
     final isSmallScreen = size.height < 700;
 

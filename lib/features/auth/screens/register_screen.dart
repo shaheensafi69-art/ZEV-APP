@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -14,8 +15,10 @@ import '../../../core/services/multi_account_service.dart';
 import '../../../core/services/passkey_auth_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/google_sign_in_button.dart';
+import '../../../core/widgets/zev_logo.dart';
 import '../../../core/widgets/zev_text_field.dart';
 import '../../main_navigation/screens/zev_main_layout.dart';
+import '../widgets/zev_auth_web_wrapper.dart';
 import 'login_screen.dart';
 
 /// Next-Generation Instagram-Grade Registration Experience for ZEV.
@@ -784,8 +787,250 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  Widget _buildFormColumn() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const SizedBox(height: 16),
+
+        // Error Banner
+        if (_errorMsg != null) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF2F2),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: const Color(0xFFFCA5A5),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline_rounded,
+                      size: 19,
+                      color: Color(0xFFDC2626),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _errorMsg!,
+                        style: const TextStyle(
+                          color: Color(0xFF991B1B),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_existingAccountEmail != null) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const LoginScreen(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.login_rounded, size: 16),
+                          label: const Text("Log In Now"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: ZevColors.primaryBlue,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            textStyle: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            HapticFeedback.lightImpact();
+                            try {
+                              await supabase.auth.resend(
+                                type: OtpType.signup,
+                                email: _existingAccountEmail!,
+                              );
+                            } catch (_) {}
+                            setState(() {
+                              _errorMsg = null;
+                              _step = 4;
+                            });
+                            _startResendTimer();
+                            _startEmailLinkListener();
+                          },
+                          icon: const Icon(Icons.mark_email_read_rounded, size: 16),
+                          label: const Text("Verify Email"),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: ZevColors.primaryBlue,
+                            side: const BorderSide(color: ZevColors.primaryBlue),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            textStyle: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        if (_step == 1) _buildStep1Identity(),
+        if (_step == 2) _buildStep2Handle(),
+        if (_step == 3) _buildStep3Security(),
+        if (_step == 4) _buildStep4EmailVerification(),
+
+        const SizedBox(height: 28),
+      ],
+    );
+  }
+
+  Widget _buildDesktopRegisterContent(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            IconButton(
+              icon: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: ZevColors.deepNavy,
+                size: 18,
+              ),
+              onPressed: () {
+                if (_step > 1 && !_isSuccess) {
+                  _prevStep();
+                } else {
+                  Navigator.maybePop(context);
+                }
+              },
+            ),
+            const ZevLogo(height: 36),
+            if (!_isSuccess)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: ZevColors.secondaryBlue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  "Step $_step of 4",
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: ZevColors.secondaryBlue,
+                  ),
+                ),
+              )
+            else
+              const SizedBox(width: 36),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (!_isSuccess)
+          Container(
+            height: 3,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: ZevColors.border,
+              borderRadius: BorderRadius.circular(2),
+            ),
+            child: FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: _step / 4.0,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: ZevColors.primaryBlue,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+          ),
+        const SizedBox(height: 16),
+        _isSuccess ? _buildSuccessView() : _buildFormColumn(),
+        if (!_isSuccess && _step < 4) ...[
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                "Already have an account? ",
+                style: TextStyle(
+                  fontSize: 13.5,
+                  color: ZevColors.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LoginScreen(),
+                    ),
+                  );
+                },
+                child: const Text(
+                  "Log in",
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: ZevColors.secondaryBlue,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isDesktop = kIsWeb && screenWidth >= 960;
+
+    if (isDesktop) {
+      return ZevAuthWebWrapper(
+        child: _buildDesktopRegisterContent(context),
+      );
+    }
+
     return Scaffold(
       backgroundColor: ZevColors.white,
       appBar: AppBar(
@@ -845,132 +1090,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: _isSuccess
                         ? _buildSuccessView()
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              const SizedBox(height: 16),
-
-                              // Error Banner
-                              if (_errorMsg != null) ...[
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFEF2F2),
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
-                                      color: const Color(0xFFFCA5A5),
-                                    ),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.error_outline_rounded,
-                                            size: 19,
-                                            color: Color(0xFFDC2626),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Text(
-                                              _errorMsg!,
-                                              style: const TextStyle(
-                                                color: Color(0xFF991B1B),
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      if (_existingAccountEmail != null) ...[
-                                        const SizedBox(height: 12),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: ElevatedButton.icon(
-                                                onPressed: () {
-                                                  HapticFeedback.lightImpact();
-                                                  Navigator.pushReplacement(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (_) => const LoginScreen(),
-                                                    ),
-                                                  );
-                                                },
-                                                icon: const Icon(Icons.login_rounded, size: 16),
-                                                label: const Text("Log In Now"),
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: ZevColors.primaryBlue,
-                                                  foregroundColor: Colors.white,
-                                                  elevation: 0,
-                                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(10),
-                                                  ),
-                                                  textStyle: const TextStyle(
-                                                    fontSize: 12.5,
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: OutlinedButton.icon(
-                                                onPressed: () async {
-                                                  HapticFeedback.lightImpact();
-                                                  try {
-                                                    await supabase.auth.resend(
-                                                      type: OtpType.signup,
-                                                      email: _existingAccountEmail!,
-                                                    );
-                                                  } catch (_) {}
-                                                  setState(() {
-                                                    _errorMsg = null;
-                                                    _step = 4;
-                                                  });
-                                                  _startResendTimer();
-                                                  _startEmailLinkListener();
-                                                },
-                                                icon: const Icon(Icons.mark_email_read_rounded, size: 16),
-                                                label: const Text("Verify Email"),
-                                                style: OutlinedButton.styleFrom(
-                                                  foregroundColor: ZevColors.primaryBlue,
-                                                  side: const BorderSide(color: ZevColors.primaryBlue),
-                                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(10),
-                                                  ),
-                                                  textStyle: const TextStyle(
-                                                    fontSize: 12.5,
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                              ],
-
-                              if (_step == 1) _buildStep1Identity(),
-                              if (_step == 2) _buildStep2Handle(),
-                              if (_step == 3) _buildStep3Security(),
-                              if (_step == 4) _buildStep4EmailVerification(),
-
-                              const SizedBox(height: 28),
-                            ],
-                          ),
+                        : _buildFormColumn(),
                   ),
                 ),
               ),

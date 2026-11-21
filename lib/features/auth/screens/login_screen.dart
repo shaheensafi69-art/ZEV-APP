@@ -15,8 +15,10 @@ import '../../../core/widgets/google_sign_in_button.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_logo.dart';
 import '../../../core/widgets/zev_text_field.dart';
+import '../../../core/utils/web_url_helper.dart';
 import '../../main_navigation/screens/zev_main_layout.dart';
 import '../widgets/mfa_challenge_sheet.dart';
+import '../widgets/zev_auth_web_wrapper.dart';
 import 'account_standing_screen.dart';
 import 'email_verification_screen.dart';
 import 'forgot_password_screen.dart';
@@ -92,6 +94,28 @@ class _LoginScreenState extends State<LoginScreen>
 
     // 3. Check Passkey / Biometric capability
     _checkPasskey();
+
+    // 4. Check for OAuth errors in browser URL (Web only)
+    _checkForOAuthError();
+  }
+
+  void _checkForOAuthError() {
+    if (!kIsWeb) return;
+    try {
+      final params = getBrowserQueryParams();
+      final errorDesc = params['error_description'] ?? params['error'];
+      if (errorDesc != null && errorDesc.isNotEmpty) {
+        replaceBrowserUrl(Uri.base.path);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() {
+            _errorMsg = errorDesc.contains("Unable to exchange")
+                ? "Google authentication was approved, but Supabase could not exchange the authorization code. Please ensure the Google Client Secret is saved in Supabase Dashboard (Authentication ➔ Providers ➔ Google)."
+                : errorDesc;
+          });
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _checkPasskey() async {
@@ -339,6 +363,51 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isDesktop = kIsWeb && screenWidth >= 960;
+
+    if (isDesktop) {
+      return ZevAuthWebWrapper(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (Navigator.canPop(context))
+                  IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: ZevColors.deepNavy,
+                      size: 18,
+                    ),
+                    onPressed: () => Navigator.maybePop(context),
+                  )
+                else
+                  const SizedBox(width: 36),
+                const ZevLogo(height: 38),
+                const SizedBox(width: 36),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _isLoadingAccounts
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(40),
+                      child: CircularProgressIndicator(
+                        color: ZevColors.primaryBlue,
+                      ),
+                    ),
+                  )
+                : (_showSavedAccountsView
+                    ? _buildInstagramSavedAccountsView()
+                    : _buildStandardLoginForm()),
+          ],
+        ),
+      );
+    }
+
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
