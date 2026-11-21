@@ -66,6 +66,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
   final bool _has2fa = true;
 
   late TabController _tabCtrl;
+  late TabController _verifiedTabCtrl;
 
   // Application Form Controllers
   String _selectedTier = 'blue'; // 'blue' or 'gold'
@@ -86,7 +87,11 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: 3, vsync: this);
+    _verifiedTabCtrl = TabController(length: 2, vsync: this);
     _tabCtrl.addListener(() {
+      if (mounted) setState(() {});
+    });
+    _verifiedTabCtrl.addListener(() {
       if (mounted) setState(() {});
     });
     _legalNameCtrl.text =
@@ -100,6 +105,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
   @override
   void dispose() {
     _tabCtrl.dispose();
+    _verifiedTabCtrl.dispose();
     _legalNameCtrl.dispose();
     _knownAsCtrl.dispose();
     _pressLink1Ctrl.dispose();
@@ -534,43 +540,9 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
                       color: ZevColors.primaryBlue,
                     ),
                   )
-                : Column(
-                    children: [
-                      // Header Badge Hero (Blue vs Gold)
-                      _buildHeaderHero(fullName, username),
-
-                      // Tab Navigation Pills
-                      Container(
-                        height: 44,
-                        margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                        padding: const EdgeInsets.all(3.5),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE2E8F0).withValues(alpha: 0.65),
-                          borderRadius: BorderRadius.circular(22),
-                        ),
-                        child: Row(
-                          children: [
-                            _buildTabPill(0, "10 Rules"),
-                            _buildTabPill(1, "2 Tiers & Audit"),
-                            _buildTabPill(2, "Apply"),
-                          ],
-                        ),
-                      ),
-
-                      // Tab Views
-                      Expanded(
-                        child: TabBarView(
-                          controller: _tabCtrl,
-                          physics: const BouncingScrollPhysics(),
-                          children: [
-                            _buildRulesTab(),
-                            _buildTiersAndAuditTab(),
-                            _buildApplyTab(),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                : (_isVerified && _badgeTier != 'gold'
+                    ? _buildVerifiedBlueUserView(fullName, username)
+                    : _buildStandardApplicantView(fullName, username)),
           ),
         ),
       ),
@@ -578,6 +550,677 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
   }
 
   String _profileLastName() => (widget.userProfile['last_name'] ?? '').toString();
+
+  Widget _buildVerifiedBlueUserView(String fullName, String username) {
+    return Column(
+      children: [
+        _buildHeaderHero(fullName, username),
+        Container(
+          height: 44,
+          margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          padding: const EdgeInsets.all(3.5),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE2E8F0).withValues(alpha: 0.65),
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Row(
+            children: [
+              _buildVerifiedTabPill(0, "Keep Badge Safe"),
+              _buildVerifiedTabPill(1, "ZEV Gold Rules"),
+            ],
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _verifiedTabCtrl,
+            physics: const BouncingScrollPhysics(),
+            children: [
+              _buildKeepBadgeSafeTab(fullName, username),
+              _buildGoldRulesTab(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStandardApplicantView(String fullName, String username) {
+    return Column(
+      children: [
+        _buildHeaderHero(fullName, username),
+        Container(
+          height: 44,
+          margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          padding: const EdgeInsets.all(3.5),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE2E8F0).withValues(alpha: 0.65),
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Row(
+            children: [
+              _buildTabPill(0, "10 Rules"),
+              _buildTabPill(1, "2 Tiers & Audit"),
+              _buildTabPill(2, "Apply"),
+            ],
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _tabCtrl,
+            physics: const BouncingScrollPhysics(),
+            children: [
+              _buildRulesTab(),
+              _buildTiersAndAuditTab(),
+              _buildApplyTab(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVerifiedTabPill(int index, String label) {
+    final isSelected = _verifiedTabCtrl.index == index;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          _verifiedTabCtrl.animateTo(index);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(19),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: ZevColors.deepNavy.withValues(alpha: 0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+              color: isSelected ? ZevColors.deepNavy : ZevColors.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildKeepBadgeSafeTab(String fullName, String username) {
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
+      children: [
+        // Verified Badge Celebration Card
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFF0FDF4), Color(0xFFDCFCE7)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF86EFAC), width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF16A34A).withValues(alpha: 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: ZevColors.brandGradient,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: ZevColors.secondaryBlue.withValues(alpha: 0.35),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.verified_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'You Have ZEV Blue Verification',
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF14532D),
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Official Verified Public Figure & Creator on ZEV Platform.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF166534),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Safety Alert Card
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFEF2F2),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFFCA5A5), width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFDC2626).withValues(alpha: 0.06),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEE2E2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.shield_rounded,
+                      color: Color(0xFFDC2626),
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Keep Your Blue Badge Safe',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF991B1B),
+                          ),
+                        ),
+                        Text(
+                          'قوانین صیف نگاه داشتن بلو تیک',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFB91C1C),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'برای صیف نگاه داشتن بلو تیک، نباید از هیچ‌یک از قوانین و دستورالعمل‌های ZEV سرپیچی کنید. تیک آبی نشانه شهرت، اصالت و اعتماد است؛ هرگونه نقض قوانین پلتفرم، منجر به سلب فوری و دائمی نشان تأیید خواهد شد.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF7F1D1D),
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // 5 Strict Rules to Preserve Blue Badge
+        _buildSafetyRuleCard(
+          number: '1',
+          title: 'Strict Community Guidelines Compliance',
+          subtitle: 'پایبندی کامل به قوانین جامعه زیف',
+          desc:
+              'انتشار هرگونه محتوای هرزنامه (اسپم)، کپی‌رایت غیرمجاز، توهین، افترا، محتوای غیراخلاقی یا نفرت‌پراکنی به ابطال بی‌درنگ تیک آبی منجر می‌شود.',
+          icon: Icons.policy_rounded,
+        ),
+        const SizedBox(height: 10),
+        _buildSafetyRuleCard(
+          number: '2',
+          title: 'Identity Integrity & Name Changes',
+          subtitle: 'ممنوعیت تغییر نام جهت جعل هویت',
+          desc:
+              'تغییر نام کاربری، تصویر یا بیو به منظور گمراه‌سازی، کلاهبرداری یا جعل هویت دیگران اکیداً ممنوع بوده و موجب مسدودی حساب می‌گردد.',
+          icon: Icons.badge_rounded,
+        ),
+        const SizedBox(height: 10),
+        _buildSafetyRuleCard(
+          number: '3',
+          title: 'Authentic & Continuous Activity',
+          subtitle: 'فعالیت مستمر، معتبر و اصیل',
+          desc:
+              'حساب تأییدشده باید حضور فعال داشته و به تولید محتوای ارزشمند و تعامل ارگانیک با دنبال‌کنندگان ادامه دهد. اکانت‌های غیرفعال بازبینی می‌شوند.',
+          icon: Icons.trending_up_rounded,
+        ),
+        const SizedBox(height: 10),
+        _buildSafetyRuleCard(
+          number: '4',
+          title: 'Active Two-Factor Authentication (2FA)',
+          subtitle: 'فعال بودن دائمی امنیت دومرحله‌ای',
+          desc:
+              'برای محافظت از هویت دیجیتال شما و پیشگیری از نفوذ، امنیت دومرحله‌ای باید همیشه روی حساب تأییدشده فعال بماند.',
+          icon: Icons.lock_outline_rounded,
+        ),
+        const SizedBox(height: 10),
+        _buildSafetyRuleCard(
+          number: '5',
+          title: 'Non-Transferable & No Selling',
+          subtitle: 'غیرقابل واگذاری یا خرید و فروش',
+          desc:
+              'تیک آبی نشان هویت شخص شماست. هرگونه تلاش برای فروش، اجاره یا واگذاری حساب به شخص ثالث موجب ابطال تیک و مسدودی دائم می‌شود.',
+          icon: Icons.not_interested_rounded,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSafetyRuleCard({
+    required String number,
+    required String title,
+    required String subtitle,
+    required String desc,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.1),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Center(
+              child: Icon(icon, color: ZevColors.primaryBlue, size: 20),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 1.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: ZevColors.primaryBlue.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '#$number',
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w900,
+                          color: ZevColors.primaryBlue,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          color: ZevColors.deepNavy,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0284C7),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  desc,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: ZevColors.textSecondary,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoldRulesTab() {
+    final goldProgress =
+        (_followersCount / kGoldFollowerThreshold).clamp(0.0, 1.0);
+
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
+      children: [
+        // Gold Banner Header
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFFFEF3C7),
+                Color(0xFFFDE68A),
+                Color(0xFFF59E0B),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFFFBBF24), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFF59E0B).withValues(alpha: 0.28),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0xFFB45309),
+                      blurRadius: 10,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.emoji_events_rounded,
+                    color: Color(0xFFD97706),
+                    size: 34,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'ZEV Gold Official Badge 🏆',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF78350F),
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'نشان رسمی طلایی زیف — بالاترین رده اعتبار سازمانی و برندهای جهانی',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF92400E),
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Follower Progress to Gold (1,000,000)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF78350F),
+                          ),
+                        ),
+                        Text(
+                          '$_followersCount / 1,000,000',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFFB45309),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: goldProgress,
+                        minHeight: 8,
+                        backgroundColor: const Color(0xFFFDE68A),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFFD97706),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 18),
+
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            'قوانین و شرایط اختصاصی دریافت تیک طلایی ZEV',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              color: ZevColors.deepNavy,
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        // 8 Gold Rules
+        _buildGoldRuleItem(
+          number: '۱',
+          title: 'حداقل ۱ میلیون دنبال‌کننده واقعی در زیف',
+          desc:
+              'متقاضی باید حداقل ۱,۰۰۰,۰۰۰ دنبال‌کننده واقعی و ارگانیک مستقیماً در پلتفرم ZEV داشته باشد. دنبال‌کنندگان جعلی پذیرفته نیستند.',
+        ),
+        _buildGoldRuleItem(
+          number: '۲',
+          title: 'سابقه تیک آبی فعال برای حداقل ۱۸۰ روز',
+          desc:
+              'حساب باید حداقل ۶ ماه دارای تیک آبی فعال بوده و در این مدت سابقه هیچ‌گونه نقض قوانین یا اخطار انضباطی نداشته باشد.',
+        ),
+        _buildGoldRuleItem(
+          number: '۳',
+          title: 'شخصیت حقوقی رسمی یا برند شناخته‌شده بین‌المللی',
+          desc:
+              'تیک طلایی منحصراً به شرکت‌های ثبت‌شده رسمی، سازمان‌های معتبر ملی و بین‌المللی، هلدینگ‌ها و برندهای سرشناس اعطا می‌شود.',
+        ),
+        _buildGoldRuleItem(
+          number: '۴',
+          title: 'مدارک ثبتی، اساسنامه و مالکیت علامت تجاری',
+          desc:
+              'ارائه گواهی ثبت برند (Trademark)، اساسنامه شرکت، شناسه ملی مالیاتی و مدارک احراز هویت هیئت مدیره در کلودفلر الزامی است.',
+        ),
+        _buildGoldRuleItem(
+          number: '۵',
+          title: 'حضور مستمر در رسانه‌های بین‌المللی رتبه یک',
+          desc:
+              'برند یا سازمان باید دارای معرفی و سابقه پوشش خبری معتبر در حداقل ۵ رسانه خبری مستقل و رسمی بین‌المللی باشد.',
+        ),
+        _buildGoldRuleItem(
+          number: '۶',
+          title: 'توافق‌نامه همکاری سازمانی اختصاصی با ZEV',
+          desc:
+              'داشتن کانال ارتباطی رسمی شرکتی و توافق‌نامه استراتژیک سازمانی با پلتفرم زیف الزامی است.',
+        ),
+        _buildGoldRuleItem(
+          number: '۷',
+          title: 'امنیت پیشرفته سازمانی و احراز هویت دومرحله‌ای',
+          desc:
+              'فعال بودن همیشگی لایه‌های امنیتی سازمانی، پروتکل‌های 2FA سخت‌گیرانه و ثبت دامنه ایمیل رسمی اختصاصی.',
+        ),
+        _buildGoldRuleItem(
+          number: '۸',
+          title: 'تولید محتوای انحصاری و استاندارد رده بالا',
+          desc:
+              'انتشار مستمر محتوای 4K/HD رسمی، تولید مدیا با بالاترین استانداردهای بصری و تعامل پایدار با کاربران.',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGoldRuleItem({
+    required String number,
+    required String title,
+    required String desc,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFDE68A), width: 1.1),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFD97706).withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF3C7),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Text(
+                number,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFFB45309),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: ZevColors.deepNavy,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  desc,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: ZevColors.textSecondary,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildTabPill(int index, String label) {
     final isSelected = _tabCtrl.index == index;

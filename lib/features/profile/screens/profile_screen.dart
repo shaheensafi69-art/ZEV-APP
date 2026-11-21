@@ -39,6 +39,8 @@ import 'creator_insights_screen.dart';
 import 'profile_settings_screen.dart';
 import 'share_profile_screen.dart';
 import 'profile_picture_viewer_screen.dart';
+import 'profile_views_screen.dart';
+import '../../../core/services/profile_views_service.dart';
 
 /// Next-Generation Claymorphic Profile Screen for ZEV Social Network.
 /// Engineered with tactile 3D elevated clay surfaces, multi-layer shadows,
@@ -93,6 +95,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   int _followersCount = 0;
   int _followingCount = 0;
   int _pendingRequestsCount = 0;
+  int _profileViewsCount = 0;
   bool _isFollowing = false;
   bool _followRequested = false;
   bool _isFollowLoading = false;
@@ -179,6 +182,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       await _fetchProfile();
 
       if (!_isMyProfile) {
+        unawaited(ProfileViewsService.instance.recordProfileView(_targetUserId));
         final policy = await SocialGraphService.instance.getInteractionPolicy(
           _targetUserId,
         );
@@ -214,6 +218,9 @@ class _ProfileScreenState extends State<ProfileScreen>
           return;
         }
       } else {
+        ProfileViewsService.instance.getProfileViewsCount().then((count) {
+          if (mounted) setState(() => _profileViewsCount = count);
+        });
         if (mounted) {
           setState(() {
             _interactionPolicy = null;
@@ -2889,6 +2896,60 @@ class _ProfileScreenState extends State<ProfileScreen>
                 GestureDetector(
                   onTap: () {
                     HapticFeedback.lightImpact();
+                    ProfileViewsScreen.open(context)
+                        .then((_) => _loadAllProfileData());
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: _buildClayCard(
+                    borderRadius: 12,
+                    depth: 3.0,
+                    padding: const EdgeInsets.all(7),
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        const Icon(
+                          Icons.remove_red_eye_outlined,
+                          color: ZevColors.deepNavy,
+                          size: 21,
+                        ),
+                        if (_profileViewsCount > 0)
+                          Positioned(
+                            top: -4,
+                            right: -4,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 1,
+                              ),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF0284C7),
+                                shape: BoxShape.circle,
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 14,
+                                minHeight: 14,
+                              ),
+                              child: Text(
+                                _profileViewsCount > 99
+                                    ? '99+'
+                                    : '$_profileViewsCount',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
                     CreatorInsightsScreen.open(
                       context,
                       userProfile: _profile,
@@ -3367,6 +3428,105 @@ class _ProfileScreenState extends State<ProfileScreen>
                         Text(
                           "${(_profile['account_type'] ?? 'Professional').toString().toUpperCase()} • Insights, tools and promotions",
                           style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w500,
+                            color: ZevColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 13,
+                    color: ZevColors.textMuted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+
+        // TikTok-style Profile Views Card for Account Owner
+        if (_isMyProfile) ...[
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              ProfileViewsScreen.open(context)
+                  .then((_) => _loadAllProfileData());
+            },
+            child: _buildClayCard(
+              borderRadius: 16,
+              depth: 3.0,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              color: Colors.white,
+              border: Border.all(
+                color: const Color(0xFFE2E8F0),
+                width: 1.1,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      gradient: ZevColors.brandGradient,
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: ZevColors.secondaryBlue.withValues(alpha: 0.25),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.remove_red_eye_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              "Profile Views",
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w900,
+                                color: ZevColors.deepNavy,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6.5,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE0F2FE),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                "$_profileViewsCount in 30d",
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF0284C7),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          "See who visited your profile in the past 30 days",
+                          style: TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w500,
                             color: ZevColors.textSecondary,
