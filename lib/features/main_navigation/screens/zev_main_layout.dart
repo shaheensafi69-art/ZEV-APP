@@ -55,6 +55,17 @@ class ZevMainLayout extends StatefulWidget {
     }
   }
 
+  /// Global tab switcher notifier so any screen can switch main tabs easily
+  static final ValueNotifier<int?> tabSwitchNotifier =
+      ValueNotifier<int?>(null);
+
+  static void switchTab(int index, {String? targetReelId}) {
+    if (targetReelId != null && targetReelId.isNotEmpty) {
+      ReelsViewerScreen.jumpToReelId(targetReelId);
+    }
+    tabSwitchNotifier.value = index;
+  }
+
   @override
   State<ZevMainLayout> createState() => _ZevMainLayoutState();
 }
@@ -99,6 +110,12 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
           BadgeCounterService.instance.refreshCounts();
         }
       },
+      onOpenReels: (reelId) {
+        _onTabTapped(3);
+        if (reelId != null && reelId.isNotEmpty) {
+          ReelsViewerScreen.jumpToReelId(reelId);
+        }
+      },
     );
     _exploreTab = const ExploreScreen();
     _profileTab = const ProfileScreen();
@@ -109,6 +126,7 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
 
     // Listen to static notifier updates
     ZevMainLayout.userAvatarNotifier.addListener(_onAvatarNotifierChanged);
+    ZevMainLayout.tabSwitchNotifier.addListener(_onTabSwitchRequested);
 
     // Start centralized badge counter, real-time push & incoming call listeners
     BadgeCounterService.instance.startListening();
@@ -141,9 +159,18 @@ class _ZevMainLayoutState extends State<ZevMainLayout> {
     }
   }
 
+  void _onTabSwitchRequested() {
+    final target = ZevMainLayout.tabSwitchNotifier.value;
+    if (target != null && mounted) {
+      ZevMainLayout.tabSwitchNotifier.value = null;
+      _onTabTapped(target);
+    }
+  }
+
   @override
   void dispose() {
     ZevMainLayout.userAvatarNotifier.removeListener(_onAvatarNotifierChanged);
+    ZevMainLayout.tabSwitchNotifier.removeListener(_onTabSwitchRequested);
     _authSubscription?.cancel();
     super.dispose();
   }

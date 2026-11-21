@@ -23,8 +23,8 @@ import '../../notifications/screens/notifications_screen.dart';
 import '../../chat/screens/chat_list_screen.dart';
 import '../../discover/screens/discover_screen.dart';
 import '../../live/screens/live_rooms_screen.dart';
+import '../../main_navigation/screens/zev_main_layout.dart';
 import '../../reels/models/reel_item.dart';
-import '../../reels/screens/reel_playback_modal_screen.dart';
 import 'create_post_screen.dart';
 
 /// Next-Generation Instagram-Grade Home Feed Screen for ZEV.
@@ -33,11 +33,13 @@ import 'create_post_screen.dart';
 class FeedViewerScreen extends StatefulWidget {
   final VoidCallback? onOpenMessages;
   final VoidCallback? onOpenNotifications;
+  final void Function(String? reelId)? onOpenReels;
 
   const FeedViewerScreen({
     super.key,
     this.onOpenMessages,
     this.onOpenNotifications,
+    this.onOpenReels,
   });
 
   @override
@@ -881,11 +883,11 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
     return GestureDetector(
       onTap: () {
         HapticFeedback.selectionClick();
-        ReelPlaybackModalScreen.open(
-          context,
-          reels: _suggestedReels,
-          initialIndex: index,
-        );
+        if (widget.onOpenReels != null) {
+          widget.onOpenReels!(reel.id);
+        } else {
+          ZevMainLayout.switchTab(3, targetReelId: reel.id);
+        }
       },
       child: Container(
         width: 164,
@@ -1190,7 +1192,11 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
-                  DiscoverScreen.open(context);
+                  if (widget.onOpenReels != null) {
+                    widget.onOpenReels!(null);
+                  } else {
+                    ZevMainLayout.switchTab(3);
+                  }
                 },
               ),
             ],

@@ -23,6 +23,14 @@ class ReelsViewerScreen extends StatefulWidget {
   final bool isScreenActive;
   const ReelsViewerScreen({super.key, this.isScreenActive = true});
 
+  /// Global target reel notifier to jump to a specific reel from anywhere in the app
+  static final ValueNotifier<String?> targetReelNotifier =
+      ValueNotifier<String?>(null);
+
+  static void jumpToReelId(String reelId) {
+    targetReelNotifier.value = reelId;
+  }
+
   @override
   State<ReelsViewerScreen> createState() => _ReelsViewerScreenState();
 }
@@ -71,6 +79,7 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _pageController = PageController();
+    ReelsViewerScreen.targetReelNotifier.addListener(_onTargetReelChanged);
     _fetchReels();
   }
 
@@ -97,12 +106,17 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen>
     if (oldWidget.isScreenActive && !widget.isScreenActive) {
       ReelVideoCacheManager().pauseAll();
     } else if (!oldWidget.isScreenActive && widget.isScreenActive) {
-      _syncPlaybackAndPreload();
+      if (ReelsViewerScreen.targetReelNotifier.value != null) {
+        _onTargetReelChanged();
+      } else {
+        _syncPlaybackAndPreload();
+      }
     }
   }
 
   @override
   void dispose() {
+    ReelsViewerScreen.targetReelNotifier.removeListener(_onTargetReelChanged);
     WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     super.dispose();
@@ -211,7 +225,10 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen>
       if (!loadMore) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          if (_pageController.hasClients &&
+          final targetId = ReelsViewerScreen.targetReelNotifier.value;
+          if (targetId != null && targetId.isNotEmpty) {
+            _onTargetReelChanged();
+          } else if (_pageController.hasClients &&
               (_pageController.page?.round() ?? 0) != 0) {
             _pageController.jumpToPage(0);
           }
@@ -231,6 +248,117 @@ class _ReelsViewerScreenState extends State<ReelsViewerScreen>
           _isLoadingMore = false;
         });
       }
+    }
+  }
+
+  void _onTargetReelChanged() {
+    final targetId = ReelsViewerScreen.targetReelNotifier.value;
+    if (targetId == null || targetId.isEmpty || !mounted) return;
+
+    final existingIndex = _reels.indexWhere((r) => r.id == targetId);
+    if (existingIndex >= 0) {
+      ReelsViewerScreen.targetReelNotifier.value = null;
+      final targetPage = existingIndex + (existingIndex ~/ 4);
+      _activePage = targetPage;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_pageController.hasClients) {
+          _pageController.jumpToPage(targetPage);
+        }
+        _syncPlaybackAndPreload();
+      });
+    } else if (!_isLoading) {
+      ReelsViewerScreen.targetReelNotifier.value = null;
+      _fetchSingleReelAndJump(targetId);
+    }
+  }
+
+  Future<void> _fetchSingleReelAndJump(String targetId) async {
+    try {
+      final res = await supabase.rpc(
+        'get_reels_page',
+        params: {
+          'p_limit': 1,
+          'p_cursor_id': targetId,
+          'p_following_only': false,
+        },
+      );
+      ReelItem? fetchedReel;
+      if (res is List && res.isNotEmpty) {
+        final match = res.firstWhere(
+          (e) => (e is Map) && e['id']?.toString() == targetId,
+          orElse: () => res.first,
+        );
+        if (match is Map) {
+          fetchedReel = ReelItem.fromRpcMap(
+            Map<String, dynamic>.from(match),
+          );
+        }
+      }
+
+      if (fetchedReel == null) {
+        final row = await supabase
+            .from('reels')
+            .select('''
+              id,
+              user_id,
+              video_url,
+              thumbnail_url,
+              title,
+              description,
+              views_count,
+              likes_count,
+              comments_count,
+              created_at,
+              profiles:user_id (
+                id,
+                username,
+                first_name,
+                last_name,
+                avatar_url,
+                is_verified
+              )
+            ''')
+            .eq('id', targetId)
+            .maybeSingle();
+
+        if (row != null) {
+          final p = row['profiles'] as Map<String, dynamic>? ?? {};
+          fetchedReel = ReelItem.fromRpcMap({
+            'id': row['id'],
+            'user_id': row['user_id'],
+            'video_url': row['video_url'],
+            'thumbnail_url': row['thumbnail_url'],
+            'title': row['title'] ?? '',
+            'description': row['description'] ?? '',
+            'views_count': row['views_count'] ?? 0,
+            'likes_count': row['likes_count'] ?? 0,
+            'comments_count': row['comments_count'] ?? 0,
+            'created_at': row['created_at'],
+            'author_username': p['username'] ?? '',
+            'author_first_name': p['first_name'] ?? '',
+            'author_last_name': p['last_name'] ?? '',
+            'author_avatar_url': p['avatar_url'] ?? '',
+            'author_is_verified': p['is_verified'] == true,
+          });
+        }
+      }
+
+      if (fetchedReel != null && mounted) {
+        setState(() {
+          _reels.insert(0, fetchedReel!);
+          _activePage = 0;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (_pageController.hasClients) {
+            _pageController.jumpToPage(0);
+          }
+          _syncPlaybackAndPreload();
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching single reel target: $e");
     }
   }
 
