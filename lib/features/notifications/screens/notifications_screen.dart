@@ -14,6 +14,7 @@ import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/time_ago.dart';
 import '../../chat/screens/chat_conversation_screen.dart';
 import '../../feed/screens/post_detail_screen.dart';
+import '../../profile/screens/account_restriction_screen.dart';
 import '../../profile/screens/notification_settings_screen.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../reels/models/reel_item.dart';
@@ -1227,6 +1228,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     _markAsRead(item);
     HapticFeedback.lightImpact();
 
+    if (item.isRestriction) {
+      await AccountRestrictionScreen.open(context);
+      return;
+    }
+
     if (item.isGroupInvitation &&
         item.linkUrl != null &&
         item.linkUrl!.isNotEmpty) {
@@ -1826,7 +1832,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     IconData icon;
     List<Color> gradientColors;
 
-    if (type == 'follow_request') {
+    if (type.contains('restrict') || type.contains('warning')) {
+      icon = Icons.gpp_bad_rounded;
+      gradientColors = [const Color(0xFFEF4444), const Color(0xFFDC2626)];
+    } else if (type == 'follow_request') {
       icon = Icons.person_add_alt_1_rounded;
       gradientColors = [const Color(0xFF6366F1), const Color(0xFF4F46E5)];
     } else if (type.contains('follow')) {

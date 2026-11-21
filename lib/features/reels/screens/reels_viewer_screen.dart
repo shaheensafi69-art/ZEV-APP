@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/feed_algorithm_service.dart';
+import '../../../core/services/restriction_service.dart';
 import '../../../core/services/social_graph_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/comments_thread_sheet.dart';
@@ -1087,6 +1088,14 @@ class _DesktopReelSidebarState extends State<DesktopReelSidebar> {
         case FollowToggleStatus.error:
           _isFollowing = false;
           _followRequested = false;
+          break;
+        case FollowToggleStatus.restricted:
+          _isFollowing = false;
+          _followRequested = false;
+          RestrictionService.instance.showRestrictionToast(
+            context,
+            actionName: 'Following creators',
+          );
           break;
       }
     });

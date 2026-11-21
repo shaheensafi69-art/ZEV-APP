@@ -4,6 +4,7 @@ import 'package:easy_compressor/easy_compressor.dart';
 import 'package:flutter/foundation.dart';
 
 import 'api_client.dart';
+import 'restriction_service.dart';
 
 /// Result returned from [ContentSafetyService] inspection.
 class SafetyCheckResult {
@@ -11,12 +12,16 @@ class SafetyCheckResult {
   final String? blockedCategory;
   final String? errorMessage;
   final Map<String, String>? likelihoods;
+  final bool isRestricted;
+  final int strikes;
 
   const SafetyCheckResult({
     required this.isSafe,
     this.blockedCategory,
     this.errorMessage,
     this.likelihoods,
+    this.isRestricted = false,
+    this.strikes = 0,
   });
 
   static const SafetyCheckResult safe = SafetyCheckResult(isSafe: true);
@@ -74,11 +79,17 @@ class ContentSafetyService {
       }
 
       if (!isSafe) {
+        final isRestricted = res['isRestricted'] == true;
+        if (isRestricted) {
+          RestrictionService.instance.invalidateCache();
+        }
         return SafetyCheckResult(
           isSafe: false,
           blockedCategory: res['blockedCategory']?.toString(),
           errorMessage: res['errorMessage']?.toString(),
           likelihoods: likelihoods,
+          isRestricted: isRestricted,
+          strikes: (res['strikes'] as num?)?.toInt() ?? 1,
         );
       }
 

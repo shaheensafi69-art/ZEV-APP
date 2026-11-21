@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/services/restriction_service.dart';
 import '../../../core/services/social_graph_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/zev_skeleton.dart';
@@ -175,6 +176,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         case FollowToggleStatus.blocked:
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text("Cannot follow @$username.")),
+          );
+          break;
+        case FollowToggleStatus.restricted:
+          RestrictionService.instance.showRestrictionToast(
+            context,
+            actionName: 'Following creators',
           );
           break;
         case FollowToggleStatus.error:

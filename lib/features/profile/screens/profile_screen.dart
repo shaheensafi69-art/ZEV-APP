@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/services/content_deletion_service.dart';
 import '../../../core/services/multi_account_service.dart';
+import '../../../core/services/restriction_service.dart';
 import '../../../core/services/social_graph_service.dart';
 import '../../../core/services/zev_realtime_sync_service.dart';
 import '../../../core/theme/zev_theme.dart';
@@ -26,13 +27,13 @@ import '../services/story_highlight_service.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_video_thumbnail.dart';
 import '../../../core/widgets/social_platform_badge.dart';
-import '../widgets/appeal_restriction_sheet.dart';
 import '../widgets/create_highlight_sheet.dart';
 import '../widgets/highlight_viewer_screen.dart';
 import 'user_follows_screen.dart';
 import '../widgets/video_cover_thumbnail.dart';
 import '../../chat/screens/chat_conversation_screen.dart';
 import '../../discover/screens/discover_screen.dart';
+import 'account_restriction_screen.dart';
 import 'edit_profile_screen.dart';
 import 'creator_insights_screen.dart';
 import 'profile_settings_screen.dart';
@@ -1024,6 +1025,13 @@ class _ProfileScreenState extends State<ProfileScreen>
         setState(() => _isFollowLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Unable to follow this user.")),
+        );
+        break;
+      case FollowToggleStatus.restricted:
+        setState(() => _isFollowLoading = false);
+        RestrictionService.instance.showRestrictionToast(
+          context,
+          actionName: 'Following or unfollowing accounts',
         );
         break;
       case FollowToggleStatus.error:
@@ -2422,94 +2430,101 @@ class _ProfileScreenState extends State<ProfileScreen>
                         const SizedBox(height: 10),
                       ],
 
-                      // Owner Account Restriction Standing Notice Banner
-                      if (_isMyProfile && _hasActiveRestrictionStanding()) ...[
+                      // Account Restriction Standing Notice Banner (Visible to Owner & Visitors)
+                      if (_hasActiveRestrictionStanding()) ...[
                         Padding(
                           padding: EdgeInsets.symmetric(
                             horizontal: horizontalPadding,
                           ),
-                          child: _buildClayCard(
-                            borderRadius: 16,
-                            depth: 3.0,
-                            color: const Color(0xFFFFFBEB),
-                            border: Border.all(
-                              color: const Color(0xFFFDE68A),
-                              width: 1.2,
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 11,
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.warning_amber_rounded,
-                                  color: Color(0xFFD97706),
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        "Account Standing Notice",
+                          child: GestureDetector(
+                            onTap: _isMyProfile
+                                ? () {
+                                    AccountRestrictionScreen.open(context)
+                                        .then((_) => _loadAllProfileData());
+                                  }
+                                : null,
+                            child: _buildClayCard(
+                              borderRadius: 16,
+                              depth: 3.0,
+                              color: const Color(0xFFFEF2F2),
+                              border: Border.all(
+                                color: const Color(0xFFFCA5A5),
+                                width: 1.2,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 11,
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.gpp_bad_rounded,
+                                    color: Color(0xFFDC2626),
+                                    size: 22,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _isMyProfile
+                                              ? "Account Temporarily Restricted"
+                                              : "Account Restricted",
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w900,
+                                            color: Color(0xFF991B1B),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          _isMyProfile
+                                              ? ((_profile['restriction_reason'] ?? '').toString().trim().isNotEmpty
+                                                  ? _profile['restriction_reason'].toString()
+                                                  : "Certain features on your account are temporarily limited.")
+                                              : "This account has been restricted for violating Community Guidelines.",
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 11.5,
+                                            color: Color(0xFFB91C1C),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (_isMyProfile) ...[
+                                    const SizedBox(width: 8),
+                                    TextButton(
+                                      onPressed: () {
+                                        AccountRestrictionScreen.open(context)
+                                            .then((_) => _loadAllProfileData());
+                                      },
+                                      style: TextButton.styleFrom(
+                                        backgroundColor: const Color(0xFFDC2626),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 6,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        "Details",
                                         style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w900,
-                                          color: Color(0xFF92400E),
-                                        ),
-                                      ),
-                                      Text(
-                                        (_profile['restriction_reason'] ?? '')
-                                                .toString()
-                                                .trim()
-                                                .isNotEmpty
-                                            ? _profile['restriction_reason']
-                                                .toString()
-                                            : "A temporary policy notice is active on your profile.",
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
                                           fontSize: 11.5,
-                                          color: Color(0xFFB45309),
-                                          fontWeight: FontWeight.w600,
+                                          fontWeight: FontWeight.w800,
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                TextButton(
-                                  onPressed: () {
-                                    AppealRestrictionSheet.show(
-                                      context,
-                                      initialReason:
-                                          _profile['restriction_reason']
-                                              ?.toString(),
-                                    ).then((_) => _loadAllProfileData());
-                                  },
-                                  style: TextButton.styleFrom(
-                                    backgroundColor: const Color(0xFFD97706),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
                                     ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    "Appeal",
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                                  ],
+                                ],
+                              ),
                             ),
                           ),
                         ),

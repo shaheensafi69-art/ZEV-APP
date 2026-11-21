@@ -10,6 +10,8 @@ import 'package:video_player/video_player.dart';
 
 import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/services/content_safety_service.dart';
+import '../../../core/services/restriction_service.dart';
+import '../../profile/screens/account_restriction_screen.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
 import '../models/reel_item.dart';
@@ -28,6 +30,13 @@ class CreateReelScreen extends StatefulWidget {
     BuildContext context, {
     required VoidCallback onReelCreated,
   }) async {
+    final allowed = await RestrictionService.instance.checkAndEnforce(
+      context,
+      actionName: 'publishing Reels',
+    );
+    if (!allowed) return;
+
+    if (!context.mounted) return;
     await Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
@@ -361,6 +370,15 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
       return;
     }
 
+    final allowed = await RestrictionService.instance.checkAndEnforce(
+      context,
+      actionName: 'publishing Reels',
+    );
+    if (!allowed) {
+      setState(() => _isPublishing = false);
+      return;
+    }
+
     HapticFeedback.mediumImpact();
     setState(() {
       _isPublishing = true;
@@ -393,6 +411,12 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
               backgroundColor: Colors.redAccent,
             ),
           );
+          if (safetyResult.isRestricted) {
+            AccountRestrictionScreen.open(
+              context,
+              actionAttempted: 'publishing Reels',
+            );
+          }
         }
         return;
       }

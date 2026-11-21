@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/feed_algorithm_service.dart';
+import '../../../core/services/restriction_service.dart';
 import '../../../core/services/social_graph_service.dart';
 import '../../../core/services/zev_ads_service.dart';
 import '../../../core/theme/zev_theme.dart';
@@ -538,6 +539,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
           break;
         case FollowToggleStatus.blocked:
         case FollowToggleStatus.error:
+          break;
+        case FollowToggleStatus.restricted:
+          RestrictionService.instance.showRestrictionToast(
+            context,
+            actionName: 'Following accounts',
+          );
           break;
       }
       _searchedAccounts[index] = updated;

@@ -7,7 +7,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/services/content_safety_service.dart';
+import '../../../core/services/restriction_service.dart';
 import '../../../core/services/social_graph_service.dart';
+import '../../profile/screens/account_restriction_screen.dart';
 import '../../../core/theme/zev_post_gradients.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
@@ -29,6 +31,13 @@ class CreatePostScreen extends StatefulWidget {
     BuildContext context, {
     required VoidCallback onPostCreated,
   }) async {
+    final allowed = await RestrictionService.instance.checkAndEnforce(
+      context,
+      actionName: 'creating Feed Posts',
+    );
+    if (!allowed) return;
+
+    if (!context.mounted) return;
     await Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
@@ -765,6 +774,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       return;
     }
 
+    final allowed = await RestrictionService.instance.checkAndEnforce(
+      context,
+      actionName: 'creating Feed Posts',
+    );
+    if (!allowed) {
+      setState(() => _isPublishing = false);
+      return;
+    }
+
     HapticFeedback.mediumImpact();
     _lastAttemptAsDraft = asDraft;
     setState(() {
@@ -804,6 +822,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   "Image #${i + 1} was flagged as inappropriate (+18) and cannot be posted.";
             });
             _showSnack(_errorMessage!, isError: true);
+            if (safetyResult.isRestricted) {
+              AccountRestrictionScreen.open(
+                context,
+                actionAttempted: 'creating Feed Posts',
+              );
+            }
           }
           return;
         }

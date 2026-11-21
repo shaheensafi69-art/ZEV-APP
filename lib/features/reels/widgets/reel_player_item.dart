@@ -7,6 +7,7 @@ import 'package:video_player/video_player.dart';
 import '../../../core/services/content_deletion_service.dart';
 import '../../../core/services/feed_algorithm_service.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/services/restriction_service.dart';
 import '../../../core/services/social_graph_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/rich_text_helper.dart';
@@ -603,6 +604,12 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
           break;
         case FollowToggleStatus.blocked:
           _showNotice("Cannot follow this account.");
+          break;
+        case FollowToggleStatus.restricted:
+          RestrictionService.instance.showRestrictionToast(
+            context,
+            actionName: 'Following creators',
+          );
           break;
         case FollowToggleStatus.error:
           _showNotice("Could not update follow status.");

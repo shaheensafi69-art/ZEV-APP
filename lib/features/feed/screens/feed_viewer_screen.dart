@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/badge_counter_service.dart';
 import '../../../core/services/feed_algorithm_service.dart';
+import '../../../core/services/restriction_service.dart';
 import '../../../core/services/social_graph_service.dart';
 import '../../../core/services/zev_ads_service.dart';
 import '../../../core/services/zev_realtime_sync_service.dart';
@@ -507,6 +508,12 @@ class _FeedViewerScreenState extends State<FeedViewerScreen> {
           break;
         case FollowToggleStatus.blocked:
           _showNotice("Cannot follow this account.");
+          break;
+        case FollowToggleStatus.restricted:
+          RestrictionService.instance.showRestrictionToast(
+            context,
+            actionName: 'Following accounts',
+          );
           break;
         case FollowToggleStatus.error:
           _showNotice("Could not update follow status.");

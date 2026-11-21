@@ -69,6 +69,12 @@ class NotificationItem {
 
   bool get isLive => notificationType.contains('live');
 
+  bool get isRestriction =>
+      notificationType == 'account_restricted' ||
+      notificationType.contains('restriction') ||
+      title.toLowerCase().contains('restriction') ||
+      message.toLowerCase().contains('restricted');
+
   bool get isSystem =>
       notificationType == 'system' ||
       notificationType == 'milestone' ||

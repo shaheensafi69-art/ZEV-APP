@@ -8,6 +8,8 @@ import 'package:video_player/video_player.dart';
 
 import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/services/content_safety_service.dart';
+import '../../../core/services/restriction_service.dart';
+import '../../profile/screens/account_restriction_screen.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
 import '../widgets/close_friends_sheet.dart';
@@ -26,6 +28,13 @@ class CreateStoryScreen extends StatefulWidget {
     BuildContext context, {
     required VoidCallback onStoryCreated,
   }) async {
+    final allowed = await RestrictionService.instance.checkAndEnforce(
+      context,
+      actionName: 'sharing Stories',
+    );
+    if (!allowed) return;
+
+    if (!context.mounted) return;
     await Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
@@ -231,6 +240,15 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
       return;
     }
 
+    final allowed = await RestrictionService.instance.checkAndEnforce(
+      context,
+      actionName: 'sharing Stories',
+    );
+    if (!allowed) {
+      setState(() => _isPublishing = false);
+      return;
+    }
+
     HapticFeedback.mediumImpact();
     setState(() {
       _isPublishing = true;
@@ -263,6 +281,12 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                 backgroundColor: Colors.redAccent,
               ),
             );
+            if (safetyResult.isRestricted) {
+              AccountRestrictionScreen.open(
+                context,
+                actionAttempted: 'sharing Stories',
+              );
+            }
           }
           return;
         }

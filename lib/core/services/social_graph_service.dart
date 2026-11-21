@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../theme/zev_theme.dart';
 import 'notification_service.dart';
+import 'restriction_service.dart';
 
 enum FollowToggleStatus {
   following,
@@ -12,6 +13,7 @@ enum FollowToggleStatus {
   requested,
   cancelled,
   blocked,
+  restricted,
   error,
 }
 
@@ -43,6 +45,13 @@ class SocialGraphService {
     final me = _supabase.auth.currentUser?.id;
     if (me == null || targetUserId.isEmpty || me == targetUserId) {
       return FollowToggleStatus.error;
+    }
+
+    // Check account restriction standing
+    final isRestricted = await RestrictionService.instance.isRestricted();
+    if (isRestricted) {
+      debugPrint('[SocialGraphService] toggleFollow blocked: user account is currently restricted');
+      return FollowToggleStatus.restricted;
     }
 
     try {
