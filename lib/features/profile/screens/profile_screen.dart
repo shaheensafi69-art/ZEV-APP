@@ -42,6 +42,8 @@ import 'share_profile_screen.dart';
 import 'profile_picture_viewer_screen.dart';
 import 'profile_views_screen.dart';
 import '../../../core/services/profile_views_service.dart';
+import '../../main_navigation/screens/zev_main_layout.dart';
+import '../../main_navigation/widgets/zev_desktop_sidebar.dart';
 
 /// Next-Generation Claymorphic Profile Screen for ZEV Social Network.
 /// Engineered with tactile 3D elevated clay surfaces, multi-layer shadows,
@@ -2330,13 +2332,63 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  Widget _wrapWithDesktopShellIfNeeded({
+    required BuildContext context,
+    required Widget child,
+    required bool isDesktop,
+  }) {
+    final isPushedStandalone =
+        widget.userId != null || Navigator.canPop(context);
+    final showDesktopSidebar = isDesktop && isPushedStandalone;
+
+    if (!showDesktopSidebar) {
+      return child;
+    }
+
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    return Scaffold(
+      backgroundColor: const Color(0xFFF1F5F9),
+      body: Row(
+        children: [
+          ZevDesktopSidebar(
+            activeIndex: _isMyProfile ? 4 : 1,
+            isExpanded: screenWidth >= 960,
+            onTabSelected: (idx) {
+              if (Navigator.canPop(context)) {
+                Navigator.of(context).pop();
+                ZevMainLayout.switchTab(idx);
+              } else {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (_) => ZevMainLayout(initialIndex: idx),
+                  ),
+                  (route) => false,
+                );
+              }
+            },
+          ),
+          Expanded(child: child),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 720;
+    final isCompact = screenWidth < 380;
+    final horizontalPadding = isCompact ? 12.0 : (isDesktop ? 24.0 : 16.0);
+
     if (_isLoading && _profile.isEmpty) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFF1F5F9),
-        body: Center(
-          child: CircularProgressIndicator(color: ZevColors.primaryBlue),
+      return _wrapWithDesktopShellIfNeeded(
+        context: context,
+        isDesktop: isDesktop,
+        child: const Scaffold(
+          backgroundColor: Color(0xFFF1F5F9),
+          body: Center(
+            child: CircularProgressIndicator(color: ZevColors.primaryBlue),
+          ),
         ),
       );
     }
@@ -2351,101 +2403,103 @@ class _ProfileScreenState extends State<ProfileScreen>
     final bio = _profile['bio'] as String? ?? '';
     final isBioRtl = TextDirectionHelper.isRtl(bio);
 
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isDesktop = screenWidth >= 720;
-    final isCompact = screenWidth < 380;
-    final horizontalPadding = isCompact ? 12.0 : (isDesktop ? 24.0 : 16.0);
-
     if (!_isMyProfile && _isBlockedView) {
-      return Scaffold(
-        backgroundColor: ZevColors.softSurface,
-        body: SafeArea(
-          child: Column(
-            children: [
-              _buildTopBar(username, isVerified, isCompact),
-              Expanded(
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: _buildClayCard(
-                      borderRadius: 24,
-                      depth: 5.0,
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 64,
-                            height: 64,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: ZevColors.errorRed.withValues(alpha: 0.1),
+      return _wrapWithDesktopShellIfNeeded(
+        context: context,
+        isDesktop: isDesktop,
+        child: Scaffold(
+          backgroundColor: ZevColors.softSurface,
+          body: SafeArea(
+            child: Column(
+              children: [
+                _buildTopBar(username, isVerified, isCompact),
+                Expanded(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: _buildClayCard(
+                        borderRadius: 24,
+                        depth: 5.0,
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 64,
+                              height: 64,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: ZevColors.errorRed.withValues(alpha: 0.1),
+                              ),
+                              child: const Icon(
+                                Icons.block_rounded,
+                                size: 32,
+                                color: ZevColors.errorRed,
+                              ),
                             ),
-                            child: const Icon(
-                              Icons.block_rounded,
-                              size: 32,
-                              color: ZevColors.errorRed,
+                            const SizedBox(height: 14),
+                            Text(
+                              _blockedByMe
+                                  ? "You blocked @$username"
+                                  : "Profile Unavailable",
+                              style: const TextStyle(
+                                fontSize: 16.5,
+                                fontWeight: FontWeight.w900,
+                                color: ZevColors.deepNavy,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 14),
-                          Text(
-                            _blockedByMe
-                                ? "You blocked @$username"
-                                : "Profile Unavailable",
-                            style: const TextStyle(
-                              fontSize: 16.5,
-                              fontWeight: FontWeight.w900,
-                              color: ZevColors.deepNavy,
+                            const SizedBox(height: 6),
+                            Text(
+                              _blockedByMe
+                                  ? "Unblock @$username if you want to view their posts, reels, and stories again."
+                                  : "This user's content is not accessible.",
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                color: ZevColors.textSecondary,
+                                height: 1.4,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            _blockedByMe
-                                ? "Unblock @$username if you want to view their posts, reels, and stories again."
-                                : "This user's content is not accessible.",
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              color: ZevColors.textSecondary,
-                              height: 1.4,
-                            ),
-                          ),
-                          if (_blockedByMe) ...[
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () async {
-                                final ok = await SocialGraphService.instance
-                                    .unblockUser(_targetUserId);
-                                if (ok) await _loadAllProfileData();
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: ZevColors.primaryBlue,
-                                foregroundColor: ZevColors.deepNavy,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                            if (_blockedByMe) ...[
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: () async {
+                                  final ok = await SocialGraphService.instance
+                                      .unblockUser(_targetUserId);
+                                  if (ok) await _loadAllProfileData();
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: ZevColors.primaryBlue,
+                                  foregroundColor: ZevColors.deepNavy,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                child: const Text(
+                                  "Unblock Account",
+                                  style: TextStyle(fontWeight: FontWeight.w800),
                                 ),
                               ),
-                              child: const Text(
-                                "Unblock Account",
-                                style: TextStyle(fontWeight: FontWeight.w800),
-                              ),
-                            ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );
     }
 
     if (!_isMyProfile && !_canViewContent) {
-      return Scaffold(
+      return _wrapWithDesktopShellIfNeeded(
+        context: context,
+        isDesktop: isDesktop,
+        child: Scaffold(
         backgroundColor: ZevColors.softSurface,
         body: SafeArea(
           child: RefreshIndicator(
@@ -2528,11 +2582,15 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    // Luxurious Clearmorphic ZEV Profile Canvas
-    return Scaffold(
+  // Luxurious Clearmorphic ZEV Profile Canvas
+  return _wrapWithDesktopShellIfNeeded(
+    context: context,
+    isDesktop: isDesktop,
+    child: Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       body: SafeArea(
         child: Center(
@@ -2798,6 +2856,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       ),
     ),
   ),
+),
 );
 }
 

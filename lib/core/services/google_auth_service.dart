@@ -104,6 +104,32 @@ class GoogleAuthService {
       return authResponse;
     } catch (e) {
       debugPrint('[GoogleAuthService] Native Google Sign-In error: $e');
+
+      final errStr = e.toString().toLowerCase();
+      final isCancelled = errStr.contains('canceled') ||
+          errStr.contains('cancelled') ||
+          errStr.contains('user_cancelled') ||
+          errStr.contains('popup_closed_by_user');
+      if (isCancelled) {
+        onCancel?.call();
+        return null;
+      }
+
+      // Resilient Fallback to Supabase OAuth if Native GIS / Google Play Services fails
+      try {
+        debugPrint('[GoogleAuthService] Falling back to Supabase OAuth flow...');
+        final redirectUrl = kIsWeb ? Uri.base.origin : 'zevapp://auth/callback';
+        final launched = await _supabase.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: redirectUrl,
+        );
+        if (launched) {
+          return null;
+        }
+      } catch (fallbackError) {
+        debugPrint('[GoogleAuthService] OAuth fallback error: $fallbackError');
+      }
+
       final errorStr = e
           .toString()
           .replaceFirst('Exception: ', '')
