@@ -116,6 +116,17 @@ class SocialGraphService {
       );
       if (res == true && requesterId != null && requesterId.isNotEmpty) {
         final me = _supabase.auth.currentUser?.id;
+        if (me != null) {
+          unawaited(
+            _supabase
+                .from('user_notifications')
+                .delete()
+                .eq('user_id', me)
+                .eq('sender_id', requesterId)
+                .eq('notification_type', 'follow_request')
+                .catchError((_) => null),
+          );
+        }
         unawaited(
           NotificationService().dispatchPushNotification(
             recipientUserId: requesterId,
@@ -137,15 +148,90 @@ class SocialGraphService {
     final me = _supabase.auth.currentUser?.id;
     if (me == null) return false;
     try {
+      String? requesterId;
+      try {
+        final reqRow = await _supabase
+            .from('follow_requests')
+            .select('requester_id')
+            .eq('id', requestId)
+            .maybeSingle();
+        requesterId = reqRow?['requester_id']?.toString();
+      } catch (_) {}
+
       await _supabase
           .from('follow_requests')
           .delete()
           .eq('id', requestId)
           .eq('target_id', me);
+
+      if (requesterId != null && requesterId.isNotEmpty) {
+        unawaited(
+          _supabase
+              .from('user_notifications')
+              .delete()
+              .eq('user_id', me)
+              .eq('sender_id', requesterId)
+              .eq('notification_type', 'follow_request')
+              .catchError((_) => null),
+        );
+      }
       return true;
     } catch (e) {
       debugPrint('[SocialGraphService] rejectFollowRequest error: $e');
       return false;
+    }
+  }
+
+  /// Cleans up any leftover `follow_request` notifications that are no longer pending
+  /// (e.g. already accepted or deleted) so users never see stuck [Confirm]/[Delete] buttons.
+  Future<void> cleanupStaleFollowRequestNotifications(String userId) async {
+    try {
+      final notifs = await _supabase
+          .from('user_notifications')
+          .select('id, sender_id')
+          .eq('user_id', userId)
+          .eq('notification_type', 'follow_request')
+          .limit(50);
+
+      final notifList = List.from(notifs as List? ?? []);
+      if (notifList.isEmpty) return;
+
+      final senderIds = notifList
+          .map((n) => n['sender_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+
+      if (senderIds.isEmpty) return;
+
+      final activeReqs = await _supabase
+          .from('follow_requests')
+          .select('requester_id')
+          .eq('target_id', userId)
+          .eq('status', 'pending')
+          .inFilter('requester_id', senderIds);
+
+      final activeRequesters = (activeReqs as List? ?? [])
+          .map((r) => r['requester_id']?.toString() ?? '')
+          .toSet();
+
+      final staleIds = <String>[];
+      for (final n in notifList) {
+        final sId = n['sender_id']?.toString() ?? '';
+        if (!activeRequesters.contains(sId)) {
+          staleIds.add(n['id'].toString());
+        }
+      }
+
+      if (staleIds.isNotEmpty) {
+        await _supabase
+            .from('user_notifications')
+            .delete()
+            .inFilter('id', staleIds);
+        debugPrint('[SocialGraphService] Cleaned up ${staleIds.length} stale follow request notifications');
+      }
+    } catch (e) {
+      debugPrint('[SocialGraphService] cleanupStaleFollowRequestNotifications notice: $e');
     }
   }
 

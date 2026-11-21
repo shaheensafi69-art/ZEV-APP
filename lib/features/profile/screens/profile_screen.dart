@@ -38,6 +38,7 @@ import 'edit_profile_screen.dart';
 import 'creator_insights_screen.dart';
 import 'profile_settings_screen.dart';
 import 'share_profile_screen.dart';
+import 'profile_picture_viewer_screen.dart';
 
 /// Next-Generation Claymorphic Profile Screen for ZEV Social Network.
 /// Engineered with tactile 3D elevated clay surfaces, multi-layer shadows,
@@ -1418,14 +1419,187 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   void _onAvatarTapped() {
     HapticFeedback.lightImpact();
-    if (_hasActiveStory &&
+    final hasStory = _hasActiveStory &&
         _activeStory != null &&
-        (_isMyProfile || _canViewContent)) {
-      StoryViewerScreen.open(context, friendStory: _activeStory!)
-          .then((_) => _loadAllProfileData());
+        (_isMyProfile || _canViewContent);
+
+    if (hasStory) {
+      _showAvatarActionSheet(hasStory: true);
     } else if (_isMyProfile) {
-      CreateStoryScreen.open(context, onStoryCreated: _loadAllProfileData);
+      _showAvatarActionSheet(hasStory: false);
+    } else {
+      _openProfilePictureViewer();
     }
+  }
+
+  void _openProfilePictureViewer() {
+    final username = (_profile['username'] ?? 'user').toString();
+    final fullName = (_profile['full_name'] ?? '').toString();
+    final avatarUrl = (_profile['avatar_url'] ?? '').toString();
+    final bio = (_profile['bio'] ?? '').toString();
+    final isVerified = _profile['is_verified'] == true;
+
+    ProfilePictureViewerScreen.open(
+      context,
+      userId: _targetUserId,
+      username: username,
+      fullName: fullName,
+      avatarUrl: avatarUrl,
+      isMyProfile: _isMyProfile,
+      isFollowing: _isFollowing,
+      isVerified: isVerified,
+      bio: bio.isNotEmpty ? bio : null,
+    );
+  }
+
+  void _showAvatarActionSheet({required bool hasStory}) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (bCtx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 18),
+            if (hasStory) ...[
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                leading: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Color(0xFFFBAA47),
+                        Color(0xFFD91A46),
+                        Color(0xFFA60F93),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                ),
+                title: const Text(
+                  'View story',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: ZevColors.deepNavy,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Watch latest 24h updates',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: ZevColors.textMuted,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(bCtx).pop();
+                  if (_activeStory != null) {
+                    StoryViewerScreen.open(context, friendStory: _activeStory!)
+                        .then((_) => _loadAllProfileData());
+                  }
+                },
+              ),
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+            ],
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+              leading: Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF0FDF4),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.account_circle_outlined,
+                  color: Color(0xFF16A34A),
+                  size: 26,
+                ),
+              ),
+              title: const Text(
+                'View profile picture',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: ZevColors.deepNavy,
+                ),
+              ),
+              subtitle: const Text(
+                'Open full-resolution photo',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: ZevColors.textMuted,
+                ),
+              ),
+              onTap: () {
+                Navigator.of(bCtx).pop();
+                _openProfilePictureViewer();
+              },
+            ),
+            if (_isMyProfile) ...[
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                leading: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF0F9FF),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.add_circle_outline_rounded,
+                    color: Color(0xFF0284C7),
+                    size: 26,
+                  ),
+                ),
+                title: const Text(
+                  'Add to story',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: ZevColors.deepNavy,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Share photo or video to your daily story',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: ZevColors.textMuted,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(bCtx).pop();
+                  CreateStoryScreen.open(context, onStoryCreated: _loadAllProfileData);
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   void _openPostDetail(FeedPostItem post) {
@@ -2895,19 +3069,22 @@ class _ProfileScreenState extends State<ProfileScreen>
                       ),
                       padding: const EdgeInsets.all(2.0),
                       child: ClipOval(
-                        child: avatarUrl.isNotEmpty
-                            ? ZevCachedImage.avatar(
-                                imageUrl: avatarUrl,
-                                size: avatarSize,
-                              )
-                            : Container(
-                                color: const Color(0xFFF1F5F9),
-                                child: Icon(
-                                  Icons.person,
-                                  color: ZevColors.textMuted,
-                                  size: isCompact ? 36 : 42,
+                        child: Hero(
+                          tag: 'profile_avatar_$_targetUserId',
+                          child: avatarUrl.isNotEmpty
+                              ? ZevCachedImage.avatar(
+                                  imageUrl: avatarUrl,
+                                  size: avatarSize,
+                                )
+                              : Container(
+                                  color: const Color(0xFFF1F5F9),
+                                  child: Icon(
+                                    Icons.person,
+                                    color: ZevColors.textMuted,
+                                    size: isCompact ? 36 : 42,
+                                  ),
                                 ),
-                              ),
+                        ),
                       ),
                     ),
                   ),

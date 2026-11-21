@@ -21,6 +21,7 @@ import '../../reels/models/reel_item.dart';
 import '../../reels/widgets/reel_player_item.dart';
 import '../../stories/screens/story_viewer_screen.dart';
 import '../models/notification_item.dart';
+import 'follow_requests_screen.dart';
 
 /// Light Clearmorphic Notifications & Activity Screen for ZEV.
 class NotificationsScreen extends StatefulWidget {
@@ -53,6 +54,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   String _selectedFilter = 'All';
   String _currentUsername = '';
   List<NotificationItem> _notifications = [];
+  int _pendingRequestsCount = 0;
+  List<String> _pendingRequestAvatars = [];
   final Set<String> _hiddenLocalIds = {};
   final Set<String> _busyRequestIds = {};
   RealtimeChannel? _realtimeChannel;
@@ -245,6 +248,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       final rawStories = List.from(phase1[5] as List? ?? []);
       final rawFollowRequests = List.from(phase1[6] as List? ?? []);
 
+      _pendingRequestsCount = rawFollowRequests.length;
+      unawaited(
+        SocialGraphService.instance.cleanupStaleFollowRequestNotifications(uid),
+      );
+
       _hasMoreNotifs = rawNotifs.length >= _pageSize;
       _oldestNotifCursor = rawNotifs.isNotEmpty
           ? rawNotifs.last['created_at']?.toString()
@@ -302,7 +310,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         if (nType == 'chat' ||
             nType == 'message' ||
             nType == 'direct_message' ||
-            nType == 'group_message') {
+            nType == 'group_message' ||
+            nType == 'follow_request') {
+          continue;
+        }
+
+        // Pending follow requests are presented in the dedicated top "Follow requests" tile
+        if (nType == 'follow_request') {
           continue;
         }
 
@@ -366,31 +380,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         }
       }
 
-      // Live pending follow_requests from private account flow
+      // Live pending follow_requests: collect requester IDs for the top tile avatars
       for (final fr in rawFollowRequests) {
         final requesterId = fr['requester_id']?.toString() ?? '';
-        final reqId = fr['id']?.toString() ?? '';
-        if (requesterId.isEmpty || requesterId == uid) continue;
-        if (seenActions.contains('${requesterId}_follow_request')) continue;
-        allSenderIds.add(requesterId);
-        final key = 'freq_$reqId';
-        if (!_hiddenLocalIds.contains(key) && uniqueKeys.add(key)) {
-          items.add(
-            NotificationItem(
-              id: key,
-              userId: uid,
-              senderId: requesterId,
-              senderUsername: 'user',
-              title: 'Follow Request',
-              message: 'requested to follow you.',
-              notificationType: 'follow_request',
-              isRead: false,
-              requestId: reqId,
-              createdAt:
-                  DateTime.tryParse(fr['created_at']?.toString() ?? '') ??
-                  DateTime.now(),
-            ),
-          );
+        if (requesterId.isNotEmpty && requesterId != uid) {
+          allSenderIds.add(requesterId);
         }
       }
 
@@ -731,7 +725,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         }
       }
 
-      final enriched = await _enrichItemsWithProfiles(uid, items, allSenderIds);
+      final enriched = await _enrichItemsWithProfiles(
+        uid,
+        items,
+        allSenderIds,
+        rawFollowRequests: rawFollowRequests,
+      );
       enriched.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       _staticCache = List.from(enriched);
@@ -740,6 +739,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (mounted) {
         setState(() {
           _notifications = enriched;
+          _pendingRequestsCount = rawFollowRequests.length;
           _isLoading = false;
         });
       }
@@ -756,8 +756,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<List<NotificationItem>> _enrichItemsWithProfiles(
     String uid,
     List<NotificationItem> items,
-    Set<String> senderIds,
-  ) async {
+    Set<String> senderIds, {
+    List<dynamic>? rawFollowRequests,
+  }) async {
     final Map<String, Map<String, dynamic>> profilesMap = {};
     final Set<String> myFollowing = {};
 
@@ -789,6 +790,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           if (fid.isNotEmpty) myFollowing.add(fid);
         }
       }
+    }
+
+    if (rawFollowRequests != null) {
+      final avs = <String>[];
+      for (final fr in rawFollowRequests) {
+        if (fr is Map) {
+          final rId = fr['requester_id']?.toString() ?? '';
+          final p = profilesMap[rId];
+          final av = p?['avatar_url']?.toString();
+          if (av != null && av.isNotEmpty && !avs.contains(av)) {
+            avs.add(av);
+          }
+        }
+      }
+      _pendingRequestAvatars = avs;
     }
 
     return items.map((item) {
@@ -852,7 +868,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         if (nType == 'chat' ||
             nType == 'message' ||
             nType == 'direct_message' ||
-            nType == 'group_message') {
+            nType == 'group_message' ||
+            nType == 'follow_request') {
           continue;
         }
         final id = r['id']?.toString() ?? '';
@@ -946,14 +963,34 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     NotificationItem item, {
     required bool accept,
   }) async {
-    var reqId = item.requestId;
     final uid = currentUserId;
     if (uid == null || item.senderId.isEmpty) return;
 
-    HapticFeedback.mediumImpact();
-    setState(() => _busyRequestIds.add(item.id));
+    HapticFeedback.lightImpact();
+
+    // 1. Instant optimistic UI update for immediate response
+    setState(() {
+      _busyRequestIds.add(item.id);
+      if (_pendingRequestsCount > 0) _pendingRequestsCount -= 1;
+      if (accept) {
+        _notifications = _notifications.map((n) {
+          if (n.id == item.id) {
+            return n.copyWith(
+              notificationType: 'follow',
+              title: 'New Follower',
+              message: 'started following you.',
+              isRead: true,
+            );
+          }
+          return n;
+        }).toList();
+      } else {
+        _notifications.removeWhere((n) => n.id == item.id);
+      }
+    });
 
     try {
+      var reqId = item.requestId;
       if (reqId == null || reqId.isEmpty) {
         final reqRow = await supabase
             .from('follow_requests')
@@ -965,44 +1002,34 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         reqId = reqRow?['id']?.toString();
       }
 
-      bool ok = false;
       if (reqId != null && reqId.isNotEmpty) {
-        ok = accept
-            ? await SocialGraphService.instance.acceptFollowRequest(reqId)
-            : await SocialGraphService.instance.rejectFollowRequest(reqId);
+        if (accept) {
+          await SocialGraphService.instance.acceptFollowRequest(reqId);
+        } else {
+          await SocialGraphService.instance.rejectFollowRequest(reqId);
+        }
+      } else {
+        // Request was already accepted/handled! Delete stale notification from DB
+        await supabase
+            .from('user_notifications')
+            .delete()
+            .eq('id', item.id);
       }
 
-      if (ok && mounted) {
-        setState(() {
-          if (accept) {
-            _notifications = _notifications.map((n) {
-              if (n.id == item.id) {
-                return n.copyWith(
-                  notificationType: 'follow',
-                  title: 'New Follower',
-                  message: 'started following you.',
-                  isRead: true,
-                );
-              }
-              return n;
-            }).toList();
-          } else {
-            _notifications.removeWhere((n) => n.id == item.id);
-          }
-        });
-        if (accept) {
-          unawaited(
-            NotificationService().sendNotificationToUser(
-              targetUserId: item.senderId,
-              title: 'Follow Accepted',
-              message: 'accepted your follow request.',
-              notificationType: 'follow',
-              linkUrl: uid,
-            ),
-          );
-        }
-        BadgeCounterService.instance.refreshCounts();
+      if (accept) {
+        unawaited(
+          NotificationService().sendNotificationToUser(
+            targetUserId: item.senderId,
+            title: 'Follow Accepted',
+            message: 'accepted your follow request.',
+            notificationType: 'follow',
+            linkUrl: uid,
+          ),
+        );
       }
+      BadgeCounterService.instance.refreshCounts();
+    } catch (e) {
+      debugPrint('Notice in _respondFollowRequest: $e');
     } finally {
       if (mounted) setState(() => _busyRequestIds.remove(item.id));
     }
@@ -1452,6 +1479,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             child: Column(
               children: [
                 _buildCategoryFilterRow(),
+                if (_pendingRequestsCount > 0 &&
+                    (_selectedFilter == 'All' || _selectedFilter == 'Follows'))
+                  _buildFollowRequestsTile(),
                 Expanded(
                   child: RefreshIndicator(
                     color: ZevColors.primaryBlue,
@@ -1607,6 +1637,223 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildFollowRequestsTile() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 6),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () async {
+            HapticFeedback.lightImpact();
+            final changed = await FollowRequestsScreen.open(context);
+            if (changed == true || mounted) {
+              _fetchActivity(isBackgroundSync: false);
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: const Color(0xFFE2E8F0),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                _buildRequesterAvatarStack(),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Follow requests',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: ZevColors.deepNavy,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _pendingRequestsCount == 1
+                            ? '1 person wants to follow you'
+                            : 'Approve or ignore requests',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                          color: ZevColors.textMuted,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    gradient: ZevColors.brandGradient,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: ZevColors.secondaryBlue.withValues(alpha: 0.3),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    '$_pendingRequestsCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Color(0xFF94A3B8),
+                  size: 22,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRequesterAvatarStack() {
+    if (_pendingRequestAvatars.isEmpty) {
+      return Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          gradient: ZevColors.brandGradient,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: ZevColors.secondaryBlue.withValues(alpha: 0.25),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.person_add_rounded,
+          color: Colors.white,
+          size: 22,
+        ),
+      );
+    }
+
+    if (_pendingRequestAvatars.length == 1) {
+      return Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: CachedNetworkImage(
+            imageUrl: _pendingRequestAvatars.first,
+            fit: BoxFit.cover,
+            errorWidget: (_, _, _) => const Icon(
+              Icons.person,
+              color: ZevColors.textMuted,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: 52,
+      height: 44,
+      child: Stack(
+        alignment: Alignment.centerLeft,
+        children: [
+          Positioned(
+            left: 0,
+            top: 4,
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: CachedNetworkImage(
+                  imageUrl: _pendingRequestAvatars.first,
+                  fit: BoxFit.cover,
+                  errorWidget: (_, _, _) => const Icon(Icons.person, size: 18),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 18,
+            top: 2,
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: CachedNetworkImage(
+                  imageUrl: _pendingRequestAvatars[1],
+                  fit: BoxFit.cover,
+                  errorWidget: (_, _, _) => const Icon(Icons.person, size: 18),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
