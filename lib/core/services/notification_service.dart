@@ -956,7 +956,19 @@ class NotificationService {
       );
       await local.initialize(
         const InitializationSettings(android: androidSettings),
+        onDidReceiveNotificationResponse: (NotificationResponse response) {
+          handleNotificationAction(response);
+        },
+        onDidReceiveBackgroundNotificationResponse: _notificationActionHandler,
       );
+
+      final androidPlugin = local.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      if (androidPlugin != null) {
+        for (final ch in ZevNotificationChannels.all) {
+          await androidPlugin.createNotificationChannel(ch.toAndroidChannel());
+        }
+      }
 
       final data = Map<String, dynamic>.from(message.data);
       final title = (message.notification?.title ?? data['title'] ?? 'ZEV')
@@ -1032,11 +1044,20 @@ class NotificationService {
           .toString()
           .trim();
 
+      final isCall =
+          config.type == ZevNotificationCategoryType.voiceCalls ||
+          config.type == ZevNotificationCategoryType.videoCalls;
+
       // Parallel download circular avatar and media thumbnail using ZevNotificationMediaHelper
-      final avatarBytes =
-          await ZevNotificationMediaHelper.getCircularAvatarBytes(avatarUrl);
-      final pictureBytes =
-          await ZevNotificationMediaHelper.getMediaThumbnailBytes(mediaUrl);
+      // For incoming calls, NEVER block on network fetches so incoming call alerts fire instantly (0ms lag)
+      Uint8List? avatarBytes;
+      Uint8List? pictureBytes;
+      if (!isCall) {
+        avatarBytes =
+            await ZevNotificationMediaHelper.getCircularAvatarBytes(avatarUrl);
+        pictureBytes =
+            await ZevNotificationMediaHelper.getMediaThumbnailBytes(mediaUrl);
+      }
 
       ByteArrayAndroidBitmap? largeIconBitmap;
       if (avatarBytes != null) {
@@ -1126,10 +1147,6 @@ class NotificationService {
         );
       }
 
-      final isCall =
-          config.type == ZevNotificationCategoryType.voiceCalls ||
-          config.type == ZevNotificationCategoryType.videoCalls;
-
       if (isCall) {
         actions = [
           const AndroidNotificationAction(
@@ -1174,10 +1191,10 @@ class NotificationService {
         config.channelId,
         config.channelName,
         channelDescription: config.channelDescription,
-        importance: config.importance,
-        priority: config.priority,
-        category: config.androidCategory,
-        fullScreenIntent: config.fullScreenIntent,
+        importance: isCall ? Importance.max : config.importance,
+        priority: isCall ? Priority.max : config.priority,
+        category: isCall ? AndroidNotificationCategory.call : config.androidCategory,
+        fullScreenIntent: isCall ? true : config.fullScreenIntent,
         ongoing: isCall,
         autoCancel: !isCall,
         icon: config.smallIcon,
@@ -1189,23 +1206,33 @@ class NotificationService {
         subText: 'ZEV',
         ticker: title,
         enableVibration: vibrate,
+        visibility: isCall ? NotificationVisibility.public : NotificationVisibility.private,
+        audioAttributesUsage: isCall
+            ? AudioAttributesUsage.voiceCommunication
+            : (config.audioAttributesUsage ?? AudioAttributesUsage.notification),
+        timeoutAfter: isCall ? 45000 : null,
         vibrationPattern: isCall
             ? Int64List.fromList([0, 1000, 1000, 1000, 1000, 1000])
             : null,
       );
 
       List<DarwinNotificationAttachment>? darwinAttachments;
-      final attachPath = await ZevNotificationMediaHelper.getAttachmentFilePath(
-        mediaUrl.isNotEmpty ? mediaUrl : avatarUrl,
-      );
-      if (attachPath != null) {
-        darwinAttachments = [DarwinNotificationAttachment(attachPath)];
+      if (!isCall) {
+        final attachPath = await ZevNotificationMediaHelper.getAttachmentFilePath(
+          mediaUrl.isNotEmpty ? mediaUrl : avatarUrl,
+        );
+        if (attachPath != null) {
+          darwinAttachments = [DarwinNotificationAttachment(attachPath)];
+        }
       }
 
       final darwinDetails = DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
+        interruptionLevel: isCall
+            ? InterruptionLevel.timeSensitive
+            : InterruptionLevel.active,
         categoryIdentifier: config.darwinCategory,
         attachments: darwinAttachments,
       );

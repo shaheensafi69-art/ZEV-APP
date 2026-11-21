@@ -7,6 +7,7 @@ import '../../features/calls/screens/call_screen.dart';
 import '../../main.dart';
 import '../config/app_config.dart';
 import 'api_client.dart';
+import 'notification_service.dart';
 import 'zev_call_audio_service.dart';
 
 class ZevAgoraCredentials {
@@ -589,30 +590,27 @@ class ZevRtcService {
 
     final myUserId = _supabase.auth.currentUser?.id;
     final callTypeLabel = session.isVideo ? 'Video Call' : 'Voice Call';
+    final notifType = session.isVideo ? 'video_call' : 'voice_call';
+    final channelId = session.isVideo ? 'zev_channel_video_calls' : 'zev_channel_voice_calls';
+
+    // Immediately dispatch high-priority push notification to wake callee's device
     unawaited(
-      ApiClient.instance
-          .post(
-            '/api/v1/push/send',
-            data: {
-              'recipientUserId': calleeId,
-              'senderId': myUserId,
-              'title': '$callerDisplayName • $callTypeLabel',
-              'body': 'Incoming $callTypeLabel on ZEV',
-              'notificationType': session.isVideo ? 'video_call' : 'voice_call',
-              'deepLink': '/call/${session.id}',
-              'data': {
-                'call_id': session.id,
-                'caller_name': callerDisplayName,
-                'call_type': session.isVideo ? 'video' : 'voice',
-                'sender_id': myUserId ?? '',
-              },
-            },
-            requireAuth: true,
-          )
-          .catchError((Object e) {
-            debugPrint('[ZevRtcService] incoming call push notice: $e');
-            return <String, dynamic>{};
-          }),
+      NotificationService().dispatchPushNotification(
+        recipientUserId: calleeId,
+        title: '$callerDisplayName • $callTypeLabel',
+        body: 'Incoming $callTypeLabel on ZEV',
+        notificationType: notifType,
+        deepLink: '/call/${session.id}',
+        extraData: {
+          'call_id': session.id,
+          'caller_name': callerDisplayName,
+          'call_type': session.isVideo ? 'video' : 'voice',
+          'sender_id': myUserId ?? '',
+          'android_channel_id': channelId,
+        },
+      ).catchError((Object e) {
+        debugPrint('[ZevRtcService] incoming call dispatchPushNotification error: $e');
+      }),
     );
 
     return session;
@@ -649,21 +647,20 @@ class ZevRtcService {
       final myUserId = _supabase.auth.currentUser?.id;
       final inviterName = inviterDisplayName ?? 'A friend';
       unawaited(
-        ApiClient.instance
-            .post(
-              '/api/v1/push/send',
-              data: {
-                'recipientUserId': userId,
-                'senderId': myUserId,
-                'title': '$inviterName • Group Call',
-                'body': 'Invited you to join a live call on ZEV',
-                'notificationType': 'group_call',
-                'deepLink': '/call/$callId',
-                'data': {'call_id': callId, 'sender_id': myUserId ?? ''},
-              },
-              requireAuth: true,
-            )
-            .catchError((_) => <String, dynamic>{}),
+        NotificationService().dispatchPushNotification(
+          recipientUserId: userId,
+          title: '$inviterName • Group Call',
+          body: 'Invited you to join a live call on ZEV',
+          notificationType: 'group_call',
+          deepLink: '/call/$callId',
+          extraData: {
+            'call_id': callId,
+            'sender_id': myUserId ?? '',
+            'android_channel_id': 'zev_channel_video_calls',
+          },
+        ).catchError((Object e) {
+          debugPrint('[ZevRtcService] group call dispatch error: $e');
+        }),
       );
 
       return participant;
