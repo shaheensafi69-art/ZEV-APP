@@ -30,18 +30,33 @@ class GoogleAuthService {
     ],
   );
 
-  /// Triggers 100% in-app Native Google Sign-In with NO external browser redirects.
+  /// Triggers Google Sign-In:
+  /// - Web: Official Supabase OAuth redirect (OIDC-compliant, eliminates People API 403 dependency)
+  /// - Mobile (Android/iOS): 100% in-app Native Google Play Services bottom sheet with ID Token verification
   static Future<AuthResponse?> signInWithGoogle({
     ValueChanged<String>? onError,
     VoidCallback? onCancel,
   }) async {
     try {
-      // 1. Clear any prior cached session so account selection dialog always pops up
+      // 1. On Web: Use Supabase official OAuth flow (OIDC-compliant, no People API requirement)
+      if (kIsWeb) {
+        debugPrint('[GoogleAuthService] Initiating Web Google OAuth via Supabase...');
+        final redirectUrl = Uri.base.origin;
+        final launched = await _supabase.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: redirectUrl,
+        );
+        if (launched) {
+          return null;
+        }
+      }
+
+      // 2. On Mobile: Clear any prior cached session so account selection dialog always pops up
       try {
         await _googleSignIn.signOut();
       } catch (_) {}
 
-      // 2. Trigger native Android / iOS Google Account selection bottom sheet
+      // 3. Trigger native Android / iOS Google Account selection bottom sheet
       final GoogleSignInAccount? googleAccount = await _googleSignIn.signIn();
 
       if (googleAccount == null) {
@@ -51,12 +66,12 @@ class GoogleAuthService {
         return null;
       }
 
-      // 3. Clear auth cache on mobile to prevent stale tokens
+      // 4. Clear auth cache on mobile to prevent stale tokens
       try {
         await googleAccount.clearAuthCache();
       } catch (_) {}
 
-      // 4. Obtain authentication credentials (ID Token & Access Token)
+      // 5. Obtain authentication credentials (ID Token & Access Token)
       final GoogleSignInAuthentication googleAuth =
           await googleAccount.authentication;
 
@@ -67,7 +82,7 @@ class GoogleAuthService {
         throw 'Unable to obtain Google ID Token from Google Play Services. Please ensure your Google account is active and Play Services is updated.';
       }
 
-      // 5. Authenticate directly with Supabase via native ID Token (NO external browser)
+      // 6. Authenticate directly with Supabase via native ID Token (NO external browser)
       final AuthResponse authResponse = await _supabase.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
