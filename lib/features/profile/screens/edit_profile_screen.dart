@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/social_platform_badge.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 
 /// Ultra-Modern, 100% Tactile Light Clearmorphic "Edit Profile" Screen for ZEV.
@@ -265,93 +266,222 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(ctx).viewInsets.bottom,
-        ),
-        child: Container(
-          decoration: const BoxDecoration(
-            color: ZevColors.softSurface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: ZevColors.border,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  editIndex == null ? 'Add Profile Link' : 'Edit Profile Link',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    color: ZevColors.deepNavy,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _buildClayInputField(
-                  label: 'Title (optional)',
-                  controller: titleCtrl,
-                  hint: 'e.g. Portfolio, YouTube, Store',
-                  isSmall: false,
-                ),
-                const SizedBox(height: 10),
-                _buildClayInputField(
-                  label: 'URL',
-                  controller: urlCtrl,
-                  hint: 'https://example.com',
-                  prefixIcon: Icons.link_rounded,
-                  keyboardType: TextInputType.url,
-                  isSmall: false,
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    var url = urlCtrl.text.trim();
-                    if (url.isEmpty) return;
-                    if (!url.startsWith('http://') &&
-                        !url.startsWith('https://')) {
-                      url = 'https://$url';
-                    }
-                    final title = titleCtrl.text.trim().isNotEmpty
-                        ? titleCtrl.text.trim()
-                        : Uri.tryParse(url)?.host.replaceFirst('www.', '') ??
-                            url;
-                    Navigator.pop(ctx, {'title': title, 'url': url});
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ZevColors.secondaryBlue,
-                    foregroundColor: ZevColors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: Text(
-                    editIndex == null ? 'Add Link' : 'Update Link',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (modalCtx, setModalState) {
+          final detected = SocialPlatformDetector.detect(
+            url: urlCtrl.text,
+            title: titleCtrl.text,
+          );
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
             ),
-          ),
-        ),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: ZevColors.softSurface,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: ZevColors.border,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Title with real-time detected platform logo preview
+                    Row(
+                      children: [
+                        SocialPlatformBadge(
+                          url: urlCtrl.text,
+                          title: titleCtrl.text,
+                          size: 28,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                editIndex == null
+                                    ? 'Add Profile Link'
+                                    : 'Edit Profile Link',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  color: ZevColors.deepNavy,
+                                ),
+                              ),
+                              Text(
+                                'Recognized: ${detected.displayName}',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: detected.brandColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Quick platform selector chips
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: SocialPlatformDetector.presets
+                            .take(10)
+                            .map((preset) {
+                          final isSelected = detected.type == preset.type;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: GestureDetector(
+                              onTap: () {
+                                setModalState(() {
+                                  titleCtrl.text = preset.displayName;
+                                  if (urlCtrl.text.isEmpty &&
+                                      preset.urlPrefix != null) {
+                                    urlCtrl.text = preset.urlPrefix!;
+                                  }
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 9,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? preset.brandColor
+                                          .withValues(alpha: 0.12)
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? preset.brandColor
+                                        : ZevColors.border,
+                                    width: isSelected ? 1.5 : 1.0,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SocialPlatformBadge(
+                                      url: preset.domain,
+                                      title: preset.displayName,
+                                      size: 14,
+                                      showShadow: false,
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      preset.displayName,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: isSelected
+                                            ? FontWeight.w800
+                                            : FontWeight.w600,
+                                        color: isSelected
+                                            ? preset.brandColor
+                                            : ZevColors.deepNavy,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    _buildClayInputField(
+                      label: 'Title',
+                      controller: titleCtrl,
+                      hint: 'e.g. Instagram, Portfolio, Store',
+                      onChanged: (_) => setModalState(() {}),
+                      isSmall: false,
+                    ),
+                    const SizedBox(height: 10),
+                    _buildClayInputField(
+                      label: 'URL',
+                      controller: urlCtrl,
+                      hint: 'https://example.com/username',
+                      prefixWidget: SocialPlatformBadge(
+                        url: urlCtrl.text,
+                        title: titleCtrl.text,
+                        size: 18,
+                      ),
+                      onChanged: (text) {
+                        setModalState(() {
+                          if (titleCtrl.text.trim().isEmpty) {
+                            final det =
+                                SocialPlatformDetector.detect(url: text);
+                            if (det.type != SocialPlatformType.website) {
+                              titleCtrl.text = det.displayName;
+                            }
+                          }
+                        });
+                      },
+                      keyboardType: TextInputType.url,
+                      isSmall: false,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        var url = urlCtrl.text.trim();
+                        if (url.isEmpty) return;
+                        if (!url.startsWith('http://') &&
+                            !url.startsWith('https://')) {
+                          url = 'https://$url';
+                        }
+                        final title = titleCtrl.text.trim().isNotEmpty
+                            ? titleCtrl.text.trim()
+                            : detected.type != SocialPlatformType.website
+                                ? detected.displayName
+                                : (Uri.tryParse(url)
+                                        ?.host
+                                        .replaceFirst('www.', '') ??
+                                    url);
+                        Navigator.pop(ctx, {'title': title, 'url': url});
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ZevColors.secondaryBlue,
+                        foregroundColor: ZevColors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: Text(
+                        editIndex == null ? 'Add Link' : 'Update Link',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
 
@@ -1140,7 +1270,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             label: "Primary Website",
                             controller: _websiteCtrl,
                             hint: "https://yourwebsite.com",
-                            prefixIcon: Icons.link_rounded,
+                            onChanged: (_) => setState(() {}),
+                            prefixWidget: _websiteCtrl.text.trim().isNotEmpty
+                                ? SocialPlatformBadge(
+                                    url: _websiteCtrl.text.trim(),
+                                    size: 16,
+                                  )
+                                : null,
+                            prefixIcon: _websiteCtrl.text.trim().isEmpty
+                                ? Icons.link_rounded
+                                : null,
                             keyboardType: TextInputType.url,
                             isSmall: isSmall,
                           ),
@@ -1224,10 +1363,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(
-                                      Icons.public_rounded,
-                                      size: 16,
-                                      color: ZevColors.secondaryBlue,
+                                    SocialPlatformBadge(
+                                      url: (_userLinks[i]['url'] ?? '')
+                                          .toString(),
+                                      title: (_userLinks[i]['title'] ?? '')
+                                          .toString(),
+                                      size: 22,
                                     ),
                                     const SizedBox(width: 10),
                                     Expanded(
@@ -1492,6 +1633,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     required String hint,
     String? prefixText,
     IconData? prefixIcon,
+    Widget? prefixWidget,
+    ValueChanged<String>? onChanged,
     int maxLines = 1,
     TextInputType keyboardType = TextInputType.text,
     required bool isSmall,
@@ -1534,7 +1677,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ? CrossAxisAlignment.start
                 : CrossAxisAlignment.center,
             children: [
-              if (prefixIcon != null) ...[
+              if (prefixWidget != null) ...[
+                prefixWidget,
+                const SizedBox(width: 8),
+              ] else if (prefixIcon != null) ...[
                 Icon(prefixIcon, size: 16, color: const Color(0xFF94A3B8)),
                 const SizedBox(width: 8),
               ],
@@ -1551,6 +1697,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               Expanded(
                 child: TextField(
                   controller: controller,
+                  onChanged: onChanged,
                   maxLines: maxLines,
                   keyboardType: keyboardType,
                   style: TextStyle(

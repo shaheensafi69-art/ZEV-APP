@@ -25,6 +25,7 @@ import '../models/story_highlight_model.dart';
 import '../services/story_highlight_service.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_video_thumbnail.dart';
+import '../../../core/widgets/social_platform_badge.dart';
 import '../widgets/appeal_restriction_sheet.dart';
 import '../widgets/create_highlight_sheet.dart';
 import '../widgets/highlight_viewer_screen.dart';
@@ -3095,12 +3096,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.link_rounded,
-                        size: 14,
-                        color: ZevColors.secondaryBlue,
+                      SocialPlatformBadge(
+                        url: lnk.url,
+                        title: lnk.title,
+                        size: 16,
                       ),
-                      const SizedBox(width: 5),
+                      const SizedBox(width: 6),
                       Flexible(
                         child: Text(
                           lnk.title,
@@ -3109,7 +3110,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: ZevColors.secondaryBlue,
+                            color: ZevColors.deepNavy,
                           ),
                         ),
                       ),
