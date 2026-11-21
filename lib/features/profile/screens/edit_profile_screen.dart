@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -46,6 +47,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _showContactInfo = true;
 
   File? _newAvatarFile;
+  Uint8List? _newAvatarBytes;
   String _currentAvatarUrl = '';
   String _initialAvatarUrl = '';
   String _initialUsername = '';
@@ -648,6 +650,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           Navigator.pop(ctx);
                           setState(() {
                             _newAvatarFile = null;
+                            _newAvatarBytes = null;
                             _currentAvatarUrl = '';
                           });
                         },
@@ -672,7 +675,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
 
     if (picked != null) {
-      setState(() => _newAvatarFile = File(picked.path));
+      final bytes = await picked.readAsBytes();
+      setState(() {
+        _newAvatarBytes = bytes;
+        if (!kIsWeb) {
+          _newAvatarFile = File(picked.path);
+        }
+      });
     }
   }
 
@@ -736,16 +745,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       // 2. Upload avatar if selected (fail loudly instead of swallowing error)
       String finalAvatarUrl = _currentAvatarUrl;
-      if (_newAvatarFile != null) {
-        final ext = _newAvatarFile!.path.contains('.')
-            ? _newAvatarFile!.path.split('.').last
-            : 'jpg';
+      if (_newAvatarBytes != null || _newAvatarFile != null) {
         final fileName =
-            'avatar_${userId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+            'avatar_${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
         final uploaded = await CloudflareStorageService.instance.upload(
           bucket: 'avatars',
           path: fileName,
-          file: _newAvatarFile,
+          bytes: _newAvatarBytes,
+          file: kIsWeb ? null : _newAvatarFile,
           maxImageDimension: 800,
           imageQuality: 85,
         );
@@ -1015,25 +1022,32 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                   child: Padding(
                                     padding: const EdgeInsets.all(4.0),
                                     child: ClipOval(
-                                      child: _newAvatarFile != null
-                                          ? Image.file(
-                                              _newAvatarFile!,
+                                      child: _newAvatarBytes != null
+                                          ? Image.memory(
+                                              _newAvatarBytes!,
                                               fit: BoxFit.cover,
                                             )
-                                          : (_currentAvatarUrl.isNotEmpty
-                                              ? ZevCachedImage(
-                                                  imageUrl: _currentAvatarUrl,
+                                          : (_newAvatarFile != null && !kIsWeb
+                                              ? Image.file(
+                                                  _newAvatarFile!,
                                                   fit: BoxFit.cover,
                                                 )
-                                              : Container(
-                                                  color:
-                                                      const Color(0xFFE2E8F0),
-                                                  child: const Icon(
-                                                    Icons.person_rounded,
-                                                    size: 48,
-                                                    color: Color(0xFF94A3B8),
-                                                  ),
-                                                )),
+                                              : (_currentAvatarUrl.isNotEmpty
+                                                  ? ZevCachedImage(
+                                                      imageUrl:
+                                                          _currentAvatarUrl,
+                                                      fit: BoxFit.cover,
+                                                    )
+                                                  : Container(
+                                                      color: const Color(
+                                                          0xFFE2E8F0),
+                                                      child: const Icon(
+                                                        Icons.person_rounded,
+                                                        size: 48,
+                                                        color:
+                                                            Color(0xFF94A3B8),
+                                                      ),
+                                                    ))),
                                     ),
                                   ),
                                 ),

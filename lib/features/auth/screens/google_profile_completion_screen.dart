@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -51,6 +52,7 @@ class _GoogleProfileCompletionScreenState
 
   String _avatarUrl = '';
   File? _customAvatarFile;
+  Uint8List? _customAvatarBytes;
   DateTime? _dob;
   String _selectedCountry = 'United States';
 
@@ -230,8 +232,12 @@ class _GoogleProfileCompletionScreenState
         imageQuality: 88,
       );
       if (picked != null) {
+        final bytes = await picked.readAsBytes();
         setState(() {
-          _customAvatarFile = File(picked.path);
+          _customAvatarBytes = bytes;
+          if (!kIsWeb) {
+            _customAvatarFile = File(picked.path);
+          }
         });
       }
     } catch (e) {
@@ -303,15 +309,15 @@ class _GoogleProfileCompletionScreenState
       String finalAvatarUrl = _avatarUrl;
 
       // 1. Upload custom avatar if chosen
-      if (_customAvatarFile != null) {
-        final ext = _customAvatarFile!.path.split('.').last;
+      if (_customAvatarBytes != null || _customAvatarFile != null) {
         final fileName =
-            'avatar_${widget.user.id}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+            'avatar_${widget.user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
         try {
           finalAvatarUrl = await CloudflareStorageService.instance.upload(
             bucket: 'avatars',
             path: fileName,
-            file: _customAvatarFile,
+            bytes: _customAvatarBytes,
+            file: kIsWeb ? null : _customAvatarFile,
           );
         } catch (uploadErr) {
           debugPrint("Custom avatar upload notice: $uploadErr");
@@ -481,10 +487,12 @@ class _GoogleProfileCompletionScreenState
                             ],
                           ),
                           child: ClipOval(
-                            child: _customAvatarFile != null
-                                ? Image.file(_customAvatarFile!, fit: BoxFit.cover)
-                                : (_avatarUrl.isNotEmpty
-                                    ? CachedNetworkImage(
+                            child: _customAvatarBytes != null
+                                ? Image.memory(_customAvatarBytes!, fit: BoxFit.cover)
+                                : (_customAvatarFile != null && !kIsWeb
+                                    ? Image.file(_customAvatarFile!, fit: BoxFit.cover)
+                                    : (_avatarUrl.isNotEmpty
+                                        ? CachedNetworkImage(
                                         imageUrl: _avatarUrl,
                                         fit: BoxFit.cover,
                                         placeholder: (_, _) => const Center(
@@ -501,7 +509,7 @@ class _GoogleProfileCompletionScreenState
                                     : Image.asset(
                                         'assets/icon/icon-192x192.png',
                                         fit: BoxFit.cover,
-                                      )),
+                                      ))),
                           ),
                         ),
                         Positioned(

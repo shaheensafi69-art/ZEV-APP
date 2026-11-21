@@ -61,6 +61,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   // Step 1 Controllers
   File? _avatarFile;
+  Uint8List? _avatarBytes;
   final TextEditingController _firstNameCtrl = TextEditingController();
   final TextEditingController _lastNameCtrl = TextEditingController();
   final TextEditingController _dobCtrl = TextEditingController();
@@ -265,7 +266,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
         maxWidth: 1024,
       );
       if (picked != null) {
-        setState(() => _avatarFile = File(picked.path));
+        final bytes = await picked.readAsBytes();
+        setState(() {
+          _avatarBytes = bytes;
+          if (!kIsWeb) {
+            _avatarFile = File(picked.path);
+          }
+        });
       }
     } catch (e) {
       debugPrint("Avatar pick notice: $e");
@@ -652,14 +659,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       // 1. Upload avatar if selected
       String avatarUrl = "";
-      if (_avatarFile != null) {
-        final ext = _avatarFile!.path.split('.').last;
-        final fileName = 'avatar_${userId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      if (_avatarBytes != null || _avatarFile != null) {
+        final fileName = 'avatar_${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
         try {
           avatarUrl = await CloudflareStorageService.instance.upload(
             bucket: 'avatars',
             path: fileName,
-            file: _avatarFile,
+            bytes: _avatarBytes,
+            file: kIsWeb ? null : _avatarFile,
           );
         } catch (uploadErr) {
           debugPrint("Avatar upload warning: $uploadErr");
@@ -1220,15 +1227,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ],
                 ),
                 child: ClipOval(
-                  child: _avatarFile != null
-                      ? Image.file(_avatarFile!, fit: BoxFit.cover)
-                      : const Center(
-                          child: Icon(
-                            Icons.person_rounded,
-                            size: 54,
-                            color: ZevColors.textMuted,
-                          ),
-                        ),
+                  child: _avatarBytes != null
+                      ? Image.memory(_avatarBytes!, fit: BoxFit.cover)
+                      : (_avatarFile != null && !kIsWeb
+                          ? Image.file(_avatarFile!, fit: BoxFit.cover)
+                          : const Center(
+                              child: Icon(
+                                Icons.person_rounded,
+                                size: 54,
+                                color: ZevColors.textMuted,
+                              ),
+                            )),
                 ),
               ),
               Positioned(
