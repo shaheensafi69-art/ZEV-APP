@@ -27,8 +27,8 @@ class _ZevCoinsScreenState extends State<ZevCoinsScreen> {
   int _creatorEarningsCoins = 0;
   bool _isLoading = true;
 
-  static const String kCoinsWebUrl = 'https://www.zevapp.com/coins';
-  static const String kPayoutsWebUrl = 'https://www.zevapp.com/creator/payouts';
+  static const String kCoinsWebUrl = 'https://web.zevapp.com/coins';
+  static const String kPayoutsWebUrl = 'https://web.zevapp.com/creator/payouts';
 
   @override
   void initState() {
@@ -80,7 +80,7 @@ class _ZevCoinsScreenState extends State<ZevCoinsScreen> {
       if (!launched && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Could not open browser. Please visit www.zevapp.com/coins"),
+            content: Text("Could not open browser. Please visit web.zevapp.com/coins"),
             backgroundColor: Color(0xFF0F172A),
           ),
         );

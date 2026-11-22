@@ -2,6 +2,18 @@
   "version": 2,
   "buildCommand": "bash vercel-build.sh",
   "outputDirectory": "build/web",
+  "redirects": [
+    {
+      "source": "/coins",
+      "destination": "https://web.zevapp.com/coins",
+      "permanent": false
+    },
+    {
+      "source": "/coins/:match*",
+      "destination": "https://web.zevapp.com/coins/:match*",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/app-ads.txt",

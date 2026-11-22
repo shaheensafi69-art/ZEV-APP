@@ -26,6 +26,13 @@
   <!-- Google Identity Services Web Client ID -->
   <meta name="google-signin-client_id" content="557150004230-mcvr3rp5dva5aid3neav5f8f91laapf8.apps.googleusercontent.com">
 
+  <!-- Immediate Coins Portal Redirect -->
+  <script>
+    if (window.location.pathname.startsWith('/coins')) {
+      window.location.replace('https://web.zevapp.com' + window.location.pathname + window.location.search);
+    }
+  </script>
+
   <!-- PWA Theme Color -->
   <meta name="theme-color" content="#090D16">
   <meta name="msapplication-navbutton-color" content="#090D16">
