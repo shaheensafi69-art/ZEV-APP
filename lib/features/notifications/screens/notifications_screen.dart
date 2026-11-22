@@ -53,6 +53,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   String? _oldestNotifCursor;
   String _selectedFilter = 'All';
   String _currentUsername = '';
+  bool _isPrivateAccount = false;
   List<NotificationItem> _notifications = [];
   int _pendingRequestsCount = 0;
   List<String> _pendingRequestAvatars = [];
@@ -218,7 +219,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             .catchError((_) => []),
         supabase
             .from('profiles')
-            .select('username')
+            .select('username, is_private')
             .eq('id', uid)
             .maybeSingle()
             .catchError((_) => null),
@@ -260,6 +261,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
       if (myProfile != null) {
         _currentUsername = myProfile['username']?.toString() ?? '';
+        _isPrivateAccount = myProfile['is_private'] == true;
       }
 
       final List<String> myPostIds = [];
@@ -335,6 +337,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           }
           if (sId.isNotEmpty && nType == 'follow_request') {
             seenActions.add('${sId}_follow_request');
+          }
+
+          if (nType == 'follow_request') {
+            final activeReqId = reqIdByRequester[sId];
+            if (activeReqId == null) {
+              // Stale follow request notification: request is no longer pending! Purge from DB and skip
+              unawaited(
+                supabase
+                    .from('user_notifications')
+                    .delete()
+                    .eq('id', notifId)
+                    .catchError((_) => null),
+              );
+              continue;
+            }
           }
 
           final isSystem =
@@ -968,25 +985,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     HapticFeedback.lightImpact();
 
-    // 1. Instant optimistic UI update for immediate response
+    // 1. Instant optimistic UI update for immediate response (0 delay)
     setState(() {
       _busyRequestIds.add(item.id);
       if (_pendingRequestsCount > 0) _pendingRequestsCount -= 1;
-      if (accept) {
-        _notifications = _notifications.map((n) {
-          if (n.id == item.id) {
-            return n.copyWith(
-              notificationType: 'follow',
-              title: 'New Follower',
-              message: 'started following you.',
-              isRead: true,
-            );
-          }
-          return n;
-        }).toList();
-      } else {
-        _notifications.removeWhere((n) => n.id == item.id);
-      }
+      _notifications.removeWhere((n) =>
+          n.id == item.id ||
+          (n.senderId == item.senderId && n.isFollowRequest));
     });
 
     try {
@@ -1008,13 +1013,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         } else {
           await SocialGraphService.instance.rejectFollowRequest(reqId);
         }
-      } else {
-        // Request was already accepted/handled! Delete stale notification from DB
-        await supabase
-            .from('user_notifications')
-            .delete()
-            .eq('id', item.id);
       }
+
+      // Always purge any stale follow_request notification for this sender
+      await supabase
+          .from('user_notifications')
+          .delete()
+          .eq('user_id', uid)
+          .eq('sender_id', item.senderId)
+          .eq('notification_type', 'follow_request');
 
       if (accept) {
         unawaited(
@@ -1479,7 +1486,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             child: Column(
               children: [
                 _buildCategoryFilterRow(),
-                if (_pendingRequestsCount > 0 &&
+                if ((_isPrivateAccount || _pendingRequestsCount > 0) &&
                     (_selectedFilter == 'All' || _selectedFilter == 'Follows'))
                   _buildFollowRequestsTile(),
                 Expanded(
@@ -1694,7 +1701,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       Text(
                         _pendingRequestsCount == 1
                             ? '1 person wants to follow you'
-                            : 'Approve or ignore requests',
+                            : (_pendingRequestsCount == 0
+                                ? 'No pending requests'
+                                : '$_pendingRequestsCount people want to follow you'),
                         style: const TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w500,
@@ -1706,29 +1715,31 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                  decoration: BoxDecoration(
-                    gradient: ZevColors.brandGradient,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: ZevColors.secondaryBlue.withValues(alpha: 0.3),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
+                if (_pendingRequestsCount > 0) ...[
+                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                      gradient: ZevColors.brandGradient,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: ZevColors.secondaryBlue.withValues(alpha: 0.3),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      '$_pendingRequestsCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
                       ),
-                    ],
-                  ),
-                  child: Text(
-                    '$_pendingRequestsCount',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
                     ),
                   ),
-                ),
+                ],
                 const SizedBox(width: 6),
                 const Icon(
                   Icons.chevron_right_rounded,

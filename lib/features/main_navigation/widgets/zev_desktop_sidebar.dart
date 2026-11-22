@@ -18,6 +18,7 @@ import '../../chat/screens/saved_messages_screen.dart';
 import '../../communities/screens/communities_list_screen.dart';
 import '../../profile/screens/data_saver_settings_screen.dart';
 import '../../profile/screens/active_sessions_screen.dart';
+import '../../profile/screens/zev_coins_screen.dart';
 
 /// Reusable Adaptive Left Navigation Sidebar for ZEV Desktop & Tablet Web.
 /// Retains persistent Instagram Web-grade navigation across all views (Feed, Explore,
@@ -761,6 +762,15 @@ class _ZevDesktopSidebarState extends State<ZevDesktopSidebar> {
                                   onTap: () {
                                     Navigator.pop(ctx);
                                     CommunitiesListScreen.open(context);
+                                  },
+                                ),
+                                _buildMoreMenuItem(
+                                  icon: Icons.monetization_on_rounded,
+                                  label: 'ZEV Coins & Wallet',
+                                  isReels: isReels,
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    ZevCoinsScreen.open(context);
                                   },
                                 ),
                                 _buildMoreMenuItem(

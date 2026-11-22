@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 
@@ -113,15 +114,44 @@ class CloudflareStorageService {
         }
         headers.putIfAbsent('Content-Type', () => resolvedContentType);
 
-        await ApiClient.instance.uploadToPresignedUrl(
-          uploadUrl: uploadUrl,
-          bytes: uploadBytes,
-          headers: headers,
-          onProgress: (p) => onProgress?.call((0.05 + p * 0.95).clamp(0.0, 1.0)),
-        );
+        try {
+          await ApiClient.instance.uploadToPresignedUrl(
+            uploadUrl: uploadUrl,
+            bytes: uploadBytes,
+            headers: headers,
+            onProgress: (p) =>
+                onProgress?.call((0.05 + p * 0.95).clamp(0.0, 1.0)),
+          );
 
-        onProgress?.call(1.0);
-        return publicUrl;
+          onProgress?.call(1.0);
+          return publicUrl;
+        } catch (putErr) {
+          debugPrint(
+            '[CloudflareStorageService] Presigned PUT attempt failed ($putErr). Checking server proxy upload...',
+          );
+          if (kIsWeb || uploadBytes.length < 15 * 1024 * 1024) {
+            try {
+              final proxyRes = await ApiClient.instance.post(
+                '/api/v1/media/upload',
+                data: {
+                  'folder': folder,
+                  'fileName': fileName,
+                  'contentType': resolvedContentType,
+                  'base64': base64Encode(uploadBytes),
+                  if (parsed.subPath.isNotEmpty) 'subPath': parsed.subPath,
+                },
+              );
+              final proxyUrl = proxyRes['publicUrl']?.toString() ?? '';
+              if (proxyUrl.isNotEmpty) {
+                onProgress?.call(1.0);
+                return proxyUrl;
+              }
+            } catch (proxyErr) {
+              debugPrint('[CloudflareStorageService] Server proxy upload error: $proxyErr');
+            }
+          }
+          rethrow;
+        }
       } catch (e) {
         lastError = e;
         if (e is ApiException &&

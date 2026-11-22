@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'community_post_detail_screen.dart';
 import 'create_community_post_screen.dart';
@@ -32,17 +33,16 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
 
   Map<String, dynamic>? _community;
   List<Map<String, dynamic>> _posts = [];
-  List<Map<String, dynamic>> _reels = [];
-  List<Map<String, dynamic>> _questions = [];
-  bool _isMember = false;
   bool _isLoading = true;
+  bool _isMember = false;
+  String _userRole = 'none';
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
     _community = widget.initialData;
-    _fetchCommunityData();
+    _tabController = TabController(length: 4, vsync: this);
+    _loadCommunityData();
   }
 
   @override
@@ -51,7 +51,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
     super.dispose();
   }
 
-  Future<void> _fetchCommunityData() async {
+  Future<void> _loadCommunityData() async {
     final userId = _client.auth.currentUser?.id;
 
     try {
@@ -64,62 +64,79 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
 
       _community = Map<String, dynamic>.from(commRes);
 
-      // 2. Check if current user is member
+      // 2. Check membership
       if (userId != null) {
-        final memberCheck = await _client
+        final memRes = await _client
             .from('community_members')
             .select('role')
             .eq('community_id', widget.communityId)
             .eq('user_id', userId)
             .maybeSingle();
 
-        _isMember = memberCheck != null;
+        if (memRes != null) {
+          _isMember = true;
+          _userRole = memRes['role'] ?? 'member';
+        } else {
+          _isMember = false;
+          _userRole = 'none';
+        }
       }
 
-      // 3. Fetch community posts
+      // 3. Fetch community posts & reels
       final postsRes = await _client
           .from('community_posts')
-          .select('*, profiles:user_id(id, full_name, username, avatar_url, is_verified)')
+          .select('*, profiles(username, full_name, avatar_url, is_verified)')
           .eq('community_id', widget.communityId)
           .order('is_pinned', ascending: false)
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false)
+          .limit(50);
 
-      final allPosts = List<Map<String, dynamic>>.from(postsRes);
-      _posts = allPosts.where((p) => p['post_type'] == 'post').toList();
-      _reels = allPosts.where((p) => p['post_type'] == 'reel').toList();
-      _questions = allPosts.where((p) => p['post_type'] == 'question').toList();
-
-      setState(() => _isLoading = false);
+      setState(() {
+        _posts = List<Map<String, dynamic>>.from(postsRes);
+        _isLoading = false;
+      });
     } catch (e) {
-      debugPrint('[CommunityDetailScreen] fetch error: $e');
+      debugPrint('[CommunityDetailScreen] error: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _toggleJoin() async {
+  Future<void> _toggleMembership() async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
 
+    HapticFeedback.lightImpact();
+
     try {
       if (_isMember) {
+        // Leave
         await _client
             .from('community_members')
             .delete()
             .eq('community_id', widget.communityId)
             .eq('user_id', userId);
+
         setState(() {
           _isMember = false;
-          _community?['members_count'] = ((_community?['members_count'] ?? 1) - 1).clamp(0, 999999);
+          _userRole = 'none';
+          if (_community != null) {
+            _community!['members_count'] = ((_community!['members_count'] as num?) ?? 1) - 1;
+          }
         });
       } else {
+        // Join
         await _client.from('community_members').insert({
           'community_id': widget.communityId,
           'user_id': userId,
           'role': 'member',
         });
+
         setState(() {
           _isMember = true;
-          _community?['members_count'] = (_community?['members_count'] ?? 0) + 1;
+          _userRole = 'member';
+          if (_community != null) {
+            _community!['members_count'] = ((_community!['members_count'] as num?) ?? 0) + 1;
+          }
         });
       }
     } catch (e) {
@@ -131,120 +148,16 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
     }
   }
 
-  void _showPostTypeSelector() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF161F30),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
-              const SizedBox(height: 16),
-              const Text(
-                "Create in Community",
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 17),
-              ),
-              const SizedBox(height: 16),
-              _buildActionTile(
-                icon: Icons.edit_note_rounded,
-                color: const Color(0xFF00B2FF),
-                title: "Share Feed Post",
-                subtitle: "Post ideas, discussions, photos with community members",
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _openCreatePost('post');
-                },
-              ),
-              const SizedBox(height: 10),
-              _buildActionTile(
-                icon: Icons.live_tv_rounded,
-                color: const Color(0xFF10B981),
-                title: "Post Community Reel",
-                subtitle: "Upload a short video or tutorial inside this group",
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _openCreatePost('reel');
-                },
-              ),
-              const SizedBox(height: 10),
-              _buildActionTile(
-                icon: Icons.help_outline_rounded,
-                color: const Color(0xFFF59E0B),
-                title: "Ask a Question (Q&A)",
-                subtitle: "Ask coding, trading, or course questions to get verified answers",
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _openCreatePost('question');
-                },
-              ),
-              const SizedBox(height: 12),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openCreatePost(String postType) async {
-    final res = await CreateCommunityPostScreen.open(
-      context,
-      communityId: widget.communityId,
-      initialType: postType,
-    );
-    if (res == true) _fetchCommunityData();
-  }
-
-  Widget _buildActionTile({
-    required IconData icon,
-    required Color color,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: const Color(0xFF0F172A),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
-              child: Icon(icon, color: color, size: 22),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14.5)),
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11.5)),
-                ],
-              ),
-            ),
-            const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF64748B), size: 14),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final c = _community ?? widget.initialData ?? {};
+    if (_community == null && _isLoading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF8FAFC),
+        body: Center(child: CircularProgressIndicator(color: Color(0xFF0284C7))),
+      );
+    }
+
+    final c = _community ?? {};
     final name = c['name'] ?? 'Community';
     final desc = c['description'] ?? '';
     final coverUrl = c['cover_url'];
@@ -255,19 +168,26 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
     final rules = (c['rules'] as List?)?.cast<String>() ?? [];
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B101B),
+      backgroundColor: const Color(0xFFF8FAFC),
       body: NestedScrollView(
         headerSliverBuilder: (ctx, innerBoxScrolled) => [
           SliverAppBar(
             expandedHeight: 250,
             pinned: true,
-            backgroundColor: const Color(0xFF0B101B),
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
             elevation: 0,
             leading: IconButton(
               icon: Container(
                 padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8),
+                  ],
+                ),
+                child: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF0F172A), size: 16),
               ),
               onPressed: () => Navigator.pop(context),
             ),
@@ -275,8 +195,14 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
               IconButton(
                 icon: Container(
                   padding: const EdgeInsets.all(6),
-                  decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                  child: const Icon(Icons.share_rounded, color: Colors.white, size: 18),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8),
+                    ],
+                  ),
+                  child: const Icon(Icons.share_rounded, color: Color(0xFF0F172A), size: 18),
                 ),
                 onPressed: () {},
               ),
@@ -290,7 +216,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
                       : Container(
                           decoration: const BoxDecoration(
                             gradient: LinearGradient(
-                              colors: [Color(0xFF0284C7), Color(0xFF0F172A)],
+                              colors: [Color(0xFF0284C7), Color(0xFF0369A1)],
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                             ),
@@ -299,7 +225,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.transparent, const Color(0xFF0B101B).withOpacity(0.95)],
+                        colors: [Colors.transparent, Colors.white.withValues(alpha: 0.95)],
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                       ),
@@ -315,15 +241,15 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
                         Container(
                           padding: const EdgeInsets.all(3),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF00B2FF),
+                            color: Colors.white,
                             shape: BoxShape.circle,
                             boxShadow: [
-                              BoxShadow(color: const Color(0xFF00B2FF).withOpacity(0.4), blurRadius: 16),
+                              BoxShadow(color: const Color(0xFF0284C7).withValues(alpha: 0.2), blurRadius: 16),
                             ],
                           ),
                           child: CircleAvatar(
                             radius: 36,
-                            backgroundColor: const Color(0xFF161F30),
+                            backgroundColor: const Color(0xFF0284C7),
                             backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
                             child: avatarUrl == null
                                 ? Text(name.isNotEmpty ? name[0].toUpperCase() : 'C',
@@ -342,7 +268,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: Color(0xFF0F172A),
                                   fontSize: 18,
                                   fontWeight: FontWeight.w900,
                                 ),
@@ -351,7 +277,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
                               Text(
                                 "${category.toString().toUpperCase()} GROUP",
                                 style: const TextStyle(
-                                  color: Color(0xFF00B2FF),
+                                  color: Color(0xFF0284C7),
                                   fontSize: 11,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: 1.1,
@@ -368,17 +294,18 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
             ),
           ),
 
-          // Community Summary & Join Button
+          // Community Info & Action Bar
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Container(
+              color: Colors.white,
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (desc.isNotEmpty) ...[
                     Text(
                       desc,
-                      style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.4),
+                      style: const TextStyle(color: Color(0xFF475569), fontSize: 13, height: 1.4),
                     ),
                     const SizedBox(height: 12),
                   ],
@@ -386,59 +313,46 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
                   // Stats Row
                   Row(
                     children: [
-                      _buildStatChip(Icons.people_rounded, "$members Members"),
+                      _buildStatChip(Icons.people_alt_rounded, "$members Members"),
                       const SizedBox(width: 8),
-                      _buildStatChip(Icons.dynamic_feed_rounded, "$posts Posts"),
-                      const SizedBox(width: 8),
-                      _buildStatChip(Icons.help_center_rounded, "${_questions.length} Questions"),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Join / Joined Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 44,
-                    child: ElevatedButton.icon(
-                      onPressed: _toggleJoin,
-                      icon: Icon(_isMember ? Icons.check_circle_rounded : Icons.group_add_rounded, size: 18),
-                      label: Text(
-                        _isMember ? "Joined (Member)" : "Join Community",
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _isMember ? const Color(0xFF1E293B) : const Color(0xFF00B2FF),
-                        foregroundColor: Colors.white,
-                        elevation: _isMember ? 0 : 4,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          side: BorderSide(color: _isMember ? Colors.white24 : Colors.transparent),
+                      _buildStatChip(Icons.forum_rounded, "$posts Posts & Q&A"),
+                      const Spacer(),
+                      ElevatedButton.icon(
+                        onPressed: _toggleMembership,
+                        icon: Icon(_isMember ? Icons.check_circle_rounded : Icons.group_add_rounded, size: 16),
+                        label: Text(_isMember ? "Joined" : "Join Group"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _isMember ? const Color(0xFFF1F5F9) : const Color(0xFF0284C7),
+                          foregroundColor: _isMember ? const Color(0xFF0F172A) : Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
                 ],
               ),
             ),
           ),
 
-          // Persistent TabBar
+          // Sliver TabBar Header
           SliverPersistentHeader(
             pinned: true,
             delegate: _SliverTabBarDelegate(
               TabBar(
                 controller: _tabController,
-                indicatorColor: const Color(0xFF00B2FF),
+                indicatorColor: const Color(0xFF0284C7),
                 indicatorWeight: 3,
-                labelColor: const Color(0xFF00B2FF),
-                unselectedLabelColor: const Color(0xFF94A3B8),
+                labelColor: const Color(0xFF0284C7),
+                unselectedLabelColor: const Color(0xFF64748B),
                 labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                tabs: [
-                  Tab(text: "Feed (${_posts.length})"),
-                  Tab(text: "Reels (${_reels.length})"),
-                  Tab(text: "Q&A (${_questions.length})"),
-                  const Tab(text: "Rules"),
+                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                tabs: const [
+                  Tab(text: "Posts"),
+                  Tab(text: "Q&A"),
+                  Tab(text: "Reels"),
+                  Tab(text: "Rules"),
                 ],
               ),
             ),
@@ -447,26 +361,45 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
         body: TabBarView(
           controller: _tabController,
           children: [
-            // Tab 1: Feed Posts
-            _buildPostList(_posts, emptyLabel: "No community feed posts yet. Be the first to post!"),
+            // 1. Regular Feed Posts
+            _buildPostList(
+              _posts.where((p) => p['post_type'] == 'post').toList(),
+              emptyLabel: "No community feed posts yet. Be the first to share an update!",
+            ),
 
-            // Tab 2: Community Reels
-            _buildReelsGrid(_reels),
+            // 2. Q&A Forum (Reddit / StackOverflow style)
+            _buildPostList(
+              _posts.where((p) => p['post_type'] == 'question').toList(),
+              isQnATab: true,
+              emptyLabel: "No open questions yet. Ask something to the community!",
+            ),
 
-            // Tab 3: Q&A Discussions
-            _buildPostList(_questions, isQnATab: true, emptyLabel: "No open questions. Ask a question to get answers!"),
+            // 3. Reels & Short Videos
+            _buildReelsGrid(
+              _posts.where((p) => p['post_type'] == 'reel').toList(),
+            ),
 
-            // Tab 4: Rules & About
+            // 4. About & Guidelines
             _buildRulesTab(rules),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showPostTypeSelector,
-        backgroundColor: const Color(0xFF00B2FF),
-        icon: const Icon(Icons.add_rounded, color: Colors.white),
-        label: const Text("Post / Ask", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-      ),
+      floatingActionButton: _isMember
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                final created = await CreateCommunityPostScreen.open(
+                  context,
+                  communityId: widget.communityId,
+                  communityName: name,
+                );
+                if (created == true) _loadCommunityData();
+              },
+              backgroundColor: const Color(0xFF0284C7),
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.edit_note_rounded),
+              label: const Text("Post / Ask", style: TextStyle(fontWeight: FontWeight.w800)),
+            )
+          : null,
     );
   }
 
@@ -474,16 +407,16 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF161F30),
+        color: const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: const Color(0xFF00B2FF), size: 14),
+          Icon(icon, color: const Color(0xFF0284C7), size: 14),
           const SizedBox(width: 5),
-          Text(label, style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 11.5, fontWeight: FontWeight.w600)),
+          Text(label, style: const TextStyle(color: Color(0xFF475569), fontSize: 11.5, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -491,7 +424,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
 
   Widget _buildPostList(List<Map<String, dynamic>> items, {bool isQnATab = false, required String emptyLabel}) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFF00B2FF)));
+      return const Center(child: CircularProgressIndicator(color: Color(0xFF0284C7)));
     }
     if (items.isEmpty) {
       return Center(
@@ -500,9 +433,9 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(isQnATab ? Icons.question_answer_outlined : Icons.dynamic_feed_outlined, color: const Color(0xFF475569), size: 48),
+              Icon(isQnATab ? Icons.question_answer_outlined : Icons.dynamic_feed_outlined, color: const Color(0xFF94A3B8), size: 48),
               const SizedBox(height: 12),
-              Text(emptyLabel, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
+              Text(emptyLabel, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF64748B), fontSize: 13)),
             ],
           ),
         ),
@@ -530,11 +463,19 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF161F30),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isSolved ? const Color(0xFF10B981).withOpacity(0.4) : Colors.white.withOpacity(0.06),
+          color: isSolved ? const Color(0xFF10B981) : const Color(0xFFE2E8F0),
+          width: isSolved ? 1.5 : 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: InkWell(
         onTap: () => CommunityPostDetailScreen.open(context, postId: post['id'], initialPost: post),
@@ -549,7 +490,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
                 children: [
                   CircleAvatar(
                     radius: 16,
-                    backgroundColor: const Color(0xFF00B2FF),
+                    backgroundColor: const Color(0xFF0284C7),
                     backgroundImage: avatar != null ? NetworkImage(avatar) : null,
                     child: avatar == null ? Text(authorName[0], style: const TextStyle(color: Colors.white, fontSize: 12)) : null,
                   ),
@@ -558,15 +499,15 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(authorName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                        Text(created, style: const TextStyle(color: Color(0xFF64748B), fontSize: 10.5)),
+                        Text(authorName, style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text(created, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10.5)),
                       ],
                     ),
                   ),
                   if (isSolved)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: const Color(0xFF10B981).withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+                      decoration: BoxDecoration(color: const Color(0xFF10B981).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -584,7 +525,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
               if (title != null && title.isNotEmpty) ...[
                 Text(
                   title,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14.5),
+                  style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w800, fontSize: 14.5),
                 ),
                 const SizedBox(height: 6),
               ],
@@ -594,7 +535,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
                 content,
                 maxLines: 4,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.4),
+                style: const TextStyle(color: Color(0xFF475569), fontSize: 13, height: 1.4),
               ),
               const SizedBox(height: 12),
 
@@ -603,21 +544,21 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(12)),
                     child: Row(
                       children: [
-                        const Icon(Icons.arrow_upward_rounded, color: Color(0xFF00B2FF), size: 14),
+                        const Icon(Icons.arrow_upward_rounded, color: Color(0xFF0284C7), size: 14),
                         const SizedBox(width: 4),
-                        Text("$upvotes", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                        Text("$upvotes", style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 12)),
                       ],
                     ),
                   ),
                   const SizedBox(width: 12),
                   Row(
                     children: [
-                      const Icon(Icons.comment_outlined, color: Color(0xFF94A3B8), size: 14),
+                      const Icon(Icons.comment_outlined, color: Color(0xFF64748B), size: 14),
                       const SizedBox(width: 4),
-                      Text("$comments answers", style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11.5)),
+                      Text("$comments answers", style: const TextStyle(color: Color(0xFF64748B), fontSize: 11.5)),
                     ],
                   ),
                 ],
@@ -651,9 +592,16 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
 
         return Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF161F30),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.06)),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
@@ -688,7 +636,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
       children: [
         const Text(
           "COMMUNITY GUIDELINES & RULES",
-          style: TextStyle(color: Color(0xFF00B2FF), fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1.1),
+          style: TextStyle(color: Color(0xFF0284C7), fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1.1),
         ),
         const SizedBox(height: 12),
         if (rules.isEmpty)
@@ -703,14 +651,14 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
                   Container(
                     width: 24,
                     height: 24,
-                    decoration: BoxDecoration(color: const Color(0xFF161F30), shape: BoxShape.circle),
+                    decoration: BoxDecoration(color: const Color(0xFFF1F5F9), shape: BoxShape.circle),
                     child: Center(
-                      child: Text("${entry.key + 1}", style: const TextStyle(color: Color(0xFF00B2FF), fontWeight: FontWeight.bold, fontSize: 11)),
+                      child: Text("${entry.key + 1}", style: const TextStyle(color: Color(0xFF0284C7), fontWeight: FontWeight.bold, fontSize: 11)),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(entry.value, style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 13, height: 1.4)),
+                    child: Text(entry.value, style: const TextStyle(color: Color(0xFF475569), fontSize: 13, height: 1.4)),
                   ),
                 ],
               ),
@@ -732,7 +680,7 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(color: const Color(0xFF0B101B), child: _tabBar);
+    return Container(color: Colors.white, child: _tabBar);
   }
 
   @override

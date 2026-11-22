@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 
 import '../config/app_config.dart';
@@ -210,12 +210,12 @@ class ApiClient {
   }) async {
     final requestHeaders = <String, dynamic>{
       ...headers,
-      'Content-Length': bytes.length,
+      if (!kIsWeb) 'Content-Length': bytes.length,
     };
 
     final response = await _rawUploadDio.put<dynamic>(
       uploadUrl,
-      data: Stream.fromIterable([bytes]),
+      data: kIsWeb ? bytes : Stream.fromIterable([bytes]),
       options: Options(
         headers: requestHeaders,
         validateStatus: (code) => code != null && code < 500,

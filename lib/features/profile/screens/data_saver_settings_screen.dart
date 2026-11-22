@@ -40,18 +40,19 @@ class _DataSaverSettingsScreenState extends State<DataSaverSettingsScreen> {
     final autoDl = _service.autoDownload;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B101B),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0B101B),
+        backgroundColor: Colors.white,
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF0F172A), size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           "Data Saver & Quality",
           style: TextStyle(
-            color: Colors.white,
+            color: Color(0xFF0F172A),
             fontWeight: FontWeight.w900,
             fontSize: 18,
           ),
@@ -68,7 +69,7 @@ class _DataSaverSettingsScreenState extends State<DataSaverSettingsScreen> {
           const Text(
             "DATA SAVER MODE",
             style: TextStyle(
-              color: Color(0xFF94A3B8),
+              color: Color(0xFF64748B),
               fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.1,
@@ -96,7 +97,7 @@ class _DataSaverSettingsScreenState extends State<DataSaverSettingsScreen> {
             title: "Standard Saver (Balanced)",
             subtitle: "480p videos, autoplay on Wi-Fi only, compressed photos. Great balance of speed and clarity.",
             badge: "Saves ~40%",
-            badgeColor: const Color(0xFF00B2FF),
+            badgeColor: const Color(0xFF0284C7),
             icon: Icons.speed_rounded,
           ),
 
@@ -117,7 +118,7 @@ class _DataSaverSettingsScreenState extends State<DataSaverSettingsScreen> {
           const Text(
             "MEDIA AUTO-DOWNLOAD ON MOBILE DATA",
             style: TextStyle(
-              color: Color(0xFF94A3B8),
+              color: Color(0xFF64748B),
               fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.1,
@@ -127,9 +128,16 @@ class _DataSaverSettingsScreenState extends State<DataSaverSettingsScreen> {
 
           Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF161F30),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.white.withOpacity(0.06)),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Column(
               children: [
@@ -139,14 +147,14 @@ class _DataSaverSettingsScreenState extends State<DataSaverSettingsScreen> {
                   selected: autoDl == MediaAutoDownload.never,
                   onTap: () => _service.setAutoDownload(MediaAutoDownload.never),
                 ),
-                Divider(height: 1, color: Colors.white.withOpacity(0.05)),
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
                 _buildRadioTile(
                   title: "Wi-Fi Only (Recommended)",
                   subtitle: "Auto-download media when connected to Wi-Fi",
                   selected: autoDl == MediaAutoDownload.wifiOnly,
                   onTap: () => _service.setAutoDownload(MediaAutoDownload.wifiOnly),
                 ),
-                Divider(height: 1, color: Colors.white.withOpacity(0.05)),
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
                 _buildRadioTile(
                   title: "Always auto-download",
                   subtitle: "Download all media even on cellular data",
@@ -173,20 +181,19 @@ class _DataSaverSettingsScreenState extends State<DataSaverSettingsScreen> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: isExtreme
-              ? [const Color(0xFF065F46), const Color(0xFF047857)]
+              ? [const Color(0xFF0284C7), const Color(0xFF0369A1)]
               : isStd
-                  ? [const Color(0xFF0369A1), const Color(0xFF0284C7)]
-                  : [const Color(0xFF1E293B), const Color(0xFF0F172A)],
+                  ? [const Color(0xFF0284C7), const Color(0xFF38BDF8)]
+                  : [const Color(0xFFF1F5F9), const Color(0xFFE2E8F0)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: (isActive ? (isExtreme ? const Color(0xFF10B981) : const Color(0xFF00B2FF)) : Colors.black)
-                .withOpacity(0.2),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: (isActive ? const Color(0xFF0284C7) : Colors.black).withValues(alpha: 0.18),
+            blurRadius: 16,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
@@ -198,7 +205,7 @@ class _DataSaverSettingsScreenState extends State<DataSaverSettingsScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: isActive ? Colors.white.withValues(alpha: 0.2) : Colors.white,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -207,7 +214,7 @@ class _DataSaverSettingsScreenState extends State<DataSaverSettingsScreen> {
                       : isStd
                           ? Icons.wifi_tethering_rounded
                           : Icons.data_usage_rounded,
-                  color: Colors.white,
+                  color: isActive ? Colors.white : const Color(0xFF64748B),
                   size: 26,
                 ),
               ),
@@ -218,8 +225,8 @@ class _DataSaverSettingsScreenState extends State<DataSaverSettingsScreen> {
                   children: [
                     Text(
                       isActive ? "Data Saver is Active" : "Full Bandwidth Mode",
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: isActive ? Colors.white : const Color(0xFF0F172A),
                         fontSize: 16.5,
                         fontWeight: FontWeight.w900,
                       ),
@@ -232,7 +239,7 @@ class _DataSaverSettingsScreenState extends State<DataSaverSettingsScreen> {
                               ? "Balanced mode active: videos load efficiently"
                               : "No data limits applied: high-res 60fps streaming",
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.85),
+                        color: isActive ? const Color(0xFFE0F2FE) : const Color(0xFF64748B),
                         fontSize: 12,
                       ),
                     ),
@@ -264,12 +271,19 @@ class _DataSaverSettingsScreenState extends State<DataSaverSettingsScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF1A263B) : const Color(0xFF161F30),
+          color: isSelected ? const Color(0xFFF0F9FF) : Colors.white,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: isSelected ? const Color(0xFF00B2FF) : Colors.white.withOpacity(0.06),
+            color: isSelected ? const Color(0xFF0284C7) : const Color(0xFFE2E8F0),
             width: isSelected ? 1.8 : 1,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -277,12 +291,12 @@ class _DataSaverSettingsScreenState extends State<DataSaverSettingsScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: (isSelected ? const Color(0xFF00B2FF) : Colors.white).withOpacity(0.1),
+                color: (isSelected ? const Color(0xFF0284C7) : const Color(0xFF64748B)).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
                 icon,
-                color: isSelected ? const Color(0xFF00B2FF) : Colors.white70,
+                color: isSelected ? const Color(0xFF0284C7) : const Color(0xFF64748B),
                 size: 22,
               ),
             ),
@@ -297,7 +311,7 @@ class _DataSaverSettingsScreenState extends State<DataSaverSettingsScreen> {
                         child: Text(
                           title,
                           style: TextStyle(
-                            color: Colors.white,
+                            color: const Color(0xFF0F172A),
                             fontSize: 14.5,
                             fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
                           ),
@@ -306,9 +320,9 @@ class _DataSaverSettingsScreenState extends State<DataSaverSettingsScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: badgeColor.withOpacity(0.15),
+                          color: badgeColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: badgeColor.withOpacity(0.3)),
+                          border: Border.all(color: badgeColor.withValues(alpha: 0.3)),
                         ),
                         child: Text(
                           badge,
@@ -325,7 +339,7 @@ class _DataSaverSettingsScreenState extends State<DataSaverSettingsScreen> {
                   Text(
                     subtitle,
                     style: const TextStyle(
-                      color: Color(0xFF94A3B8),
+                      color: Color(0xFF64748B),
                       fontSize: 12,
                       height: 1.35,
                     ),
@@ -336,7 +350,7 @@ class _DataSaverSettingsScreenState extends State<DataSaverSettingsScreen> {
             const SizedBox(width: 8),
             Icon(
               isSelected ? Icons.check_circle_rounded : Icons.radio_button_off_rounded,
-              color: isSelected ? const Color(0xFF00B2FF) : const Color(0xFF475569),
+              color: isSelected ? const Color(0xFF0284C7) : const Color(0xFFCBD5E1),
               size: 20,
             ),
           ],
@@ -356,18 +370,18 @@ class _DataSaverSettingsScreenState extends State<DataSaverSettingsScreen> {
       title: Text(
         title,
         style: TextStyle(
-          color: Colors.white,
+          color: const Color(0xFF0F172A),
           fontSize: 13.5,
           fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
         ),
       ),
       subtitle: Text(
         subtitle,
-        style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11.5),
+        style: const TextStyle(color: Color(0xFF64748B), fontSize: 11.5),
       ),
       trailing: Icon(
         selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
-        color: selected ? const Color(0xFF00B2FF) : const Color(0xFF475569),
+        color: selected ? const Color(0xFF0284C7) : const Color(0xFFCBD5E1),
         size: 20,
       ),
     );

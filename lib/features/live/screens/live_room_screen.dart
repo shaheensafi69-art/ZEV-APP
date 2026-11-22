@@ -16,6 +16,7 @@ import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/time_ago.dart';
 import '../../../core/widgets/zev_cached_image.dart';
 import '../../profile/screens/profile_screen.dart';
+import '../../profile/screens/zev_coins_screen.dart';
 
 class _FloatingReaction {
   final String id;
@@ -2472,32 +2473,40 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                       ),
                     ),
                     const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFB800).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: const Color(0xFFFFB800).withValues(alpha: 0.4),
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        ZevCoinsScreen.open(context);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
                         ),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('🪙', style: TextStyle(fontSize: 13)),
-                          SizedBox(width: 4),
-                          Text(
-                            '1,250 Coins',
-                            style: TextStyle(
-                              color: Color(0xFFFFD600),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                            ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFB800).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: const Color(0xFFFFB800).withValues(alpha: 0.4),
                           ),
-                        ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('🪙', style: TextStyle(fontSize: 13)),
+                            SizedBox(width: 4),
+                            Text(
+                              '1,250 Coins',
+                              style: TextStyle(
+                                color: Color(0xFFFFD600),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            SizedBox(width: 4),
+                            Icon(Icons.add_circle_outline_rounded, color: Color(0xFFFFD600), size: 13),
+                          ],
+                        ),
                       ),
                     ),
                   ],

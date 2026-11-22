@@ -103,38 +103,37 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
 
+    _textController.clear();
+
+    // Auto-detect links
     final isLink = text.startsWith('http://') || text.startsWith('https://');
     final category = isLink ? 'links' : 'notes';
-
-    _textController.clear();
 
     try {
       final insertRes = await _client.from('user_cloud_items').insert({
         'user_id': userId,
         'category': category,
         'folder_id': _selectedFolderId,
-        'title': isLink ? 'Saved Link' : null,
+        'title': isLink ? text : (text.length > 40 ? '${text.substring(0, 40)}...' : text),
         'content': text,
+        'file_url': isLink ? text : null,
         'created_at': DateTime.now().toUtc().toIso8601String(),
       }).select().single();
 
       setState(() {
         _items.insert(0, Map<String, dynamic>.from(insertRes));
       });
+
       _loadCloudData();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error saving item: $e"), backgroundColor: Colors.red),
-        );
-      }
+      debugPrint('[SavedMessagesScreen] insert note error: $e');
     }
   }
 
   Future<void> _pickAndUploadFile() async {
     try {
       final result = await FilePicker.pickFiles(
-        allowMultiple: false,
+        type: FileType.any,
         withData: true,
       );
 
@@ -198,25 +197,35 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF161F30),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("New Folder", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: const Text(
+          "New Cloud Folder",
+          style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w900),
+        ),
         content: TextField(
           controller: folderController,
           autofocus: true,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: Color(0xFF0F172A)),
           decoration: InputDecoration(
             hintText: "Folder Name (e.g. جزوه‌ها, فایلهای کاری)",
-            hintStyle: const TextStyle(color: Color(0xFF64748B)),
+            hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
             filled: true,
-            fillColor: const Color(0xFF0F172A),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            fillColor: const Color(0xFFF8FAFC),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5),
+            ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("Cancel", style: TextStyle(color: Color(0xFF94A3B8))),
+            child: const Text("Cancel", style: TextStyle(color: Color(0xFF64748B))),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -241,7 +250,11 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
                 }
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00B2FF)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0284C7),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 0,
+            ),
             child: const Text("Create", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
@@ -268,30 +281,31 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B101B),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0B101B),
+        backgroundColor: Colors.white,
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF0F172A), size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Column(
           children: [
             Text(
               "Saved Messages",
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 17),
+              style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w900, fontSize: 17),
             ),
             Text(
               "Personal Cloud Storage",
-              style: TextStyle(color: Color(0xFF00B2FF), fontSize: 11, fontWeight: FontWeight.w600),
+              style: TextStyle(color: Color(0xFF0284C7), fontSize: 11, fontWeight: FontWeight.w700),
             ),
           ],
         ),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.create_new_folder_outlined, color: Colors.white70),
+            icon: const Icon(Icons.create_new_folder_outlined, color: Color(0xFF0284C7)),
             tooltip: "Create Folder",
             onPressed: _showCreateFolderDialog,
           ),
@@ -308,7 +322,7 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
           // Main Items List
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF00B2FF)))
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF0284C7)))
                 : _items.isEmpty
                     ? _buildEmptyState()
                     : ListView.builder(
@@ -321,14 +335,14 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
 
           if (_isUploading)
             Container(
-              padding: const EdgeInsets.all(8),
-              color: const Color(0xFF161F30),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              color: const Color(0xFFE0F2FE),
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00B2FF))),
+                  SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0284C7))),
                   SizedBox(width: 10),
-                  Text("Uploading to ZEV Cloud...", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  Text("Uploading to ZEV Cloud...", style: TextStyle(color: Color(0xFF0284C7), fontSize: 12, fontWeight: FontWeight.w700)),
                 ],
               ),
             ),
@@ -349,19 +363,26 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF161F30),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFF00B2FF).withOpacity(0.12),
+              color: const Color(0xFF0284C7).withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.cloud_done_rounded, color: Color(0xFF00B2FF), size: 20),
+            child: const Icon(Icons.cloud_done_rounded, color: Color(0xFF0284C7), size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -370,11 +391,11 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
               children: [
                 const Text(
                   "Unlimited ZEV Cloud Drive",
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13),
+                  style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w800, fontSize: 13),
                 ),
                 Text(
                   "$totalItems saved items • $mb MB synced across devices",
-                  style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                  style: const TextStyle(color: Color(0xFF64748B), fontSize: 11),
                 ),
               ],
             ),
@@ -408,21 +429,21 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
                 label: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(cat['icon'] as IconData, size: 14, color: isSelected ? Colors.white : const Color(0xFF94A3B8)),
+                    Icon(cat['icon'] as IconData, size: 14, color: isSelected ? Colors.white : const Color(0xFF64748B)),
                     const SizedBox(width: 5),
                     Text(cat['label'] as String),
                   ],
                 ),
                 selected: isSelected,
-                selectedColor: const Color(0xFF00B2FF),
-                backgroundColor: const Color(0xFF161F30),
+                selectedColor: const Color(0xFF0284C7),
+                backgroundColor: Colors.white,
                 labelStyle: TextStyle(
-                  color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                  color: isSelected ? Colors.white : const Color(0xFF64748B),
                   fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                   fontSize: 12,
                 ),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                side: BorderSide(color: isSelected ? const Color(0xFF00B2FF) : Colors.white.withOpacity(0.06)),
+                side: BorderSide(color: isSelected ? const Color(0xFF0284C7) : const Color(0xFFE2E8F0)),
                 onSelected: (_) {
                   setState(() {
                     _selectedCategory = cat['id'] as String;
@@ -449,14 +470,14 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
                 ),
                 selected: isSelected,
                 selectedColor: const Color(0xFFF59E0B),
-                backgroundColor: const Color(0xFF161F30),
+                backgroundColor: Colors.white,
                 labelStyle: TextStyle(
-                  color: isSelected ? Colors.black : const Color(0xFF94A3B8),
+                  color: isSelected ? Colors.white : const Color(0xFF64748B),
                   fontWeight: FontWeight.w800,
                   fontSize: 12,
                 ),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                side: BorderSide(color: isSelected ? const Color(0xFFF59E0B) : Colors.white.withOpacity(0.06)),
+                side: BorderSide(color: isSelected ? const Color(0xFFF59E0B) : const Color(0xFFE2E8F0)),
                 onSelected: (_) {
                   setState(() {
                     _selectedFolderId = isSelected ? null : folder['id'];
@@ -483,11 +504,19 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF161F30),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isPinned ? const Color(0xFF00B2FF).withOpacity(0.4) : Colors.white.withOpacity(0.06),
+          color: isPinned ? const Color(0xFF0284C7) : const Color(0xFFE2E8F0),
+          width: isPinned ? 1.5 : 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -498,17 +527,17 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
             child: Row(
               children: [
                 if (isPinned) ...[
-                  const Icon(Icons.push_pin_rounded, color: Color(0xFF00B2FF), size: 14),
+                  const Icon(Icons.push_pin_rounded, color: Color(0xFF0284C7), size: 14),
                   const SizedBox(width: 4),
-                  const Text("PINNED", style: TextStyle(color: Color(0xFF00B2FF), fontSize: 10, fontWeight: FontWeight.w900)),
+                  const Text("PINNED", style: TextStyle(color: Color(0xFF0284C7), fontSize: 10, fontWeight: FontWeight.w900)),
                   const Spacer(),
                 ] else
                   const Spacer(),
-                Text(createdStr, style: const TextStyle(color: Color(0xFF64748B), fontSize: 10.5)),
+                Text(createdStr, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10.5)),
                 PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert_rounded, color: Color(0xFF94A3B8), size: 18),
-                  color: const Color(0xFF1E293B),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  icon: const Icon(Icons.more_vert_rounded, color: Color(0xFF64748B), size: 18),
+                  color: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   onSelected: (val) {
                     if (val == 'pin') _togglePin(item);
                     if (val == 'delete') _deleteItem(item['id']);
@@ -524,9 +553,9 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
                       value: 'pin',
                       child: Row(
                         children: [
-                          Icon(isPinned ? Icons.push_pin_outlined : Icons.push_pin_rounded, size: 16, color: Colors.white70),
+                          Icon(isPinned ? Icons.push_pin_outlined : Icons.push_pin_rounded, size: 16, color: const Color(0xFF64748B)),
                           const SizedBox(width: 8),
-                          Text(isPinned ? "Unpin" : "Pin to top", style: const TextStyle(color: Colors.white, fontSize: 13)),
+                          Text(isPinned ? "Unpin" : "Pin to top", style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600)),
                         ],
                       ),
                     ),
@@ -534,9 +563,9 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
                       value: 'copy',
                       child: Row(
                         children: const [
-                          Icon(Icons.copy_rounded, size: 16, color: Colors.white70),
+                          Icon(Icons.copy_rounded, size: 16, color: Color(0xFF64748B)),
                           SizedBox(width: 8),
-                          Text("Copy", style: TextStyle(color: Colors.white, fontSize: 13)),
+                          Text("Copy", style: TextStyle(color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w600)),
                         ],
                       ),
                     ),
@@ -544,9 +573,9 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
                       value: 'delete',
                       child: Row(
                         children: const [
-                          Icon(Icons.delete_outline_rounded, size: 16, color: Colors.redAccent),
+                          Icon(Icons.delete_outline_rounded, size: 16, color: Color(0xFFEF4444)),
                           SizedBox(width: 8),
-                          Text("Delete", style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                          Text("Delete", style: TextStyle(color: Color(0xFFEF4444), fontSize: 13, fontWeight: FontWeight.w600)),
                         ],
                       ),
                     ),
@@ -562,7 +591,7 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
               child: SelectableText(
                 content,
-                style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.4),
+                style: const TextStyle(color: Color(0xFF0F172A), fontSize: 14, height: 1.4, fontWeight: FontWeight.w500),
               ),
             ),
 
@@ -575,25 +604,25 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
                   final uri = Uri.tryParse(fileUrl);
                   if (uri != null) launchUrl(uri, mode: LaunchMode.externalApplication);
                 },
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0F172A),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withOpacity(0.08)),
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF00B2FF).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(8),
+                          color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(
                           cat == 'media' ? Icons.image_rounded : Icons.attach_file_rounded,
-                          color: const Color(0xFF00B2FF),
+                          color: const Color(0xFF0284C7),
                           size: 20,
                         ),
                       ),
@@ -606,13 +635,13 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
                               fileName ?? title ?? "Download File",
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                              style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 13),
                             ),
                             const Text("Tap to view or download", style: TextStyle(color: Color(0xFF64748B), fontSize: 11)),
                           ],
                         ),
                       ),
-                      const Icon(Icons.download_rounded, color: Color(0xFF00B2FF), size: 20),
+                      const Icon(Icons.download_rounded, color: Color(0xFF0284C7), size: 20),
                     ],
                   ),
                 ),
@@ -632,24 +661,23 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color(0xFF161F30),
+              color: const Color(0xFF0284C7).withValues(alpha: 0.08),
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withOpacity(0.05)),
             ),
-            child: const Icon(Icons.cloud_queue_rounded, color: Color(0xFF00B2FF), size: 48),
+            child: const Icon(Icons.cloud_queue_rounded, color: Color(0xFF0284C7), size: 48),
           ),
           const SizedBox(height: 16),
           const Text(
             "Your Personal Cloud Drive",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16),
+            style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w900, fontSize: 16),
           ),
           const SizedBox(height: 6),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 40),
             child: Text(
-              "Save notes, documents, voice memos, links and media here. Everything is encrypted and accessible across all your devices.",
+              "Save notes, documents, voice memos, links and media here. Everything is stored on Cloudflare and accessible across all your devices.",
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12.5, height: 1.4),
+              style: TextStyle(color: Color(0xFF64748B), fontSize: 12.5, height: 1.4),
             ),
           ),
         ],
@@ -661,14 +689,14 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFF161F30),
-          border: Border(top: BorderSide(color: Colors.white.withOpacity(0.06))),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
         ),
         child: Row(
           children: [
             IconButton(
-              icon: const Icon(Icons.attach_file_rounded, color: Color(0xFF00B2FF)),
+              icon: const Icon(Icons.attach_file_rounded, color: Color(0xFF0284C7)),
               tooltip: "Attach File / Photo",
               onPressed: _pickAndUploadFile,
             ),
@@ -676,16 +704,16 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0B101B),
+                  color: const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: Colors.white.withOpacity(0.08)),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
                 child: TextField(
                   controller: _textController,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  style: const TextStyle(color: Color(0xFF0F172A), fontSize: 14),
                   decoration: const InputDecoration(
                     hintText: "Write a note or paste a link...",
-                    hintStyle: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                    hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
                     border: InputBorder.none,
                   ),
                   onSubmitted: (_) => _sendTextNote(),
@@ -695,7 +723,7 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
             const SizedBox(width: 8),
             Container(
               decoration: const BoxDecoration(
-                color: Color(0xFF00B2FF),
+                color: Color(0xFF0284C7),
                 shape: BoxShape.circle,
               ),
               child: IconButton(

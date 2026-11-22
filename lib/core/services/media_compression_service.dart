@@ -63,75 +63,23 @@ class MediaCompressionService {
     }
 
     try {
-      final result = await Isolate.run(() {
-        final decoded = img.decodeImage(rawBytes);
-        if (decoded == null) {
-          return null;
-        }
-
-        // Preserve transparent PNGs cleanly when relatively small (< 1.5 MB)
-        if (lowerMime == 'image/png' &&
-            decoded.hasAlpha &&
-            rawBytes.lengthInBytes < 1500 * 1024) {
-          if (decoded.width <= maxDimension && decoded.height <= maxDimension) {
-            return (
-              bytes: rawBytes,
-              width: decoded.width,
-              height: decoded.height,
-              mime: 'image/png',
-              ext: 'png',
-              compressed: false,
+      final result = kIsWeb
+          ? _processImage(
+              rawBytes: rawBytes,
+              lowerMime: lowerMime,
+              lowerExt: lowerExt,
+              maxDimension: maxDimension,
+              quality: quality,
+            )
+          : await Isolate.run(
+              () => _processImage(
+                rawBytes: rawBytes,
+                lowerMime: lowerMime,
+                lowerExt: lowerExt,
+                maxDimension: maxDimension,
+                quality: quality,
+              ),
             );
-          }
-        }
-
-        var processed = img.bakeOrientation(decoded);
-        final w = processed.width;
-        final h = processed.height;
-
-        if (w > maxDimension || h > maxDimension) {
-          if (w >= h) {
-            processed = img.copyResize(
-              processed,
-              width: maxDimension,
-              interpolation: img.Interpolation.linear,
-            );
-          } else {
-            processed = img.copyResize(
-              processed,
-              height: maxDimension,
-              interpolation: img.Interpolation.linear,
-            );
-          }
-        }
-
-        final jpgBytes = Uint8List.fromList(
-          img.encodeJpg(processed, quality: quality),
-        );
-
-        // If resized down OR JPEG saves meaningful bandwidth (>10%), adopt it
-        final resized =
-            processed.width != decoded.width || processed.height != decoded.height;
-        if (!resized && jpgBytes.lengthInBytes >= (rawBytes.lengthInBytes * 0.92)) {
-          return (
-            bytes: rawBytes,
-            width: decoded.width,
-            height: decoded.height,
-            mime: lowerMime,
-            ext: lowerExt,
-            compressed: false,
-          );
-        }
-
-        return (
-          bytes: jpgBytes,
-          width: processed.width,
-          height: processed.height,
-          mime: 'image/jpeg',
-          ext: 'jpg',
-          compressed: true,
-        );
-      });
 
       if (result == null) {
         return CompressedImageResult(
@@ -151,7 +99,7 @@ class MediaCompressionService {
         wasCompressed: result.compressed,
       );
     } catch (e) {
-      debugPrint('[MediaCompressionService] Compression skipped: $e');
+      debugPrint('[MediaCompressionService] Notice: Image compression bypassed ($e). Using raw bytes.');
       return CompressedImageResult(
         bytes: rawBytes,
         contentType: lowerMime,
@@ -161,7 +109,90 @@ class MediaCompressionService {
     }
   }
 
-  /// Generates a lightweight JPEG thumbnail in a background isolate.
+  static ({
+    Uint8List bytes,
+    int width,
+    int height,
+    String mime,
+    String ext,
+    bool compressed,
+  })? _processImage({
+    required Uint8List rawBytes,
+    required String lowerMime,
+    required String lowerExt,
+    required int maxDimension,
+    required int quality,
+  }) {
+    final decoded = img.decodeImage(rawBytes);
+    if (decoded == null) {
+      return null;
+    }
+
+    // Preserve transparent PNGs cleanly when relatively small (< 1.5 MB)
+    if (lowerMime == 'image/png' &&
+        decoded.hasAlpha &&
+        rawBytes.lengthInBytes < 1500 * 1024) {
+      if (decoded.width <= maxDimension && decoded.height <= maxDimension) {
+        return (
+          bytes: rawBytes,
+          width: decoded.width,
+          height: decoded.height,
+          mime: 'image/png',
+          ext: 'png',
+          compressed: false,
+        );
+      }
+    }
+
+    var processed = img.bakeOrientation(decoded);
+    final w = processed.width;
+    final h = processed.height;
+
+    if (w > maxDimension || h > maxDimension) {
+      if (w >= h) {
+        processed = img.copyResize(
+          processed,
+          width: maxDimension,
+          interpolation: img.Interpolation.linear,
+        );
+      } else {
+        processed = img.copyResize(
+          processed,
+          height: maxDimension,
+          interpolation: img.Interpolation.linear,
+        );
+      }
+    }
+
+    final jpgBytes = Uint8List.fromList(
+      img.encodeJpg(processed, quality: quality),
+    );
+
+    // If resized down OR JPEG saves meaningful bandwidth (>10%), adopt it
+    final resized =
+        processed.width != decoded.width || processed.height != decoded.height;
+    if (!resized && jpgBytes.lengthInBytes >= (rawBytes.lengthInBytes * 0.92)) {
+      return (
+        bytes: rawBytes,
+        width: decoded.width,
+        height: decoded.height,
+        mime: lowerMime,
+        ext: lowerExt,
+        compressed: false,
+      );
+    }
+
+    return (
+      bytes: jpgBytes,
+      width: processed.width,
+      height: processed.height,
+      mime: 'image/jpeg',
+      ext: 'jpg',
+      compressed: true,
+    );
+  }
+
+  /// Generates a lightweight JPEG thumbnail in a background isolate (or main thread on web).
   Future<Uint8List?> generateImageThumbnail(
     Uint8List rawBytes, {
     int maxDimension = 420,
@@ -169,28 +200,47 @@ class MediaCompressionService {
   }) async {
     if (rawBytes.isEmpty) return null;
     try {
-      return await Isolate.run(() {
-        final decoded = img.decodeImage(rawBytes);
-        if (decoded == null) return null;
-        var processed = img.bakeOrientation(decoded);
-        if (processed.width > maxDimension || processed.height > maxDimension) {
-          processed = processed.width >= processed.height
-              ? img.copyResize(
-                  processed,
-                  width: maxDimension,
-                  interpolation: img.Interpolation.linear,
-                )
-              : img.copyResize(
-                  processed,
-                  height: maxDimension,
-                  interpolation: img.Interpolation.linear,
-                );
-        }
-        return Uint8List.fromList(img.encodeJpg(processed, quality: quality));
-      });
+      if (kIsWeb) {
+        return _makeThumbnail(
+          rawBytes,
+          maxDimension: maxDimension,
+          quality: quality,
+        );
+      }
+      return await Isolate.run(
+        () => _makeThumbnail(
+          rawBytes,
+          maxDimension: maxDimension,
+          quality: quality,
+        ),
+      );
     } catch (e) {
       debugPrint('[MediaCompressionService] Thumbnail generation skipped: $e');
       return null;
     }
+  }
+
+  static Uint8List? _makeThumbnail(
+    Uint8List rawBytes, {
+    required int maxDimension,
+    required int quality,
+  }) {
+    final decoded = img.decodeImage(rawBytes);
+    if (decoded == null) return null;
+    var processed = img.bakeOrientation(decoded);
+    if (processed.width > maxDimension || processed.height > maxDimension) {
+      processed = processed.width >= processed.height
+          ? img.copyResize(
+              processed,
+              width: maxDimension,
+              interpolation: img.Interpolation.linear,
+            )
+          : img.copyResize(
+              processed,
+              height: maxDimension,
+              interpolation: img.Interpolation.linear,
+            );
+    }
+    return Uint8List.fromList(img.encodeJpg(processed, quality: quality));
   }
 }

@@ -20,6 +20,7 @@ import 'zev_blue_verification_screen.dart';
 import 'data_saver_settings_screen.dart';
 import 'active_sessions_screen.dart';
 import 'two_factor_auth_screen.dart';
+import 'zev_coins_screen.dart';
 import '../../chat/screens/saved_messages_screen.dart';
 import '../../communities/screens/communities_list_screen.dart';
 
@@ -599,6 +600,13 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
               subtitle: "Facebook-style groups and Q&A discussion forums",
               iconColor: const Color(0xFF10B981),
               onTap: () => CommunitiesListScreen.open(context),
+            ),
+            _buildSettingsTile(
+              icon: Icons.monetization_on_rounded,
+              title: "ZEV Coins & Virtual Wallet",
+              subtitle: "Check balance and recharge coins on ZEV Web",
+              iconColor: const Color(0xFFF59E0B),
+              onTap: () => ZevCoinsScreen.open(context, userProfile: _profile),
             ),
             _buildSettingsTile(
               icon: Icons.data_usage_rounded,

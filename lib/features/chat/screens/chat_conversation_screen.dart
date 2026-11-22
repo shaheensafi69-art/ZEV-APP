@@ -12,6 +12,7 @@ import 'package:record/record.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/badge_counter_service.dart';
+import '../../../core/services/chat_lock_service.dart';
 import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/social_graph_service.dart';
@@ -1904,7 +1905,31 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
               color: ZevColors.deepNavy,
             ),
             onSelected: (val) async {
-              if (val == 'profile') {
+              final threadKey = widget.conversationId.isNotEmpty ? widget.conversationId : 'direct_${widget.peerId}';
+              if (val == 'lock') {
+                final isLocked = ChatLockService.instance.isChatLocked(threadKey);
+                final allowed = await ChatLockService.instance.authenticate(
+                  context,
+                  reason: isLocked ? 'Authenticate to unlock chat' : 'Authenticate to lock chat',
+                );
+                if (allowed) {
+                  await ChatLockService.instance.setChatLock(threadKey, !isLocked);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          !isLocked
+                              ? 'Chat is now locked with Face ID / Fingerprint / PIN.'
+                              : 'Chat lock removed.',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        backgroundColor: ZevColors.deepNavy,
+                      ),
+                    );
+                    setState(() {});
+                  }
+                }
+              } else if (val == 'profile') {
                 ProfileScreen.open(context, userId: widget.peerId);
               } else if (val == 'block') {
                 final ok = _iBlockedPeer
@@ -1923,11 +1948,31 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 );
               }
             },
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'profile',
-                child: Text('View Profile'),
-              ),
+            itemBuilder: (_) {
+              final threadKey = widget.conversationId.isNotEmpty ? widget.conversationId : 'direct_${widget.peerId}';
+              final isLocked = ChatLockService.instance.isChatLocked(threadKey);
+              return [
+                PopupMenuItem(
+                  value: 'lock',
+                  child: Row(
+                    children: [
+                      Icon(
+                        isLocked ? Icons.lock_open_rounded : Icons.lock_rounded,
+                        size: 18,
+                        color: ZevColors.primaryBlue,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        isLocked ? 'Unlock Chat' : 'Lock Chat (Face ID / PIN)',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'profile',
+                  child: Text('View Profile'),
+                ),
               PopupMenuItem(
                 value: 'block',
                 child: Text(
@@ -1946,8 +1991,9 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                   style: TextStyle(color: ZevColors.errorRed),
                 ),
               ),
-            ],
-          ),
+            ];
+          },
+        ),
         if (widget.onCloseEmbedded != null)
           IconButton(
             tooltip: 'Close Chat',

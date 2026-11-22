@@ -18,35 +18,40 @@ class TwoFactorAuthScreen extends StatefulWidget {
 
 class _TwoFactorAuthScreenState extends State<TwoFactorAuthScreen> {
   final _client = Supabase.instance.client;
+  bool _isLoading = true;
   bool _isEnabled = false;
   List<String> _backupCodes = [];
-  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _checkStatus();
+    _load2FAStatus();
   }
 
-  Future<void> _checkStatus() async {
+  Future<void> _load2FAStatus() async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
 
     try {
       setState(() => _isLoading = true);
-      final row = await _client
+
+      final res = await _client
           .from('user_two_factor_auth')
           .select('is_enabled, backup_codes')
           .eq('user_id', userId)
           .maybeSingle();
 
-      if (row != null) {
-        _isEnabled = row['is_enabled'] == true;
-        _backupCodes = (row['backup_codes'] as List?)?.cast<String>() ?? [];
+      if (res != null) {
+        setState(() {
+          _isEnabled = res['is_enabled'] == true;
+          _backupCodes = (res['backup_codes'] as List?)?.cast<String>() ?? [];
+          _isLoading = false;
+        });
+      } else {
+        setState(() => _isLoading = false);
       }
-      setState(() => _isLoading = false);
     } catch (e) {
-      debugPrint('[TwoFactorAuthScreen] check error: $e');
+      debugPrint('[TwoFactorAuthScreen] error: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -54,168 +59,194 @@ class _TwoFactorAuthScreenState extends State<TwoFactorAuthScreen> {
   void _showSetPinDialog() {
     final pinController = TextEditingController();
     final confirmController = TextEditingController();
+    String? errorMsg;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF161F30),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: const Text(
-          "Set 6-Digit Security PIN",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 17),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "You will be asked to enter this security PIN whenever signing in on a new device or changing sensitive security settings.",
-              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12.5),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+            title: const Text(
+              "Set Security PIN",
+              style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w900),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: pinController,
-              keyboardType: TextInputType.number,
-              obscureText: true,
-              maxLength: 6,
-              style: const TextStyle(color: Colors.white, letterSpacing: 6, fontSize: 18, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-              decoration: InputDecoration(
-                hintText: "••••••",
-                hintStyle: const TextStyle(color: Color(0xFF64748B), letterSpacing: 6),
-                counterText: "",
-                filled: true,
-                fillColor: const Color(0xFF0F172A),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Enter a 4 to 8 digit secondary PIN. This PIN will be required whenever you sign in on an unrecognized device.",
+                  style: TextStyle(color: Color(0xFF64748B), fontSize: 13, height: 1.4),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: pinController,
+                  keyboardType: TextInputType.number,
+                  obscureText: true,
+                  style: const TextStyle(color: Color(0xFF0F172A)),
+                  decoration: InputDecoration(
+                    labelText: "Security PIN",
+                    labelStyle: const TextStyle(color: Color(0xFF64748B)),
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: confirmController,
+                  keyboardType: TextInputType.number,
+                  obscureText: true,
+                  style: const TextStyle(color: Color(0xFF0F172A)),
+                  decoration: InputDecoration(
+                    labelText: "Confirm PIN",
+                    labelStyle: const TextStyle(color: Color(0xFF64748B)),
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
+                  ),
+                ),
+                if (errorMsg != null) ...[
+                  const SizedBox(height: 8),
+                  Text(errorMsg!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Cancel", style: TextStyle(color: Color(0xFF64748B))),
               ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: confirmController,
-              keyboardType: TextInputType.number,
-              obscureText: true,
-              maxLength: 6,
-              style: const TextStyle(color: Colors.white, letterSpacing: 6, fontSize: 18, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-              decoration: InputDecoration(
-                hintText: "Confirm PIN",
-                hintStyle: const TextStyle(color: Color(0xFF64748B), letterSpacing: 0, fontSize: 13),
-                counterText: "",
-                filled: true,
-                fillColor: const Color(0xFF0F172A),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("Cancel", style: TextStyle(color: Color(0xFF94A3B8))),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final pin = pinController.text.trim();
-              final confirm = confirmController.text.trim();
-              if (pin.length < 4 || pin != confirm) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("PINs do not match or are too short (min 4 digits)"), backgroundColor: Colors.red),
-                );
-                return;
-              }
-              Navigator.pop(ctx);
+              ElevatedButton(
+                onPressed: () async {
+                  final p1 = pinController.text.trim();
+                  final p2 = confirmController.text.trim();
 
-              try {
-                final res = await _client.rpc('setup_two_factor_pin', params: {'p_pin': pin});
-                if (res is Map && res['success'] == true) {
-                  _checkStatus();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Two-Step Verification activated successfully!"),
-                        backgroundColor: Color(0xFF10B981),
-                      ),
-                    );
+                  if (p1.length < 4 || p1.length > 8) {
+                    setDialogState(() => errorMsg = "PIN must be 4 to 8 digits");
+                    return;
                   }
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00B2FF)),
-            child: const Text("Activate", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
+                  if (p1 != p2) {
+                    setDialogState(() => errorMsg = "PINs do not match");
+                    return;
+                  }
+
+                  Navigator.pop(ctx);
+                  try {
+                    final res = await _client.rpc('setup_two_factor_pin', params: {'p_pin': p1});
+                    if (res is Map && mounted) {
+                      setState(() {
+                        _isEnabled = true;
+                        _backupCodes = (res['backup_codes'] as List?)?.cast<String>() ?? [];
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Two-Step Verification Enabled!"), backgroundColor: Color(0xFF0F172A)),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+                      );
+                    }
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0284C7),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text("Enable", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
   void _showDisableDialog() {
     final pinController = TextEditingController();
+    String? errorMsg;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF161F30),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: const Text("Disable Two-Step Verification?", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "Enter your current Security PIN to turn off two-step verification:",
-              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12.5),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+            title: const Text("Disable Two-Step Verification?", style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w900)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Enter your current Security PIN to disable 2FA. This will remove the secondary verification code on new sign-ins.",
+                  style: TextStyle(color: Color(0xFF64748B), fontSize: 13, height: 1.4),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: pinController,
+                  keyboardType: TextInputType.number,
+                  obscureText: true,
+                  style: const TextStyle(color: Color(0xFF0F172A)),
+                  decoration: InputDecoration(
+                    labelText: "Security PIN or Recovery Code",
+                    labelStyle: const TextStyle(color: Color(0xFF64748B)),
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5)),
+                  ),
+                ),
+                if (errorMsg != null) ...[
+                  const SizedBox(height: 8),
+                  Text(errorMsg!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                ],
+              ],
             ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: pinController,
-              keyboardType: TextInputType.number,
-              obscureText: true,
-              maxLength: 6,
-              style: const TextStyle(color: Colors.white, letterSpacing: 6, fontSize: 18),
-              textAlign: TextAlign.center,
-              decoration: InputDecoration(
-                hintText: "••••••",
-                hintStyle: const TextStyle(color: Color(0xFF64748B)),
-                counterText: "",
-                filled: true,
-                fillColor: const Color(0xFF0F172A),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Cancel", style: TextStyle(color: Color(0xFF64748B))),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel", style: TextStyle(color: Colors.white70))),
-          ElevatedButton(
-            onPressed: () async {
-              final pin = pinController.text.trim();
-              if (pin.isEmpty) return;
-              Navigator.pop(ctx);
+              ElevatedButton(
+                onPressed: () async {
+                  final pin = pinController.text.trim();
+                  if (pin.isEmpty) return;
 
-              try {
-                await _client.rpc('disable_two_factor', params: {'p_pin': pin});
-                _checkStatus();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Two-step verification has been disabled.")),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Invalid PIN: $e"), backgroundColor: Colors.red),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text("Disable", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
+                  try {
+                    await _client.rpc('disable_two_factor', params: {'p_pin': pin});
+                    if (mounted) {
+                      Navigator.pop(ctx);
+                      setState(() {
+                        _isEnabled = false;
+                        _backupCodes.clear();
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Two-Step Verification Disabled"), backgroundColor: Color(0xFF0F172A)),
+                      );
+                    }
+                  } catch (e) {
+                    setDialogState(() => errorMsg = "Invalid PIN or recovery code");
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEF4444),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text("Disable 2FA", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -223,22 +254,23 @@ class _TwoFactorAuthScreenState extends State<TwoFactorAuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B101B),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0B101B),
+        backgroundColor: Colors.white,
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF0F172A), size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           "Two-Step Verification",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18),
+          style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w900, fontSize: 18),
         ),
         centerTitle: true,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF00B2FF)))
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF0284C7)))
           : ListView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               children: [
@@ -248,24 +280,33 @@ class _TwoFactorAuthScreenState extends State<TwoFactorAuthScreen> {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: _isEnabled
-                          ? [const Color(0xFF065F46), const Color(0xFF047857)]
-                          : [const Color(0xFF1E293B), const Color(0xFF0F172A)],
+                          ? [const Color(0xFF0284C7), const Color(0xFF0369A1)]
+                          : [const Color(0xFFF1F5F9), const Color(0xFFE2E8F0)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(22),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _isEnabled
+                            ? const Color(0xFF0284C7).withValues(alpha: 0.25)
+                            : Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
+                          color: _isEnabled ? Colors.white.withValues(alpha: 0.2) : Colors.white,
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
                           _isEnabled ? Icons.verified_user_rounded : Icons.shield_outlined,
-                          color: Colors.white,
+                          color: _isEnabled ? Colors.white : const Color(0xFF64748B),
                           size: 28,
                         ),
                       ),
@@ -276,14 +317,21 @@ class _TwoFactorAuthScreenState extends State<TwoFactorAuthScreen> {
                           children: [
                             Text(
                               _isEnabled ? "Two-Step Verification is ON" : "Protect Your ZEV Account",
-                              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900),
+                              style: TextStyle(
+                                color: _isEnabled ? Colors.white : const Color(0xFF0F172A),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
                             const SizedBox(height: 3),
                             Text(
                               _isEnabled
                                   ? "Account is secured with a secondary PIN code."
                                   : "Add an extra layer of defense against unauthorized logins.",
-                              style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 12),
+                              style: TextStyle(
+                                color: _isEnabled ? const Color(0xFFE0F2FE) : const Color(0xFF64748B),
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         ),
@@ -297,9 +345,16 @@ class _TwoFactorAuthScreenState extends State<TwoFactorAuthScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF161F30),
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: Colors.white.withOpacity(0.06)),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Column(
                     children: [
@@ -308,30 +363,31 @@ class _TwoFactorAuthScreenState extends State<TwoFactorAuthScreen> {
                         leading: Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF00B2FF).withOpacity(0.12),
+                            color: const Color(0xFF0284C7).withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.pin_rounded, color: Color(0xFF00B2FF), size: 22),
+                          child: const Icon(Icons.pin_rounded, color: Color(0xFF0284C7), size: 22),
                         ),
                         title: const Text(
                           "Security PIN Password",
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14.5),
+                          style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w800, fontSize: 14.5),
                         ),
                         subtitle: Text(
                           _isEnabled ? "PIN is configured and active" : "Require a secondary PIN on new devices",
-                          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                          style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
                         ),
                         trailing: ElevatedButton(
                           onPressed: _isEnabled ? _showDisableDialog : _showSetPinDialog,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _isEnabled ? const Color(0xFF334155) : const Color(0xFF00B2FF),
+                            backgroundColor: _isEnabled ? const Color(0xFFFEF2F2) : const Color(0xFF0284C7),
+                            elevation: 0,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                           ),
                           child: Text(
                             _isEnabled ? "Disable" : "Turn On",
                             style: TextStyle(
-                              color: _isEnabled ? Colors.redAccent : Colors.white,
+                              color: _isEnabled ? const Color(0xFFEF4444) : Colors.white,
                               fontWeight: FontWeight.bold,
                               fontSize: 12.5,
                             ),
@@ -351,11 +407,11 @@ class _TwoFactorAuthScreenState extends State<TwoFactorAuthScreen> {
                       const SizedBox(width: 8),
                       const Text(
                         "ONE-TIME RECOVERY CODES",
-                        style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.1),
+                        style: TextStyle(color: Color(0xFF64748B), fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.1),
                       ),
                       const Spacer(),
                       IconButton(
-                        icon: const Icon(Icons.copy_rounded, color: Color(0xFF00B2FF), size: 16),
+                        icon: const Icon(Icons.copy_rounded, color: Color(0xFF0284C7), size: 16),
                         tooltip: "Copy All Codes",
                         onPressed: () {
                           Clipboard.setData(ClipboardData(text: _backupCodes.join('\n')));
@@ -370,16 +426,16 @@ class _TwoFactorAuthScreenState extends State<TwoFactorAuthScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF161F30),
+                      color: const Color(0xFFFFFBEB),
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: Colors.white.withOpacity(0.06)),
+                      border: Border.all(color: const Color(0xFFFDE68A)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
                           "Save these emergency recovery codes in a safe place. You can use each code once if you ever forget your PIN:",
-                          style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 12, height: 1.4),
+                          style: TextStyle(color: Color(0xFF92400E), fontSize: 12, height: 1.4),
                         ),
                         const SizedBox(height: 12),
                         Wrap(
@@ -389,14 +445,14 @@ class _TwoFactorAuthScreenState extends State<TwoFactorAuthScreen> {
                             return Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF0F172A),
+                                color: Colors.white,
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: Colors.white12),
+                                border: Border.all(color: const Color(0xFFFCD34D)),
                               ),
                               child: Text(
                                 code,
                                 style: const TextStyle(
-                                  color: Color(0xFFF59E0B),
+                                  color: Color(0xFFB45309),
                                   fontFamily: 'monospace',
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,

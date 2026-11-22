@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../core/theme/zev_theme.dart';
 
 class ActiveSessionsScreen extends StatefulWidget {
   const ActiveSessionsScreen({super.key});
@@ -33,6 +33,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
 
     try {
       setState(() => _isLoading = true);
+
       final res = await _client
           .from('user_sessions')
           .select()
@@ -50,68 +51,87 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
   }
 
   Future<void> _terminateSession(String sessionId) async {
+    HapticFeedback.mediumImpact();
     try {
       await _client.rpc('terminate_user_session', params: {'p_session_id': sessionId});
       setState(() {
         _sessions.removeWhere((s) => s['id'] == sessionId);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Session revoked successfully.")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Session revoked successfully"), backgroundColor: Color(0xFF0F172A)),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
   Future<void> _terminateAllOtherSessions() async {
-    final confirmed = await showDialog<bool>(
+    final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF161F30),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Log Out All Other Devices?", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: const Text("Log Out of All Other Devices?", style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w900)),
         content: const Text(
-          "This will immediately terminate all active logins on other phones, tablets, and computers. You will stay signed in on this device.",
-          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+          "All sessions except your current device will be terminated immediately. You will need to log back in on those devices.",
+          style: TextStyle(color: Color(0xFF64748B), fontSize: 13, height: 1.4),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel", style: TextStyle(color: Colors.white70))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Cancel", style: TextStyle(color: Color(0xFF64748B))),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text("Log Out Others", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text("Log Out All"),
           ),
         ],
       ),
     );
 
-    if (confirmed != true) return;
+    if (confirm != true) return;
 
     try {
-      await _client.rpc('terminate_all_other_sessions');
+      final currentSessionId = _sessions.isNotEmpty ? _sessions.first['device_id'] : null;
+      await _client.rpc('terminate_all_other_sessions', params: {
+        'p_current_device_id': currentSessionId,
+      });
+
       _loadSessions();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("All other sessions have been logged out.")),
+          const SnackBar(content: Text("All other sessions revoked"), backgroundColor: Color(0xFF0F172A)),
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
-  IconData _getDeviceIcon(String? platform) {
-    final p = platform?.toLowerCase() ?? '';
-    if (p.contains('android')) return Icons.android_rounded;
+  IconData _getDeviceIcon(String platform) {
+    final p = platform.toLowerCase();
     if (p.contains('ios') || p.contains('iphone') || p.contains('ipad')) return Icons.phone_iphone_rounded;
+    if (p.contains('android')) return Icons.phone_android_rounded;
     if (p.contains('mac') || p.contains('darwin')) return Icons.laptop_mac_rounded;
-    if (p.contains('win')) return Icons.laptop_windows_rounded;
+    if (p.contains('windows')) return Icons.laptop_windows_rounded;
     if (p.contains('web')) return Icons.language_rounded;
-    return Icons.devices_rounded;
+    return Icons.devices_other_rounded;
   }
 
   @override
@@ -120,22 +140,23 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     final currentSession = _sessions.isNotEmpty ? _sessions.first : null;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B101B),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0B101B),
+        backgroundColor: Colors.white,
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF0F172A), size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           "Active Sessions & Devices",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18),
+          style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w900, fontSize: 18),
         ),
         centerTitle: true,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF00B2FF)))
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF0284C7)))
           : ListView(
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
               children: [
@@ -143,18 +164,25 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF161F30),
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: Colors.white.withOpacity(0.06)),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.shield_outlined, color: Color(0xFF00B2FF), size: 24),
+                      Icon(Icons.shield_outlined, color: Color(0xFF0284C7), size: 24),
                       SizedBox(width: 14),
                       Expanded(
                         child: Text(
                           "You can monitor all devices logged into your ZEV account and revoke access remotely if you notice any unrecognized activity.",
-                          style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 12.5, height: 1.4),
+                          style: TextStyle(color: Color(0xFF475569), fontSize: 12.5, height: 1.4),
                         ),
                       ),
                     ],
@@ -165,7 +193,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                 // Current Device Section
                 const Text(
                   "THIS DEVICE (CURRENT)",
-                  style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.1),
+                  style: TextStyle(color: Color(0xFF64748B), fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.1),
                 ),
                 const SizedBox(height: 10),
 
@@ -179,12 +207,12 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                     children: [
                       const Text(
                         "OTHER ACTIVE SESSIONS",
-                        style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.1),
+                        style: TextStyle(color: Color(0xFF64748B), fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.1),
                       ),
                       const Spacer(),
                       TextButton(
                         onPressed: _terminateAllOtherSessions,
-                        child: const Text("Log Out All", style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                        child: const Text("Log Out All", style: TextStyle(color: Color(0xFFEF4444), fontSize: 12, fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
@@ -197,7 +225,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                       child: Text(
                         "No other active sessions. Your account is only signed in on this device.",
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                        style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
                       ),
                     ),
                   ),
@@ -216,16 +244,23 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF161F30),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.4), width: 1.5),
+        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.5), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF10B981).withValues(alpha: 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF10B981).withOpacity(0.12),
+              color: const Color(0xFF10B981).withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
             child: Icon(_getDeviceIcon(platform), color: const Color(0xFF10B981), size: 24),
@@ -240,13 +275,13 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                     Expanded(
                       child: Text(
                         devName,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14.5),
+                        style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w900, fontSize: 14.5),
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withOpacity(0.2),
+                        color: const Color(0xFF10B981).withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Row(
@@ -261,8 +296,8 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text("$platform • IP: $ip", style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11.5)),
-                Text("Last active: $activeStr", style: const TextStyle(color: Color(0xFF64748B), fontSize: 11)),
+                Text("$platform • IP: $ip", style: const TextStyle(color: Color(0xFF64748B), fontSize: 11.5)),
+                Text("Last active: $activeStr", style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
               ],
             ),
           ),
@@ -282,19 +317,26 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF161F30),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
+              color: const Color(0xFFF1F5F9),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(_getDeviceIcon(platform), color: Colors.white70, size: 20),
+            child: Icon(_getDeviceIcon(platform), color: const Color(0xFF64748B), size: 20),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -303,16 +345,16 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
               children: [
                 Text(
                   devName,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13.5),
+                  style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w800, fontSize: 13.5),
                 ),
                 const SizedBox(height: 2),
-                Text("$platform • $ip", style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
-                Text("Last active: $activeStr", style: const TextStyle(color: Color(0xFF64748B), fontSize: 10.5)),
+                Text("$platform • $ip", style: const TextStyle(color: Color(0xFF64748B), fontSize: 11)),
+                Text("Last active: $activeStr", style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10.5)),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.power_settings_new_rounded, color: Colors.redAccent, size: 20),
+            icon: const Icon(Icons.power_settings_new_rounded, color: Color(0xFFEF4444), size: 20),
             tooltip: "Revoke Access",
             onPressed: () => _terminateSession(sessionId),
           ),

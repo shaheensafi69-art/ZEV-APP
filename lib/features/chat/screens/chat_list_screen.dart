@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/services/chat_lock_service.dart';
 import '../../../core/services/multi_account_service.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/time_ago.dart';
@@ -90,6 +91,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
   @override
   void initState() {
     super.initState();
+    ChatLockService.instance.init().then((_) {
+      if (mounted) setState(() {});
+    });
     _extractInitialWebTarget();
     _loadFromCacheFirst();
     _loadCurrentUserProfile();
@@ -519,8 +523,16 @@ class _ChatListScreenState extends State<ChatListScreen> {
     return list;
   }
 
-  void _openConversation(ChatConversationItem item) {
+  Future<void> _openConversation(ChatConversationItem item) async {
     HapticFeedback.lightImpact();
+
+    if (ChatLockService.instance.isChatLocked(item.threadKey)) {
+      final allowed = await ChatLockService.instance.authenticate(
+        context,
+        reason: 'Authenticate with Face ID, Fingerprint, or PIN to access this chat',
+      );
+      if (!allowed) return;
+    }
 
     final idx = _conversations.indexWhere((c) => c.threadKey == item.threadKey);
     if (idx != -1 && _conversations[idx].unreadCount > 0) {
@@ -753,6 +765,37 @@ class _ChatListScreenState extends State<ChatListScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
+
+                      Builder(
+                        builder: (_) {
+                          final isLocked = ChatLockService.instance.isChatLocked(item.threadKey);
+                          return _buildOptionTile(
+                            icon: isLocked
+                                ? Icons.lock_open_rounded
+                                : Icons.lock_rounded,
+                            title: isLocked
+                                ? 'Unlock Chat'
+                                : 'Lock Chat (Face ID / Fingerprint / PIN)',
+                            subtitle: isLocked
+                                ? 'Remove security lock from this chat'
+                                : 'Require Face ID, Fingerprint, or PIN to open',
+                            onTap: () async {
+                              Navigator.pop(ctx);
+                              final allowed = await ChatLockService.instance.authenticate(
+                                context,
+                                reason: isLocked
+                                    ? 'Authenticate to unlock chat'
+                                    : 'Authenticate to lock chat',
+                              );
+                              if (allowed) {
+                                await ChatLockService.instance.setChatLock(item.threadKey, !isLocked);
+                                if (mounted) setState(() {});
+                              }
+                            },
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 8),
 
                       if (item.conversationId.isNotEmpty) ...[
                         _buildOptionTile(
@@ -1385,15 +1428,15 @@ class _ChatListScreenState extends State<ChatListScreen> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  const Color(0xFF00B2FF).withOpacity(0.12),
-                  const Color(0xFF0084FF).withOpacity(0.06),
+                  const Color(0xFF00B2FF).withValues(alpha: 0.12),
+                  const Color(0xFF0084FF).withValues(alpha: 0.06),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: const Color(0xFF00B2FF).withOpacity(0.25),
+                color: const Color(0xFF00B2FF).withValues(alpha: 0.25),
                 width: 1.2,
               ),
             ),
@@ -2382,6 +2425,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                   Icons.notifications_off_rounded,
                                   size: 13,
                                   color: ZevColors.textMuted,
+                                ),
+                              ],
+                              if (ChatLockService.instance.isChatLocked(item.threadKey)) ...[
+                                const SizedBox(width: 4),
+                                const Icon(
+                                  Icons.lock_rounded,
+                                  size: 13,
+                                  color: Color(0xFF0284C7),
                                 ),
                               ],
                               const Spacer(),

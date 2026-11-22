@@ -1,22 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../core/theme/zev_theme.dart';
 
 class CreateCommunityPostScreen extends StatefulWidget {
   final String communityId;
-  final String initialType; // 'post', 'reel', 'question'
+  final String communityName;
 
   const CreateCommunityPostScreen({
     super.key,
     required this.communityId,
-    this.initialType = 'post',
+    required this.communityName,
   });
 
-  static Future<bool?> open(BuildContext context, {required String communityId, String initialType = 'post'}) {
+  static Future<bool?> open(
+    BuildContext context, {
+    required String communityId,
+    required String communityName,
+  }) {
     return Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) => CreateCommunityPostScreen(communityId: communityId, initialType: initialType),
+        builder: (_) => CreateCommunityPostScreen(
+          communityId: communityId,
+          communityName: communityName,
+        ),
       ),
     );
   }
@@ -29,14 +35,9 @@ class _CreateCommunityPostScreenState extends State<CreateCommunityPostScreen> {
   final _client = Supabase.instance.client;
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
-  late String _postType;
-  bool _isSubmitting = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _postType = widget.initialType;
-  }
+  String _postType = 'post'; // 'post', 'question', 'reel'
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -46,9 +47,7 @@ class _CreateCommunityPostScreenState extends State<CreateCommunityPostScreen> {
   }
 
   Future<void> _submit() async {
-    final title = _titleController.text.trim();
     final content = _contentController.text.trim();
-
     if (content.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please write some content")),
@@ -66,11 +65,13 @@ class _CreateCommunityPostScreenState extends State<CreateCommunityPostScreen> {
         'community_id': widget.communityId,
         'user_id': userId,
         'post_type': _postType,
-        'title': title.isNotEmpty ? title : null,
+        'title': _titleController.text.trim().isNotEmpty ? _titleController.text.trim() : null,
         'content': content,
       });
 
-      if (mounted) Navigator.pop(context, true);
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -87,17 +88,18 @@ class _CreateCommunityPostScreenState extends State<CreateCommunityPostScreen> {
     final isQ = _postType == 'question';
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B101B),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0B101B),
+        backgroundColor: Colors.white,
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded, color: Colors.white),
+          icon: const Icon(Icons.close_rounded, color: Color(0xFF0F172A)),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           isQ ? "Ask a Question" : "Create Post",
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 17),
+          style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w900, fontSize: 17),
         ),
         centerTitle: true,
         actions: [
@@ -106,7 +108,7 @@ class _CreateCommunityPostScreenState extends State<CreateCommunityPostScreen> {
             child: TextButton(
               onPressed: _isSubmitting ? null : _submit,
               style: TextButton.styleFrom(
-                backgroundColor: const Color(0xFF00B2FF),
+                backgroundColor: const Color(0xFF0284C7),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
@@ -138,13 +140,15 @@ class _CreateCommunityPostScreenState extends State<CreateCommunityPostScreen> {
           // Title (Always good for questions or articles)
           TextField(
             controller: _titleController,
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+            style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 16),
             decoration: InputDecoration(
               hintText: isQ ? "What is your question? (e.g. How to use Riverpod with Supabase?)" : "Title (optional)",
-              hintStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 14),
+              hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
               filled: true,
-              fillColor: const Color(0xFF161F30),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+              fillColor: Colors.white,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
             ),
           ),
           const SizedBox(height: 14),
@@ -153,15 +157,17 @@ class _CreateCommunityPostScreenState extends State<CreateCommunityPostScreen> {
           TextField(
             controller: _contentController,
             maxLines: 10,
-            style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.4),
+            style: const TextStyle(color: Color(0xFF0F172A), fontSize: 14, height: 1.4),
             decoration: InputDecoration(
               hintText: isQ
                   ? "Describe your problem in detail. You can include error messages, code snippets, or what you've tried..."
                   : "Share knowledge, insights, or start a discussion with fellow community members...",
-              hintStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+              hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
               filled: true,
-              fillColor: const Color(0xFF161F30),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+              fillColor: Colors.white,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5)),
             ),
           ),
         ],
@@ -175,21 +181,21 @@ class _CreateCommunityPostScreenState extends State<CreateCommunityPostScreen> {
       label: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: selected ? Colors.white : const Color(0xFF94A3B8)),
+          Icon(icon, size: 14, color: selected ? Colors.white : const Color(0xFF64748B)),
           const SizedBox(width: 5),
           Text(label),
         ],
       ),
       selected: selected,
-      selectedColor: const Color(0xFF00B2FF),
-      backgroundColor: const Color(0xFF161F30),
+      selectedColor: const Color(0xFF0284C7),
+      backgroundColor: Colors.white,
       labelStyle: TextStyle(
-        color: selected ? Colors.white : const Color(0xFF94A3B8),
-        fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+        color: selected ? Colors.white : const Color(0xFF64748B),
+        fontWeight: FontWeight.bold,
         fontSize: 12,
       ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      side: BorderSide(color: selected ? const Color(0xFF00B2FF) : Colors.white.withOpacity(0.06)),
+      side: BorderSide(color: selected ? const Color(0xFF0284C7) : const Color(0xFFE2E8F0)),
       onSelected: (_) => setState(() => _postType = type),
     );
   }
