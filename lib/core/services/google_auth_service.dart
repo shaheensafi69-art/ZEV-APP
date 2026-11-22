@@ -16,7 +16,7 @@ class GoogleAuthService {
 
   /// Official Web Client ID configured in Google Cloud & Supabase
   static const String webClientId =
-      '557150004230-mcvr3rp5dva5aid3neav5f8f91laapf8.apps.googleusercontent.com';
+      '557150004230-mcvr3rp5dva5aid3neav5f8f9llaapf8.apps.googleusercontent.com';
 
   static final SupabaseClient _supabase = Supabase.instance.client;
 

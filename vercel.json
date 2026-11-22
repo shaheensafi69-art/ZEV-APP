@@ -32,6 +32,10 @@
       "destination": "/offline.html"
     },
     {
+      "source": "/api/:path*",
+      "destination": "https://web.zevapp.com/api/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

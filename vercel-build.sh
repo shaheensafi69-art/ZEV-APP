@@ -8,7 +8,7 @@ echo "=========================================="
 # Public build-time configuration ONLY (never bundle .env or server secrets into client builds)
 SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL:-https://zjwmioalrhkyfbzhdnnw.supabase.co}"
 SUPABASE_ANON_KEY="${NEXT_PUBLIC_SUPABASE_ANON_KEY:-sb_publishable_mhRdQoBdG-Ha0_nQ4dHIVw_MrXwmR5z}"
-ZEV_API_URL="${ZEV_API_BASE_URL:-https://www.zevapp.com}"
+ZEV_API_URL="${ZEV_API_BASE_URL:-https://web.zevapp.com}"
 R2_DOMAIN="${CLOUDFLARE_R2_PUBLIC_DOMAIN:-https://media.zevapp.com}"
 AGORA_APP_ID_DEF="${NEXT_PUBLIC_AGORA_APP_ID:-e85b079d64d04f659792de8eb3770595}"
 

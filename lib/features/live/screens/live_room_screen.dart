@@ -2587,57 +2587,132 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
     );
   }
 
-  void _sendGift(Map<String, dynamic> gift) {
+  Future<void> _sendGift(Map<String, dynamic> gift) async {
     HapticFeedback.heavyImpact();
     final myProfile = _supabase.auth.currentUser;
-    final senderName = (myProfile?.userMetadata?['username'] ??
-            myProfile?.userMetadata?['full_name'] ??
-            'Viewer')
-        .toString();
-    final senderAvatar =
-        (myProfile?.userMetadata?['avatar_url'] ?? '').toString();
+    if (myProfile == null) {
+      _showToast('Please sign in to send gifts.');
+      return;
+    }
+
+    final hostId = widget.hostProfile['id']?.toString() ??
+        widget.stream['host_id']?.toString() ??
+        '';
+
+    if (hostId.isEmpty) {
+      _showToast('Host information unavailable.');
+      return;
+    }
+
+    if (widget.isHost || hostId == myProfile.id) {
+      _showToast('You cannot send gifts to your own live stream.');
+      return;
+    }
 
     final giftName = gift['name'] as String;
     final giftEmoji = gift['emoji'] as String;
     final points = (gift['coins'] as num).toInt();
 
-    // Trigger local animation & haptics
-    _showGiftCelebration(
-      senderName: senderName,
-      senderAvatar: senderAvatar,
-      giftName: giftName,
-      giftEmoji: giftEmoji,
-      points: points,
-    );
-
-    // Broadcast realtime event to everyone in the room
+    // 1. Atomic Supabase RPC: Deduct sender coins, convert to USD, credit 40% to Creator and 60% to Platform
     try {
-      _roomChannel?.sendBroadcastMessage(
-        event: 'gift_sent',
-        payload: {
-          'sender_name': senderName,
-          'sender_avatar': senderAvatar,
-          'gift_name': giftName,
-          'gift_emoji': giftEmoji,
-          'points': points,
-        },
-      );
-    } catch (_) {}
-
-    // Add gift message to comment stream
-    final giftComment = {
-      'id': 'gift_${DateTime.now().millisecondsSinceEpoch}',
-      'user_id': myProfile?.id ?? '',
-      'comment_text': 'sent $giftName $giftEmoji',
-      'created_at': DateTime.now().toIso8601String(),
-    };
-    if (mounted) {
-      setState(() {
-        _comments.add(giftComment);
+      await _supabase.rpc('send_live_gift', params: {
+        'p_receiver_id': hostId,
+        'p_gift_name': giftName,
+        'p_gift_emoji': giftEmoji,
+        'p_coins': points,
+        'p_room_id': widget.stream['id']?.toString() ?? '',
       });
-      _scrollToBottom();
+
+      final senderName = (myProfile.userMetadata?['username'] ??
+              myProfile.userMetadata?['full_name'] ??
+              'Viewer')
+          .toString();
+      final senderAvatar =
+          (myProfile.userMetadata?['avatar_url'] ?? '').toString();
+
+      // Trigger local animation & haptics
+      _showGiftCelebration(
+        senderName: senderName,
+        senderAvatar: senderAvatar,
+        giftName: giftName,
+        giftEmoji: giftEmoji,
+        points: points,
+      );
+
+      // Broadcast realtime event to everyone in the room
+      try {
+        _roomChannel?.sendBroadcastMessage(
+          event: 'gift_sent',
+          payload: {
+            'sender_name': senderName,
+            'sender_avatar': senderAvatar,
+            'gift_name': giftName,
+            'gift_emoji': giftEmoji,
+            'points': points,
+          },
+        );
+      } catch (_) {}
+
+      // Add gift message to comment stream
+      final giftComment = {
+        'id': 'gift_${DateTime.now().millisecondsSinceEpoch}',
+        'user_id': myProfile.id,
+        'comment_text': 'sent $giftName $giftEmoji',
+        'created_at': DateTime.now().toIso8601String(),
+      };
+      if (mounted) {
+        setState(() {
+          _comments.add(giftComment);
+        });
+        _scrollToBottom();
+      }
+      _showToast('Sent $giftName $giftEmoji to support the creator!');
+    } catch (e) {
+      final errStr = e.toString();
+      if (errStr.contains('INSUFFICIENT_COINS')) {
+        _showRechargeDialog(points, giftName);
+      } else {
+        _showToast('Gift transaction error: $e');
+      }
     }
-    _showToast('Sent $giftName $giftEmoji to support the creator!');
+  }
+
+  void _showRechargeDialog(int requiredCoins, String giftName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: const Row(
+          children: [
+            Text('🪙', style: TextStyle(fontSize: 26)),
+            SizedBox(width: 8),
+            Text('Not Enough Coins', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+          ],
+        ),
+        content: Text(
+          'You need $requiredCoins coins to send $giftName.\n\nRecharge your coins on the ZEV Web Portal with 0% platform fee and get up to 30% bonus coins!',
+          style: const TextStyle(fontSize: 13, height: 1.45, color: Color(0xFF475569)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w700)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00D4FF),
+              foregroundColor: const Color(0xFF080D1A),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              ZevCoinsScreen.open(context);
+            },
+            child: const Text('Recharge Coins', style: TextStyle(fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showGiftCelebration({

@@ -80,6 +80,28 @@ class CloudflareStorageService {
     }
 
     final fileName = _ensureMatchingExtension(effectiveName, resolvedContentType);
+
+    // On Web: Always route directly via server proxy to ensure 100% reliable uploads without browser CORS blocks on R2
+    if (kIsWeb) {
+      onProgress?.call(0.1);
+      final proxyRes = await ApiClient.instance.post(
+        '/api/v1/media/upload',
+        data: {
+          'folder': folder,
+          'fileName': fileName,
+          'contentType': resolvedContentType,
+          'base64': base64Encode(uploadBytes),
+          if (parsed.subPath.isNotEmpty) 'subPath': parsed.subPath,
+        },
+      );
+      final proxyUrl = proxyRes['publicUrl']?.toString() ?? '';
+      if (proxyUrl.isNotEmpty) {
+        onProgress?.call(1.0);
+        return proxyUrl;
+      }
+      throw Exception('Server upload failed to return a valid URL.');
+    }
+
     final attempts = maxRetries.clamp(1, 5);
     Object? lastError;
 
