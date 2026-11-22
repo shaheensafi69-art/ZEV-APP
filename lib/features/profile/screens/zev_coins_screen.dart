@@ -66,9 +66,15 @@ class _ZevCoinsScreenState extends State<ZevCoinsScreen> {
 
   Future<void> _openWebPortal(String url) async {
     HapticFeedback.lightImpact();
+    final uid = _client.auth.currentUser?.id;
+    final uri = Uri.parse(url);
+    final targetUrl = (uid != null && uid.isNotEmpty)
+        ? uri.replace(queryParameters: {...uri.queryParameters, 'uid': uid}).toString()
+        : url;
+
     try {
       final launched = await launchUrlString(
-        url,
+        targetUrl,
         mode: LaunchMode.externalApplication,
       );
       if (!launched && mounted) {
