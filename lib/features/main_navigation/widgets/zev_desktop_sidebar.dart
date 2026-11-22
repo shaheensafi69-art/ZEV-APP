@@ -14,6 +14,10 @@ import '../../feed/screens/create_post_screen.dart';
 import '../../reels/screens/create_reel_screen.dart';
 import '../../stories/screens/create_story_screen.dart';
 import '../screens/zev_main_layout.dart';
+import '../../chat/screens/saved_messages_screen.dart';
+import '../../communities/screens/communities_list_screen.dart';
+import '../../profile/screens/data_saver_settings_screen.dart';
+import '../../profile/screens/active_sessions_screen.dart';
 
 /// Reusable Adaptive Left Navigation Sidebar for ZEV Desktop & Tablet Web.
 /// Retains persistent Instagram Web-grade navigation across all views (Feed, Explore,
@@ -739,6 +743,42 @@ class _ZevDesktopSidebarState extends State<ZevDesktopSidebar> {
                                   onTap: () {
                                     Navigator.pop(ctx);
                                     _handleTabTap(11);
+                                  },
+                                ),
+                                _buildMoreMenuItem(
+                                  icon: Icons.cloud_outlined,
+                                  label: 'Saved Messages & Cloud',
+                                  isReels: isReels,
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    SavedMessagesScreen.open(context);
+                                  },
+                                ),
+                                _buildMoreMenuItem(
+                                  icon: Icons.groups_rounded,
+                                  label: 'Communities & Groups',
+                                  isReels: isReels,
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    CommunitiesListScreen.open(context);
+                                  },
+                                ),
+                                _buildMoreMenuItem(
+                                  icon: Icons.data_usage_rounded,
+                                  label: 'Data Saver & Quality',
+                                  isReels: isReels,
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    DataSaverSettingsScreen.open(context);
+                                  },
+                                ),
+                                _buildMoreMenuItem(
+                                  icon: Icons.devices_rounded,
+                                  label: 'Active Sessions',
+                                  isReels: isReels,
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    ActiveSessionsScreen.open(context);
                                   },
                                 ),
                                 _buildMoreMenuItem(

@@ -18,6 +18,7 @@ import '../services/chat_service.dart';
 import '../widgets/chat_modals.dart';
 import '../widgets/new_chat_sheet.dart';
 import 'chat_conversation_screen.dart';
+import 'saved_messages_screen.dart';
 
 /// Light Clearmorphic Direct & Group Messages Inbox Screen for ZEV.
 class ChatListScreen extends StatefulWidget {
@@ -1148,6 +1149,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                               child: _buildNotesAndActiveFriendsTray(),
                             ),
                             SliverToBoxAdapter(child: _buildFilterTabs()),
+                            SliverToBoxAdapter(child: _buildSavedMessagesTile()),
                             if (_isLoading && _conversations.isEmpty)
                               SliverFillRemaining(child: _buildShimmerLoading())
                             else if (filtered.isEmpty && _messageHits.isEmpty)
@@ -1337,6 +1339,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
               SliverToBoxAdapter(child: _buildSearchBar()),
               SliverToBoxAdapter(child: _buildNotesAndActiveFriendsTray()),
               SliverToBoxAdapter(child: _buildFilterTabs()),
+              SliverToBoxAdapter(child: _buildSavedMessagesTile()),
 
               if (_isLoading && _conversations.isEmpty)
                 SliverFillRemaining(child: _buildShimmerLoading())
@@ -1360,6 +1363,103 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   SliverToBoxAdapter(child: _buildMessageSearchResults()),
               ],
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSavedMessagesTile() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            SavedMessagesScreen.open(context);
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF00B2FF).withOpacity(0.12),
+                  const Color(0xFF0084FF).withOpacity(0.06),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFF00B2FF).withOpacity(0.25),
+                width: 1.2,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF00B2FF), Color(0xFF0077FF)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.bookmark_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            "Saved Messages",
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              color: ZevColors.deepNavy,
+                            ),
+                          ),
+                          SizedBox(width: 6),
+                          Icon(
+                            Icons.push_pin_rounded,
+                            size: 13,
+                            color: Color(0xFF00B2FF),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        "Cloud Drive • Notes, Links & Files",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: ZevColors.textMuted,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 14,
+                  color: Color(0xFF94A3B8),
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -17,6 +17,11 @@ import 'professional_account_setup_screen.dart';
 import 'share_profile_screen.dart';
 import 'user_activity_screen.dart';
 import 'zev_blue_verification_screen.dart';
+import 'data_saver_settings_screen.dart';
+import 'active_sessions_screen.dart';
+import 'two_factor_auth_screen.dart';
+import '../../chat/screens/saved_messages_screen.dart';
+import '../../communities/screens/communities_list_screen.dart';
 
 /// Full-Screen, 100% Claymorphic "Settings and Activity" Hub for ZEV.
 /// Every section links to a dedicated standalone screen instead of bottom sheets.
@@ -582,6 +587,27 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
               },
             ),
             _buildSettingsTile(
+              icon: Icons.cloud_outlined,
+              title: "Saved Messages & Cloud Drive",
+              subtitle: "Unlimited cloud storage for notes, documents, and media",
+              iconColor: const Color(0xFF00B2FF),
+              onTap: () => SavedMessagesScreen.open(context),
+            ),
+            _buildSettingsTile(
+              icon: Icons.groups_rounded,
+              title: "Communities & Discussion Groups",
+              subtitle: "Facebook-style groups and Q&A discussion forums",
+              iconColor: const Color(0xFF10B981),
+              onTap: () => CommunitiesListScreen.open(context),
+            ),
+            _buildSettingsTile(
+              icon: Icons.data_usage_rounded,
+              title: "Data Saver & Quality",
+              subtitle: "Reduce mobile data usage by up to 75% on slow networks",
+              iconColor: const Color(0xFFF59E0B),
+              onTap: () => DataSaverSettingsScreen.open(context),
+            ),
+            _buildSettingsTile(
               icon: Icons.history_rounded,
               title: "Your activity",
               subtitle: "Likes, comments, and interactions history",
@@ -648,7 +674,21 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
             // Section 3: Privacy & Security
             _buildSectionHeader("Privacy & Security"),
             _buildSettingsTile(
+              icon: Icons.devices_rounded,
+              title: "Active Sessions & Devices",
+              subtitle: "View logged-in devices and revoke remote sessions",
+              iconColor: const Color(0xFF10B981),
+              onTap: () => ActiveSessionsScreen.open(context),
+            ),
+            _buildSettingsTile(
               icon: Icons.lock_outline_rounded,
+              title: "Two-Step Verification (PIN Code)",
+              subtitle: "Protect account with independent secondary PIN",
+              iconColor: const Color(0xFF00B2FF),
+              onTap: () => TwoFactorAuthScreen.open(context),
+            ),
+            _buildSettingsTile(
+              icon: Icons.shield_outlined,
               title: "Account privacy & Blocked",
               subtitle: "Private account and restricted profiles",
               onTap: () => PrivacySecurityScreen.open(
