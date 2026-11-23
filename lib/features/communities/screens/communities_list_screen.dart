@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'community_detail_screen.dart';
@@ -19,10 +21,14 @@ class CommunitiesListScreen extends StatefulWidget {
 
 class _CommunitiesListScreenState extends State<CommunitiesListScreen> {
   final _client = Supabase.instance.client;
+  final TextEditingController _searchCtrl = TextEditingController();
+
   String _selectedCategory = 'all';
   List<Map<String, dynamic>> _communities = [];
   List<Map<String, dynamic>> _myJoined = [];
   bool _isLoading = true;
+  String _searchQuery = '';
+  Timer? _debounceTimer;
 
   final List<Map<String, dynamic>> _categories = [
     {'id': 'all', 'label': 'Explore All', 'icon': Icons.explore_rounded},
@@ -38,6 +44,20 @@ class _CommunitiesListScreenState extends State<CommunitiesListScreen> {
   void initState() {
     super.initState();
     _loadCommunities();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String val) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      setState(() => _searchQuery = val.trim().toLowerCase());
+    });
   }
 
   Future<void> _loadCommunities() async {
@@ -64,7 +84,7 @@ class _CommunitiesListScreenState extends State<CommunitiesListScreen> {
         query = query.eq('category', _selectedCategory);
       }
 
-      final res = await query.order('members_count', ascending: false).limit(30);
+      final res = await query.order('members_count', ascending: false).limit(40);
 
       setState(() {
         _communities = List<Map<String, dynamic>>.from(res);
@@ -76,8 +96,20 @@ class _CommunitiesListScreenState extends State<CommunitiesListScreen> {
     }
   }
 
+  List<Map<String, dynamic>> get _filteredCommunities {
+    if (_searchQuery.isEmpty) return _communities;
+    return _communities.where((c) {
+      final name = (c['name'] ?? '').toString().toLowerCase();
+      final desc = (c['description'] ?? '').toString().toLowerCase();
+      final cat = (c['category'] ?? '').toString().toLowerCase();
+      return name.contains(_searchQuery) || desc.contains(_searchQuery) || cat.contains(_searchQuery);
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final displayList = _filteredCommunities;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -95,7 +127,7 @@ class _CommunitiesListScreenState extends State<CommunitiesListScreen> {
               style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w900, fontSize: 17),
             ),
             Text(
-              "Facebook Groups & Q&A Forums",
+              "Verified Groups, Discussion & Q&A Forums",
               style: TextStyle(color: Color(0xFF0284C7), fontSize: 11, fontWeight: FontWeight.w700),
             ),
           ],
@@ -119,13 +151,55 @@ class _CommunitiesListScreenState extends State<CommunitiesListScreen> {
         child: ListView(
           padding: const EdgeInsets.symmetric(vertical: 10),
           children: [
+            // Top Live Search Box
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: TextField(
+                  controller: _searchCtrl,
+                  onChanged: _onSearchChanged,
+                  style: const TextStyle(color: Color(0xFF0F172A), fontSize: 14, fontWeight: FontWeight.w600),
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF0284C7), size: 22),
+                    suffixIcon: _searchCtrl.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.cancel_rounded, color: Color(0xFF94A3B8), size: 18),
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              _onSearchChanged('');
+                            },
+                          )
+                        : null,
+                    hintText: "Search communities, topics, or clubs...",
+                    hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 6),
+
             // Category Chips
             _buildCategoryBar(),
 
             const SizedBox(height: 12),
 
-            // My Joined Groups (if any)
-            if (_myJoined.isNotEmpty && _selectedCategory == 'all') ...[
+            // My Joined Groups (if any and not in search mode)
+            if (_myJoined.isNotEmpty && _selectedCategory == 'all' && _searchQuery.isEmpty) ...[
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
@@ -164,7 +238,11 @@ class _CommunitiesListScreenState extends State<CommunitiesListScreen> {
                   const Icon(Icons.travel_explore_rounded, color: Color(0xFF0284C7), size: 18),
                   const SizedBox(width: 8),
                   Text(
-                    _selectedCategory == 'all' ? "POPULAR COMMUNITIES" : "${_selectedCategory.toUpperCase()} GROUPS",
+                    _searchQuery.isNotEmpty
+                        ? "SEARCH RESULTS (${displayList.length})"
+                        : _selectedCategory == 'all'
+                            ? "POPULAR COMMUNITIES"
+                            : "${_selectedCategory.toUpperCase()} GROUPS",
                     style: const TextStyle(color: Color(0xFF64748B), fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.1),
                   ),
                 ],
@@ -179,10 +257,10 @@ class _CommunitiesListScreenState extends State<CommunitiesListScreen> {
                 padding: EdgeInsets.all(40),
                 child: Center(child: CircularProgressIndicator(color: Color(0xFF0284C7))),
               )
-            else if (_communities.isEmpty)
+            else if (displayList.isEmpty)
               _buildEmptyState()
             else
-              ..._communities.map((c) => _buildCommunityFeedCard(c)),
+              ...displayList.map((c) => _buildCommunityFeedCard(c)),
           ],
         ),
       ),
@@ -235,6 +313,7 @@ class _CommunitiesListScreenState extends State<CommunitiesListScreen> {
     final name = c['name'] ?? 'Community';
     final coverUrl = c['cover_url'];
     final members = c['members_count'] ?? 1;
+    final isVerified = c['is_verified'] == true;
 
     return InkWell(
       onTap: () => CommunityDetailScreen.open(context, communityId: c['id'], initialData: c),
@@ -260,7 +339,7 @@ class _CommunitiesListScreenState extends State<CommunitiesListScreen> {
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
               child: coverUrl != null
-                  ? Image.network(coverUrl, height: 60, width: double.infinity, fit: BoxFit.cover)
+                  ? CachedNetworkImage(imageUrl: coverUrl, height: 60, width: double.infinity, fit: BoxFit.cover)
                   : Container(
                       height: 60,
                       color: const Color(0xFFF1F5F9),
@@ -274,11 +353,21 @@ class _CommunitiesListScreenState extends State<CommunitiesListScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w800, fontSize: 12),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w800, fontSize: 12),
+                        ),
+                      ),
+                      if (isVerified) ...[
+                        const SizedBox(width: 3),
+                        const Icon(Icons.verified_rounded, color: Color(0xFF00D4FF), size: 13),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -302,6 +391,7 @@ class _CommunitiesListScreenState extends State<CommunitiesListScreen> {
     final members = c['members_count'] ?? 1;
     final posts = c['posts_count'] ?? 0;
     final isPrivate = c['is_private'] == true;
+    final isVerified = c['is_verified'] == true;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -329,7 +419,7 @@ class _CommunitiesListScreenState extends State<CommunitiesListScreen> {
                 ClipRRect(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
                   child: coverUrl != null
-                      ? Image.network(coverUrl, height: 110, width: double.infinity, fit: BoxFit.cover)
+                      ? CachedNetworkImage(imageUrl: coverUrl, height: 110, width: double.infinity, fit: BoxFit.cover)
                       : Container(
                           height: 110,
                           decoration: const BoxDecoration(
@@ -378,7 +468,7 @@ class _CommunitiesListScreenState extends State<CommunitiesListScreen> {
                   CircleAvatar(
                     radius: 24,
                     backgroundColor: const Color(0xFF0284C7),
-                    backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                    backgroundImage: avatarUrl != null ? CachedNetworkImageProvider(avatarUrl) : null,
                     child: avatarUrl == null
                         ? Text(
                             name.isNotEmpty ? name[0].toUpperCase() : 'C',
@@ -391,9 +481,21 @@ class _CommunitiesListScreenState extends State<CommunitiesListScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          name,
-                          style: const TextStyle(color: Color(0xFF0F172A), fontSize: 15.5, fontWeight: FontWeight.w900),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Color(0xFF0F172A), fontSize: 15.5, fontWeight: FontWeight.w900),
+                              ),
+                            ),
+                            if (isVerified) ...[
+                              const SizedBox(width: 4),
+                              const Icon(Icons.verified_rounded, color: Color(0xFF00D4FF), size: 16),
+                            ],
+                          ],
                         ),
                         if (desc.isNotEmpty) ...[
                           const SizedBox(height: 4),
@@ -436,14 +538,14 @@ class _CommunitiesListScreenState extends State<CommunitiesListScreen> {
           children: [
             const Icon(Icons.group_work_outlined, color: Color(0xFF94A3B8), size: 56),
             const SizedBox(height: 14),
-            const Text(
-              "No Communities in this category yet",
-              style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w800, fontSize: 15),
+            Text(
+              _searchQuery.isNotEmpty ? "No matching communities found" : "No Communities in this category yet",
+              style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w800, fontSize: 15),
             ),
             const SizedBox(height: 6),
-            const Text(
-              "Be the first to create a discussion community!",
-              style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+            Text(
+              _searchQuery.isNotEmpty ? "Try a different keyword or create this group!" : "Be the first to create a discussion community!",
+              style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(

@@ -42,7 +42,7 @@ class ZevBlueVerificationScreen extends StatefulWidget {
 }
 
 class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final SupabaseClient _supabase = Supabase.instance.client;
   final ImagePicker _picker = ImagePicker();
 
@@ -780,7 +780,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
                           ),
                         ),
                         Text(
-                          'قوانین صیف نگاه داشتن بلو تیک',
+                          'Rules to Retain Blue Tick',
                           style: TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w700,
@@ -794,7 +794,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
               ),
               const SizedBox(height: 12),
               const Text(
-                'برای صیف نگاه داشتن بلو تیک، نباید از هیچ‌یک از قوانین و دستورالعمل‌های ZEV سرپیچی کنید. تیک آبی نشانه شهرت، اصالت و اعتماد است؛ هرگونه نقض قوانین پلتفرم، منجر به سلب فوری و دائمی نشان تأیید خواهد شد.',
+                'To maintain your Blue Tick status, you must comply with all ZEV Community Guidelines. The blue badge represents trust and authenticity; any policy violation will lead to immediate and permanent badge revocation.',
                 style: TextStyle(
                   fontSize: 13,
                   color: Color(0xFF7F1D1D),
@@ -811,45 +811,45 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
         _buildSafetyRuleCard(
           number: '1',
           title: 'Strict Community Guidelines Compliance',
-          subtitle: 'پایبندی کامل به قوانین جامعه زیف',
+          subtitle: 'Full adherence to ZEV safety standards',
           desc:
-              'انتشار هرگونه محتوای هرزنامه (اسپم)، کپی‌رایت غیرمجاز، توهین، افترا، محتوای غیراخلاقی یا نفرت‌پراکنی به ابطال بی‌درنگ تیک آبی منجر می‌شود.',
+              'Publishing spam, unauthorized copyright material, harassment, explicit content, or hate speech results in immediate revocation of your verification badge.',
           icon: Icons.policy_rounded,
         ),
         const SizedBox(height: 10),
         _buildSafetyRuleCard(
           number: '2',
-          title: 'Identity Integrity & Name Changes',
-          subtitle: 'ممنوعیت تغییر نام جهت جعل هویت',
+          title: 'Identity Integrity & Profile Accuracy',
+          subtitle: 'No impersonation or deceptive changes',
           desc:
-              'تغییر نام کاربری، تصویر یا بیو به منظور گمراه‌سازی، کلاهبرداری یا جعل هویت دیگران اکیداً ممنوع بوده و موجب مسدودی حساب می‌گردد.',
+              'Changing username, profile picture, or bio to mislead, defraud, or impersonate others is strictly prohibited and leads to immediate account suspension.',
           icon: Icons.badge_rounded,
         ),
         const SizedBox(height: 10),
         _buildSafetyRuleCard(
           number: '3',
           title: 'Authentic & Continuous Activity',
-          subtitle: 'فعالیت مستمر، معتبر و اصیل',
+          subtitle: 'Active engagement and quality content',
           desc:
-              'حساب تأییدشده باید حضور فعال داشته و به تولید محتوای ارزشمند و تعامل ارگانیک با دنبال‌کنندگان ادامه دهد. اکانت‌های غیرفعال بازبینی می‌شوند.',
+              'Verified accounts must maintain an active presence, publish original content, and interact organically. Inactive accounts are routinely audited.',
           icon: Icons.trending_up_rounded,
         ),
         const SizedBox(height: 10),
         _buildSafetyRuleCard(
           number: '4',
           title: 'Active Two-Factor Authentication (2FA)',
-          subtitle: 'فعال بودن دائمی امنیت دومرحله‌ای',
+          subtitle: 'Mandatory security protection',
           desc:
-              'برای محافظت از هویت دیجیتال شما و پیشگیری از نفوذ، امنیت دومرحله‌ای باید همیشه روی حساب تأییدشده فعال بماند.',
+              'To protect your digital identity and prevent unauthorized access, Two-Factor Authentication must remain permanently active on verified profiles.',
           icon: Icons.lock_outline_rounded,
         ),
         const SizedBox(height: 10),
         _buildSafetyRuleCard(
           number: '5',
-          title: 'Non-Transferable & No Selling',
-          subtitle: 'غیرقابل واگذاری یا خرید و فروش',
+          title: 'Non-Transferable & No Account Selling',
+          subtitle: 'Identity belongs solely to you',
           desc:
-              'تیک آبی نشان هویت شخص شماست. هرگونه تلاش برای فروش، اجاره یا واگذاری حساب به شخص ثالث موجب ابطال تیک و مسدودی دائم می‌شود.',
+              'Your verification badge belongs strictly to you. Any attempt to sell, rent, or transfer the account to a third party results in permanent badge revocation.',
           icon: Icons.not_interested_rounded,
         ),
       ],
@@ -1024,7 +1024,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
               ),
               const SizedBox(height: 4),
               const Text(
-                'نشان رسمی طلایی زیف — بالاترین رده اعتبار سازمانی و برندهای جهانی',
+                'Official ZEV Gold Badge — Highest Tier for Global Brands & Organizations',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 12.5,
@@ -1088,7 +1088,7 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 4),
           child: Text(
-            'قوانین و شرایط اختصاصی دریافت تیک طلایی ZEV',
+            'Requirements to Qualify for ZEV Gold Badge',
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w900,
@@ -1100,52 +1100,52 @@ class _ZevBlueVerificationScreenState extends State<ZevBlueVerificationScreen>
 
         // 8 Gold Rules
         _buildGoldRuleItem(
-          number: '۱',
-          title: 'حداقل ۱ میلیون دنبال‌کننده واقعی در زیف',
+          number: '1',
+          title: 'Minimum 1,000,000 Organic ZEV Followers',
           desc:
-              'متقاضی باید حداقل ۱,۰۰۰,۰۰۰ دنبال‌کننده واقعی و ارگانیک مستقیماً در پلتفرم ZEV داشته باشد. دنبال‌کنندگان جعلی پذیرفته نیستند.',
+              'Applicant must have at least 1,000,000 genuine, organic followers directly on the ZEV platform. Artificial or bot followers will disqualify the application.',
         ),
         _buildGoldRuleItem(
-          number: '۲',
-          title: 'سابقه تیک آبی فعال برای حداقل ۱۸۰ روز',
+          number: '2',
+          title: 'Active Blue Tick for Minimum 180 Days',
           desc:
-              'حساب باید حداقل ۶ ماه دارای تیک آبی فعال بوده و در این مدت سابقه هیچ‌گونه نقض قوانین یا اخطار انضباطی نداشته باشد.',
+              'Account must have held an active Blue Tick badge for at least 6 consecutive months with zero policy infractions or warnings.',
         ),
         _buildGoldRuleItem(
-          number: '۳',
-          title: 'شخصیت حقوقی رسمی یا برند شناخته‌شده بین‌المللی',
+          number: '3',
+          title: 'Registered Legal Entity or Recognized Global Brand',
           desc:
-              'تیک طلایی منحصراً به شرکت‌های ثبت‌شده رسمی، سازمان‌های معتبر ملی و بین‌المللی، هلدینگ‌ها و برندهای سرشناس اعطا می‌شود.',
+              'Gold Badges are exclusively awarded to registered corporations, renowned media organizations, institutions, and verified global brands.',
         ),
         _buildGoldRuleItem(
-          number: '۴',
-          title: 'مدارک ثبتی، اساسنامه و مالکیت علامت تجاری',
+          number: '4',
+          title: 'Official Trademark & Corporate Documentation',
           desc:
-              'ارائه گواهی ثبت برند (Trademark)، اساسنامه شرکت، شناسه ملی مالیاتی و مدارک احراز هویت هیئت مدیره در کلودفلر الزامی است.',
+              'Submission of certified trademark registration, articles of incorporation, tax registration, and executive identity proof is mandatory.',
         ),
         _buildGoldRuleItem(
-          number: '۵',
-          title: 'حضور مستمر در رسانه‌های بین‌المللی رتبه یک',
+          number: '5',
+          title: 'Notable Tier-1 International Press Coverage',
           desc:
-              'برند یا سازمان باید دارای معرفی و سابقه پوشش خبری معتبر در حداقل ۵ رسانه خبری مستقل و رسمی بین‌المللی باشد.',
+              'The organization or brand must have sustained coverage in at least 5 major independent global news and media outlets.',
         ),
         _buildGoldRuleItem(
-          number: '۶',
-          title: 'توافق‌نامه همکاری سازمانی اختصاصی با ZEV',
+          number: '6',
+          title: 'Dedicated Enterprise Agreement with ZEV',
           desc:
-              'داشتن کانال ارتباطی رسمی شرکتی و توافق‌نامه استراتژیک سازمانی با پلتفرم زیف الزامی است.',
+              'Having an active corporate communication channel and a verified enterprise partnership agreement with the ZEV Platform.',
         ),
         _buildGoldRuleItem(
-          number: '۷',
-          title: 'امنیت پیشرفته سازمانی و احراز هویت دومرحله‌ای',
+          number: '7',
+          title: 'Enterprise-Grade Security & Enforced 2FA',
           desc:
-              'فعال بودن همیشگی لایه‌های امنیتی سازمانی، پروتکل‌های 2FA سخت‌گیرانه و ثبت دامنه ایمیل رسمی اختصاصی.',
+              'Permanent multi-layered security, enterprise Two-Factor Authentication, and a verified corporate email domain on file.',
         ),
         _buildGoldRuleItem(
-          number: '۸',
-          title: 'تولید محتوای انحصاری و استاندارد رده بالا',
+          number: '8',
+          title: 'High-Standard & Exclusive Content Production',
           desc:
-              'انتشار مستمر محتوای 4K/HD رسمی، تولید مدیا با بالاترین استانداردهای بصری و تعامل پایدار با کاربران.',
+              'Consistent publication of high-fidelity 4K/HD media, exceptional production values, and sustained positive audience engagement.',
         ),
       ],
     );

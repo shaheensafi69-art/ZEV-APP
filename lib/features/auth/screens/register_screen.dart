@@ -17,6 +17,7 @@ import '../../../core/theme/zev_theme.dart';
 import '../../../core/widgets/google_sign_in_button.dart';
 import '../../../core/widgets/zev_logo.dart';
 import '../../../core/widgets/zev_text_field.dart';
+import '../../../core/widgets/zev_country_picker.dart';
 import '../../main_navigation/screens/zev_main_layout.dart';
 import '../widgets/zev_auth_web_wrapper.dart';
 import 'login_screen.dart';
@@ -1443,12 +1444,69 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
         const SizedBox(height: 16),
 
-        ZevTextField(
-          label: "Country",
-          hint: "Your country",
-          controller: _countryCtrl,
-          prefixIcon: Icons.public_rounded,
-          textInputAction: TextInputAction.next,
+        // Country Selector Tile with All World Countries and Circular Flags
+        GestureDetector(
+          onTap: () async {
+            final current = ZevCountry.findByNameOrCode(_countryCtrl.text);
+            final picked = await ZevCountry.show(context, selected: current);
+            if (picked != null) {
+              setState(() {
+                _countryCtrl.text = picked.name;
+                if (_phoneCtrl.text.isEmpty && picked.dial.isNotEmpty) {
+                  _phoneCtrl.text = '${picked.dial} ';
+                }
+              });
+            }
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Country",
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    ZevCountry.buildCircularFlag(
+                      ZevCountry.findByNameOrCode(_countryCtrl.text).code,
+                      size: 26,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _countryCtrl.text.isNotEmpty ? _countryCtrl.text : "Select Country",
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                    const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B), size: 22),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
 
         const SizedBox(height: 16),

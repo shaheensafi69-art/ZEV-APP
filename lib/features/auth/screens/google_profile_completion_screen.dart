@@ -13,6 +13,7 @@ import '../../../core/services/auth_session_manager.dart';
 import '../../../core/services/cloudflare_storage_service.dart';
 import '../../../core/services/multi_account_service.dart';
 import '../../../core/theme/zev_theme.dart';
+import '../../../core/widgets/zev_country_picker.dart';
 import '../../../core/widgets/zev_text_field.dart';
 import '../../main_navigation/screens/zev_main_layout.dart';
 
@@ -63,25 +64,6 @@ class _GoogleProfileCompletionScreenState
 
   bool _isLoading = false;
   String? _errorMsg;
-
-  final List<Map<String, String>> _countries = [
-    {'name': 'United States', 'flag': '🇺🇸'},
-    {'name': 'Afghanistan', 'flag': '🇦🇫'},
-    {'name': 'Germany', 'flag': '🇩🇪'},
-    {'name': 'United Kingdom', 'flag': '🇬🇧'},
-    {'name': 'Canada', 'flag': '🇨🇦'},
-    {'name': 'Turkey', 'flag': '🇹🇷'},
-    {'name': 'United Arab Emirates', 'flag': '🇦🇪'},
-    {'name': 'Iran', 'flag': '🇮🇷'},
-    {'name': 'Australia', 'flag': '🇦🇺'},
-    {'name': 'France', 'flag': '🇫🇷'},
-    {'name': 'Netherlands', 'flag': '🇳🇱'},
-    {'name': 'Sweden', 'flag': '🇸🇪'},
-    {'name': 'India', 'flag': '🇮🇳'},
-    {'name': 'Pakistan', 'flag': '🇵🇰'},
-    {'name': 'Saudi Arabia', 'flag': '🇸🇦'},
-    {'name': 'Other', 'flag': '🌍'},
-  ];
 
   @override
   void initState() {
@@ -753,48 +735,48 @@ class _GoogleProfileCompletionScreenState
                           ),
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: ZevColors.softSurface,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: ZevColors.border, width: 1.2),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _selectedCountry,
-                            isExpanded: true,
-                            icon: const Icon(
-                              Icons.keyboard_arrow_down_rounded,
-                              color: ZevColors.deepNavy,
-                            ),
-                            items: _countries.map((c) {
-                              return DropdownMenuItem<String>(
-                                value: c['name'],
-                                child: Row(
-                                  children: [
-                                    Text(
-                                      c['flag'] ?? '',
-                                      style: const TextStyle(fontSize: 18),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Text(
-                                      c['name'] ?? '',
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: ZevColors.deepNavy,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (val) {
-                              if (val != null) {
-                                setState(() => _selectedCountry = val);
+                      GestureDetector(
+                        onTap: () async {
+                          final current = ZevCountry.findByNameOrCode(_selectedCountry);
+                          final picked = await ZevCountry.show(context, selected: current);
+                          if (picked != null) {
+                            setState(() {
+                              _selectedCountry = picked.name;
+                              if (_phoneCtrl.text.isEmpty && picked.dial.isNotEmpty) {
+                                _phoneCtrl.text = '${picked.dial} ';
                               }
-                            },
+                            });
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: ZevColors.softSurface,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: ZevColors.border, width: 1.2),
+                          ),
+                          child: Row(
+                            children: [
+                              ZevCountry.buildCircularFlag(
+                                ZevCountry.findByNameOrCode(_selectedCountry).code,
+                                size: 26,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  _selectedCountry,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: ZevColors.deepNavy,
+                                  ),
+                                ),
+                              ),
+                              const Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                color: ZevColors.deepNavy,
+                              ),
+                            ],
                           ),
                         ),
                       ),

@@ -556,7 +556,7 @@ class _ZevCoinsScreenState extends State<ZevCoinsScreen>
 
             const SizedBox(height: 22),
 
-            // 3. Information & Benefits Clearmorphic Cards (As requested: معلومات کامل بدون لیست بسته‌ها)
+            // 3. Information & Benefits Clearmorphic Cards (Zero-Commission & Secure)
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(

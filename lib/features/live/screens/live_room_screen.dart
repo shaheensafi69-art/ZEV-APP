@@ -463,6 +463,25 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
             _isRtcConnecting = false;
           });
         },
+        onFirstRemoteVideoDecoded: (RtcConnection connection, int remoteUid, int width, int height, int elapsed) {
+          debugPrint('[LiveRoomScreen] First remote video decoded in ${elapsed}ms');
+          if (!mounted || remoteUid == 0) return;
+          if (!widget.isHost && (_remoteHostUid == null || _remoteHostUid == remoteUid)) {
+            setState(() {
+              _remoteHostUid = remoteUid;
+              _remoteHostVideoOn = true;
+              _remoteHostController?.dispose();
+              _remoteHostController = VideoViewController.remote(
+                rtcEngine: engine,
+                canvas: VideoCanvas(
+                  uid: remoteUid,
+                  renderMode: RenderModeType.renderModeHidden,
+                ),
+                connection: connection,
+              );
+            });
+          }
+        },
         onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
           if (!mounted || remoteUid == 0) return;
           setState(() {
@@ -528,6 +547,12 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
 
       await engine.enableVideo();
       await engine.enableAudio();
+      try {
+        await engine.setParameters("{\"rtc.video.quick_start\":true}");
+        await engine.setParameters("{\"rtc.audio.quick_start\":true}");
+        await engine.setParameters("{\"che.video.quickStart\":true}");
+        await engine.setParameters("{\"che.audio.live_for_comm\":true}");
+      } catch (_) {}
       try {
         await engine.setAudioProfile(
           profile: AudioProfileType.audioProfileMusicStandard,

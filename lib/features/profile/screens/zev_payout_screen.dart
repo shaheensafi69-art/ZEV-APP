@@ -155,14 +155,20 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
   Widget _buildMethodLogo(String methodType, {double size = 22}) {
     final type = methodType.toLowerCase();
     if (type == 'hesabpay') {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(size * 0.22),
-        child: Image.asset(
-          'assets/hesab.png',
-          width: size,
-          height: size,
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) => Icon(Icons.phone_android_rounded, size: size, color: const Color(0xFFEF4444)),
+      return Container(
+        width: size,
+        height: size,
+        padding: EdgeInsets.all(size * 0.12),
+        decoration: const BoxDecoration(
+          color: Color(0xFF0F172A),
+          shape: BoxShape.circle,
+        ),
+        child: ClipOval(
+          child: Image.asset(
+            'assets/hesab.png',
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) => Icon(Icons.phone_android_rounded, size: size * 0.7, color: const Color(0xFF00D4FF)),
+          ),
         ),
       );
     } else if (type == 'crypto') {
@@ -2266,7 +2272,7 @@ class _ClearmorphicAddAccountDrawerState extends State<_ClearmorphicAddAccountDr
     );
   }
 
-  Widget _buildCurrencySegment(String cur, String label) {
+  Widget _buildCurrencySegment(String cur, String flagAsset, String label) {
     final isSelected = _bankCurrency == cur;
     return Expanded(
       child: GestureDetector(
@@ -2276,7 +2282,7 @@ class _ClearmorphicAddAccountDrawerState extends State<_ClearmorphicAddAccountDr
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(vertical: 9),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
           decoration: BoxDecoration(
             gradient: isSelected
                 ? const LinearGradient(
@@ -2285,7 +2291,7 @@ class _ClearmorphicAddAccountDrawerState extends State<_ClearmorphicAddAccountDr
                 : null,
             borderRadius: BorderRadius.circular(12),
             border: isSelected
-                ? Border.all(color: const Color(0xFF00D4FF).withValues(alpha: 0.4))
+                ? Border.all(color: const Color(0xFF00D4FF).withValues(alpha: 0.5), width: 1.2)
                 : null,
             boxShadow: isSelected
                 ? [
@@ -2297,19 +2303,50 @@ class _ClearmorphicAddAccountDrawerState extends State<_ClearmorphicAddAccountDr
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.04),
                       blurRadius: 4,
+                      offset: const Offset(0, 1),
                     ),
                   ]
                 : null,
           ),
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
-                color: isSelected ? ZevColors.deepNavy : ZevColors.textMuted,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 3,
+                    ),
+                  ],
+                ),
+                child: ClipOval(
+                  child: Image.asset(
+                    flagAsset,
+                    width: 18,
+                    height: 18,
+                    fit: BoxFit.cover,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                    color: isSelected ? const Color(0xFF0284C7) : ZevColors.textMuted,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -2475,14 +2512,24 @@ class _ClearmorphicAddAccountDrawerState extends State<_ClearmorphicAddAccountDr
                       ),
                       _buildTypeTab(
                         'hesabpay',
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: Image.asset(
-                            'assets/hesab.png',
-                            width: 17,
-                            height: 17,
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) => const Icon(Icons.phone_android_rounded, size: 16, color: Color(0xFFEF4444)),
+                        Container(
+                          width: 20,
+                          height: 20,
+                          padding: const EdgeInsets.all(2.5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: const Color(0xFF00D4FF).withValues(alpha: 0.4),
+                              width: 1,
+                            ),
+                          ),
+                          child: ClipOval(
+                            child: Image.asset(
+                              'assets/hesab.png',
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) => const Icon(Icons.phone_android_rounded, size: 12, color: Color(0xFF00D4FF)),
+                            ),
                           ),
                         ),
                         'HesabPay (AFN)',
@@ -2534,9 +2581,9 @@ class _ClearmorphicAddAccountDrawerState extends State<_ClearmorphicAddAccountDr
                     ),
                     child: Row(
                       children: [
-                        _buildCurrencySegment('GBP', '🇬🇧 GBP (UK)'),
-                        _buildCurrencySegment('USD', '🇺🇸 USD (USA)'),
-                        _buildCurrencySegment('EUR', '🇪🇺 EUR (Europe)'),
+                        _buildCurrencySegment('GBP', 'assets/flag_gb.png', 'GBP (UK)'),
+                        _buildCurrencySegment('USD', 'assets/flag_us.png', 'USD (USA)'),
+                        _buildCurrencySegment('EUR', 'assets/flag_eu.png', 'EUR (Europe)'),
                       ],
                     ),
                   ),

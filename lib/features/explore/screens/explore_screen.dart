@@ -21,6 +21,7 @@ import '../../feed/widgets/feed_share_sheet.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../reels/models/reel_item.dart';
 import '../../reels/widgets/reel_player_item.dart';
+import '../../communities/screens/community_detail_screen.dart';
 
 /// Unified Explore Item representation combining Posts and Reels for ZEV Explore.
 class ExploreGridItem {
@@ -124,10 +125,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   // Live Unified Search state
   bool _isSearching = false;
-  int _searchTab = 0; // 0: Accounts, 1: Reels, 2: Posts, 3: #Tags
+  int _searchTab = 0; // 0: Accounts, 1: Groups, 2: Reels, 3: Posts, 4: #Tags
   bool _isSearchLoading = false;
   int _searchGeneration = 0;
   List<Map<String, dynamic>> _searchedAccounts = [];
+  List<Map<String, dynamic>> _searchedCommunities = [];
   List<ReelItem> _searchedReels = [];
   List<FeedPostItem> _searchedPosts = [];
   List<Map<String, dynamic>> _searchedHashtags = [];
@@ -453,12 +455,23 @@ class _ExploreScreenState extends State<ExploreScreen> {
   Future<void> _executeSearch(String query) async {
     final int gen = ++_searchGeneration;
     try {
-      final raw = await supabase.rpc(
+      final Future<dynamic> rpcFuture = supabase.rpc(
         'search_unified_content',
         params: {'p_query': query, 'p_limit': 25},
       );
+      final Future<dynamic> commsFuture = supabase
+          .from('communities')
+          .select('id, name, slug, description, category, avatar_url, cover_url, is_verified, members_count, posts_count, creator_id')
+          .or('name.ilike.%$query%,description.ilike.%$query%')
+          .limit(20)
+          .catchError((dynamic _) => <Map<String, dynamic>>[]);
+
+      final results = await Future.wait<dynamic>([rpcFuture, commsFuture]);
 
       if (gen != _searchGeneration) return;
+
+      final raw = results[0];
+      final List<dynamic> commsRaw = results[1] is List ? (results[1] as List) : [];
 
       final Map<String, dynamic> data = raw is Map
           ? Map<String, dynamic>.from(raw)
@@ -471,6 +484,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
               ),
             )
           : <Map<String, dynamic>>[];
+
+      final communitiesRaw = List<Map<String, dynamic>>.from(
+        commsRaw.map((e) => Map<String, dynamic>.from(e as Map)),
+      );
 
       final reelsRaw = data['reels'] is List
           ? (data['reels'] as List)
@@ -495,6 +512,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       if (mounted && gen == _searchGeneration) {
         setState(() {
           _searchedAccounts = accountsRaw;
+          _searchedCommunities = communitiesRaw;
           _searchedReels = reelsRaw;
           _searchedPosts = postsRaw;
           _searchedHashtags = tagsRaw;
@@ -1662,16 +1680,21 @@ class _ExploreScreenState extends State<ExploreScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              _buildSearchFilterTab(0, "Accounts (${_searchedAccounts.length})"),
-              const SizedBox(width: 6),
-              _buildSearchFilterTab(1, "Reels (${_searchedReels.length})"),
-              const SizedBox(width: 6),
-              _buildSearchFilterTab(2, "Posts (${_searchedPosts.length})"),
-              const SizedBox(width: 6),
-              _buildSearchFilterTab(3, "#Tags (${_searchedHashtags.length})"),
-            ],
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildSearchFilterTab(0, "Accounts (${_searchedAccounts.length})"),
+                const SizedBox(width: 6),
+                _buildSearchFilterTab(1, "Groups (${_searchedCommunities.length})"),
+                const SizedBox(width: 6),
+                _buildSearchFilterTab(2, "Reels (${_searchedReels.length})"),
+                const SizedBox(width: 6),
+                _buildSearchFilterTab(3, "Posts (${_searchedPosts.length})"),
+                const SizedBox(width: 6),
+                _buildSearchFilterTab(4, "#Tags (${_searchedHashtags.length})"),
+              ],
+            ),
           ),
         ),
 
@@ -1679,10 +1702,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
           child: _searchTab == 0
               ? _buildAccountsSearchResults()
               : _searchTab == 1
-                  ? _buildReelsSearchResults()
+                  ? _buildCommunitiesSearchResults()
                   : _searchTab == 2
-                      ? _buildPostsSearchResults()
-                      : _buildHashtagsSearchResults(),
+                      ? _buildReelsSearchResults()
+                      : _searchTab == 3
+                          ? _buildPostsSearchResults()
+                          : _buildHashtagsSearchResults(),
         ),
       ],
     );
@@ -1690,44 +1715,194 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   Widget _buildSearchFilterTab(int index, String label) {
     final isSelected = _searchTab == index;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          setState(() => _searchTab = index);
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-          decoration: BoxDecoration(
-            color: isSelected ? ZevColors.primaryBlue : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isSelected ? Colors.transparent : Colors.white,
-            ),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: ZevColors.primaryBlue.withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : [],
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _searchTab = index);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? ZevColors.primaryBlue : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? Colors.transparent : Colors.white,
           ),
-          child: Center(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? ZevColors.deepNavy : const Color(0xFF64748B),
-              ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: ZevColors.primaryBlue.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : [],
+        ),
+        child: Center(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+              color: isSelected ? ZevColors.deepNavy : const Color(0xFF64748B),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCommunitiesSearchResults() {
+    if (_searchedCommunities.isEmpty) {
+      return const Center(
+        child: Text(
+          "No communities found",
+          style: TextStyle(
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 110),
+      itemCount: _searchedCommunities.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final c = _searchedCommunities[index];
+        final id = c['id']?.toString() ?? '';
+        final name = (c['name'] ?? 'Community').toString();
+        final desc = (c['description'] ?? '').toString();
+        final avatarUrl = (c['avatar_url'] ?? '').toString();
+        final isVerified = c['is_verified'] == true;
+        final membersCount = (c['members_count'] as num?)?.toInt() ?? 1;
+        final category = (c['category'] ?? 'Group').toString();
+
+        return GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            CommunityDetailScreen.open(context, communityId: id, initialData: c);
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                avatarUrl.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: CachedNetworkImage(
+                          imageUrl: avatarUrl,
+                          width: 46,
+                          height: 46,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, _, _) => Container(
+                            width: 46,
+                            height: 46,
+                            color: const Color(0xFF0284C7),
+                            child: const Icon(Icons.groups_rounded, color: Colors.white, size: 22),
+                          ),
+                        ),
+                      )
+                    : Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0284C7),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Center(
+                          child: Text(
+                            name.isNotEmpty ? name[0].toUpperCase() : 'C',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18),
+                          ),
+                        ),
+                      ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                                color: ZevColors.deepNavy,
+                              ),
+                            ),
+                          ),
+                          if (isVerified) ...[
+                            const SizedBox(width: 4),
+                            const Icon(
+                              Icons.verified_rounded,
+                              size: 15,
+                              color: Color(0xFF00D4FF),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        desc.isNotEmpty ? desc : "${category.toUpperCase()} GROUP",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: ZevColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        "$membersCount members",
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          color: Color(0xFF0284C7),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    CommunityDetailScreen.open(context, communityId: id, initialData: c);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0284C7),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text("View", style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

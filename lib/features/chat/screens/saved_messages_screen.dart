@@ -208,7 +208,7 @@ class _SavedMessagesScreenState extends State<SavedMessagesScreen> {
           autofocus: true,
           style: const TextStyle(color: Color(0xFF0F172A)),
           decoration: InputDecoration(
-            hintText: "Folder Name (e.g. جزوه‌ها, فایلهای کاری)",
+            hintText: "Folder Name (e.g. Work, Media, Documents)",
             hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
             filled: true,
             fillColor: const Color(0xFFF8FAFC),
