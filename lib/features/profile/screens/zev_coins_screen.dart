@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -182,116 +183,196 @@ class _ZevCoinsScreenState extends State<ZevCoinsScreen>
     final isDesktop = MediaQuery.sizeOf(context).width >= 720;
 
     return Scaffold(
-      backgroundColor: ZevColors.softSurface,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: ZevColors.deepNavy,
-            size: 20,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          "ZEV Wallet & Coins",
-          style: TextStyle(
-            color: ZevColors.deepNavy,
-            fontWeight: FontWeight.w900,
-            fontSize: 18,
-            letterSpacing: -0.3,
-          ),
-        ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.refresh_rounded,
-              color: ZevColors.textMuted,
-              size: 22,
-            ),
-            tooltip: "Refresh Balance",
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              _fetchBalances();
-            },
-          ),
-          const SizedBox(width: 4),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(52),
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEDF2F7),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              indicator: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.transparent,
-              labelColor: ZevColors.deepNavy,
-              unselectedLabelColor: ZevColors.textMuted,
-              labelStyle: const TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 13,
-              ),
-              unselectedLabelStyle: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-              ),
-              tabs: const [
-                Tab(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('🪙'),
-                      SizedBox(width: 6),
-                      Text("Virtual Coins"),
-                    ],
-                  ),
+      backgroundColor: const Color(0xFFF3F6FB),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(114),
+        child: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: AppBar(
+              backgroundColor: Colors.white.withValues(alpha: 0.75),
+              elevation: 0,
+              surfaceTintColor: Colors.transparent,
+              leading: IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: ZevColors.deepNavy,
+                  size: 20,
                 ),
-                Tab(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('💎'),
-                      SizedBox(width: 6),
-                      Text("Creator Cashout"),
-                    ],
-                  ),
+                onPressed: () => Navigator.pop(context),
+              ),
+              title: const Text(
+                "ZEV Wallet & Coins",
+                style: TextStyle(
+                  color: ZevColors.deepNavy,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                  letterSpacing: -0.3,
                 ),
+              ),
+              centerTitle: true,
+              actions: [
+                IconButton(
+                  icon: const Icon(
+                    Icons.refresh_rounded,
+                    color: ZevColors.textMuted,
+                    size: 22,
+                  ),
+                  tooltip: "Refresh Balance",
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    _fetchBalances();
+                  },
+                ),
+                const SizedBox(width: 4),
               ],
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(52),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.60),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.85), width: 1.2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF00D4FF).withValues(alpha: 0.08),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: TabBar(
+                    controller: _tabController,
+                    indicator: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Colors.white, Color(0xFFF8FAFC)],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFF00D4FF).withValues(alpha: 0.40),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF00D4FF).withValues(alpha: 0.18),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    dividerColor: Colors.transparent,
+                    labelColor: ZevColors.deepNavy,
+                    unselectedLabelColor: ZevColors.textMuted,
+                    labelStyle: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                    ),
+                    unselectedLabelStyle: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                    tabs: const [
+                      Tab(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text('🪙'),
+                            SizedBox(width: 6),
+                            Text("Virtual Coins"),
+                          ],
+                        ),
+                      ),
+                      Tab(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text('💎'),
+                            SizedBox(width: 6),
+                            Text("Creator Cashout"),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
         ),
       ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: isDesktop ? 640 : double.infinity,
-            ),
-            child: TabBarView(
-              controller: _tabController,
-              children: [_buildCoinsTab(), _buildEarningsTab()],
+      body: Stack(
+        children: [
+          // Ambient Layer with Mesh Glow Blobs
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFFF3F7FC),
+                    Color(0xFFE9F0F8),
+                    Color(0xFFF5F9FD),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
+          Positioned(
+            top: 20,
+            right: -40,
+            child: Container(
+              width: 240,
+              height: 240,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFF00D4FF).withValues(alpha: 0.16),
+                    const Color(0xFF00D4FF).withValues(alpha: 0.0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 80,
+            left: -50,
+            child: Container(
+              width: 260,
+              height: 260,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFF536DFE).withValues(alpha: 0.14),
+                    const Color(0xFF536DFE).withValues(alpha: 0.0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: isDesktop ? 640 : double.infinity,
+                ),
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [_buildCoinsTab(), _buildEarningsTab()],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -312,26 +393,37 @@ class _ZevCoinsScreenState extends State<ZevCoinsScreen>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // 1. Clearmorphic ZEV Coins Balance Card
-            Container(
-              padding: const EdgeInsets.all(26),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(
-                  color: ZevColors.primaryBlue.withValues(alpha: 0.25),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: ZevColors.primaryBlue.withValues(alpha: 0.09),
-                    blurRadius: 24,
-                    offset: const Offset(0, 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: Container(
+                  padding: const EdgeInsets.all(26),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.88),
+                        Colors.white.withValues(alpha: 0.62),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.95),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF00D4FF).withValues(alpha: 0.09),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Container(
+                  child: Column(
+                    children: [
+                      Container(
                     width: 72,
                     height: 72,
                     decoration: BoxDecoration(
@@ -418,6 +510,8 @@ class _ZevCoinsScreenState extends State<ZevCoinsScreen>
                 ],
               ),
             ),
+          ),
+        ),
 
             const SizedBox(height: 18),
 
@@ -696,24 +790,35 @@ class _ZevCoinsScreenState extends State<ZevCoinsScreen>
             ],
 
             // Clearmorphic Creator Withdrawable Card
-            Container(
-              padding: const EdgeInsets.all(26),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(
-                  color: ZevColors.primaryBlue.withValues(alpha: 0.25),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: ZevColors.primaryBlue.withValues(alpha: 0.09),
-                    blurRadius: 24,
-                    offset: const Offset(0, 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: Container(
+                  padding: const EdgeInsets.all(26),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.88),
+                        Colors.white.withValues(alpha: 0.62),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.95),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF00D4FF).withValues(alpha: 0.09),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: Column(
+                  child: Column(
                 children: [
                   Container(
                     width: 72,
@@ -791,6 +896,8 @@ class _ZevCoinsScreenState extends State<ZevCoinsScreen>
                 ],
               ),
             ),
+          ),
+        ),
 
             const SizedBox(height: 18),
 
