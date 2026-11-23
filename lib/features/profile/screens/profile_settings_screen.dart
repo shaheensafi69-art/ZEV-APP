@@ -21,6 +21,7 @@ import 'data_saver_settings_screen.dart';
 import 'active_sessions_screen.dart';
 import 'two_factor_auth_screen.dart';
 import 'zev_coins_screen.dart';
+import 'zev_payout_screen.dart';
 import '../../chat/screens/saved_messages_screen.dart';
 import '../../communities/screens/communities_list_screen.dart';
 
@@ -607,6 +608,17 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
               subtitle: "Check balance and recharge coins on ZEV Web",
               iconColor: const Color(0xFFF59E0B),
               onTap: () => ZevCoinsScreen.open(context, userProfile: _profile),
+            ),
+            _buildSettingsTile(
+              icon: Icons.payments_rounded,
+              title: "Creator Cashout & Payouts",
+              subtitle: "Withdraw earnings via PayPal, USDT or Bank wire",
+              iconColor: const Color(0xFF10B981),
+              onTap: () => ZevPayoutScreen.open(
+                context,
+                currentEarningsUsd: (_profile['earnings_usd'] as num?)?.toDouble() ?? 0.0,
+                totalEarningsCoins: (_profile['earnings_coins'] as num?)?.toInt() ?? 0,
+              ),
             ),
             _buildSettingsTile(
               icon: Icons.data_usage_rounded,

@@ -95,6 +95,24 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
   // Realtime Gift Celebration Banner
   Map<String, dynamic>? _activeGiftBanner;
   Timer? _giftBannerTimer;
+  int _myCoinsBalance = 0;
+
+  Future<void> _fetchMyCoinsBalance() async {
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid == null) return;
+    try {
+      final res = await _supabase
+          .from('profiles')
+          .select('coins_balance')
+          .eq('id', uid)
+          .maybeSingle();
+      if (res != null && mounted) {
+        setState(() {
+          _myCoinsBalance = (res['coins_balance'] as num?)?.toInt() ?? 0;
+        });
+      }
+    } catch (_) {}
+  }
 
   static const List<Map<String, dynamic>> _availableGifts = [
     {
@@ -215,6 +233,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
 
     _bootstrapRoom();
     _checkFollowingHost();
+    _fetchMyCoinsBalance();
   }
 
   void _startPkTimer() {
@@ -2431,157 +2450,166 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
 
   void _openGiftSheet() {
     HapticFeedback.selectionClick();
+    _fetchMyCoinsBalance();
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
-        return Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.96),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.16),
-            ),
-          ),
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Sheet Handle
-                Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white30,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.96),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.16),
                 ),
-                const SizedBox(height: 14),
-
-                // Coins Header
-                Row(
+              ),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      'Send Gift',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
+                    // Sheet Handle
+                    Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white30,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        ZevCoinsScreen.open(context);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFB800).withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                            color: const Color(0xFFFFB800).withValues(alpha: 0.4),
-                          ),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('🪙', style: TextStyle(fontSize: 13)),
-                            SizedBox(width: 4),
-                            Text(
-                              '1,250 Coins',
-                              style: TextStyle(
-                                color: Color(0xFFFFD600),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            SizedBox(width: 4),
-                            Icon(Icons.add_circle_outline_rounded, color: Color(0xFFFFD600), size: 13),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
+                    const SizedBox(height: 14),
 
-                // Gift Grid (8 gifts)
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
-                    mainAxisSpacing: 10,
-                    crossAxisSpacing: 10,
-                    childAspectRatio: 0.85,
-                  ),
-                  itemCount: _availableGifts.length,
-                  itemBuilder: (ctx, idx) {
-                    final gift = _availableGifts[idx];
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _sendGift(gift);
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.06),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.12),
+                    // Coins Header
+                    Row(
+                      children: [
+                        const Text(
+                          'Send Gift',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              gift['emoji'] as String,
-                              style: const TextStyle(fontSize: 32),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () async {
+                            HapticFeedback.lightImpact();
+                            await ZevCoinsScreen.open(context);
+                            await _fetchMyCoinsBalance();
+                            if (mounted) {
+                              setSheetState(() {});
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              gift['name'] as String,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFB800).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: const Color(0xFFFFB800).withValues(alpha: 0.4),
                               ),
                             ),
-                            const SizedBox(height: 2),
-                            Row(
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Text('🪙', style: TextStyle(fontSize: 9)),
-                                const SizedBox(width: 2),
+                                const Text('🪙', style: TextStyle(fontSize: 13)),
+                                const SizedBox(width: 4),
                                 Text(
-                                  '${gift['coins']}',
+                                  '$_myCoinsBalance Coins',
                                   style: const TextStyle(
                                     color: Color(0xFFFFD600),
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
                                   ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(Icons.add_circle_outline_rounded, color: Color(0xFFFFD600), size: 13),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Gift Grid (8 gifts)
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 4,
+                        mainAxisSpacing: 10,
+                        crossAxisSpacing: 10,
+                        childAspectRatio: 0.85,
+                      ),
+                      itemCount: _availableGifts.length,
+                      itemBuilder: (ctx, idx) {
+                        final gift = _availableGifts[idx];
+                        return GestureDetector(
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _sendGift(gift);
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.12),
+                              ),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  gift['emoji'] as String,
+                                  style: const TextStyle(fontSize: 32),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  gift['name'] as String,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text('🪙', style: TextStyle(fontSize: 9)),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      '${gift['coins']}',
+                                      style: const TextStyle(
+                                        color: Color(0xFFFFD600),
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -2613,15 +2641,33 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
     final giftEmoji = gift['emoji'] as String;
     final points = (gift['coins'] as num).toInt();
 
+    if (_myCoinsBalance < points) {
+      _showToast('Insufficient coins. You have $_myCoinsBalance coins, but need $points coins.');
+      ZevCoinsScreen.open(context);
+      return;
+    }
+
     // 1. Atomic Supabase RPC: Deduct sender coins, convert to USD, credit 40% to Creator and 60% to Platform
     try {
-      await _supabase.rpc('send_live_gift', params: {
+      final res = await _supabase.rpc('send_live_gift', params: {
         'p_receiver_id': hostId,
         'p_gift_name': giftName,
         'p_gift_emoji': giftEmoji,
         'p_coins': points,
         'p_room_id': widget.stream['id']?.toString() ?? '',
       });
+
+      if (res != null && res is Map && res['sender_coins_balance'] != null) {
+        if (mounted) {
+          setState(() {
+            _myCoinsBalance = (res['sender_coins_balance'] as num).toInt();
+          });
+        }
+      } else if (mounted) {
+        setState(() {
+          _myCoinsBalance = (_myCoinsBalance - points).clamp(0, 999999999);
+        });
+      }
 
       final senderName = (myProfile.userMetadata?['username'] ??
               myProfile.userMetadata?['full_name'] ??
