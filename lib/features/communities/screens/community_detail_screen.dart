@@ -35,7 +35,6 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
   List<Map<String, dynamic>> _posts = [];
   bool _isLoading = true;
   bool _isMember = false;
-  String _userRole = 'none';
 
   @override
   void initState() {
@@ -75,10 +74,8 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
 
         if (memRes != null) {
           _isMember = true;
-          _userRole = memRes['role'] ?? 'member';
         } else {
           _isMember = false;
-          _userRole = 'none';
         }
       }
 
@@ -118,7 +115,6 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
 
         setState(() {
           _isMember = false;
-          _userRole = 'none';
           if (_community != null) {
             _community!['members_count'] = ((_community!['members_count'] as num?) ?? 1) - 1;
           }
@@ -133,7 +129,6 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> with Sing
 
         setState(() {
           _isMember = true;
-          _userRole = 'member';
           if (_community != null) {
             _community!['members_count'] = ((_community!['members_count'] as num?) ?? 0) + 1;
           }

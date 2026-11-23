@@ -531,7 +531,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         context,
         reason: 'Authenticate with Face ID, Fingerprint, or PIN to access this chat',
       );
-      if (!allowed) return;
+      if (!allowed || !mounted) return;
     }
 
     final idx = _conversations.indexWhere((c) => c.threadKey == item.threadKey);

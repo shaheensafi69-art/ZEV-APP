@@ -152,6 +152,50 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
     }
   }
 
+  Widget _buildMethodLogo(String methodType, {double size = 22}) {
+    final type = methodType.toLowerCase();
+    if (type == 'hesabpay') {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(size * 0.22),
+        child: Image.asset(
+          'assets/hesab.png',
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) => Icon(Icons.phone_android_rounded, size: size, color: const Color(0xFFEF4444)),
+        ),
+      );
+    } else if (type == 'crypto') {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(size * 0.22),
+        child: Image.asset(
+          'assets/crypto_usdt.png',
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) => Icon(Icons.currency_bitcoin_rounded, size: size, color: const Color(0xFF10B981)),
+        ),
+      );
+    } else if (type == 'paypal') {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(size * 0.22),
+        child: Image.asset(
+          'assets/paypal.png',
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) => Icon(Icons.payment_rounded, size: size, color: const Color(0xFF0079C1)),
+        ),
+      );
+    } else {
+      return Icon(
+        Icons.account_balance_rounded,
+        size: size,
+        color: const Color(0xFF536DFE),
+      );
+    }
+  }
+
   double _calculateUsd(int coins) => coins * kUsdPerCoin;
 
   double _calculateTargetAmount(int coins, String currency) {
@@ -937,21 +981,13 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
               final methodType = (acc['method_type'] ?? 'paypal').toString().toLowerCase();
               final currency = acc['currency'] ?? 'USD';
 
-              IconData iconData = Icons.payments_rounded;
-              Color iconColor = const Color(0xFF0284C7);
               String subtitle = '';
 
               if (methodType == 'hesabpay') {
-                iconData = Icons.phone_android_rounded;
-                iconColor = const Color(0xFFEF4444);
                 subtitle = "HesabPay • ${acc['details']?['phone_number'] ?? ''}";
               } else if (methodType == 'crypto') {
-                iconData = Icons.currency_bitcoin_rounded;
-                iconColor = const Color(0xFFF59E0B);
                 subtitle = "${acc['details']?['network'] ?? 'Crypto'} • ${acc['details']?['wallet_address'] ?? ''}";
               } else if (methodType == 'bank') {
-                iconData = Icons.account_balance_rounded;
-                iconColor = const Color(0xFF536DFE);
                 final cur = acc['details']?['currency'] ?? currency;
                 if (cur == 'GBP') {
                   subtitle = "${acc['details']?['bank_name'] ?? 'UK Bank'} • Sort: ${acc['details']?['sort_code'] ?? ''}";
@@ -961,8 +997,6 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                   subtitle = "${acc['details']?['bank_name'] ?? 'EU Bank'} • IBAN: ${acc['details']?['iban'] ?? ''}";
                 }
               } else if (methodType == 'paypal') {
-                iconData = Icons.payment_rounded;
-                iconColor = const Color(0xFF0284C7);
                 subtitle = "PayPal • ${acc['details']?['email'] ?? ''}";
               }
 
@@ -1020,16 +1054,23 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                             width: 42,
                             height: 42,
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  iconColor.withValues(alpha: 0.18),
-                                  iconColor.withValues(alpha: 0.06),
-                                ],
-                              ),
+                              color: Colors.white,
                               shape: BoxShape.circle,
-                              border: Border.all(color: iconColor.withValues(alpha: 0.3)),
+                              border: Border.all(
+                                color: isSelected ? const Color(0xFF00D4FF) : const Color(0xFFE2E8F0),
+                                width: 1.2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: (isSelected ? const Color(0xFF00D4FF) : Colors.black).withValues(alpha: isSelected ? 0.2 : 0.04),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
                             ),
-                            child: Icon(iconData, color: iconColor, size: 20),
+                            child: Center(
+                              child: _buildMethodLogo(methodType, size: 24),
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -1427,25 +1468,15 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
               final currency = acc['currency'] ?? 'USD';
               final details = Map<String, dynamic>.from(acc['details'] ?? {});
 
-              IconData methodIcon;
-              Color methodColor;
               String methodDisplay;
 
               if (methodType == 'hesabpay') {
-                methodIcon = Icons.phone_android_rounded;
-                methodColor = const Color(0xFFEF4444);
                 methodDisplay = "HesabPay (AFN)";
               } else if (methodType == 'crypto') {
-                methodIcon = Icons.currency_bitcoin_rounded;
-                methodColor = const Color(0xFFF59E0B);
                 methodDisplay = "Crypto (USDT)";
               } else if (methodType == 'bank') {
-                methodIcon = Icons.account_balance_rounded;
-                methodColor = const Color(0xFF536DFE);
                 methodDisplay = "Bank Transfer";
               } else {
-                methodIcon = Icons.payment_rounded;
-                methodColor = const Color(0xFF0284C7);
                 methodDisplay = "PayPal";
               }
 
@@ -1492,22 +1523,26 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                             Row(
                               children: [
                                 Container(
-                                  width: 42,
-                                  height: 42,
+                                  width: 44,
+                                  height: 44,
                                   decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        methodColor.withValues(alpha: 0.18),
-                                        methodColor.withValues(alpha: 0.06),
-                                      ],
-                                    ),
+                                    color: Colors.white,
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: methodColor.withValues(alpha: 0.35),
+                                      color: const Color(0xFF00D4FF).withValues(alpha: 0.35),
                                       width: 1.2,
                                     ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF00D4FF).withValues(alpha: 0.12),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
                                   ),
-                                  child: Icon(methodIcon, size: 22, color: methodColor),
+                                  child: Center(
+                                    child: _buildMethodLogo(methodType, size: 26),
+                                  ),
                                 ),
                                 const SizedBox(width: 12),
                                 Column(
@@ -2161,7 +2196,7 @@ class _ClearmorphicAddAccountDrawerState extends State<_ClearmorphicAddAccountDr
     );
   }
 
-  Widget _buildTypeTab(String type, String emoji, String label) {
+  Widget _buildTypeTab(String type, Widget iconWidget, String label) {
     final isSelected = _selectedType == type;
     return GestureDetector(
       onTap: () {
@@ -2215,8 +2250,8 @@ class _ClearmorphicAddAccountDrawerState extends State<_ClearmorphicAddAccountDr
               const Icon(Icons.check_circle_rounded, color: Color(0xFF00D4FF), size: 16),
               const SizedBox(width: 6),
             ],
-            Text(emoji, style: const TextStyle(fontSize: 14)),
-            const SizedBox(width: 6),
+            iconWidget,
+            const SizedBox(width: 7),
             Text(
               label,
               style: TextStyle(
@@ -2429,10 +2464,57 @@ class _ClearmorphicAddAccountDrawerState extends State<_ClearmorphicAddAccountDr
                   physics: const BouncingScrollPhysics(),
                   child: Row(
                     children: [
-                      _buildTypeTab('bank', '🏦', 'Bank Transfer'),
-                      _buildTypeTab('hesabpay', '📱', 'HesabPay (AFN)'),
-                      _buildTypeTab('crypto', '⛓', 'Crypto (USDT)'),
-                      _buildTypeTab('paypal', '🅿️', 'PayPal'),
+                      _buildTypeTab(
+                        'bank',
+                        Icon(
+                          Icons.account_balance_rounded,
+                          size: 16,
+                          color: _selectedType == 'bank' ? const Color(0xFF00D4FF) : const Color(0xFF536DFE),
+                        ),
+                        'Bank Transfer',
+                      ),
+                      _buildTypeTab(
+                        'hesabpay',
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: Image.asset(
+                            'assets/hesab.png',
+                            width: 17,
+                            height: 17,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) => const Icon(Icons.phone_android_rounded, size: 16, color: Color(0xFFEF4444)),
+                          ),
+                        ),
+                        'HesabPay (AFN)',
+                      ),
+                      _buildTypeTab(
+                        'crypto',
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: Image.asset(
+                            'assets/crypto_usdt.png',
+                            width: 17,
+                            height: 17,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) => const Icon(Icons.currency_bitcoin_rounded, size: 16, color: Color(0xFF10B981)),
+                          ),
+                        ),
+                        'Crypto (USDT)',
+                      ),
+                      _buildTypeTab(
+                        'paypal',
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: Image.asset(
+                            'assets/paypal.png',
+                            width: 17,
+                            height: 17,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) => const Icon(Icons.payment_rounded, size: 16, color: Color(0xFF0079C1)),
+                          ),
+                        ),
+                        'PayPal',
+                      ),
                     ],
                   ),
                 ),
@@ -2575,8 +2657,8 @@ class _ClearmorphicAddAccountDrawerState extends State<_ClearmorphicAddAccountDr
                                 child: DropdownButtonFormField<String>(
                                   initialValue: _usAccountType,
                                   items: const [
-                                    DropdownMenuItem(value: 'Checking', child: Text('Checking (جاری)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
-                                    DropdownMenuItem(value: 'Savings', child: Text('Savings (پس‌انداز)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
+                                    DropdownMenuItem(value: 'Checking', child: Text('Checking', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
+                                    DropdownMenuItem(value: 'Savings', child: Text('Savings', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
                                   ],
                                   onChanged: (v) => setState(() => _usAccountType = v!),
                                   decoration: const InputDecoration(

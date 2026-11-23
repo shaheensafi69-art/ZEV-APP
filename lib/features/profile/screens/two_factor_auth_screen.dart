@@ -137,21 +137,23 @@ class _TwoFactorAuthScreenState extends State<TwoFactorAuthScreen> {
                     return;
                   }
 
+                  final messenger = ScaffoldMessenger.of(context);
                   Navigator.pop(ctx);
                   try {
                     final res = await _client.rpc('setup_two_factor_pin', params: {'p_pin': p1});
-                    if (res is Map && mounted) {
+                    if (!mounted) return;
+                    if (res is Map) {
                       setState(() {
                         _isEnabled = true;
                         _backupCodes = (res['backup_codes'] as List?)?.cast<String>() ?? [];
                       });
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         const SnackBar(content: Text("Two-Step Verification Enabled!"), backgroundColor: Color(0xFF0F172A)),
                       );
                     }
                   } catch (e) {
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
                       );
                     }
@@ -222,18 +224,19 @@ class _TwoFactorAuthScreenState extends State<TwoFactorAuthScreen> {
                   final pin = pinController.text.trim();
                   if (pin.isEmpty) return;
 
+                  final nav = Navigator.of(ctx);
+                  final messenger = ScaffoldMessenger.of(context);
                   try {
                     await _client.rpc('disable_two_factor', params: {'p_pin': pin});
-                    if (mounted) {
-                      Navigator.pop(ctx);
-                      setState(() {
-                        _isEnabled = false;
-                        _backupCodes.clear();
-                      });
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Two-Step Verification Disabled"), backgroundColor: Color(0xFF0F172A)),
-                      );
-                    }
+                    if (!mounted) return;
+                    nav.pop();
+                    setState(() {
+                      _isEnabled = false;
+                      _backupCodes.clear();
+                    });
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text("Two-Step Verification Disabled"), backgroundColor: Color(0xFF0F172A)),
+                    );
                   } catch (e) {
                     setDialogState(() => errorMsg = "Invalid PIN or recovery code");
                   }

@@ -141,9 +141,11 @@ DECLARE
   v_gross_usd NUMERIC(10, 4);
   v_creator_usd NUMERIC(10, 4);
   v_platform_usd NUMERIC(10, 4);
+  v_creator_coins BIGINT;
   v_tx_id UUID;
   v_new_sender_balance BIGINT;
   v_new_receiver_earnings NUMERIC(12, 4);
+  v_new_receiver_coins BIGINT;
 BEGIN
   -- Authenticate caller
   v_sender_id := auth.uid();
@@ -172,8 +174,9 @@ BEGIN
   -- 40% / 60% Accounting Model (Exact TikTok math):
   -- Base rate: 70 coins = $0.99 USD => 1 coin = $0.0141428 USD
   v_gross_usd := ROUND((p_coins::NUMERIC * 0.0141428), 4);
-  v_creator_usd := ROUND((v_gross_usd * 0.40), 4); -- 40% TO CREATOR
-  v_platform_usd := v_gross_usd - v_creator_usd;     -- 60% TO PLATFORM
+  v_creator_usd := ROUND((v_gross_usd * 0.40), 4); -- 40% TO CREATOR USD
+  v_platform_usd := v_gross_usd - v_creator_usd;     -- 60% TO PLATFORM USD
+  v_creator_coins := FLOOR(p_coins::NUMERIC * 0.40)::BIGINT; -- 40% COINS TO CREATOR WALLET
 
   -- Deduct from sender
   UPDATE public.profiles
@@ -184,14 +187,18 @@ BEGIN
   WHERE id = v_sender_id
   RETURNING coins_balance INTO v_new_sender_balance;
 
-  -- Credit to receiver (USD earnings + gift coins)
+  -- Credit to receiver:
+  -- 1) 40% of coins directly to coins_balance (spendable in app / withdrawable in cashout)
+  -- 2) 40% gross USD earnings
+  -- 3) 40% creator gift coins counter
   UPDATE public.profiles
   SET
+    coins_balance = coins_balance + v_creator_coins,
     earnings_usd = earnings_usd + v_creator_usd,
-    earnings_coins = earnings_coins + p_coins,
+    earnings_coins = earnings_coins + v_creator_coins,
     updated_at = NOW()
   WHERE id = p_receiver_id
-  RETURNING earnings_usd INTO v_new_receiver_earnings;
+  RETURNING earnings_usd, coins_balance INTO v_new_receiver_earnings, v_new_receiver_coins;
 
   -- Insert immutable ledger record
   INSERT INTO public.gift_transactions (
@@ -225,6 +232,8 @@ BEGIN
     'transaction_id', v_tx_id,
     'sender_coins_balance', v_new_sender_balance,
     'coins_sent', p_coins,
+    'creator_coins_received', v_creator_coins,
+    'receiver_new_coins_balance', v_new_receiver_coins,
     'gross_usd', v_gross_usd,
     'creator_usd_earned', v_creator_usd,
     'platform_usd_retained', v_platform_usd

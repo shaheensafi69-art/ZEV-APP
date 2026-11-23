@@ -885,6 +885,16 @@ class _LiveRoomScreenState extends State<LiveRoomScreen>
                 giftEmoji: giftEmoji,
                 points: points,
               );
+
+              // Host receives 40% of the gifted coins instantly into their wallet
+              if (widget.isHost) {
+                final creatorCoins = (points * 0.40).floor();
+                if (creatorCoins > 0) {
+                  setState(() {
+                    _myCoinsBalance += creatorCoins;
+                  });
+                }
+              }
             },
           )
           .subscribe();
