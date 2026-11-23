@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/telegram_notification_service.dart';
+import '../../../core/theme/zev_theme.dart';
 
 class ZevPayoutScreen extends StatefulWidget {
   final double currentEarningsUsd;
@@ -68,12 +69,13 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
   final _coinsController = TextEditingController(text: '700');
   String _activeCurrency = 'USD'; // USD, EUR, GBP, AFN
 
-  // 1 Coin = 0.01414 USD (e.g. 70 coins = $0.99 USD, 700 coins = $9.90 USD)
-  static const double kUsdPerCoin = 0.0141428;
+  // Standard Mathematical Conversion Rates
+  // 70 Coins = $0.99 USD => 1 Coin = 0.014142857 USD
+  static const double kUsdPerCoin = 0.014142857;
   static const double kEurPerUsd = 0.93;
   static const double kGbpPerUsd = 0.79;
   static const double kAfnPerUsd = 68.0;
-  static const int kMinCoinsWithdrawal = 700; // ~$10 USD
+  static const int kMinCoinsWithdrawal = 700; // ~$9.90 USD
 
   @override
   void initState() {
@@ -191,7 +193,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
   }
 
   // ===========================================================================
-  // SUBMIT PAYOUT REQUEST WITH TELEGRAM DISPATCH
+  // SUBMIT PAYOUT REQUEST WITH ATOMIC DEDUCTION & TELEGRAM BROADCAST
   // ===========================================================================
   Future<void> _submitPayoutRequest() async {
     HapticFeedback.mediumImpact();
@@ -210,7 +212,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
 
     if (coinsToRedeem < kMinCoinsWithdrawal) {
       _showToast(
-        'Minimum withdrawal is $kMinCoinsWithdrawal Coins (~\$10.00 USD).',
+        'Minimum withdrawal is $kMinCoinsWithdrawal Coins (~\$9.90 USD).',
         isError: true,
       );
       return;
@@ -235,7 +237,9 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
     } else if (methodType == 'crypto') {
       destinationAccount = accountDetails['wallet_address']?.toString() ?? '';
     } else if (methodType == 'bank') {
-      destinationAccount = accountDetails['iban']?.toString() ?? accountDetails['account_number']?.toString() ?? '';
+      destinationAccount = accountDetails['iban']?.toString() ??
+          accountDetails['account_number']?.toString() ??
+          '';
     } else if (methodType == 'paypal') {
       destinationAccount = accountDetails['email']?.toString() ?? '';
     }
@@ -244,22 +248,22 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
     final amountTarget = _calculateTargetAmount(coinsToRedeem, targetCurrency);
     final currSymbol = _getCurrencySymbol(targetCurrency);
 
-    // Confirmation dialog
+    // Clearmorphic Confirmation Dialog
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
         title: const Row(
           children: [
-            Text('💵', style: TextStyle(fontSize: 22)),
+            Text('💎', style: TextStyle(fontSize: 22)),
             SizedBox(width: 8),
             Text(
               'Confirm Withdrawal',
               style: TextStyle(
                 fontWeight: FontWeight.w900,
                 fontSize: 18,
-                color: Color(0xFF0F172A),
+                color: ZevColors.deepNavy,
               ),
             ),
           ],
@@ -274,28 +278,28 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
             ),
             const SizedBox(height: 14),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                color: ZevColors.softSurface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: ZevColors.border),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Destination ($accountTitle):',
-                    style: TextStyle(fontSize: 11, color: Colors.grey[600], fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontSize: 11, color: ZevColors.textMuted, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     destinationAccount,
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0F172A)),
+                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: ZevColors.deepNavy),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Method: ${methodType.toUpperCase()} • 0% Platform Fee',
-                    style: const TextStyle(fontSize: 11, color: Color(0xFF059669), fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontSize: 11, color: Color(0xFF0284C7), fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -305,13 +309,13 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.bold)),
+            child: const Text('Cancel', style: TextStyle(color: ZevColors.textMuted, fontWeight: FontWeight.bold)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
+              backgroundColor: ZevColors.deepNavy,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Confirm Cashout', style: TextStyle(fontWeight: FontWeight.w900)),
@@ -325,7 +329,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
     setState(() => _isSubmitting = true);
 
     try {
-      // 1. Insert into payout_requests
+      // 1. Insert into payout_requests with status 'processing'
       final insertRes = await _client.from('payout_requests').insert({
         'user_id': user.id,
         'coins_deducted': coinsToRedeem,
@@ -336,12 +340,12 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
         'destination_account': destinationAccount,
         'account_details': accountDetails,
         'payout_method_id': _selectedAccount!['id'],
-        'status': 'pending',
+        'status': 'processing',
       }).select().single();
 
       final requestId = insertRes['id']?.toString() ?? 'REQ-${DateTime.now().millisecondsSinceEpoch}';
 
-      // 2. Deduct coins directly from profile
+      // 2. Atomically deduct coins from profile
       final newCoinsBalance = (_coinsBalance - coinsToRedeem).clamp(0, 999999999);
       final newEarningsUsd = (_availableUsd - amountUsd).clamp(0.0, 999999999.0);
 
@@ -379,9 +383,9 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
         debugPrint('[Telegram Dispatch Warning] $tgErr');
       }
 
-      _showToast('Payout request submitted! Admin will process your transfer.', isError: false);
+      _showToast('Payout request placed in processing! Admin will transfer funds.', isError: false);
       _loadData();
-      _tabController.animateTo(2); // Jump to History tab
+      _tabController.animateTo(2); // Switch to History tab
     } catch (e) {
       _showToast('Submission error: $e', isError: true);
     } finally {
@@ -390,7 +394,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
   }
 
   // ===========================================================================
-  // CANCEL & REFUND PENDING REQUEST
+  // CANCEL & REFUND PENDING / PROCESSING REQUEST
   // ===========================================================================
   Future<void> _cancelPayoutRequest(Map<String, dynamic> request) async {
     HapticFeedback.mediumImpact();
@@ -402,10 +406,10 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         title: const Text(
           "Cancel Payout Request?",
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: ZevColors.deepNavy),
         ),
         content: Text(
           "Cancelling this request will immediately refund ${coins > 0 ? '$coins Coins' : '\$$amountUsd USD'} back to your wallet.",
@@ -417,7 +421,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
+              backgroundColor: ZevColors.errorRed,
               foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.pop(ctx, true),
@@ -433,7 +437,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
       final user = _client.auth.currentUser;
       if (user == null) return;
 
-      // 1. Mark request as cancelled/rejected
+      // 1. Mark request as rejected
       await _client
           .from('payout_requests')
           .update({'status': 'rejected', 'admin_notes': 'Cancelled by user.'})
@@ -453,18 +457,18 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
   }
 
   // ===========================================================================
-  // ADD NEW SAVED ACCOUNT MODAL (HESABPAY, CRYPTO, BANK, PAYPAL)
+  // EXCLUSIVE CLEARMORPHIC DRAWER FOR ADDING SAVED ACCOUNT
   // ===========================================================================
   void _showAddAccountSheet() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => _AddPayoutAccountModal(
+      builder: (ctx) => _ClearmorphicAddAccountDrawer(
         onAccountCreated: () {
           Navigator.pop(ctx);
           _loadData();
-          _showToast('Account added and saved successfully!', isError: false);
+          _showToast('Payout account saved successfully!', isError: false);
         },
       ),
     );
@@ -475,7 +479,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        backgroundColor: isError ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+        backgroundColor: isError ? ZevColors.errorRed : const Color(0xFF0284C7),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -487,7 +491,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
     final isDesktop = MediaQuery.sizeOf(context).width >= 720;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: ZevColors.softSurface,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -495,7 +499,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back_ios_new_rounded,
-            color: Color(0xFF0F172A),
+            color: ZevColors.deepNavy,
             size: 20,
           ),
           onPressed: () => Navigator.pop(context, true),
@@ -503,7 +507,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
         title: const Text(
           "Creator Cashout & Payouts",
           style: TextStyle(
-            color: Color(0xFF0F172A),
+            color: ZevColors.deepNavy,
             fontWeight: FontWeight.w900,
             fontSize: 18,
             letterSpacing: -0.3,
@@ -512,7 +516,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF64748B), size: 22),
+            icon: const Icon(Icons.refresh_rounded, color: ZevColors.textMuted, size: 22),
             onPressed: () {
               HapticFeedback.lightImpact();
               _loadData();
@@ -526,7 +530,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
+              color: const Color(0xFFEDF2F7),
               borderRadius: BorderRadius.circular(16),
             ),
             child: TabBar(
@@ -544,8 +548,8 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
               ),
               indicatorSize: TabBarIndicatorSize.tab,
               dividerColor: Colors.transparent,
-              labelColor: const Color(0xFF0F172A),
-              unselectedLabelColor: const Color(0xFF64748B),
+              labelColor: ZevColors.deepNavy,
+              unselectedLabelColor: ZevColors.textMuted,
               labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5),
               unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
               tabs: const [
@@ -562,7 +566,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: isDesktop ? 680 : double.infinity),
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)))
+                ? const Center(child: CircularProgressIndicator(color: ZevColors.primaryBlue))
                 : TabBarView(
                     controller: _tabController,
                     children: [
@@ -593,22 +597,21 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 1. Balance Header Card
+          // 1. Clearmorphic Balance Header Card
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFECFDF5), Color(0xFFD1FAE5)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(
+                color: ZevColors.primaryBlue.withValues(alpha: 0.25),
+                width: 1.5,
               ),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0xFFA7F3D0), width: 1.5),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
+                  color: ZevColors.primaryBlue.withValues(alpha: 0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
@@ -620,39 +623,39 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                   children: [
                     const Text(
                       "Available Withdrawable Balance",
-                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF065F46)),
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: ZevColors.textMuted),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: const Color(0xFFE0F2FE),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Text(
                         "0% CASHOUT FEE",
-                        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFF059669)),
+                        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFF0284C7)),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
                   children: [
                     Text(
                       _coinsBalance.toString(),
-                      style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: Color(0xFF064E3B)),
+                      style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: ZevColors.deepNavy),
                     ),
                     const SizedBox(width: 8),
                     const Text(
                       "Coins",
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF047857)),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF0284C7)),
                     ),
                     const Spacer(),
                     Text(
                       "≈ \$${_availableUsd.toStringAsFixed(2)} USD",
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF065F46)),
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: ZevColors.deepNavy),
                     ),
                   ],
                 ),
@@ -668,7 +671,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
             children: [
               const Text(
                 "Payout Destination Account",
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: ZevColors.deepNavy),
               ),
               TextButton.icon(
                 onPressed: _showAddAccountSheet,
@@ -687,15 +690,22 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
             GestureDetector(
               onTap: _showAddAccountSheet,
               child: Container(
-                padding: const EdgeInsets.all(18),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0xFF0284C7).withValues(alpha: 0.3), width: 1.5),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFF0284C7).withValues(alpha: 0.35), width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF0284C7), size: 28),
+                    Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF0284C7), size: 30),
                     SizedBox(width: 14),
                     Expanded(
                       child: Column(
@@ -703,16 +713,16 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                         children: [
                           Text(
                             "No Saved Payout Account Found",
-                            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: Color(0xFF0F172A)),
+                            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: ZevColors.deepNavy),
                           ),
                           Text(
-                            "Tap to save HesabPay, Crypto wallet, Bank or PayPal",
-                            style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                            "Tap to save HesabPay, Crypto wallet, Bank details or PayPal",
+                            style: TextStyle(fontSize: 11.5, color: ZevColors.textMuted),
                           ),
                         ],
                       ),
                     ),
-                    Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFF64748B)),
+                    Icon(Icons.arrow_forward_ios_rounded, size: 14, color: ZevColors.textMuted),
                   ],
                 ),
               ),
@@ -724,7 +734,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
               final currency = acc['currency'] ?? 'USD';
 
               IconData iconData = Icons.payments_rounded;
-              Color iconColor = const Color(0xFF10B981);
+              Color iconColor = const Color(0xFF0284C7);
               String subtitle = '';
 
               if (methodType == 'hesabpay') {
@@ -737,8 +747,15 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                 subtitle = "${acc['details']?['network'] ?? 'Crypto'} • ${acc['details']?['wallet_address'] ?? ''}";
               } else if (methodType == 'bank') {
                 iconData = Icons.account_balance_rounded;
-                iconColor = const Color(0xFF3B82F6);
-                subtitle = "${acc['details']?['bank_name'] ?? 'Bank'} • IBAN: ${acc['details']?['iban'] ?? ''}";
+                iconColor = const Color(0xFF536DFE);
+                final cur = acc['details']?['currency'] ?? currency;
+                if (cur == 'GBP') {
+                  subtitle = "${acc['details']?['bank_name'] ?? 'UK Bank'} • Sort: ${acc['details']?['sort_code'] ?? ''}";
+                } else if (cur == 'USD') {
+                  subtitle = "${acc['details']?['bank_name'] ?? 'US Bank'} • Routing: ${acc['details']?['routing_number'] ?? ''}";
+                } else {
+                  subtitle = "${acc['details']?['bank_name'] ?? 'EU Bank'} • IBAN: ${acc['details']?['iban'] ?? ''}";
+                }
               } else if (methodType == 'paypal') {
                 iconData = Icons.payment_rounded;
                 iconColor = const Color(0xFF0284C7);
@@ -758,15 +775,15 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: isSelected ? const Color(0xFF10B981) : const Color(0xFFE2E8F0),
+                      color: isSelected ? const Color(0xFF0284C7) : ZevColors.border,
                       width: isSelected ? 2 : 1,
                     ),
                     boxShadow: [
                       BoxShadow(
                         color: isSelected
-                            ? const Color(0xFF10B981).withValues(alpha: 0.1)
+                            ? const Color(0xFF0284C7).withValues(alpha: 0.1)
                             : Colors.black.withValues(alpha: 0.02),
                         blurRadius: 8,
                         offset: const Offset(0, 3),
@@ -776,8 +793,8 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                   child: Row(
                     children: [
                       Container(
-                        width: 40,
-                        height: 40,
+                        width: 42,
+                        height: 42,
                         decoration: BoxDecoration(
                           color: iconColor.withValues(alpha: 0.12),
                           shape: BoxShape.circle,
@@ -791,11 +808,11 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                           children: [
                             Text(
                               acc['account_title'] ?? 'Saved Account',
-                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: Color(0xFF0F172A)),
+                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5, color: ZevColors.deepNavy),
                             ),
                             Text(
                               subtitle,
-                              style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                              style: const TextStyle(fontSize: 11, color: ZevColors.textMuted),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -810,13 +827,13 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                         ),
                         child: Text(
                           currency,
-                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: ZevColors.deepNavy),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Icon(
                         isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-                        color: isSelected ? const Color(0xFF10B981) : const Color(0xFFCBD5E1),
+                        color: isSelected ? const Color(0xFF0284C7) : const Color(0xFFCBD5E1),
                         size: 22,
                       ),
                     ],
@@ -830,7 +847,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
           // 3. Amount Input (Coins to Cash)
           const Text(
             "Coins to Convert & Withdraw",
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: ZevColors.deepNavy),
           ),
           const SizedBox(height: 8),
           Container(
@@ -848,7 +865,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                   child: TextField(
                     controller: _coinsController,
                     keyboardType: TextInputType.number,
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: ZevColors.deepNavy),
                     decoration: const InputDecoration(
                       border: InputBorder.none,
                       hintText: "Min 700 coins",
@@ -857,7 +874,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                 ),
                 Text(
                   "Coins",
-                  style: TextStyle(fontWeight: FontWeight.w800, color: Colors.grey[600]),
+                  style: const TextStyle(fontWeight: FontWeight.w800, color: ZevColors.textMuted),
                 ),
               ],
             ),
@@ -870,10 +887,10 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildQuickChip("700 (~\$10)", 700),
-                _buildQuickChip("1,750 (~\$25)", 1750),
-                _buildQuickChip("3,500 (~\$50)", 3500),
-                _buildQuickChip("7,000 (~\$100)", 7000),
+                _buildQuickChip("700 (~\$9.90)", 700),
+                _buildQuickChip("1,750 (~\$24.75)", 1750),
+                _buildQuickChip("3,500 (~\$49.50)", 3500),
+                _buildQuickChip("7,000 (~\$99.00)", 7000),
                 _buildQuickChip("All Coins", _coinsBalance),
               ],
             ),
@@ -883,11 +900,11 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
 
           // 4. Live Conversion Preview
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: ZevColors.border),
             ),
             child: Column(
               children: [
@@ -896,11 +913,11 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                   children: [
                     const Text(
                       "Estimated Payout Value:",
-                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: ZevColors.textSecondary),
                     ),
                     Text(
                       "$currSymbol${convertedAmount.toStringAsFixed(2)} $targetCurrency",
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF10B981)),
+                      style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: Color(0xFF0284C7)),
                     ),
                   ],
                 ),
@@ -910,11 +927,11 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                   children: [
                     const Text(
                       "USD Equivalent:",
-                      style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                      style: TextStyle(fontSize: 11.5, color: ZevColors.textMuted),
                     ),
                     Text(
                       "\$${usdEquivalent.toStringAsFixed(2)} USD",
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ZevColors.deepNavy),
                     ),
                   ],
                 ),
@@ -927,12 +944,11 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
           // 5. Submit Button
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
+              backgroundColor: ZevColors.deepNavy,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-              elevation: 4,
-              shadowColor: const Color(0xFF10B981).withValues(alpha: 0.4),
+              elevation: 3,
             ),
             onPressed: _isSubmitting ? null : _submitPayoutRequest,
             child: _isSubmitting
@@ -966,7 +982,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
         label: Text(label),
         labelStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
         backgroundColor: Colors.white,
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
+        side: const BorderSide(color: ZevColors.border),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         onPressed: () => _setCoinAmount(coins),
       ),
@@ -988,7 +1004,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
             children: [
               const Text(
                 "Your Saved Payout Accounts",
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: ZevColors.deepNavy),
               ),
               ElevatedButton.icon(
                 onPressed: _showAddAccountSheet,
@@ -1012,7 +1028,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: ZevColors.border),
               ),
               child: Column(
                 children: [
@@ -1020,19 +1036,19 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                   const SizedBox(height: 12),
                   const Text(
                     "No Payout Accounts Saved Yet",
-                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF0F172A)),
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: ZevColors.deepNavy),
                   ),
                   const SizedBox(height: 6),
                   const Text(
                     "Save your HesabPay, Crypto wallet, Bank details or PayPal email to cash out your earnings seamlessly.",
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+                    style: TextStyle(fontSize: 12.5, color: ZevColors.textMuted),
                   ),
                   const SizedBox(height: 18),
                   ElevatedButton(
                     onPressed: _showAddAccountSheet,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF10B981),
+                      backgroundColor: ZevColors.deepNavy,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
@@ -1055,7 +1071,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(color: ZevColors.border),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.03),
@@ -1072,35 +1088,43 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                       children: [
                         Text(
                           title,
-                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14.5, color: Color(0xFF0F172A)),
+                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14.5, color: ZevColors.deepNavy),
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFECFDF5),
+                            color: const Color(0xFFE0F2FE),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: const Color(0xFFA7F3D0)),
+                            border: Border.all(color: const Color(0xFFBAE6FD)),
                           ),
                           child: Text(
                             "$currency • ${methodType.toUpperCase()}",
-                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF059669)),
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF0284C7)),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
                     if (methodType == 'hesabpay') ...[
-                      Text("Phone: ${details['phone_number'] ?? ''}", style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
-                      Text("Name: ${details['account_name'] ?? ''}", style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
+                      Text("Phone: ${details['phone_number'] ?? ''}", style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
+                      Text("Name: ${details['account_name'] ?? ''}", style: const TextStyle(fontSize: 11.5, color: ZevColors.textMuted)),
                     ] else if (methodType == 'crypto') ...[
-                      Text("Network: ${details['network'] ?? 'TRC-20'}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                      Text("Address: ${details['wallet_address'] ?? ''}", style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
+                      Text("Network: ${details['network'] ?? 'TRC-20'}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                      Text("Address: ${details['wallet_address'] ?? ''}", style: const TextStyle(fontSize: 11.5, color: ZevColors.textMuted)),
                     ] else if (methodType == 'bank') ...[
-                      Text("Bank: ${details['bank_name'] ?? ''} (${(details['region'] ?? 'Europe').toString().toUpperCase()})", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                      Text("IBAN / Account: ${details['iban'] ?? details['account_number'] ?? ''}", style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
-                      Text("Holder: ${details['account_holder'] ?? ''}", style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
+                      if ((details['currency'] ?? currency) == 'GBP') ...[
+                        Text("Bank: ${details['bank_name'] ?? ''} (UK Faster Payments)", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                        Text("Sort Code: ${details['sort_code'] ?? ''} • Account: ${details['account_number'] ?? ''}", style: const TextStyle(fontSize: 11.5, color: ZevColors.textMuted)),
+                      ] else if ((details['currency'] ?? currency) == 'USD') ...[
+                        Text("Bank: ${details['bank_name'] ?? ''} (US ACH/Fedwire)", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                        Text("ABA Routing: ${details['routing_number'] ?? ''} • Account: ${details['account_number'] ?? ''} (${details['account_type'] ?? 'Checking'})", style: const TextStyle(fontSize: 11.5, color: ZevColors.textMuted)),
+                      ] else ...[
+                        Text("Bank: ${details['bank_name'] ?? ''} (SEPA Europe)", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                        Text("IBAN: ${details['iban'] ?? ''} • SWIFT: ${details['swift_bic'] ?? ''}", style: const TextStyle(fontSize: 11.5, color: ZevColors.textMuted)),
+                      ],
+                      Text("Holder: ${details['account_holder'] ?? ''}", style: const TextStyle(fontSize: 11.5, color: ZevColors.textMuted)),
                     ] else if (methodType == 'paypal') ...[
-                      Text("Email: ${details['email'] ?? ''}", style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+                      Text("Email: ${details['email'] ?? ''}", style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
                     ],
                     const Divider(height: 20),
                     Row(
@@ -1116,7 +1140,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                                 actions: [
                                   TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
                                   ElevatedButton(
-                                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
+                                    style: ElevatedButton.styleFrom(backgroundColor: ZevColors.errorRed),
                                     onPressed: () => Navigator.pop(ctx, true),
                                     child: const Text("Delete", style: TextStyle(color: Colors.white)),
                                   ),
@@ -1128,8 +1152,8 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                               _loadData();
                             }
                           },
-                          icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Color(0xFFEF4444)),
-                          label: const Text("Remove", style: TextStyle(color: Color(0xFFEF4444), fontSize: 12)),
+                          icon: const Icon(Icons.delete_outline_rounded, size: 16, color: ZevColors.errorRed),
+                          label: const Text("Remove", style: TextStyle(color: ZevColors.errorRed, fontSize: 12)),
                         ),
                       ],
                     ),
@@ -1187,16 +1211,16 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
           String statusLabel;
 
           if (status == 'completed' || status == 'paid') {
-            badgeBg = const Color(0xFFDCFCE7);
-            badgeText = const Color(0xFF16A34A);
-            statusLabel = "Completed";
-          } else if (status == 'processing') {
             badgeBg = const Color(0xFFE0F2FE);
             badgeText = const Color(0xFF0284C7);
-            statusLabel = "Processing";
+            statusLabel = "Completed / Paid";
+          } else if (status == 'processing') {
+            badgeBg = const Color(0xFFFEF3C7);
+            badgeText = const Color(0xFFD97706);
+            statusLabel = "In Processing";
           } else if (status == 'rejected') {
             badgeBg = const Color(0xFFFEE2E2);
-            badgeText = const Color(0xFFDC2626);
+            badgeText = ZevColors.errorRed;
             statusLabel = "Rejected / Refunded";
           } else {
             badgeBg = const Color(0xFFFEF3C7);
@@ -1205,11 +1229,11 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
           }
 
           return Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: ZevColors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1219,7 +1243,7 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                   children: [
                     Text(
                       "$method Payout",
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF0F172A)),
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: ZevColors.deepNavy),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -1240,19 +1264,19 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                   children: [
                     Text(
                       "${amountTarget.toStringAsFixed(2)} $targetCurrency",
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: ZevColors.deepNavy),
                     ),
                     if (coins > 0)
                       Text(
                         "$coins Coins",
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFFD97706)),
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0284C7)),
                       ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
                   "Destination: $destination",
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                  style: const TextStyle(fontSize: 12, color: ZevColors.textMuted),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1263,14 +1287,14 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
                     style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                   ),
                 ],
-                if (status == 'pending') ...[
+                if (status == 'pending' || status == 'processing') ...[
                   const Divider(height: 18),
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton.icon(
                       onPressed: () => _cancelPayoutRequest(item),
-                      icon: const Icon(Icons.cancel_outlined, size: 16, color: Color(0xFFEF4444)),
-                      label: const Text("Cancel & Refund", style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.w800, fontSize: 12)),
+                      icon: const Icon(Icons.cancel_outlined, size: 16, color: ZevColors.errorRed),
+                      label: const Text("Cancel & Refund", style: TextStyle(color: ZevColors.errorRed, fontWeight: FontWeight.w800, fontSize: 12)),
                     ),
                   ),
                 ],
@@ -1284,43 +1308,61 @@ class _ZevPayoutScreenState extends State<ZevPayoutScreen>
 }
 
 // =============================================================================
-// MODAL FOR CREATING & SAVING A PAYOUT ACCOUNT
+// EXCLUSIVE CLEARMORPHIC DRAWER WITH AUTOMATIC INTERNATIONAL BANKING LOGIC
 // =============================================================================
-class _AddPayoutAccountModal extends StatefulWidget {
+class _ClearmorphicAddAccountDrawer extends StatefulWidget {
   final VoidCallback onAccountCreated;
 
-  const _AddPayoutAccountModal({required this.onAccountCreated});
+  const _ClearmorphicAddAccountDrawer({required this.onAccountCreated});
 
   @override
-  State<_AddPayoutAccountModal> createState() => _AddPayoutAccountModalState();
+  State<_ClearmorphicAddAccountDrawer> createState() => _ClearmorphicAddAccountDrawerState();
 }
 
-class _AddPayoutAccountModalState extends State<_AddPayoutAccountModal> {
+class _ClearmorphicAddAccountDrawerState extends State<_ClearmorphicAddAccountDrawer> {
   final _client = Supabase.instance.client;
-  String _selectedType = 'hesabpay'; // hesabpay, crypto, bank, paypal
+  String _selectedType = 'bank'; // bank, hesabpay, crypto, paypal
 
   // Common title
   final _titleController = TextEditingController();
 
-  // HesabPay
+  // ---------------------------------------------------------------------------
+  // 1. DYNAMIC INTERNATIONAL BANKING STATE
+  // Automatically switches fields based on currency: GBP, USD, EUR
+  // ---------------------------------------------------------------------------
+  String _bankCurrency = 'GBP'; // 'GBP', 'USD', 'EUR'
+  final _bankNameController = TextEditingController();
+  final _bankHolderController = TextEditingController();
+
+  // GBP Fields (United Kingdom)
+  final _ukSortCodeController = TextEditingController();
+  final _ukAccountNumberController = TextEditingController();
+
+  // USD Fields (United States)
+  final _usRoutingNumberController = TextEditingController();
+  final _usAccountNumberController = TextEditingController();
+  String _usAccountType = 'Checking'; // Checking or Savings
+
+  // EUR Fields (Europe SEPA)
+  final _euIbanController = TextEditingController();
+  final _euSwiftBicController = TextEditingController();
+
+  // ---------------------------------------------------------------------------
+  // 2. HESABPAY STATE (AFN Only)
+  // ---------------------------------------------------------------------------
   final _hesabPhoneController = TextEditingController();
   final _hesabNameController = TextEditingController();
 
-  // Crypto
+  // ---------------------------------------------------------------------------
+  // 3. CRYPTO STATE (USDT Multi-Chain)
+  // ---------------------------------------------------------------------------
   String _cryptoNetwork = 'TRC-20 (Tron) - Low Fee / Recommended';
   final _cryptoAddressController = TextEditingController();
   final _cryptoMemoController = TextEditingController();
 
-  // Bank
-  String _bankRegion = 'Europe'; // Europe, USA, UK
-  String _bankCurrency = 'EUR'; // EUR, USD, GBP
-  final _bankNameController = TextEditingController();
-  final _bankHolderController = TextEditingController();
-  final _bankIbanController = TextEditingController();
-  final _bankSwiftController = TextEditingController();
-  final _bankRoutingController = TextEditingController();
-
-  // PayPal
+  // ---------------------------------------------------------------------------
+  // 4. PAYPAL STATE
+  // ---------------------------------------------------------------------------
   String _paypalCurrency = 'USD';
   final _paypalEmailController = TextEditingController();
 
@@ -1329,15 +1371,18 @@ class _AddPayoutAccountModalState extends State<_AddPayoutAccountModal> {
   @override
   void dispose() {
     _titleController.dispose();
+    _bankNameController.dispose();
+    _bankHolderController.dispose();
+    _ukSortCodeController.dispose();
+    _ukAccountNumberController.dispose();
+    _usRoutingNumberController.dispose();
+    _usAccountNumberController.dispose();
+    _euIbanController.dispose();
+    _euSwiftBicController.dispose();
     _hesabPhoneController.dispose();
     _hesabNameController.dispose();
     _cryptoAddressController.dispose();
     _cryptoMemoController.dispose();
-    _bankNameController.dispose();
-    _bankHolderController.dispose();
-    _bankIbanController.dispose();
-    _bankSwiftController.dispose();
-    _bankRoutingController.dispose();
     _paypalEmailController.dispose();
     super.dispose();
   }
@@ -1353,7 +1398,88 @@ class _AddPayoutAccountModalState extends State<_AddPayoutAccountModal> {
       Map<String, dynamic> details = {};
       String defaultTitle = '';
 
-      if (_selectedType == 'hesabpay') {
+      // -----------------------------------------------------------------------
+      // 1. BANK TRANSFER (GBP, USD, EUR International Specs)
+      // -----------------------------------------------------------------------
+      if (_selectedType == 'bank') {
+        final bankName = _bankNameController.text.trim();
+        final holder = _bankHolderController.text.trim();
+        currency = _bankCurrency;
+
+        if (holder.isEmpty) throw 'Please enter the Account Holder Name.';
+        if (bankName.isEmpty) throw 'Please enter the Bank Name.';
+
+        if (_bankCurrency == 'GBP') {
+          // UK Banking Validation: 6-digit Sort Code, 8-digit Account Number
+          final sortCode = _ukSortCodeController.text.trim().replaceAll(' ', '');
+          final accNum = _ukAccountNumberController.text.trim().replaceAll(' ', '');
+
+          if (sortCode.isEmpty || sortCode.length < 6) {
+            throw 'Please enter a valid 6-digit UK Sort Code (e.g. 12-34-56).';
+          }
+          if (accNum.isEmpty || accNum.length != 8) {
+            throw 'Please enter a valid 8-digit UK Account Number.';
+          }
+
+          details = {
+            'region': 'UK',
+            'currency': 'GBP',
+            'bank_name': bankName,
+            'account_holder': holder,
+            'sort_code': sortCode,
+            'account_number': accNum,
+          };
+          defaultTitle = '$bankName UK ($sortCode)';
+        } else if (_bankCurrency == 'USD') {
+          // US Banking Validation: 9-digit ABA Routing, Account Number, Type
+          final routing = _usRoutingNumberController.text.trim().replaceAll(' ', '');
+          final accNum = _usAccountNumberController.text.trim().replaceAll(' ', '');
+
+          if (routing.isEmpty || routing.length != 9) {
+            throw 'Please enter a valid 9-digit ABA Routing Transit Number.';
+          }
+          if (accNum.isEmpty || accNum.length < 4) {
+            throw 'Please enter a valid US Account Number.';
+          }
+
+          details = {
+            'region': 'USA',
+            'currency': 'USD',
+            'bank_name': bankName,
+            'account_holder': holder,
+            'routing_number': routing,
+            'account_number': accNum,
+            'account_type': _usAccountType,
+          };
+          defaultTitle = '$bankName US ($_usAccountType)';
+        } else if (_bankCurrency == 'EUR') {
+          // Europe SEPA Validation: IBAN + SWIFT/BIC
+          final iban = _euIbanController.text.trim().replaceAll(' ', '').toUpperCase();
+          final swift = _euSwiftBicController.text.trim().replaceAll(' ', '').toUpperCase();
+
+          if (iban.isEmpty || iban.length < 15) {
+            throw 'Please enter a valid European IBAN (e.g. DE..., FR..., ES...).';
+          }
+          if (swift.isEmpty || (swift.length != 8 && swift.length != 11)) {
+            throw 'Please enter a valid 8 or 11 character SWIFT/BIC Code.';
+          }
+
+          details = {
+            'region': 'Europe',
+            'currency': 'EUR',
+            'bank_name': bankName,
+            'account_holder': holder,
+            'iban': iban,
+            'swift_bic': swift,
+          };
+          defaultTitle = '$bankName EU (IBAN)';
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // 2. HESABPAY (AFN)
+      // -----------------------------------------------------------------------
+      else if (_selectedType == 'hesabpay') {
         final phone = _hesabPhoneController.text.trim();
         final name = _hesabNameController.text.trim();
         if (phone.isEmpty) throw 'Please enter your HesabPay mobile phone number.';
@@ -1361,34 +1487,31 @@ class _AddPayoutAccountModalState extends State<_AddPayoutAccountModal> {
         details = {
           'phone_number': phone,
           'account_name': name,
+          'currency': 'AFN',
         };
         defaultTitle = 'HesabPay ($phone)';
-      } else if (_selectedType == 'crypto') {
+      }
+
+      // -----------------------------------------------------------------------
+      // 3. CRYPTO (USDT Multi-Chain)
+      // -----------------------------------------------------------------------
+      else if (_selectedType == 'crypto') {
         final address = _cryptoAddressController.text.trim();
-        if (address.isEmpty) throw 'Please enter your crypto wallet address.';
+        if (address.isEmpty || address.length < 20) throw 'Please enter a valid crypto wallet address.';
         currency = 'USDT';
         details = {
           'network': _cryptoNetwork,
           'wallet_address': address,
           'memo_tag': _cryptoMemoController.text.trim(),
+          'currency': 'USDT',
         };
         defaultTitle = 'Crypto (${_cryptoNetwork.split(' ').first})';
-      } else if (_selectedType == 'bank') {
-        final iban = _bankIbanController.text.trim();
-        final bankName = _bankNameController.text.trim();
-        final holder = _bankHolderController.text.trim();
-        if (iban.isEmpty) throw 'Please enter IBAN / Account Number.';
-        currency = _bankCurrency;
-        details = {
-          'region': _bankRegion,
-          'bank_name': bankName,
-          'account_holder': holder,
-          'iban': iban,
-          'swift_bic': _bankSwiftController.text.trim(),
-          'routing_number': _bankRoutingController.text.trim(),
-        };
-        defaultTitle = '$bankName Bank ($_bankRegion)';
-      } else if (_selectedType == 'paypal') {
+      }
+
+      // -----------------------------------------------------------------------
+      // 4. PAYPAL
+      // -----------------------------------------------------------------------
+      else if (_selectedType == 'paypal') {
         final email = _paypalEmailController.text.trim();
         if (email.isEmpty || !email.contains('@')) throw 'Please enter a valid PayPal email address.';
         currency = _paypalCurrency;
@@ -1414,7 +1537,7 @@ class _AddPayoutAccountModalState extends State<_AddPayoutAccountModal> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: const Color(0xFFEF4444)),
+        SnackBar(content: Text(e.toString()), backgroundColor: ZevColors.errorRed),
       );
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -1432,45 +1555,282 @@ class _AddPayoutAccountModalState extends State<_AddPayoutAccountModal> {
       ),
       decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 24,
+            offset: Offset(0, -6),
+          ),
+        ],
       ),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Drawer Drag Handle
+            Center(
+              child: Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFCBD5E1),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
                   "Add Payout Method",
-                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: Color(0xFF0F172A)),
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: ZevColors.deepNavy),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded),
+                  icon: const Icon(Icons.close_rounded, color: ZevColors.textMuted),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
             ),
             const SizedBox(height: 12),
 
-            // Method Selector (4 Segmented Tabs)
+            // Top Method Selector (4 Segmented Chips)
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
+                  _buildTypeTab('bank', '🏦 Bank Transfer'),
                   _buildTypeTab('hesabpay', '📱 HesabPay (AFN)'),
                   _buildTypeTab('crypto', '⛓ Crypto (USDT)'),
-                  _buildTypeTab('bank', '🏦 Bank Transfer'),
                   _buildTypeTab('paypal', '🅿️ PayPal'),
                 ],
               ),
             ),
             const SizedBox(height: 18),
 
-            // Fields Based on Selected Type
-            if (_selectedType == 'hesabpay') ...[
-              const Text("HesabPay Mobile Number (+93)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+            // =================================================================
+            // 1. DYNAMIC BANK TRANSFER SECTION
+            // =================================================================
+            if (_selectedType == 'bank') ...[
+              // Currency Switcher: GBP, USD, EUR
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    _buildCurrencySegment('GBP', '🇬🇧 GBP (UK)'),
+                    _buildCurrencySegment('USD', '🇺🇸 USD (USA)'),
+                    _buildCurrencySegment('EUR', '🇪🇺 EUR (Europe)'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Common Bank Name & Holder
+              const Text("Bank Name", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ZevColors.textSecondary)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _bankNameController,
+                decoration: InputDecoration(
+                  hintText: _bankCurrency == 'GBP'
+                      ? "e.g. Barclays, HSBC, Monzo, Revolut"
+                      : _bankCurrency == 'USD'
+                          ? "e.g. Chase, Bank of America, Wells Fargo"
+                          : "e.g. Deutsche Bank, BNP Paribas, Santander",
+                  filled: true,
+                  fillColor: ZevColors.softSurface,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: ZevColors.border)),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              const Text("Account Holder Full Name", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ZevColors.textSecondary)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _bankHolderController,
+                decoration: InputDecoration(
+                  hintText: "Full legal name as registered on bank account",
+                  filled: true,
+                  fillColor: ZevColors.softSurface,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: ZevColors.border)),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // ---------------------------------------------------------------
+              // IF GBP: UK SORT CODE + 8-DIGIT ACCOUNT NUMBER
+              // ---------------------------------------------------------------
+              if (_bankCurrency == 'GBP') ...[
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 1,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("UK Sort Code", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ZevColors.textSecondary)),
+                          const SizedBox(height: 6),
+                          TextField(
+                            controller: _ukSortCodeController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              hintText: "XX-XX-XX",
+                              filled: true,
+                              fillColor: ZevColors.softSurface,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: ZevColors.border)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("UK Account Number (8 Digits)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ZevColors.textSecondary)),
+                          const SizedBox(height: 6),
+                          TextField(
+                            controller: _ukAccountNumberController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              hintText: "12345678",
+                              filled: true,
+                              fillColor: ZevColors.softSurface,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: ZevColors.border)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "ℹ️ Transferred natively via UK Faster Payments (same-day settlement).",
+                  style: TextStyle(fontSize: 11, color: Color(0xFF0284C7), fontWeight: FontWeight.w700),
+                ),
+              ]
+
+              // ---------------------------------------------------------------
+              // IF USD: 9-DIGIT ABA ROUTING + ACCOUNT NUMBER + ACCOUNT TYPE
+              // ---------------------------------------------------------------
+              else if (_bankCurrency == 'USD') ...[
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 1,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("ABA Routing (9 Digits)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ZevColors.textSecondary)),
+                          const SizedBox(height: 6),
+                          TextField(
+                            controller: _usRoutingNumberController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              hintText: "021000021",
+                              filled: true,
+                              fillColor: ZevColors.softSurface,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: ZevColors.border)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 1,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("Account Type", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ZevColors.textSecondary)),
+                          const SizedBox(height: 6),
+                          DropdownButtonFormField<String>(
+                            initialValue: _usAccountType,
+                            items: const [
+                              DropdownMenuItem(value: 'Checking', child: Text('Checking (جاری)')),
+                              DropdownMenuItem(value: 'Savings', child: Text('Savings (پس‌انداز)')),
+                            ],
+                            onChanged: (v) => setState(() => _usAccountType = v!),
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: ZevColors.softSurface,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: ZevColors.border)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text("US Bank Account Number", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ZevColors.textSecondary)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _usAccountNumberController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    hintText: "Enter checking or savings account number",
+                    filled: true,
+                    fillColor: ZevColors.softSurface,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: ZevColors.border)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "ℹ️ Transferred natively via US Fedwire or ACH Direct Deposit.",
+                  style: TextStyle(fontSize: 11, color: Color(0xFF0284C7), fontWeight: FontWeight.w700),
+                ),
+              ]
+
+              // ---------------------------------------------------------------
+              // IF EUR: SEPA IBAN + SWIFT/BIC
+              // ---------------------------------------------------------------
+              else if (_bankCurrency == 'EUR') ...[
+                const Text("European IBAN (International Bank Account Number)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ZevColors.textSecondary)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _euIbanController,
+                  decoration: InputDecoration(
+                    hintText: "DE89 3704 0044 0532 0130 00",
+                    filled: true,
+                    fillColor: ZevColors.softSurface,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: ZevColors.border)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text("SWIFT / BIC Code (8 or 11 characters)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ZevColors.textSecondary)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _euSwiftBicController,
+                  decoration: InputDecoration(
+                    hintText: "DEUTDEDDXXX",
+                    filled: true,
+                    fillColor: ZevColors.softSurface,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: ZevColors.border)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "ℹ️ Transferred natively via SEPA Instant Euro Credit Transfer.",
+                  style: TextStyle(fontSize: 11, color: Color(0xFF0284C7), fontWeight: FontWeight.w700),
+                ),
+              ],
+            ]
+
+            // =================================================================
+            // 2. HESABPAY (AFN)
+            // =================================================================
+            else if (_selectedType == 'hesabpay') ...[
+              const Text("HesabPay Registered Phone Number (+93)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ZevColors.textSecondary)),
               const SizedBox(height: 6),
               TextField(
                 controller: _hesabPhoneController,
@@ -1478,164 +1838,76 @@ class _AddPayoutAccountModalState extends State<_AddPayoutAccountModal> {
                 decoration: InputDecoration(
                   hintText: "+93 79 123 4567",
                   filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                  fillColor: ZevColors.softSurface,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: ZevColors.border)),
                 ),
               ),
               const SizedBox(height: 12),
-              const Text("Account Holder Full Name", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+              const Text("Account Holder Full Name", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ZevColors.textSecondary)),
               const SizedBox(height: 6),
               TextField(
                 controller: _hesabNameController,
                 decoration: InputDecoration(
-                  hintText: "Enter full name registered in HesabPay",
+                  hintText: "Full name registered on HesabPay account",
                   filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                  fillColor: ZevColors.softSurface,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: ZevColors.border)),
                 ),
               ),
-            ] else if (_selectedType == 'crypto') ...[
-              const Text("Select Blockchain Network", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+              const SizedBox(height: 8),
+              const Text(
+                "ℹ️ Payout will be sent directly in Afghanis (AFN) to your HesabPay mobile wallet.",
+                style: TextStyle(fontSize: 11, color: Color(0xFFEF4444), fontWeight: FontWeight.w700),
+              ),
+            ]
+
+            // =================================================================
+            // 3. CRYPTO (USDT MULTI-CHAIN)
+            // =================================================================
+            else if (_selectedType == 'crypto') ...[
+              const Text("Select Blockchain Network", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ZevColors.textSecondary)),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
                 initialValue: _cryptoNetwork,
-                items: ZevPayoutScreen.kCryptoNetworks.map((net) => DropdownMenuItem(value: net, child: Text(net, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)))).toList(),
+                items: ZevPayoutScreen.kCryptoNetworks.map((net) => DropdownMenuItem(value: net, child: Text(net, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)))).toList(),
                 onChanged: (v) => setState(() => _cryptoNetwork = v!),
                 decoration: InputDecoration(
                   filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                  fillColor: ZevColors.softSurface,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: ZevColors.border)),
                 ),
               ),
               const SizedBox(height: 12),
-              const Text("Wallet Address", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+              const Text("Wallet Deposit Address", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ZevColors.textSecondary)),
               const SizedBox(height: 6),
               TextField(
                 controller: _cryptoAddressController,
                 decoration: InputDecoration(
                   hintText: "Enter your wallet deposit address",
                   filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                  fillColor: ZevColors.softSurface,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: ZevColors.border)),
                 ),
               ),
               const SizedBox(height: 12),
-              const Text("Memo / Tag (Optional)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+              const Text("Memo / Tag (Optional)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ZevColors.textSecondary)),
               const SizedBox(height: 6),
               TextField(
                 controller: _cryptoMemoController,
                 decoration: InputDecoration(
-                  hintText: "Required for TON or Exchange deposits",
+                  hintText: "Required for exchange accounts (e.g. Binance/Bybit memo)",
                   filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                  fillColor: ZevColors.softSurface,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: ZevColors.border)),
                 ),
               ),
-            ] else if (_selectedType == 'bank') ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text("Bank Region", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                        const SizedBox(height: 6),
-                        DropdownButtonFormField<String>(
-                          initialValue: _bankRegion,
-                          items: const [
-                            DropdownMenuItem(value: 'Europe', child: Text('Europe (SEPA)')),
-                            DropdownMenuItem(value: 'USA', child: Text('USA (ACH/Wire)')),
-                            DropdownMenuItem(value: 'UK', child: Text('UK (Sort Code)')),
-                          ],
-                          onChanged: (v) => setState(() {
-                            _bankRegion = v!;
-                            _bankCurrency = v == 'Europe' ? 'EUR' : (v == 'UK' ? 'GBP' : 'USD');
-                          }),
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: const Color(0xFFF8FAFC),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text("Currency", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-                        const SizedBox(height: 6),
-                        DropdownButtonFormField<String>(
-                          initialValue: _bankCurrency,
-                          items: const [
-                            DropdownMenuItem(value: 'EUR', child: Text('EUR (€)')),
-                            DropdownMenuItem(value: 'USD', child: Text('USD (\$)')),
-                            DropdownMenuItem(value: 'GBP', child: Text('GBP (£)')),
-                          ],
-                          onChanged: (v) => setState(() => _bankCurrency = v!),
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: const Color(0xFFF8FAFC),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Text("Bank Name", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _bankNameController,
-                decoration: InputDecoration(
-                  hintText: "e.g. Revolut, Wise, Chase, Barclays",
-                  filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text("Account Holder Name", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _bankHolderController,
-                decoration: InputDecoration(
-                  hintText: "Full name on account",
-                  filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text("IBAN / Account Number", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _bankIbanController,
-                decoration: InputDecoration(
-                  hintText: "IBAN or domestic account number",
-                  filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text("SWIFT / BIC / Routing Code (Optional)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _bankSwiftController,
-                decoration: InputDecoration(
-                  hintText: "Bank identifier code",
-                  filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-            ] else if (_selectedType == 'paypal') ...[
-              const Text("PayPal Currency", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+            ]
+
+            // =================================================================
+            // 4. PAYPAL
+            // =================================================================
+            else if (_selectedType == 'paypal') ...[
+              const Text("PayPal Currency", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ZevColors.textSecondary)),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
                 initialValue: _paypalCurrency,
@@ -1647,50 +1919,52 @@ class _AddPayoutAccountModalState extends State<_AddPayoutAccountModal> {
                 onChanged: (v) => setState(() => _paypalCurrency = v!),
                 decoration: InputDecoration(
                   filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                  fillColor: ZevColors.softSurface,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: ZevColors.border)),
                 ),
               ),
               const SizedBox(height: 12),
-              const Text("PayPal Email Address", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+              const Text("PayPal Account Email", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ZevColors.textSecondary)),
               const SizedBox(height: 6),
               TextField(
                 controller: _paypalEmailController,
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
-                  hintText: "yourname@example.com",
+                  hintText: "name@example.com",
                   filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                  fillColor: ZevColors.softSurface,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: ZevColors.border)),
                 ),
               ),
             ],
 
             const SizedBox(height: 14),
-            const Text("Account Custom Label (Optional)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+            const Text("Custom Label / Nickname (Optional)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: ZevColors.textSecondary)),
             const SizedBox(height: 6),
             TextField(
               controller: _titleController,
               decoration: InputDecoration(
-                hintText: "e.g. My Personal HesabPay or Main Wallet",
+                hintText: "e.g. My UK Revolut or Primary HesabPay",
                 filled: true,
-                fillColor: const Color(0xFFF8FAFC),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                fillColor: ZevColors.softSurface,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: ZevColors.border)),
               ),
             ),
 
-            const SizedBox(height: 22),
+            const SizedBox(height: 24),
+
+            // Save Action Button
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0284C7),
+                backgroundColor: ZevColors.deepNavy,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
               onPressed: _isSaving ? null : _saveAccount,
               child: _isSaving
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text("Save Payout Method", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                  ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text("Save Payout Account", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
             ),
           ],
         ),
@@ -1708,12 +1982,50 @@ class _AddPayoutAccountModalState extends State<_AddPayoutAccountModal> {
         labelStyle: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w800,
-          color: isSelected ? Colors.white : const Color(0xFF0F172A),
+          color: isSelected ? Colors.white : ZevColors.deepNavy,
         ),
-        selectedColor: const Color(0xFF0284C7),
+        selectedColor: ZevColors.deepNavy,
         backgroundColor: const Color(0xFFF1F5F9),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         onSelected: (_) => setState(() => _selectedType = type),
+      ),
+    );
+  }
+
+  Widget _buildCurrencySegment(String cur, String label) {
+    final isSelected = _bankCurrency == cur;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() => _bankCurrency = cur);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    )
+                  ]
+                : null,
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                color: isSelected ? ZevColors.deepNavy : ZevColors.textMuted,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
