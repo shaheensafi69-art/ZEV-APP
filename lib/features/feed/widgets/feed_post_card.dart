@@ -23,6 +23,7 @@ import '../models/feed_post_item.dart';
 import '../screens/fullscreen_media_viewer.dart';
 import 'feed_comments_sheet.dart';
 import 'feed_share_sheet.dart';
+import 'post_tip_sheet.dart';
 
 /// Light Clearmorphic Post Card for ZEV Feed.
 class FeedPostCard extends StatefulWidget {
@@ -1581,6 +1582,25 @@ class _FeedPostCardState extends State<FeedPostCard>
                       iconColor: ZevColors.deepNavy,
                       count: null,
                       onTap: _openShareSheet,
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Tip Coins
+                    _buildMetricAction(
+                      icon: Icons.stars_rounded,
+                      iconColor: const Color(0xFFEAB308),
+                      count: null,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        PostTipSheet.open(
+                          context,
+                          authorId: _post.authorId,
+                          authorUsername: _post.authorUsername,
+                          authorFullName: _post.authorFullName,
+                          authorAvatar: _post.authorAvatar,
+                          postId: _post.id,
+                        );
+                      },
                     ),
                   ],
                 ),

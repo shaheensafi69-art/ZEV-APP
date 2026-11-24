@@ -53,6 +53,7 @@ dependencies:
   image: ^4.3.0
   agora_rtc_engine: ^6.6.4
   google_sign_in: 6.2.2
+  mobile_scanner: ^7.5.0
 
 dev_dependencies:
   flutter_test:

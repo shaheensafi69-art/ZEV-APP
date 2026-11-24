@@ -10,6 +10,7 @@ import '../../../core/services/cloudflare_storage_service.dart';
 import '../../profile/screens/profile_screen.dart';
 import 'community_post_detail_screen.dart';
 import 'create_community_post_screen.dart';
+import '../widgets/community_join_requests_sheet.dart';
 
 class CommunityDetailScreen extends StatefulWidget {
   final String communityId;
@@ -1090,6 +1091,56 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
                       _buildStatChip(Icons.people_alt_rounded, "$members Members"),
                       const SizedBox(width: 8),
                       _buildStatChip(Icons.forum_rounded, "$posts Posts"),
+                      if (_isCreator || _userRole == 'admin') ...[
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () {
+                            CommunityJoinRequestsSheet.show(
+                              context,
+                              communityId: widget.communityId,
+                              communityName: _community?['name'] ?? 'Community',
+                              onUpdated: () {
+                                _loadCommunityData();
+                                _loadMembers();
+                              },
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0284C7)
+                                  .withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFF0284C7)
+                                    .withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.person_add_rounded,
+                                  color: Color(0xFF0284C7),
+                                  size: 14,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Requests',
+                                  style: TextStyle(
+                                    color: Color(0xFF0284C7),
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                       const Spacer(),
                       ElevatedButton.icon(
                         onPressed: _isCreator ? null : _toggleMembership,
@@ -1219,10 +1270,123 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
       );
     }
 
-    return ListView.builder(
+    final pinned = items.where((p) => p['is_pinned'] == true).toList();
+
+    return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      itemCount: items.length,
-      itemBuilder: (ctx, idx) => _buildPostCard(items[idx]),
+      children: [
+        if (pinned.isNotEmpty) ...[
+          _buildPinnedAnnouncementBanner(pinned.first),
+          const SizedBox(height: 12),
+        ],
+        ...items.map((p) => _buildPostCard(p)),
+      ],
+    );
+  }
+
+  Widget _buildPinnedAnnouncementBanner(Map<String, dynamic> post) {
+    final prof = post['profiles'] as Map<String, dynamic>? ?? {};
+    final authorName = prof['full_name'] ?? prof['username'] ?? 'Admin';
+    final title = post['title'] ?? 'Community Announcement';
+    final content = post['content'] ?? '';
+
+    return GestureDetector(
+      onTap: () => CommunityPostDetailScreen.open(
+        context,
+        postId: post['id'],
+        initialPost: post,
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFEFF6FF), Colors.white],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: const Color(0xFF38BDF8).withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0284C7).withValues(alpha: 0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0284C7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.push_pin_rounded,
+                        color: Colors.white,
+                        size: 12,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'PINNED ANNOUNCEMENT',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'by @$authorName',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            if (content.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                content,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  color: Color(0xFF475569),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 

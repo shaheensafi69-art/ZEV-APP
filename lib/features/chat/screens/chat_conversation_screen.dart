@@ -24,11 +24,15 @@ import '../models/direct_message_model.dart';
 import '../services/chat_cache_service.dart';
 import '../services/chat_service.dart';
 import '../widgets/chat_modals.dart';
+import '../widgets/video_note_bubble.dart';
+import '../widgets/view_once_bubble.dart';
 
 /// Light Clearmorphic Direct & Group Chat Conversation Screen for ZEV.
 class ChatConversationScreen extends StatefulWidget {
   final String conversationId;
   final bool isGroup;
+  final bool isChannel;
+  final bool isChannelAdmin;
   final String groupTitle;
   final String groupAvatar;
   final String peerId;
@@ -43,6 +47,8 @@ class ChatConversationScreen extends StatefulWidget {
     super.key,
     this.conversationId = '',
     this.isGroup = false,
+    this.isChannel = false,
+    this.isChannelAdmin = false,
     this.groupTitle = '',
     this.groupAvatar = '',
     this.peerId = '',
@@ -58,6 +64,8 @@ class ChatConversationScreen extends StatefulWidget {
     BuildContext context, {
     String conversationId = '',
     bool isGroup = false,
+    bool isChannel = false,
+    bool isChannelAdmin = false,
     String groupTitle = '',
     String groupAvatar = '',
     String peerId = '',
@@ -134,6 +142,8 @@ class ChatConversationScreen extends StatefulWidget {
         builder: (_) => ChatConversationScreen(
           conversationId: resolvedConvId,
           isGroup: resolvedGroup,
+          isChannel: isChannel,
+          isChannelAdmin: isChannelAdmin,
           groupTitle: resolvedGroupTitle,
           groupAvatar: resolvedGroupAvatar,
           peerId: resolvedPeerId,
@@ -159,6 +169,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
 
   final AudioRecorder _audioRecorder = AudioRecorder();
   bool _isRecording = false;
+  bool _isVideoNoteMode = false;
+  bool _isMuted = false;
   Duration _recordingDuration = Duration.zero;
   Timer? _recordingTimer;
 
@@ -1059,6 +1071,53 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     }
   }
 
+  Future<void> _recordVideoNote() async {
+    HapticFeedback.mediumImpact();
+    try {
+      final XFile? picked = await _imagePicker.pickVideo(
+        source: ImageSource.camera,
+        maxDuration: const Duration(seconds: 60),
+        preferredCameraDevice: CameraDevice.front,
+      );
+      if (picked == null) return;
+      final file = File(picked.path);
+      final size = await file.length();
+      await _sendAttachmentOrText(
+        messageType: 'video_note',
+        attachmentType: 'video_note',
+        fileName: 'videonote_${DateTime.now().millisecondsSinceEpoch}.mp4',
+        fileSize: size,
+        mimeType: 'video/mp4',
+        localFilePath: picked.path,
+      );
+    } catch (e) {
+      debugPrint('[ChatConversationScreen] Video note record error: $e');
+    }
+  }
+
+  Future<void> _pickAndSendViewOnce() async {
+    HapticFeedback.lightImpact();
+    try {
+      final XFile? picked = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 82,
+      );
+      if (picked == null) return;
+      final file = File(picked.path);
+      final size = await file.length();
+      await _sendAttachmentOrText(
+        messageType: 'image',
+        attachmentType: 'view_once',
+        fileName: 'view_once_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        fileSize: size,
+        mimeType: 'image/jpeg',
+        localFilePath: picked.path,
+      );
+    } catch (e) {
+      debugPrint('[ChatConversationScreen] View once pick error: $e');
+    }
+  }
+
   Future<void> _startVoiceRecording() async {
     try {
       final hasPermission = await _audioRecorder.hasPermission();
@@ -1280,6 +1339,42 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 onTap: () {
                   Navigator.pop(ctx);
                   _pickAndSendVideo();
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.radio_button_checked_rounded,
+                  color: Color(0xFF0284C7),
+                ),
+                title: const Text(
+                  'Round Video Note (Circle)',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                subtitle: const Text(
+                  'Quick 60s circular front-camera video',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _recordVideoNote();
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.looks_one_rounded,
+                  color: Color(0xFF06B6D4),
+                ),
+                title: const Text(
+                  'View-Once Photo',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                subtitle: const Text(
+                  'Self-destructing photo with single-view timer',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndSendViewOnce();
                 },
               ),
               ListTile(
@@ -1683,6 +1778,8 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           if (_editingMessage != null) _buildReplyOrEditBanner(isEdit: true),
           if (!_canMessage)
             _buildBlockedOrRestrictedFooter()
+          else if (widget.isChannel && !widget.isChannelAdmin)
+            _buildBroadcastChannelFooter()
           else
             _isRecording
                 ? _buildRecordingInputBar()
@@ -2229,6 +2326,88 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
   }
 
+  Widget _buildBroadcastChannelFooter() {
+    return SafeArea(
+      top: false,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            top: BorderSide(color: ZevColors.border),
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.campaign_rounded,
+              color: ZevColors.secondaryBlue,
+              size: 22,
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Broadcast Channel • Only administrators can post',
+                style: TextStyle(
+                  color: ZevColors.textSecondary,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _isMuted = !_isMuted);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      _isMuted
+                          ? 'Notifications muted for this channel'
+                          : 'Notifications enabled for this channel',
+                    ),
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: ZevColors.softSurface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: ZevColors.border),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _isMuted
+                          ? Icons.notifications_off_rounded
+                          : Icons.notifications_active_rounded,
+                      size: 15,
+                      color: _isMuted ? ZevColors.textMuted : ZevColors.primaryBlue,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _isMuted ? 'Muted' : 'Mute',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: _isMuted ? ZevColors.textMuted : ZevColors.primaryBlue,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   bool _isSameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 
@@ -2696,7 +2875,20 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                           ),
                         )
                       else ...[
-                        if (type == 'image' &&
+                        if (msg.attachmentType == 'view_once') ...[
+                          ViewOnceMessageCard(
+                            message: msg,
+                            isMine: isMine,
+                          ),
+                        ] else if (type == 'video_note' &&
+                            ((msg.attachmentUrl ?? '').isNotEmpty ||
+                                (msg.localFilePath ?? '').isNotEmpty)) ...[
+                          VideoNoteBubblePlayer(
+                            videoUrl: msg.attachmentUrl ?? '',
+                            localFilePath: msg.localFilePath,
+                            isMine: isMine,
+                          ),
+                        ] else if (type == 'image' &&
                             (msg.attachmentUrl ?? '').isNotEmpty) ...[
                           GestureDetector(
                             onTap: () =>
@@ -3212,25 +3404,54 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
               )
             else
               GestureDetector(
-                onLongPressStart: (_) => _startVoiceRecording(),
+                onLongPressStart: (_) {
+                  if (_isVideoNoteMode) {
+                    _recordVideoNote();
+                  } else {
+                    _startVoiceRecording();
+                  }
+                },
                 onLongPressMoveUpdate: (details) {
-                  if (details.offsetFromOrigin.dx < -70) {
+                  if (!_isVideoNoteMode && details.offsetFromOrigin.dx < -70) {
                     _cancelVoiceRecording();
                   }
                 },
-                onLongPressEnd: (_) => _stopAndSendVoiceRecording(),
-                onTap: _startVoiceRecording,
-                child: Container(
+                onLongPressEnd: (_) {
+                  if (!_isVideoNoteMode) {
+                    _stopAndSendVoiceRecording();
+                  }
+                },
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    _isVideoNoteMode = !_isVideoNoteMode;
+                  });
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: ZevColors.softSurface,
+                    gradient: _isVideoNoteMode ? ZevColors.brandGradient : null,
+                    color: _isVideoNoteMode ? null : ZevColors.softSurface,
                     shape: BoxShape.circle,
-                    border: Border.all(color: ZevColors.border, width: 1.5),
+                    border: Border.all(
+                      color: _isVideoNoteMode ? Colors.transparent : ZevColors.border,
+                      width: 1.5,
+                    ),
+                    boxShadow: _isVideoNoteMode
+                        ? [
+                            BoxShadow(
+                              color: const Color(0xFF0284C7).withValues(alpha: 0.35),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
                   ),
-                  child: const Icon(
-                    Icons.mic_rounded,
-                    color: ZevColors.deepNavy,
+                  child: Icon(
+                    _isVideoNoteMode ? Icons.videocam_rounded : Icons.mic_rounded,
+                    color: _isVideoNoteMode ? Colors.white : ZevColors.deepNavy,
                     size: 21,
                   ),
                 ),

@@ -16,6 +16,7 @@ import '../../../core/widgets/zev_cached_image.dart';
 import '../../../core/widgets/zev_video_thumbnail.dart';
 import '../../feed/models/feed_post_item.dart';
 import '../../feed/widgets/feed_share_sheet.dart';
+import '../../feed/widgets/post_tip_sheet.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../models/reel_item.dart';
 import '../services/reel_video_cache_manager.dart';
@@ -1425,6 +1426,27 @@ class _ReelPlayerItemState extends State<ReelPlayerItem>
                   label: "Share",
                   onTap: _openShareSheet,
                   iconSize: isCompact ? 23 : 25,
+                  isCompact: isCompact,
+                ),
+                SizedBox(height: isCompact ? 8 : 11),
+
+                _buildActionColumnItem(
+                  icon: Icons.stars_rounded,
+                  iconColor: const Color(0xFFEAB308),
+                  count: null,
+                  label: "Tip",
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    PostTipSheet.open(
+                      context,
+                      authorId: widget.reel.userId,
+                      authorUsername: widget.reel.authorUsername,
+                      authorFullName: widget.reel.authorFullName,
+                      authorAvatar: widget.reel.authorAvatar,
+                      reelId: widget.reel.id,
+                    );
+                  },
+                  iconSize: isCompact ? 24 : 26,
                   isCompact: isCompact,
                 ),
                 SizedBox(height: isCompact ? 8 : 11),

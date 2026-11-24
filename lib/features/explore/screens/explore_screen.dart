@@ -22,6 +22,7 @@ import '../../profile/screens/profile_screen.dart';
 import '../../reels/models/reel_item.dart';
 import '../../reels/widgets/reel_player_item.dart';
 import '../../communities/screens/community_detail_screen.dart';
+import 'leaderboard_screen.dart';
 
 /// Unified Explore Item representation combining Posts and Reels for ZEV Explore.
 class ExploreGridItem {
@@ -1057,6 +1058,34 @@ class _ExploreScreenState extends State<ExploreScreen> {
               ),
             ),
           ] else ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                LeaderboardScreen.open(context);
+              },
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.white, width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                      blurRadius: 12,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.emoji_events_rounded,
+                  color: Color(0xFFEAB308),
+                  size: 22,
+                ),
+              ),
+            ),
             const SizedBox(width: 8),
             GestureDetector(
               onTap: () {

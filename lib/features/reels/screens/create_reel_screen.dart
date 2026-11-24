@@ -15,6 +15,7 @@ import '../../profile/screens/account_restriction_screen.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
 import '../models/reel_item.dart';
+import '../widgets/audio_picker_sheet.dart';
 import '../widgets/reel_player_item.dart';
 
 /// Flagship Instagram/TikTok-Grade Reel Creation Studio for ZEV.
@@ -1068,6 +1069,46 @@ class _CreateReelScreenState extends State<CreateReelScreen> {
                       ),
                       border: InputBorder.none,
                       isDense: true,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () async {
+                    HapticFeedback.lightImpact();
+                    final picked = await AudioPickerSheet.show(context);
+                    if (picked != null) {
+                      setState(() {
+                        _audioCtrl.text = '${picked.title} • ${picked.artist}';
+                      });
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: ZevColors.brandGradient,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.library_music_rounded,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          'Trending',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

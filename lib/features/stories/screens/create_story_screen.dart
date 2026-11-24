@@ -13,6 +13,7 @@ import '../../profile/screens/account_restriction_screen.dart';
 import '../../../core/theme/zev_theme.dart';
 import '../../../core/utils/text_direction_helper.dart';
 import '../widgets/close_friends_sheet.dart';
+import '../widgets/story_stickers_sheet.dart';
 import '../widgets/video_trimmer_sheet.dart';
 
 /// Flagship Instagram-Grade Story Creation Studio for ZEV.
@@ -80,6 +81,10 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
   bool _isEditingText = false;
   int _textStyleIndex = 0; // 0: Dark pill, 1: Cyan neon, 2: Bold white shadow
   Offset _textPosition = const Offset(0.0, 0.0);
+
+  // Story Sticker state
+  StoryStickerData? _activeSticker;
+  Offset _stickerPosition = const Offset(0.0, 0.0);
 
   // Filter tints
   int _activeFilterIndex = 0;
@@ -595,7 +600,69 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                                 ),
                               ),
                             ),
+                            const SizedBox(width: 8),
+
+                            // Interactive Sticker Button
+                            GestureDetector(
+                              onTap: () async {
+                                HapticFeedback.lightImpact();
+                                final sticker =
+                                    await StoryStickersSheet.show(context);
+                                if (sticker != null) {
+                                  setState(() {
+                                    _activeSticker = sticker;
+                                  });
+                                }
+                              },
+                              child: Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: _activeSticker != null
+                                      ? const Color(0xFF0284C7)
+                                      : const Color(0xFFF1F5F9),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: _activeSticker != null
+                                        ? const Color(0xFF0284C7)
+                                        : Colors.white,
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF0F172A)
+                                          .withValues(alpha: 0.05),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Center(
+                                  child: Icon(
+                                    Icons.sticky_note_2_rounded,
+                                    color: _activeSticker != null
+                                        ? Colors.white
+                                        : ZevColors.deepNavy,
+                                    size: 19,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ],
+                        ),
+                      ),
+
+                    // Sticker on Live Preview
+                    if (_activeSticker != null)
+                      Positioned(
+                        top: 140 + _stickerPosition.dy,
+                        left: 20,
+                        right: 20,
+                        child: Center(
+                          child: InteractiveStorySticker(
+                            sticker: _activeSticker!,
+                            isInteractive: true,
+                          ),
                         ),
                       ),
                   ],
@@ -761,6 +828,27 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                                   height: 1.35,
                                 ),
                               ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                    // Interactive Sticker Overlay on canvas
+                    if (_activeSticker != null)
+                      Positioned(
+                        top: 140 + _stickerPosition.dy,
+                        left: 20,
+                        right: 20,
+                        child: GestureDetector(
+                          onPanUpdate: (details) {
+                            setState(() {
+                              _stickerPosition += Offset(0, details.delta.dy);
+                            });
+                          },
+                          child: Center(
+                            child: InteractiveStorySticker(
+                              sticker: _activeSticker!,
+                              isInteractive: false,
                             ),
                           ),
                         ),
@@ -1589,6 +1677,20 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
                                 color: _getTextColor(),
                               ),
                             ),
+                          ),
+                        ),
+                      ),
+
+                    // Sticker on Live Preview
+                    if (_activeSticker != null)
+                      Positioned(
+                        top: 140 + _stickerPosition.dy,
+                        left: 20,
+                        right: 20,
+                        child: Center(
+                          child: InteractiveStorySticker(
+                            sticker: _activeSticker!,
+                            isInteractive: true,
                           ),
                         ),
                       ),
