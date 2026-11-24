@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class ZevCountry {
   final String name;
@@ -13,10 +13,12 @@ class ZevCountry {
     required this.dial,
   });
 
-  String get flagUrl => 'https://flagcdn.com/w80/${code.toLowerCase()}.png';
+  String get flagAsset => 'assets/flags/${code.toLowerCase()}.svg';
 
   static Widget buildCircularFlag(String countryCode, {double size = 28}) {
     final cleanCode = countryCode.trim().toLowerCase();
+    final assetPath = 'assets/flags/$cleanCode.svg';
+
     return Container(
       width: size,
       height: size,
@@ -33,16 +35,18 @@ class ZevCountry {
         ],
       ),
       child: ClipOval(
-        child: CachedNetworkImage(
-          imageUrl: 'https://flagcdn.com/w80/$cleanCode.png',
+        child: SvgPicture.asset(
+          assetPath,
           width: size,
           height: size,
           fit: BoxFit.cover,
-          placeholder: (context, url) => Container(color: const Color(0xFFE2E8F0)),
-          errorWidget: (context, url, error) => const Icon(
-            Icons.public_rounded,
-            size: 16,
-            color: Color(0xFF0284C7),
+          placeholderBuilder: (context) => Container(
+            color: const Color(0xFFE2E8F0),
+            child: const Icon(
+              Icons.public_rounded,
+              size: 16,
+              color: Color(0xFF0284C7),
+            ),
           ),
         ),
       ),

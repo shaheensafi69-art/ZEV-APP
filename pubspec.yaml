@@ -54,6 +54,7 @@ dependencies:
   agora_rtc_engine: ^6.6.4
   google_sign_in: 6.2.2
   mobile_scanner: ^7.5.0
+  flutter_svg: ^2.5.0
 
 dev_dependencies:
   flutter_test:
@@ -66,6 +67,7 @@ flutter:
 
   assets:
     - assets/
+    - assets/flags/
     - assets/icon/
     - assets/audio/
 
